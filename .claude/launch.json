@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Next.js dev (kiosk + admin)",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "runtimeArgs": ["node_modules\\next\\dist\\bin\\next", "dev"],
+      "port": 3000,
+      "autoPort": true
+    },
+    {
+      "name": "Next.js production",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["start"],
+      "port": 3000
+    }
+  ]
+}

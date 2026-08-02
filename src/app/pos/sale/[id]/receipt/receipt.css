@@ -1,0 +1,145 @@
+/* Letter paper. The shop prints on a normal office printer, so this is laid
+   out as a half-page document rather than the 80mm monospace strip a thermal
+   roll wants. */
+
+.receipt-page {
+  background: #f4f6fa;
+  min-height: 100vh;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.receipt {
+  background: #fff;
+  width: 170mm;
+  max-width: 100%;
+  padding: 16mm 18mm;
+  box-shadow: 0 2px 12px rgba(10, 37, 64, 0.12);
+  font-family: ui-sans-serif, system-ui, "Segoe UI", Arial, sans-serif;
+  font-size: 12pt;
+  line-height: 1.5;
+  color: #111;
+}
+
+.receipt-head {
+  text-align: center;
+  border-bottom: 2px solid #0a2540;
+  padding-bottom: 10px;
+  margin-bottom: 14px;
+}
+
+.receipt-shop {
+  font-size: 20pt;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #0a2540;
+}
+
+.receipt-meta {
+  font-size: 10pt;
+  color: #444;
+  margin-top: 2px;
+}
+
+.receipt-void {
+  margin-top: 8px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  border: 2px solid #b00;
+  color: #b00;
+  padding: 4px;
+}
+
+.receipt-block {
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+  font-size: 11pt;
+}
+
+.receipt-items,
+.receipt-totals {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.receipt-items td {
+  vertical-align: top;
+  padding: 5px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.receipt-items .qty {
+  width: 40px;
+  color: #555;
+}
+
+.receipt-items .desc {
+  word-break: break-word;
+}
+
+/* Totals sit in a right-hand column the way an invoice does, rather than
+   spanning the full page width. */
+.receipt-totals {
+  width: 80mm;
+  margin-left: auto;
+  margin-top: 12px;
+}
+
+.receipt-totals td {
+  padding: 3px 0;
+}
+
+.amt {
+  text-align: right;
+  white-space: nowrap;
+  padding-left: 12px;
+}
+
+.receipt-totals .grand td {
+  font-weight: 700;
+  font-size: 14pt;
+  border-top: 2px solid #0a2540;
+  padding-top: 6px;
+}
+
+.receipt-totals .tax td {
+  color: #555;
+  font-size: 10pt;
+}
+
+.receipt-foot {
+  margin-top: 22px;
+  padding-top: 10px;
+  border-top: 1px solid #ddd;
+  text-align: center;
+  font-size: 10pt;
+  color: #444;
+}
+
+@media print {
+  .receipt-page {
+    background: #fff;
+    padding: 0;
+    display: block;
+    min-height: 0;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .receipt {
+    width: auto;
+    box-shadow: none;
+    padding: 0;
+  }
+
+  @page {
+    size: letter;
+    margin: 18mm;
+  }
+}

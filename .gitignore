@@ -1,0 +1,46 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.*
+
+# next.js
+.next/
+out/
+
+# production
+build/
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# env
+.env
+.env.local
+.env.*.local
+
+# data (runtime) — the whole directory, not just the top-level db files.
+# Backups live under here too and carry PIN hashes, so none of it ships.
+data/
+
+# uploads (runtime)
+uploads/
+
+# TLS material. key.pem is a private key, and mkcert regenerates both locally,
+# so there is nothing to gain by committing them and a lot to lose.
+certs/
+
+# Vendored 5 MB binary, not source.
+mkcert.exe
+
+# Per-machine Claude Code tool permissions. launch.json IS committed -- it
+# describes how to run the project -- but this one is just local scratch.
+.claude/settings.local.json
+
+# logs
+npm-debug.log*
+*.log
+
+# misc
+.DS_Store
+Thumbs.db

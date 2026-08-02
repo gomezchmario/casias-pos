@@ -1,0 +1,66 @@
+/* The close-out sheet. Screen is a normal POS page; print is a letter-size
+   document somebody signs and files, so the shell, the inputs and the buttons
+   all drop away and what is left is the numbers. */
+
+.print-only {
+  display: none;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block;
+  }
+
+  /* The POS chrome is navigation, not part of the document. */
+  header,
+  nav {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  .eod {
+    max-width: none;
+    color: #111;
+    font-size: 11pt;
+  }
+
+  /* Cards on screen, plain ruled blocks on paper -- shadows and rounded
+     corners cost toner and buy nothing. */
+  .eod-section {
+    box-shadow: none;
+    border: none;
+    border-bottom: 1px solid #ccc;
+    border-radius: 0;
+    padding: 0 0 8px;
+    margin-bottom: 12px;
+    break-inside: avoid;
+  }
+
+  .eod-table {
+    border-collapse: collapse;
+  }
+
+  .eod-table td,
+  .eod-table th {
+    padding: 3px 0;
+  }
+
+  /* Keep the variance readable in black and white: colour alone does not
+     survive a mono laser printer. */
+  .eod-table tfoot tr {
+    border-top: 2px solid #111 !important;
+    font-weight: 700;
+  }
+
+  @page {
+    size: letter;
+    margin: 16mm;
+  }
+}

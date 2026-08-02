@@ -1,0 +1,36 @@
+{
+  "name": "casias-tire-shop-timeclock",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PIN-based employee time clock with photo verification for Casias Tire Shop",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "node server.mjs",
+    "start:http": "next start",
+    "setup": "node scripts/setup.mjs",
+    "purge-photos": "node scripts/purge-photos.mjs"
+  },
+  "dependencies": {
+    "next": "^15.1.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "better-sqlite3": "^12.2.0",
+    "bcryptjs": "^2.4.3",
+    "iron-session": "^8.0.4",
+    "exceljs": "^4.4.0",
+    "date-fns": "^4.1.0",
+    "clsx": "^2.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/react": "^19.0.4",
+    "@types/react-dom": "^19.0.2",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/bcryptjs": "^2.4.6",
+    "typescript": "^5.7.3",
+    "tailwindcss": "^4.0.0",
+    "@tailwindcss/postcss": "^4.0.0",
+    "postcss": "^8.5.0"
+  }
+}
