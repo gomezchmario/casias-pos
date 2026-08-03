@@ -300,6 +300,17 @@ function CapabilityMatrix() {
             {ROLE_SUMMARY[r]}
           </div>
         ))}
+        {/*
+          The one row above that a setting can move. Noted here rather than left
+          implicit, because a screen that says "Cashier ✓" while the register
+          says otherwise is worse than no screen.
+        */}
+        <p className="mt-3 text-xs text-brand-300">
+          "Sell stock the system says is gone" also depends on the{" "}
+          <em>Allow overselling</em> shop setting. While it is on, a cashier can
+          do it and the sale is flagged for review; switch it off and it becomes
+          a manager's decision.
+        </p>
       </footer>
     </section>
   );

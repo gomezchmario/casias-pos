@@ -5,6 +5,7 @@ import { currentBusinessDate } from "./business-date";
 import { nowLocalIso } from "./time";
 import { getSetting } from "./settings";
 import { diffRows, logActorAudit, type Actor } from "./audit";
+import { applySaleMovements } from "./inventory";
 import { can } from "./roles";
 import type { PosUser } from "./pos-session";
 
@@ -403,6 +404,11 @@ export function voidItem(user: PosUser, itemId: number, reason: string): Result 
 /**
  * Freeze the ticket. After this the customer owes a specific number, and only
  * the payment ledger may move it.
+ *
+ * Stock moves here too, in the same transaction. Deliberately not left to the
+ * caller: a route that completed a sale and forgot to decrement inventory would
+ * be indistinguishable from a working one until the counts drifted far enough
+ * to notice, which is exactly the failure the spreadsheet already had.
  */
 export function completeSale(user: PosUser, saleId: number): Result<{ sale: Sale }> {
   const sale = getSale(saleId);
@@ -414,38 +420,55 @@ export function completeSale(user: PosUser, saleId: number): Result<{ sale: Sale
   if (items.length === 0)
     return { ok: false, error: "Add at least one line before completing" };
 
-  return inTx(() => {
-    const db = getDb();
-    recalcSubtotal(saleId);
-    const now = nowLocalIso();
-    db.prepare(
-      "UPDATE sales SET status = 'completed', completed_at = ?, tax_rate_bp = ?, updated_at = ? WHERE id = ?",
-    ).run(
-      now,
-      // Buying a used tire off a walk-in is not a taxable retail sale, so a
-      // purchase carries no rate rather than a misleading 0.
-      sale.kind === "purchase" ? null : Number(getSetting("tax_rate_bp")),
-      now,
-      saleId,
-    );
-    recalcMoney(saleId);
+  try {
+    return inTx(() => {
+      const db = getDb();
+      recalcSubtotal(saleId);
+      const now = nowLocalIso();
+      db.prepare(
+        "UPDATE sales SET status = 'completed', completed_at = ?, tax_rate_bp = ?, updated_at = ? WHERE id = ?",
+      ).run(
+        now,
+        // Buying a used tire off a walk-in is not a taxable retail sale, so a
+        // purchase carries no rate rather than a misleading 0.
+        sale.kind === "purchase" ? null : Number(getSetting("tax_rate_bp")),
+        now,
+        saleId,
+      );
+      recalcMoney(saleId);
 
-    const after = getSale(saleId)!;
-    logActorAudit(actorOf(user), {
-      action: "sale.complete",
-      targetType: "sale",
-      targetId: saleId,
-      details: {
-        sale_no: after.sale_no,
-        subtotal_cents: after.subtotal_cents,
-        total_cents: after.total_cents,
-        paid_cents: after.paid_cents,
-        balance_cents: after.balance_cents,
-      },
+      // Buying stock over the counter puts tires IN; that is booked by the
+      // purchase flow against a real lot with a real cost, not here.
+      if (sale.kind !== "purchase") {
+        const stock = applySaleMovements(user, saleId);
+        // A Result is not enough to undo the UPDATE above — better-sqlite3 only
+        // rolls back on a throw. Thrown here, caught below, reported as normal.
+        if (!stock.ok) throw new StockError(stock.error);
+      }
+
+      const after = getSale(saleId)!;
+      logActorAudit(actorOf(user), {
+        action: "sale.complete",
+        targetType: "sale",
+        targetId: saleId,
+        details: {
+          sale_no: after.sale_no,
+          subtotal_cents: after.subtotal_cents,
+          total_cents: after.total_cents,
+          paid_cents: after.paid_cents,
+          balance_cents: after.balance_cents,
+        },
+      });
+      return { ok: true as const, sale: after };
     });
-    return { ok: true as const, sale: after };
-  });
+  } catch (e) {
+    if (e instanceof StockError) return { ok: false, error: e.message };
+    throw e;
+  }
 }
+
+/** Not enough stock, and nobody present may override it. */
+class StockError extends Error {}
 
 /** SEQ is the card terminal's ticket number. Anyone at the register may fix it,
  *  but every change is on the record — that is the whole point of the column. */

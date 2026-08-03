@@ -6,6 +6,7 @@ import { getSetting } from "./settings";
 import { computeTipCommission } from "./money";
 import { logActorAudit, type Actor } from "./audit";
 import { getSale, recalcMoney } from "./sales";
+import { reverseSaleMovements } from "./inventory";
 import { can } from "./roles";
 import { ensureShift } from "./shifts";
 import type { PosUser } from "./pos-session";
@@ -455,6 +456,10 @@ export function voidSale(user: PosUser, saleId: number, reason: string): Result 
     ).run(user.employeeId, now, reason.trim(), now, saleId);
     recalcMoney(saleId);
 
+    // The tires come back on the rack. Mirrored return rows, not deletions --
+    // the sale movements stay as the record that the stock did go out once.
+    const returned = reverseSaleMovements(user, saleId, "void_return", `Void: ${reason.trim()}`);
+
     logActorAudit(actorOf(user), {
       action: "sale.void",
       targetType: "sale",
@@ -463,6 +468,7 @@ export function voidSale(user: PosUser, saleId: number, reason: string): Result 
         sale_no: sale.sale_no,
         reason: reason.trim(),
         reversed_payments: originals.length,
+        returned_movements: returned.ok ? returned.returned : 0,
       },
       before: { status: sale.status, total_cents: sale.total_cents },
       after: { status: "voided" },
