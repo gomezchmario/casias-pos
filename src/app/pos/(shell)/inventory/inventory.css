@@ -1,0 +1,154 @@
+/* The rack sheet. On screen it is a normal POS page; on paper it is a letter
+   document that gets clipped to a board and walked around the racks, so the
+   shell, the search box and every button drop away and what is left is sizes
+   and counts. */
+
+.print-only {
+  display: none;
+}
+
+/* Tire names read as capitals whatever was typed. The imported list is already
+   upper case and anything added by hand at the counter will not be, and a sheet
+   that mixes the two looks like two different lists stapled together. Done in
+   CSS rather than with toUpperCase so the stored name stays exactly as entered
+   -- the display is opinionated, the data is not. */
+.inv-tire-name {
+  text-transform: uppercase;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block;
+  }
+
+  /* POS chrome is navigation, not part of the document. */
+  header,
+  nav {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  /* The POS shell paints its own light-grey page background with an inline
+     style, which an ordinary rule cannot outrank. Anyone who prints with
+     "Background graphics" ticked would otherwise get a grey sheet and a
+     drained toner cartridge, so this is one of the few places !important
+     earns its keep. */
+  body > div,
+  main {
+    background: #fff !important;
+  }
+
+  .inv {
+    max-width: none;
+    color: #111;
+    font-size: 10pt;
+  }
+
+  /* One column. Two columns fit more on a page, but the sheet is walked around
+     the racks and written on, and a narrow column leaves no room to write the
+     counted number beside the printed one. Paper is cheaper than a recount. */
+  .inv-groups {
+    column-count: 1;
+  }
+
+  /* The rim heading has to stay with at least the first size under it. A "17"
+     alone at the foot of a page sends whoever is counting to the wrong rack. */
+  .inv-rim {
+    break-after: avoid;
+    break-inside: avoid;
+    border-bottom: 1.5pt solid #333;
+    margin: 10pt 0 4pt;
+    padding-bottom: 2pt;
+  }
+
+  .inv-rim h2 {
+    font-size: 13pt;
+  }
+
+  .inv-section {
+    break-inside: auto;
+  }
+
+  /* A size and its tires must never be split across a column or page break --
+     a heading stranded at the foot of a column is how a size gets counted
+     twice or missed entirely. */
+  .inv-group {
+    break-inside: avoid;
+    box-shadow: none;
+    border: none;
+    border-bottom: 1px solid #ccc;
+    border-radius: 0;
+    padding: 0 0 5pt;
+    margin: 0 0 7pt;
+  }
+
+  .inv-size {
+    font-size: 11pt;
+  }
+
+  .inv-table td,
+  .inv-table th {
+    padding: 1pt 0;
+  }
+
+  /* Every size is its own table, so with automatic layout each one sizes its
+     columns to its own longest tire name and the prices zig-zag down the page.
+     Fixing the layout turns them into columns you can actually read down. */
+  .inv-table {
+    table-layout: fixed;
+  }
+
+  /* Tires sit indented under their size. That makes the size headings the
+     outline of the sheet, so the eye can drop down them to find a rack without
+     reading any of the tire names on the way. */
+  .inv-c-name {
+    padding-left: 16pt;
+  }
+
+  /* Sized by class rather than by nth-child, so a column rendered for only some
+     people cannot shift the widths of every column after it. */
+  .inv-c-price {
+    width: 58pt;
+  }
+
+  .inv-c-qty {
+    width: 26pt;
+  }
+
+  /* Alternating bands. The row is wide and the count sits far from the tire
+     name, and tracking that gap by eye is exactly where a miscount happens.
+     `print-color-adjust` is not optional here: without it Chrome drops the fill
+     unless whoever prints happens to have "Background graphics" ticked, and
+     nobody is going to remember that. */
+  .inv-table tbody tr:nth-child(odd) {
+    background: #ededed;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Three inches left free after the count, for what gets noticed at the rack:
+     a wrong number, a cracked sidewall, a tire on the wrong shelf. Ruled rather
+     than blank, because a line is what keeps handwriting straight on a
+     clipboard. */
+  .inv-c-note {
+    width: 3in;
+  }
+
+  .inv-count-box {
+    display: inline-block;
+    min-width: 2.8in;
+    border-bottom: 1px solid #666;
+  }
+
+  @page {
+    size: letter;
+    margin: 14mm;
+  }
+}

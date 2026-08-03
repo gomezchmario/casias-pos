@@ -5,6 +5,12 @@ import { currentBusinessDate } from "./business-date";
 import { logActorAudit, diffRows, type Actor } from "./audit";
 import { can } from "./roles";
 import { stockOnHandFor } from "./inventory";
+import {
+  looksSpecialized,
+  normalizeTireSize,
+  rimDiameterOf,
+  SPECIALTY_SECTION,
+} from "./tire-size";
 import type { PosUser } from "./pos-session";
 
 export type ProductKind = "tire" | "part" | "service" | "fee";
@@ -26,6 +32,10 @@ export type Product = {
   track_inventory: number;
   track_lots: number;
   reorder_point: number;
+  /** Eighteen-wheeler, trailer or other specialty stock. See 005_tire_sections.sql. */
+  specialized: number;
+  /** Who we normally buy this from. Per-delivery supplier lives on the lot. */
+  supplier: string | null;
   active: number;
   deleted: number;
 };
@@ -45,30 +55,15 @@ const actorOf = (user: PosUser): Actor => ({
 // Tire sizes
 // ---------------------------------------------------------------------------
 
-/**
- * Put a tire size into one canonical shape.
- *
- * The same tire gets written "195/65R15", "195 65 15", "195-65-r15" and
- * "1956515" by different people on different days. Without this, the rack would
- * hold four separate products for one size and the count on every one of them
- * would be wrong. Anything that does not look like a tire size is passed
- * through uppercased rather than mangled — an odd size is better than a
- * silently wrong one.
- */
-export function normalizeTireSize(raw: string): string {
-  const s = raw.trim().toUpperCase();
-  if (!s) return "";
-
-  // Flotation sizes read differently — 31X10.50R15 — and must not be forced
-  // into the metric shape.
-  const flot = s.match(/^(\d{2})\s*X\s*(\d{1,2}(?:\.\d+)?)\s*R?\s*(\d{2})$/);
-  if (flot) return `${flot[1]}X${flot[2]}R${flot[3]}`;
-
-  const m = s.match(/^([A-Z]{0,3})\s*(\d{3})\s*[\/\-\s]?\s*(\d{2})\s*[\/\-\s]?\s*R?\s*[\/\-\s]?\s*(\d{2})$/);
-  if (m) return `${m[1]}${m[2]}/${m[3]}R${m[4]}`;
-
-  return s.replace(/\s+/g, " ");
-}
+// Parsing lives in ./tire-size so the client can import it without dragging
+// better-sqlite3 into the browser bundle. Re-exported here because every
+// server-side caller already reaches for products.ts.
+export {
+  normalizeTireSize,
+  rimDiameterOf,
+  looksSpecialized,
+  SPECIALTY_SECTION,
+} from "./tire-size";
 
 // ---------------------------------------------------------------------------
 // Reading
@@ -108,7 +103,7 @@ export function withStock(products: Product[]): ProductWithStock[] {
  * The rack, as someone standing in front of it sees it.
  *
  * Grouped by size, because that is the only question anyone actually asks —
- * "what have we got in 195/65R15". Within a size, new tires list individually
+ * "what have we got in 195-65-15". Within a size, new tires list individually
  * with their brand and price; used collapses to a single count, because a used
  * tire genuinely has nothing else to say about it. See `ensureUsedTire`.
  *
@@ -122,6 +117,23 @@ export type SizeGroup = {
   newTires: ProductWithStock[];
   usedCount: number;
   usedProductId: number | null;
+  total: number;
+};
+
+/**
+ * Sizes gathered under a rim heading — "15", "16", "17" — in the order the
+ * racks run. This mirrors the old workbook, which is organised the same way,
+ * and more importantly mirrors the building: someone counting stock walks one
+ * rim at a time, so a sheet ordered any other way sends them back and forth.
+ *
+ * `key` is what the heading reads. `rim` is null for the specialty section,
+ * which is the one bucket not defined by a rim diameter.
+ */
+export type RimSection = {
+  key: string;
+  rim: number | null;
+  specialized: boolean;
+  groups: SizeGroup[];
   total: number;
 };
 
@@ -154,6 +166,53 @@ export function inventoryBySize(opts: { includeOutOfStock?: boolean } = {}): Siz
     .sort((a, b) => a.size.localeCompare(b.size, undefined, { numeric: true }));
 }
 
+/**
+ * The same rack view, split into the sections the sheet prints in.
+ *
+ * A size lands in the specialty block if ANY product of that size is flagged
+ * specialized. It has to be all-or-nothing per size, because a size is one
+ * heading on one sheet and cannot be printed in two places — and if someone has
+ * marked even one 225-70-19.5 as a semi tire, the whole size is a semi size.
+ *
+ * Sizes with no parseable rim also fall here rather than inventing a heading of
+ * their own. The real list has a handful (16-6 8-6.5, a mower tire) and one
+ * junk-drawer section at the end beats six sections of one line each.
+ */
+export function inventoryBySection(opts: { includeOutOfStock?: boolean } = {}): RimSection[] {
+  const groups = inventoryBySize(opts);
+
+  // Which sizes are specialty, decided across every product sharing the size.
+  const specialSizes = new Set(
+    (
+      getDb()
+        .prepare(
+          `SELECT DISTINCT tire_size FROM products
+             WHERE kind = 'tire' AND deleted = 0 AND specialized = 1 AND tire_size IS NOT NULL`,
+        )
+        .all() as { tire_size: string }[]
+    ).map((r) => r.tire_size),
+  );
+
+  const sections = new Map<string, RimSection>();
+  for (const g of groups) {
+    const rim = rimDiameterOf(g.size);
+    const special = specialSizes.has(g.size) || rim === null;
+    const key = special ? SPECIALTY_SECTION : String(rim);
+    let s = sections.get(key);
+    if (!s) {
+      s = { key, rim: special ? null : rim, specialized: special, groups: [], total: 0 };
+      sections.set(key, s);
+    }
+    s.groups.push(g);
+    s.total += g.total;
+  }
+
+  return [...sections.values()].sort((a, b) => {
+    if (a.specialized !== b.specialized) return a.specialized ? 1 : -1;
+    return (a.rim ?? 0) - (b.rim ?? 0);
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Used tires
 // ---------------------------------------------------------------------------
@@ -171,7 +230,11 @@ export function inventoryBySize(opts: { includeOutOfStock?: boolean } = {}): Siz
  * one cost us", and for a tire that came in on a buyback at no recorded cost
  * that question has no answer worth storing.
  */
-export function ensureUsedTire(user: PosUser, rawSize: string): Result<{ product: Product }> {
+export function ensureUsedTire(
+  user: PosUser,
+  rawSize: string,
+  specialized?: boolean,
+): Result<{ product: Product }> {
   const size = normalizeTireSize(rawSize);
   if (!size) return { ok: false, error: "A tire size is required" };
 
@@ -198,10 +261,18 @@ export function ensureUsedTire(user: PosUser, rawSize: string): Result<{ product
         `INSERT INTO products
            (sku, name, category_id, kind, tire_size, condition,
             price_cents, default_cost_cents, track_inventory, track_lots,
-            active, created_at, updated_at)
-         VALUES (?, ?, ?, 'tire', ?, 'used', 0, 0, 1, 0, 1, ?, ?)`,
+            specialized, active, created_at, updated_at)
+         VALUES (?, ?, ?, 'tire', ?, 'used', 0, 0, 1, 0, ?, 1, ?, ?)`,
       )
-      .run(`USED-${size}`, `Used ${size}`, categoryId, size, now, now);
+      .run(
+        `USED-${size}`,
+        `Used ${size}`,
+        categoryId,
+        size,
+        (specialized ?? looksSpecialized(size)) ? 1 : 0,
+        now,
+        now,
+      );
 
     const id = Number(info.lastInsertRowid);
     logActorAudit(actorOf(user), {
@@ -251,6 +322,8 @@ export function createProduct(
     trackLots?: boolean;
     reorderPoint?: number;
     categoryId?: number | null;
+    specialized?: boolean;
+    supplier?: string | null;
   },
 ): Result<{ product: Product }> {
   if (!can(user.role, "manageProducts"))
@@ -259,6 +332,10 @@ export function createProduct(
   // Used tires never take descriptive fields. Rejecting rather than ignoring
   // them: a caller that thinks it is storing a used tire's brand has a bug, and
   // silently dropping it would hide that.
+  //
+  // `specialized` is the exception, and passes through: it says which rack the
+  // tire lives on, not anything about the tire itself, and a used semi tire is
+  // a real thing that still has to print in the right section.
   if (args.condition === "used") {
     if (args.brand || args.model || args.ply || args.priceCents || args.defaultCostCents)
       return {
@@ -266,7 +343,7 @@ export function createProduct(
         error: "A used tire is recorded by size only — no brand, price or cost",
       };
     if (!args.tireSize) return { ok: false, error: "A tire size is required" };
-    return ensureUsedTire(user, args.tireSize);
+    return ensureUsedTire(user, args.tireSize, args.specialized);
   }
 
   const size = args.tireSize ? normalizeTireSize(args.tireSize) : null;
@@ -299,8 +376,8 @@ export function createProduct(
         `INSERT INTO products
            (sku, name, category_id, kind, tire_size, brand, model, ply, condition,
             price_cents, default_cost_cents, track_inventory, track_lots, reorder_point,
-            active, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+            specialized, supplier, active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
       )
       .run(
         sku,
@@ -317,6 +394,8 @@ export function createProduct(
         trackInventory ? 1 : 0,
         trackLots ? 1 : 0,
         args.reorderPoint ?? 0,
+        (args.specialized ?? looksSpecialized(size)) ? 1 : 0,
+        args.supplier?.trim() || null,
         now,
         now,
       );
@@ -353,6 +432,8 @@ export function updateProduct(
     reorderPoint?: number;
     active?: boolean;
     tireSize?: string | null;
+    specialized?: boolean;
+    supplier?: string | null;
   },
 ): Result {
   if (!can(user.role, "manageProducts"))
@@ -391,6 +472,10 @@ export function updateProduct(
     default_cost_cents: args.defaultCostCents ?? product.default_cost_cents,
     reorder_point: args.reorderPoint ?? product.reorder_point,
     active: args.active === undefined ? product.active : args.active ? 1 : 0,
+    specialized:
+      args.specialized === undefined ? product.specialized : args.specialized ? 1 : 0,
+    supplier:
+      args.supplier === undefined ? product.supplier : args.supplier?.trim() || null,
   };
 
   if (!Number.isInteger(next.price_cents) || next.price_cents < 0)
@@ -403,7 +488,7 @@ export function updateProduct(
       .prepare(
         `UPDATE products SET name = ?, brand = ?, model = ?, ply = ?, tire_size = ?,
                              price_cents = ?, default_cost_cents = ?, reorder_point = ?,
-                             active = ?, updated_at = ?
+                             active = ?, specialized = ?, supplier = ?, updated_at = ?
           WHERE id = ?`,
       )
       .run(
@@ -416,6 +501,8 @@ export function updateProduct(
         next.default_cost_cents,
         next.reorder_point,
         next.active,
+        next.specialized,
+        next.supplier,
         nowLocalIso(),
         id,
       );

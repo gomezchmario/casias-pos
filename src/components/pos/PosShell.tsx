@@ -22,6 +22,7 @@ export function usePosAuth(): PosAuth {
 const NAV: { href: string; label: string; capability: Capability }[] = [
   { href: "/pos", label: "Today", capability: "viewDay" },
   { href: "/pos/register", label: "New sale", capability: "ringSale" },
+  { href: "/pos/inventory", label: "Inventory", capability: "viewInventory" },
   { href: "/pos/eod", label: "End of day", capability: "closeShift" },
   { href: "/pos/buttons", label: "Buttons", capability: "manageQuickButtons" },
 ];
