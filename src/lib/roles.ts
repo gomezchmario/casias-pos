@@ -63,3 +63,59 @@ export type Capability = keyof typeof CAPABILITIES;
 export function can(role: PosRole, capability: Capability): boolean {
   return roleAtLeast(role, CAPABILITIES[capability]);
 }
+
+/**
+ * Plain-English names for the permissions screen, grouped the way someone
+ * thinks about the shop rather than the way the code is organised.
+ *
+ * This lives next to CAPABILITIES on purpose. The permissions page renders
+ * itself from these two together, so a capability added above without a label
+ * here is a TypeScript error rather than a row that silently goes missing from
+ * the screen an owner uses to decide who can touch money.
+ */
+export const CAPABILITY_GROUPS = [
+  "At the register",
+  "Fixing mistakes",
+  "Stock",
+  "Money and reports",
+  "Setup",
+] as const;
+export type CapabilityGroup = (typeof CAPABILITY_GROUPS)[number];
+
+export const CAPABILITY_INFO: Record<
+  Capability,
+  { label: string; group: CapabilityGroup }
+> = {
+  ringSale: { label: "Ring up a sale", group: "At the register" },
+  takePayment: { label: "Take payment", group: "At the register" },
+  editOwnOpenSale: { label: "Edit a ticket before it is paid", group: "At the register" },
+  editSeq: { label: "Edit the terminal SEQ", group: "At the register" },
+  viewDay: { label: "See today's tickets", group: "At the register" },
+
+  editCompletedSale: { label: "Edit a paid ticket", group: "Fixing mistakes" },
+  voidSale: { label: "Void a ticket", group: "Fixing mistakes" },
+  refund: { label: "Give a refund", group: "Fixing mistakes" },
+  overrideCommission: { label: "Override commission", group: "Fixing mistakes" },
+  closeShift: { label: "Count the drawer and close a shift", group: "Fixing mistakes" },
+
+  viewInventory: { label: "Look up stock", group: "Stock" },
+  searchProducts: { label: "Search prices", group: "Stock" },
+  overrideStock: { label: "Sell stock the system says is gone", group: "Stock" },
+  receiveInventory: { label: "Receive new stock", group: "Stock" },
+  adjustInventory: { label: "Adjust stock counts", group: "Stock" },
+  manageProducts: { label: "Add and edit products", group: "Stock" },
+
+  cashPurchase: { label: "Buy stock over the counter (cash out)", group: "Money and reports" },
+  viewReports: { label: "See reports", group: "Money and reports" },
+  viewCosts: { label: "See what the shop paid for stock", group: "Money and reports" },
+  managePayroll: { label: "Run and lock payroll", group: "Money and reports" },
+
+  manageQuickButtons: { label: "Change the register buttons", group: "Setup" },
+  manageEmployees: { label: "Manage employees", group: "Setup" },
+  manageSettings: { label: "Change shop settings", group: "Setup" },
+};
+
+/** Every capability a role has, in the reading order of CAPABILITY_INFO. */
+export function capabilitiesFor(role: PosRole): Capability[] {
+  return (Object.keys(CAPABILITY_INFO) as Capability[]).filter((c) => can(role, c));
+}

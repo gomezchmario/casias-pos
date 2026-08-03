@@ -8,6 +8,7 @@ import { TireMark } from "@/components/ui/TireMark";
 const NAV = [
   { href: "/admin", label: "Dashboard", icon: "▦" },
   { href: "/admin/employees", label: "Employees", icon: "👥" },
+  { href: "/admin/permissions", label: "Permissions", icon: "🔑" },
   { href: "/admin/entries", label: "Time Entries", icon: "🕒" },
   { href: "/admin/reports", label: "Reports", icon: "📈" },
   { href: "/admin/audit", label: "Audit Log", icon: "📜" },
@@ -53,8 +54,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen flex" style={{ background: "#f4f6fa" }}>
+      {/*
+        Navigation is not content. Without this, printing any admin page burns
+        a quarter of the sheet on a navy gradient and a list of links nobody can
+        click on paper.
+      */}
       <aside
-        className="flex flex-col"
+        className="flex flex-col no-print"
         style={{
           width: 240,
           background: "linear-gradient(180deg, #0a2540 0%, #07182c 100%)",
