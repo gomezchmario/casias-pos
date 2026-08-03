@@ -73,6 +73,20 @@ export function TicketDrawer({
 
           {error && <div className="text-sm text-red-700">{error}</div>}
 
+          {can("editOwnOpenSale") && detail.sale.status !== "voided" && (
+            <NoteEditor
+              sale={detail.sale}
+              busy={busy}
+              onSave={(notes) =>
+                send(`/api/pos/sales/${saleId}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ notes }),
+                })
+              }
+            />
+          )}
+
           {can("editSeq") && (
             <SeqEditor
               sale={detail.sale}
@@ -204,6 +218,47 @@ function Row({
     >
       <span>{label}</span>
       <span className="tabular-nums">{value}</span>
+    </div>
+  );
+}
+
+/**
+ * Notes are editable after the fact on purpose. The reason a ticket was priced
+ * the way it was is often remembered an hour later, and the alternative -- a
+ * cashier not writing it down at all -- is worse. Every edit is audited.
+ */
+function NoteEditor({
+  sale,
+  busy,
+  onSave,
+}: {
+  sale: Sale;
+  busy: boolean;
+  onSave: (notes: string | null) => Promise<boolean>;
+}) {
+  const [value, setValue] = useState(sale.notes ?? "");
+  const dirty = (value.trim() || null) !== sale.notes;
+
+  return (
+    <div className="flex items-end gap-2">
+      <label className="text-xs text-brand-400 flex-1">
+        Note
+        <input
+          className="input mt-1 w-full"
+          placeholder="Anything worth remembering about this ticket"
+          value={value}
+          maxLength={500}
+          onChange={(e) => setValue(e.target.value)}
+        />
+      </label>
+      <button
+        type="button"
+        className="btn btn-primary"
+        disabled={busy || !dirty}
+        onClick={() => void onSave(value.trim() || null)}
+      >
+        Save note
+      </button>
     </div>
   );
 }

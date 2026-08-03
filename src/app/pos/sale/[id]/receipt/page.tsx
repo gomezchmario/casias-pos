@@ -144,6 +144,7 @@ export default async function ReceiptPage({
 
         <footer className="receipt-foot">
           {sale.po && <div>PO {sale.po}</div>}
+          {sale.notes && <div>{sale.notes}</div>}
           <div>{footer}</div>
         </footer>
       </div>

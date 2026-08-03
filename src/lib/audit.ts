@@ -184,7 +184,14 @@ export function listAudit(limit = 200): AuditEntry[] {
     .all(limit) as AuditEntry[];
 }
 
-/** Full change history for one record — powers the "edited" trail on a sale. */
+/**
+ * Full change history for one record — powers the "edited" trail on a sale.
+ *
+ * The String() is load-bearing, not decoration. target_id holds text, and
+ * binding a number here matches NOTHING -- silently, with no error, returning
+ * an empty history for a record that has plenty. Removing it would look like a
+ * harmless cleanup and would quietly blank out every audit trail in the app.
+ */
 export function listAuditForTarget(targetType: string, targetId: string | number): AuditEntry[] {
   const db = getDb();
   return db

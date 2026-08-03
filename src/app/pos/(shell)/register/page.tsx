@@ -39,6 +39,14 @@ export default function RegisterPage() {
   const [lastSale, setLastSale] = useState<{ id: number; saleNo: string } | null>(null);
   const amountRef = useRef<HTMLInputElement>(null);
 
+  // A note on the ticket -- "used tire, small patch", "customer waiting", the
+  // sort of thing that explains a price six weeks later. Collapsed by default
+  // and saved on blur rather than per keystroke: most tickets never need one,
+  // and the register cannot afford a round trip per character.
+  const [note, setNote] = useState("");
+  const [noteOpen, setNoteOpen] = useState(false);
+  const noteSaved = useRef("");
+
   useEffect(() => {
     fetch("/api/pos/register")
       .then((r) => (r.ok ? r.json() : null))
@@ -148,6 +156,27 @@ export default function RegisterPage() {
   // Printing is offered, not forced — most tickets here are $5–$20 and the
   // customer doesn't want paper. The link stays up until the next ticket is
   // rung, which is long enough to catch the one that does.
+  /**
+   * Push the note to the ticket, on blur rather than per keystroke. Clicking
+   * Pay blurs the field first, so the note is always sent; and because
+   * updateSaleMeta happily edits a completed sale, it still lands even if the
+   * payment wins the race. Skips the request when nothing changed.
+   */
+  const saveNote = useCallback(
+    async (saleId: number) => {
+      const trimmed = note.trim();
+      if (trimmed === noteSaved.current) return;
+      const res = await fetch(`/api/pos/sales/${saleId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: trimmed || null }),
+      });
+      if (res.ok) noteSaved.current = trimmed;
+      else setError("Could not save the note");
+    },
+    [note],
+  );
+
   function finishTicket(finishedSaleId: number) {
     setLastSale(sale ? { id: finishedSaleId, saleNo: sale.sale_no } : null);
     setSale(null);
@@ -156,6 +185,9 @@ export default function RegisterPage() {
     setAmount("");
     setBuying(false);
     setError(null);
+    setNote("");
+    setNoteOpen(false);
+    noteSaved.current = "";
   }
 
   const amountButtons = useMemo(
@@ -351,6 +383,36 @@ export default function RegisterPage() {
             <div className="mt-3 pt-3 border-t border-black/10 flex justify-between text-lg font-semibold text-brand-500">
               <span>Total</span>
               <span className="tabular-nums">{formatCents(sale.subtotal_cents)}</span>
+            </div>
+          )}
+
+          {sale && liveItems.length > 0 && (
+            <div className="mt-3">
+              {noteOpen || note ? (
+                <label className="text-xs text-brand-400 block">
+                  Note
+                  <input
+                    className="input mt-1 w-full text-sm"
+                    placeholder="Anything worth remembering about this ticket"
+                    value={note}
+                    autoFocus={noteOpen && !note}
+                    maxLength={500}
+                    onChange={(e) => setNote(e.target.value)}
+                    onBlur={() => void saveNote(sale.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") e.currentTarget.blur();
+                    }}
+                  />
+                </label>
+              ) : (
+                <button
+                  type="button"
+                  className="text-xs text-brand-300 underline"
+                  onClick={() => setNoteOpen(true)}
+                >
+                  Add a note
+                </button>
+              )}
             </div>
           )}
 
