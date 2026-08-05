@@ -279,22 +279,40 @@ export default function KioskPage() {
                 busy={phase === "submitting"}
               />
 
+              {/* Deliberately the same shape as Check In and Take a Break
+                  rather than a full-width bar under them. Opening the register
+                  is one of the things you might have come to this screen to do,
+                  not a conclusion to the things above it, and a button twice the
+                  width of its neighbours reads as the recommended one — which
+                  for most people walking up to punch in, it isn't.
+
+                  Outlined rather than filled gold, because filled gold is what
+                  Check In already is — matching the size made the two read as
+                  the same offer, which is the one thing this button must not
+                  do. Outlined is unique against all four action treatments
+                  (filled gold, navy, red, translucent white) whichever pair of
+                  them the shift happens to be showing. */}
               {lookup?.employee.canRegister && (
-                <button
-                  type="button"
-                  onClick={() => void openRegister()}
-                  disabled={phase === "submitting"}
-                  className="btn w-full"
-                  style={{
-                    height: 56,
-                    fontSize: 17,
-                    fontWeight: 600,
-                    background: "linear-gradient(180deg, #ffd35a 0%, #ffc83d 100%)",
-                    color: "#0a2540",
-                  }}
-                >
-                  Open register →
-                </button>
+                <div className="flex justify-center animate-pop-in">
+                  <button
+                    type="button"
+                    onClick={() => void openRegister()}
+                    disabled={phase === "submitting"}
+                    className="btn reveal"
+                    style={{
+                      minWidth: 160,
+                      padding: "0.85rem 1.2rem",
+                      fontSize: "1.05rem",
+                      fontWeight: 600,
+                      background: "rgba(255, 211, 90, 0.10)",
+                      borderColor: "rgba(255, 211, 90, 0.55)",
+                      color: "#ffd35a",
+                    }}
+                  >
+                    <span style={{ fontSize: "1.2rem" }}>🧾</span>
+                    Open Register
+                  </button>
+                </div>
               )}
 
               <button
@@ -345,8 +363,19 @@ export default function KioskPage() {
       )}
 
       {/* Admin link (small, bottom corner). The register is reached by PIN
-          above, not from here, so there's no unauthenticated door to it. */}
+          above, not from here, so there's no unauthenticated door to it.
+
+          Inventory sits beside it and is the one exception, on purpose: it is
+          read-only, it holds no cost, no P-code and no supplier, and everything
+          on it is visible to anyone who walks up to the rack and asks. Behind a
+          PIN it would go unused — "do we have a 215 55 17" is asked twenty
+          times a day, usually by somebody with their hands full, and the
+          answer they would actually use is the one they can get without
+          stopping. */}
       <div className="fixed bottom-4 right-4 flex gap-4 text-xs">
+        <a href="/inventory" className="text-white/40 hover:text-white/80 transition-colors">
+          Inventory →
+        </a>
         <a href="/admin" className="text-white/40 hover:text-white/80 transition-colors">
           Admin →
         </a>

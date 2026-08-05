@@ -26,7 +26,7 @@ export function BrandLogo({ size = "md", variant = "light" }: Props) {
         <span
           className={`${subSize} ${subColor} font-medium uppercase tracking-widest`}
         >
-          Time Clock
+          Management Site
         </span>
       </div>
     </div>

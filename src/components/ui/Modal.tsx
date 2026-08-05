@@ -5,7 +5,11 @@ import { useEffect } from "react";
 type Props = {
   open: boolean;
   onClose: () => void;
-  title: string;
+  /** A node, not just a string, so a dialog can style its own heading — the
+   *  ticket drawer labels and sizes its number differently from a plain
+   *  confirm box, and the alternative was every caller styling it from the
+   *  outside through a second prop. */
+  title: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
   width?: number;
