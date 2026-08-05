@@ -5,8 +5,23 @@ import { listPayments, listPaymentMethods } from "@/lib/payments";
 import { getSetting } from "@/lib/settings";
 import { formatCents, taxIncludedInCents } from "@/lib/money";
 import { getDb } from "@/lib/db";
+import { localIsoToDate } from "@/lib/time";
 import { PrintButton } from "@/components/pos/PrintButton";
 import "./receipt.css";
+
+/**
+ * The ticket number, not just "Receipt". Reprints get opened in bunches when
+ * someone is chasing a figure, and four tabs all saying "Receipt" is four tabs
+ * you have to click through.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const sale = getSale(parseInt((await params).id, 10));
+  return { title: sale ? `Receipt ${sale.sale_no}` : "Receipt" };
+}
 
 export default async function ReceiptPage({
   params,
@@ -29,20 +44,131 @@ export default async function ReceiptPage({
   const taxRate = sale.tax_rate_bp ?? Number(getSetting("tax_rate_bp"));
   const taxCents = taxIncludedInCents(sale.subtotal_cents, taxRate);
   const companyName = getSetting("company_name");
+  const companyAddress = getSetting("company_address");
+  const companyPhone = getSetting("company_phone");
   const footer = getSetting("receipt_footer");
+  const disclaimer = getSetting("receipt_disclaimer").trim();
 
+  // Who served them, and who did the work.
+  //
+  // Both are read from the employee table by id rather than snapshotted onto
+  // the sale, because a receipt is reprinted from live data and a name that
+  // changed (marriage, a correction to a typo) should print as it is now. The
+  // *attribution* is what is frozen -- the id on the row never moves.
+  const nameOf = (id: number | null): string | null => {
+    if (id == null) return null;
+    const row = getDb().prepare("SELECT name FROM employees WHERE id = ?").get(id) as
+      | { name: string }
+      | undefined;
+    return row?.name ?? null;
+  };
+  const cashierName = nameOf(sale.cashier_id);
+  // One line per mechanic who touched the ticket, in the order their work
+  // appears on it. A technician who did three lines is named once: the receipt
+  // says who worked on the car, it is not a commission statement.
+  //
+  // A written-in Other name prints exactly as it was typed. On a receipt this
+  // is the only thing that matters about it: the customer wants to know who
+  // worked on their car, and "Other" alone tells them nothing. That it cannot
+  // be paid a commission is the shop's problem, not the customer's, and it is
+  // handled on the reports rather than here. A bare Other with nothing written
+  // in prints nothing at all — naming it would be worse than a blank.
+  const mechanics = [
+    ...new Set(
+      items
+        .map((i) =>
+          i.mechanic_id != null
+            ? nameOf(i.mechanic_id)
+            : i.mechanic_name && i.mechanic_name !== "Other"
+              ? i.mechanic_name
+              : null,
+        )
+        .filter((n): n is string => n != null),
+    ),
+  ];
+
+  /**
+   * When it was rung, in words.
+   *
+   * This line used to print the stored stamp as-is — `2026-08-04T01:06:24` —
+   * which is the database's format, not a person's. A customer holding a
+   * receipt reads the date to find the day they came in, and a capital T in
+   * the middle of it reads as a fault in the paperwork.
+   *
+   * Formatted on the server on purpose. Doing it in the browser would mean the
+   * printed date came from whatever locale and clock the machine at the
+   * counter happened to have, and this is a document the shop may have to
+   * stand behind months later.
+   */
+  const fmt = (iso: string): string => {
+    const d = localIsoToDate(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
+  const stamp = sale.completed_at ?? sale.opened_at;
+  const when = fmt(stamp);
+  const businessDay = localIsoToDate(sale.business_date).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+  const businessDayDiffers = stamp.slice(0, 10) !== sale.business_date;
+
+  /**
+   * Everything the shop knows about who this was for.
+   *
+   * The receipt used to print a name and a phone number and drop the rest on
+   * the floor. That was backwards: the reason a big ticket is allowed to
+   * interrupt a fast counter to ask for these details at all is that somebody
+   * will need them later — the customer coming back about a tire, the shop
+   * ringing them when the order lands. Collecting a plate and a colour and
+   * then not printing them means the paper in the customer's hand cannot
+   * settle the question of which car this was.
+   *
+   * Still every field optional and every one skipped when empty. Small tickets
+   * have no customer at all and their receipts stay short.
+   */
   const customer = sale.customer_id
     ? (getDb()
-        .prepare("SELECT name, phone FROM customers WHERE id = ?")
-        .get(sale.customer_id) as { name: string; phone: string | null } | undefined)
+        .prepare("SELECT customer_no, name, phone, notes FROM customers WHERE id = ?")
+        .get(sale.customer_id) as
+        | {
+            customer_no: string;
+            name: string;
+            phone: string | null;
+            notes: string | null;
+          }
+        | undefined)
     : undefined;
   const vehicle = sale.vehicle_id
     ? (getDb()
-        .prepare("SELECT year, make, model, plate FROM vehicles WHERE id = ?")
+        .prepare(
+          "SELECT year, make, model, color, plate, tire_size, notes FROM vehicles WHERE id = ?",
+        )
         .get(sale.vehicle_id) as
-        | { year: string | null; make: string | null; model: string | null; plate: string | null }
+        | {
+            year: string | null;
+            make: string | null;
+            model: string | null;
+            color: string | null;
+            plate: string | null;
+            tire_size: string | null;
+            notes: string | null;
+          }
         | undefined)
     : undefined;
+
+  /** Year Make Model, with the colour in front of it the way people describe a car. */
+  const vehicleLine = vehicle
+    ? [vehicle.year, vehicle.color, vehicle.make, vehicle.model].filter(Boolean).join(" ")
+    : "";
 
   return (
     <div className="receipt-page">
@@ -51,26 +177,52 @@ export default async function ReceiptPage({
       <div className="receipt">
         <header className="receipt-head">
           <div className="receipt-shop">{companyName}</div>
+          {companyAddress && <div className="receipt-addr">{companyAddress}</div>}
+          {companyPhone && <div className="receipt-addr">{companyPhone}</div>}
           <div className="receipt-meta">{sale.sale_no}</div>
-          <div className="receipt-meta">
-            {sale.completed_at ?? sale.opened_at} · {sale.business_date}
-          </div>
+          <div className="receipt-meta">{when}</div>
+          {/* The business day, and only when it is not the day on the clock
+              above it. A ticket rung at 1am on the 4th against a business day
+              of the 3rd is the one case where the two dates disagree, and it
+              is exactly the case somebody later needs explained — "why is this
+              on Tuesday's numbers". Printing it every time would put a second
+              date on every receipt to cover a handful of late nights, and two
+              dates with no reason given is how a customer decides the paper is
+              wrong. */}
+          {businessDayDiffers && (
+            <div className="receipt-meta">Business day {businessDay}</div>
+          )}
           {isPurchase && <div className="receipt-meta">PURCHASE — PAID OUT IN CASH</div>}
           {sale.status === "voided" && <div className="receipt-void">VOIDED</div>}
         </header>
 
+        {/* Two columns, labelled. The old version ran the customer and the car
+            together as two unlabelled lines, which is fine when you already
+            know what you are looking at and useless to the person who does
+            not. A receipt gets read by somebody holding it a month later. */}
         {(customer || vehicle) && (
-          <section className="receipt-block">
+          <section className="receipt-parties">
             {customer && (
-              <div>
-                <strong>{customer.name}</strong>
-                {customer.phone ? ` · ${customer.phone}` : ""}
+              <div className="receipt-party">
+                <div className="receipt-party-head">Customer</div>
+                <div className="receipt-party-name">{customer.name}</div>
+                {customer.phone && <div>{customer.phone}</div>}
+                {/* The shop's own number for them, printed small. It is what
+                    somebody rings the counter and reads out. */}
+                <div className="receipt-party-id">{customer.customer_no}</div>
+                {customer.notes && <div className="receipt-party-note">{customer.notes}</div>}
               </div>
             )}
             {vehicle && (
-              <div>
-                {[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ")}
-                {vehicle.plate ? ` · ${vehicle.plate}` : ""}
+              <div className="receipt-party">
+                <div className="receipt-party-head">Vehicle</div>
+                {vehicleLine && <div className="receipt-party-name">{vehicleLine}</div>}
+                {vehicle.plate && <div>Plate {vehicle.plate}</div>}
+                {/* Printed because it is the single most re-asked question in
+                    a tire shop — "what size does it take" — and the answer is
+                    now in the customer's pocket instead of only in the rack. */}
+                {vehicle.tire_size && <div>Tire size {vehicle.tire_size}</div>}
+                {vehicle.notes && <div className="receipt-party-note">{vehicle.notes}</div>}
               </div>
             )}
           </section>
@@ -94,16 +246,21 @@ export default async function ReceiptPage({
               <td>Subtotal</td>
               <td className="amt">{formatCents(sale.subtotal_cents)}</td>
             </tr>
-            {sale.tip_cents > 0 && (
+            {/*
+              One line, at what the customer was actually charged for tipping --
+              the tip plus the terminal tax on it, added together.
+
+              The split is deliberately not shown. The terminal tax taken out of
+              a tip is between the shop and the technician; putting it on the
+              customer's copy invites a conversation nobody wants to have at the
+              counter. Summing them also keeps the receipt's arithmetic honest:
+              subtotal plus this line is exactly the total below, which would not
+              be true of the tip alone.
+            */}
+            {sale.tip_cents + sale.comm_cents > 0 && (
               <tr>
-                <td>Cashback</td>
-                <td className="amt">{formatCents(sale.tip_cents)}</td>
-              </tr>
-            )}
-            {sale.comm_cents > 0 && (
-              <tr>
-                <td>Cashback fee</td>
-                <td className="amt">{formatCents(sale.comm_cents)}</td>
+                <td>Tip</td>
+                <td className="amt">{formatCents(sale.tip_cents + sale.comm_cents)}</td>
               </tr>
             )}
             <tr className="grand">
@@ -127,7 +284,9 @@ export default async function ReceiptPage({
                   <td>
                     {methods.get(p.method_id) ?? "Payment"}
                     {p.kind !== "payment" ? ` (${p.kind.replace("_", " ")})` : ""}
-                    {p.seq ? ` · SEQ ${p.seq}` : ""}
+                    {/* No SEQ. It is the shop's index into its own card batch
+                        and means nothing to the customer holding this; their
+                        own terminal slip is the copy that matters to them. */}
                   </td>
                   <td className="amt">{formatCents(p.amount_cents)}</td>
                 </tr>
@@ -142,7 +301,42 @@ export default async function ReceiptPage({
           </table>
         )}
 
+        {/* The small print and the line they sign on.
+
+            Pinned to the bottom of the page rather than sitting wherever the
+            item list happens to end, because a signature line floating in the
+            middle of a half-empty sheet reads as optional, and one that lands
+            three lines below the last item on a full sheet reads as a
+            footnote. It is the same place on every receipt, which is the only
+            way the person at the counter learns to point at it without
+            looking.
+
+            Skipped entirely on a purchase: the shop is buying, so there is no
+            work to authorise and nothing for the customer to accept. */}
+        {!isPurchase && disclaimer && (
+          <section className="receipt-sign">
+            <div className="receipt-disclaimer">{disclaimer}</div>
+            <div className="receipt-sign-lines">
+              <div className="receipt-sign-line">
+                <div className="receipt-rule" />
+                <div className="receipt-sign-label">Customer signature</div>
+              </div>
+              <div className="receipt-sign-line receipt-sign-date">
+                <div className="receipt-rule" />
+                <div className="receipt-sign-label">Date</div>
+              </div>
+            </div>
+          </section>
+        )}
+
         <footer className="receipt-foot">
+          {/*
+            Named on the receipt because it is the customer's copy of who to ask
+            for next time -- and because a name on the paper is the quietest
+            form of accountability there is.
+          */}
+          {cashierName && <div>Served by {cashierName}</div>}
+          {mechanics.length > 0 && <div>Work by {mechanics.join(", ")}</div>}
           {sale.po && <div>PO {sale.po}</div>}
           {sale.notes && <div>{sale.notes}</div>}
           <div>{footer}</div>

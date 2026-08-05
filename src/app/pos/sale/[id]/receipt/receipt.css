@@ -1,6 +1,15 @@
-/* Letter paper. The shop prints on a normal office printer, so this is laid
-   out as a half-page document rather than the 80mm monospace strip a thermal
-   roll wants. */
+/* Letter paper, one full page. The shop prints on a normal office printer, not
+   the 80mm monospace strip a thermal roll wants.
+
+   FULL PAGE, NOT A HALF-SHEET. This used to be laid out as a compact document
+   that ended wherever the item list ran out, which meant a two-line ticket
+   printed a stub floating at the top of a sheet of letter paper and a signature
+   line that landed in a different place on every receipt. A page that is always
+   the same shape is one the counter can hand over without reading -- the total
+   is always in the same spot, the signature is always at the bottom.
+
+   The page is a flex column so the signature block can be pushed to the foot of
+   it (margin-top: auto) no matter how short the ticket is. */
 
 .receipt-page {
   background: #f4f6fa;
@@ -12,16 +21,32 @@
   gap: 16px;
 }
 
+/* Letter is 216 x 279mm; at an 14mm margin the printable box is 188 x 251mm.
+   Those two numbers are what the sheet on screen is, so what is previewed is
+   the page that comes out. */
 .receipt {
   background: #fff;
-  width: 170mm;
+  width: 188mm;
+  min-height: 251mm;
   max-width: 100%;
-  padding: 16mm 18mm;
+  padding: 0;
   box-shadow: 0 2px 12px rgba(10, 37, 64, 0.12);
   font-family: ui-sans-serif, system-ui, "Segoe UI", Arial, sans-serif;
   font-size: 12pt;
   line-height: 1.5;
   color: #111;
+  display: flex;
+  flex-direction: column;
+}
+
+/* On screen the sheet needs its own margin drawn, because @page only applies
+   to paper. Same 14mm, so the preview and the print line up. */
+@media screen {
+  .receipt {
+    padding: 14mm;
+    width: 216mm;
+    min-height: 279mm;
+  }
 }
 
 .receipt-head {
@@ -38,10 +63,27 @@
   color: #0a2540;
 }
 
+/* Address and phone: darker and a size up from the ticket metadata below them,
+   because this is the part a customer comes back to when they need to find the
+   shop again. */
+.receipt-addr {
+  font-size: 11pt;
+  color: #222;
+  margin-top: 2px;
+}
+
+/* The ticket number and timestamp -- reference data, not something anyone reads
+   unless they are looking for it. */
 .receipt-meta {
   font-size: 10pt;
   color: #444;
   margin-top: 2px;
+}
+
+/* A gap between the shop's details and the ticket's, so the header reads as two
+   things rather than one run-on block. */
+.receipt-addr + .receipt-meta {
+  margin-top: 8px;
 }
 
 .receipt-void {
@@ -58,6 +100,51 @@
   padding-bottom: 10px;
   margin-bottom: 12px;
   font-size: 11pt;
+}
+
+/* Customer and vehicle side by side. Two columns rather than a stack because
+   they are answers to two different questions and reading them as one block is
+   how "Silver" ends up looking like part of somebody's address. */
+.receipt-parties {
+  display: flex;
+  gap: 12mm;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+  font-size: 11pt;
+}
+
+.receipt-party {
+  flex: 1;
+  min-width: 0;
+}
+
+.receipt-party-head {
+  font-size: 8pt;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #777;
+  margin-bottom: 2px;
+}
+
+.receipt-party-name {
+  font-weight: 700;
+  font-size: 12pt;
+}
+
+/* The shop's own reference for them. Quiet on purpose -- it is for the counter,
+   not for the customer. */
+.receipt-party-id {
+  font-size: 9pt;
+  color: #888;
+  margin-top: 2px;
+}
+
+.receipt-party-note {
+  font-style: italic;
+  color: #555;
+  font-size: 10pt;
+  margin-top: 2px;
 }
 
 .receipt-items,
@@ -111,13 +198,66 @@
   font-size: 10pt;
 }
 
+/* `margin-top: auto` is what makes this sit at the foot of the page on a short
+   ticket instead of directly under the totals. On a long one it simply follows
+   the items, and the page grows to a second sheet as it must. */
+.receipt-sign {
+  margin-top: auto;
+  padding-top: 14mm;
+}
+
+.receipt-disclaimer {
+  font-size: 8.5pt;
+  line-height: 1.45;
+  color: #444;
+  margin-bottom: 12mm;
+}
+
+.receipt-sign-lines {
+  display: flex;
+  gap: 10mm;
+  align-items: flex-end;
+}
+
+.receipt-sign-line {
+  flex: 1;
+}
+
+/* The date box is a third the width of the signature. Somebody signing needs
+   room for a name; nobody needs 90mm to write 8/4/26. */
+.receipt-sign-date {
+  flex: 0 0 45mm;
+}
+
+.receipt-rule {
+  border-bottom: 1px solid #333;
+  height: 0;
+}
+
+.receipt-sign-label {
+  font-size: 8pt;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #777;
+  margin-top: 3px;
+}
+
+/* `auto` by default so that a receipt with no signature block -- a purchase, or
+   a shop that has blanked the disclaimer -- still puts its footer at the foot
+   of the page instead of leaving it stranded under the totals. When the
+   signature block IS there it has already taken the slack, so the footer just
+   sits below it at a fixed gap. */
 .receipt-foot {
-  margin-top: 22px;
+  margin-top: auto;
   padding-top: 10px;
   border-top: 1px solid #ddd;
   text-align: center;
   font-size: 10pt;
   color: #444;
+}
+
+.receipt-sign + .receipt-foot {
+  margin-top: 8mm;
 }
 
 @media print {
@@ -132,14 +272,19 @@
     display: none !important;
   }
 
+  /* min-height stays: it is what holds the signature line down at the bottom of
+     the sheet. Dropping it here — which the old rule effectively did — is how
+     you get a preview with the signature at the foot of the page and a
+     print-out with it tucked under the totals. */
   .receipt {
     width: auto;
+    min-height: 251mm;
     box-shadow: none;
     padding: 0;
   }
 
   @page {
     size: letter;
-    margin: 18mm;
+    margin: 14mm;
   }
 }
