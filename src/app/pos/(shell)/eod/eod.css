@@ -21,14 +21,40 @@
     display: none !important;
   }
 
-  body {
-    background: #fff;
+  /* The shell, undone.
+     This is what made the sheet not a sheet. The POS wrapper is a full-height
+     flex column on a pale grey field with 24px of padding inside `main`, which
+     is right for a screen and wrong for every part of a printed page: the grey
+     comes out as a solid tint over the whole thing on a colour printer and a
+     dirty wash on a mono one, and its padding fights the @page margin so the
+     real margins were 16mm plus whatever the shell felt like. Stripped back to
+     white with no padding, and the page margin is left as the only margin. */
+  html,
+  body,
+  body > div,
+  main {
+    background: #fff !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
 
   .eod {
     max-width: none;
     color: #111;
-    font-size: 11pt;
+    font-size: 10.5pt;
+    /* Letter minus the 16mm page margins. Named rather than left to `auto` so
+       the tables have a width to lay out against instead of stretching to
+       whatever the print engine guesses. */
+    width: 100%;
+    line-height: 1.35;
+  }
+
+  /* Widows and orphans are what make a two-page close-out feel accidental. */
+  .eod p,
+  .eod div {
+    orphans: 3;
+    widows: 3;
   }
 
   /* Cards on screen, plain ruled blocks on paper -- shadows and rounded
@@ -57,6 +83,182 @@
   .eod-table tfoot tr {
     border-top: 2px solid #111 !important;
     font-weight: 700;
+  }
+
+  /* The two week charts, side by side and un-carded.
+     They keep their grid on paper -- the whole reason they are two charts is
+     that tickets and takings are read against each other, and stacked they
+     stop being comparable at a glance. The card fill, shadow and radius go,
+     because on paper a chart is not a component, it is a figure. */
+  .eod-charts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8mm;
+    break-inside: avoid;
+    margin-bottom: 6mm;
+  }
+
+  .eod-chart {
+    box-shadow: none !important;
+    border-radius: 0;
+    border: none;
+    padding: 0;
+  }
+
+  /* The bars are drawn with an inline height in px, which is left alone on
+     purpose -- they are relative to each other and 84px comes out around 22mm
+     on letter, the right size for a figure sitting above a table. What must
+     not happen is the browser dropping the fill on today's bar, which is the
+     one thing marking the day being closed. */
+  .eod-chart-bar {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .eod-chart-value,
+  .eod-chart-day {
+    color: #111 !important;
+  }
+
+  /* A midday count that came out wrong. Bold and black, not red: the sheet has
+     to survive a mono laser, and this is the row somebody is meant to stop at. */
+  .eod-log-bad {
+    color: #111 !important;
+    font-weight: 700;
+  }
+
+  /* The back of the sheet: everything rung, on its own page.
+     A hard break rather than a hope. On a busy Saturday this block is forty
+     rows and would otherwise start six lines from the foot of page one,
+     shoving the signature over -- which is the one thing the layout above is
+     arranged to prevent. */
+  .eod-ledger {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  /* Repeats the shop, the date and what this is, because page two gets
+     separated from page one in a filing cabinet and a sheet of forty
+     unlabelled rows is a sheet nobody can put back. */
+  .eod-ledger-head {
+    font-size: 9pt;
+    color: #444;
+    border-bottom: 1px solid #111;
+    padding-bottom: 2mm;
+    margin-bottom: 4mm;
+  }
+
+  .eod-ledger-block {
+    margin-bottom: 8mm;
+  }
+
+  .eod-ledger-title {
+    font-weight: 700;
+    font-size: 10pt;
+    margin-bottom: 2mm;
+  }
+
+  /* No break-inside on the blocks. Unlike the sign-off, a ledger IS allowed to
+     run over -- it is a list, it is ordered by time, and forcing forty rows to
+     stay whole would push the whole thing onto a page of its own with a page
+     and a half of white above it. */
+  .eod-ledger td {
+    font-size: 9.5pt;
+    padding: 2px 0;
+  }
+
+  /* The sign-off never splits across a page break. Half a signature block at
+     the foot of page one and three ruled lines alone on page two is how the
+     second sheet gets thrown away. */
+  .eod-signoff {
+    margin-top: 14mm;
+    break-inside: avoid;
+  }
+
+  /* The outstanding block: heaviest thing on the page, and in black.
+     It is the one section somebody is meant to act on rather than file, so it
+     keeps the emphasis it has on screen — but amber fill is a highlight on a
+     monitor and a grey smudge on a laser. A 2pt rule does the same job in one
+     colour, and does it on every printer in the building. Kept whole across a
+     page break: half a debtor list is worse than none, because the half you
+     cannot see is the half nobody rings. */
+  .eod-outstanding {
+    background: none !important;
+    border: 2px solid #111 !important;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 3mm 4mm;
+    margin-bottom: 6mm;
+    break-inside: avoid;
+  }
+  .eod-outstanding * {
+    color: #111 !important;
+  }
+  .eod-outstanding tr {
+    border-color: #999 !important;
+  }
+
+  /* The mix-up panel keeps its words and loses its tint. A pale amber fill is
+     a highlight on a screen and a grey smear on a laser printer, and the
+     ticket numbers inside it are the point. */
+  .eod-mixups {
+    background: none !important;
+    border: 1px solid #111;
+    border-radius: 0;
+    padding: 3mm 4mm;
+    break-inside: avoid;
+  }
+  .eod-mixups * {
+    color: #111 !important;
+  }
+  .eod-mixups a {
+    text-decoration: none;
+  }
+
+  /* Black border and black text, not red. This sheet goes through whatever
+     printer is on the counter, and half of them are mono — a warning that
+     depends on colour is a warning that vanishes on the day it is needed. */
+  .eod-flag {
+    border: 2px solid #111;
+    padding: 3mm 4mm;
+    margin-bottom: 6mm;
+    font-size: 10pt;
+    break-inside: avoid;
+  }
+
+  .eod-flag-quiet {
+    border-width: 1px;
+    border-style: dashed;
+    font-size: 9pt;
+    color: #444;
+  }
+
+  .eod-signoff-line {
+    font-size: 9pt;
+    color: #444;
+    margin-bottom: 12mm;
+  }
+
+  .eod-rules {
+    display: flex;
+    gap: 10mm;
+    align-items: flex-end;
+  }
+
+  /* Wide enough to sign in, and the label sits UNDER the line so the line
+     itself is empty — a caption above it turns into something people write on
+     top of. */
+  .eod-rule {
+    flex: 1;
+    border-top: 1px solid #111;
+    padding-top: 2mm;
+    font-size: 9pt;
+    color: #444;
+  }
+
+  /* The date column needs a third of a page, not a third of the width. */
+  .eod-rule:last-child {
+    flex: 0 0 38mm;
   }
 
   @page {
