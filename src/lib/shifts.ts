@@ -3,6 +3,7 @@ import { inTx } from "./tx";
 import { nowLocalIso } from "./time";
 import { currentBusinessDate } from "./business-date";
 import { nextShiftNo } from "./counters";
+import { getSetting } from "./settings";
 import { logActorAudit, type Actor } from "./audit";
 import type { PosUser } from "./pos-session";
 
@@ -57,11 +58,26 @@ export function listShifts(businessDate: string): Shift[] {
     .all(businessDate) as Shift[];
 }
 
+/**
+ * The change fund the drawer starts every shift with.
+ *
+ * The shop keeps a standing $100 in there so the first cash customer of the
+ * morning can be given change. It is the shop's own money sitting in the till,
+ * not takings, which is why it is added back on the expected side at close
+ * rather than counted as revenue anywhere.
+ */
+export function registerFloatCents(): number {
+  const n = Number(getSetting("register_float_cents"));
+  return Number.isInteger(n) && n >= 0 ? n : 0;
+}
+
 export function openShift(
   user: PosUser,
   args: { openingFloatCents?: number } = {},
 ): Result<{ shift: Shift }> {
-  const float = args.openingFloatCents ?? 0;
+  // Defaulted, not required. Whoever opens the drawer is not being asked to
+  // confirm a number that is the same every single day.
+  const float = args.openingFloatCents ?? registerFloatCents();
   if (!Number.isInteger(float) || float < 0)
     return { ok: false, error: "Opening float is not valid" };
   if (currentShift()) return { ok: false, error: "A shift is already open" };
@@ -110,20 +126,25 @@ export function ensureShift(user: PosUser): Shift {
 
   const now = nowLocalIso();
   const shiftNo = nextShiftNo();
+  // The same float an explicitly opened shift gets. A shift that opened itself
+  // because someone rang a sale before touching the shift screen still has the
+  // shop's $100 physically sitting in the drawer, and booking it as 0 would make
+  // the count come out $100 over and send someone looking for a mistake.
+  const float = registerFloatCents();
   const info = getDb()
     .prepare(
       `INSERT INTO shifts
          (shift_no, business_date, opened_at, opened_by, opening_float_cents,
           is_open, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 0, 1, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
     )
-    .run(shiftNo, currentBusinessDate(), now, user.employeeId, now, now);
+    .run(shiftNo, currentBusinessDate(), now, user.employeeId, float, now, now);
   const id = Number(info.lastInsertRowid);
   logActorAudit(actorOf(user), {
     action: "shift.open",
     targetType: "shift",
     targetId: id,
-    details: { shift_no: shiftNo, automatic: true },
+    details: { shift_no: shiftNo, opening_float_cents: float, automatic: true },
   });
   return getShift(id)!;
 }
@@ -191,6 +212,22 @@ export function closeShift(
   });
 }
 
+/**
+ * Non-sale cash moves in the period. The canonical accessor is
+ * `drawerAdjustmentCents` in ./drawer, and this is a deliberate inline copy of
+ * that one-line SUM: drawer.ts depends on this module for `ensureShift`, and
+ * importing it back would make the pair circular for the sake of sharing a
+ * query with no logic in it.
+ */
+function drawerAdjustFor(where: string, param: unknown): number {
+  const row = getDb()
+    .prepare(
+      `SELECT COALESCE(SUM(amount_cents), 0) AS n FROM drawer_movements WHERE ${where}`,
+    )
+    .get(param) as { n: number };
+  return row.n;
+}
+
 export type MethodExpectation = {
   methodId: number;
   code: string;
@@ -199,8 +236,18 @@ export type MethodExpectation = {
   isCard: number;
   /** Takings on this tender in the period, off the ledger. Signed. */
   takingsCents: number;
-  /** Takings plus the opening float, for cash only -- what should be in hand. */
+  /**
+   * Takings plus the opening float plus any non-sale cash moves, for cash only
+   * -- what should physically be in hand.
+   */
   expectedCents: number;
+  /**
+   * Money taken out of or put into the drawer for reasons that are not sales:
+   * a run to the bank, a change delivery. Signed, cash only, and NOT part of
+   * takings -- it is surfaced separately so a drawer that is $400 light can be
+   * explained rather than investigated.
+   */
+  drawerAdjustCents: number;
   count: number;
   tipCents: number;
   commCents: number;
@@ -210,6 +257,7 @@ function expectationsFrom(
   where: string,
   params: unknown[],
   openingFloatCents: number,
+  drawerAdjustCents: number,
 ): MethodExpectation[] {
   const rows = getDb()
     .prepare(
@@ -224,19 +272,29 @@ function expectationsFrom(
        GROUP BY m.id
        ORDER BY m.sort_order`,
     )
-    .all(...params) as Omit<MethodExpectation, "expectedCents">[];
+    .all(...params) as Omit<MethodExpectation, "expectedCents" | "drawerAdjustCents">[];
 
-  return rows.map((r) => ({
-    ...r,
-    // Only the drawer holds a float. A card terminal's batch total is takings and
-    // nothing else.
-    expectedCents: r.kind === "cash" ? r.takingsCents + openingFloatCents : r.takingsCents,
-  }));
+  return rows.map((r) => {
+    // Only the drawer holds a float, and only the drawer can have cash carried
+    // out of it. A card terminal's batch total is takings and nothing else.
+    const cash = r.kind === "cash";
+    const adjust = cash ? drawerAdjustCents : 0;
+    return {
+      ...r,
+      drawerAdjustCents: adjust,
+      expectedCents: cash ? r.takingsCents + openingFloatCents + adjust : r.takingsCents,
+    };
+  });
 }
 
 export function expectedByMethod(shiftId: number): MethodExpectation[] {
   const shift = getShift(shiftId);
-  return expectationsFrom("p.shift_id = ?", [shiftId], shift?.opening_float_cents ?? 0);
+  return expectationsFrom(
+    "p.shift_id = ?",
+    [shiftId],
+    shift?.opening_float_cents ?? 0,
+    drawerAdjustFor("shift_id = ?", shiftId),
+  );
 }
 
 /**
@@ -249,7 +307,12 @@ export function expectedByMethodForDay(businessDate: string): MethodExpectation[
       "SELECT COALESCE(SUM(opening_float_cents), 0) AS f FROM shifts WHERE business_date = ?",
     )
     .get(businessDate) as { f: number };
-  return expectationsFrom("p.business_date = ?", [businessDate], floats.f);
+  return expectationsFrom(
+    "p.business_date = ?",
+    [businessDate],
+    floats.f,
+    drawerAdjustFor("business_date = ?", businessDate),
+  );
 }
 
 export type MethodVariance = MethodExpectation & {
