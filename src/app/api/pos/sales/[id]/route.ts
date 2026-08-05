@@ -5,9 +5,10 @@ import {
   listSaleItems,
   updatePo,
   updateSaleMeta,
-  updateSeq,
 } from "@/lib/sales";
 import { listPayments } from "@/lib/payments";
+import { listMechanics } from "@/lib/employees";
+import { getDb } from "@/lib/db";
 
 export async function GET(
   _req: NextRequest,
@@ -18,10 +19,92 @@ export async function GET(
 
   const sale = getSale(parseInt((await params).id, 10));
   if (!sale) return jsonError("Not found", 404);
+  const items = listSaleItems(sale.id, true);
+
+  // The technicians on this ticket, resolved to names here rather than in the
+  // browser. The line rows carry only ids, and the screen that attributes a tip
+  // wants to offer only the people who actually worked the job.
+  //
+  // With how many lines each, because that is the shop's measure of effort when
+  // a tip is split by work done — and the split panel has to be able to show the
+  // proportions it is about to apply. A cashier will not trust "split by lines"
+  // if it does not say out loud that it means three quarters and one quarter.
+  const mechanics = getDb()
+    .prepare(
+      `SELECT e.id AS id, e.name AS name, COUNT(*) AS lineCount
+         FROM sale_items i
+         JOIN employees e ON e.id = i.mechanic_id
+        WHERE i.sale_id = ? AND i.voided = 0
+        GROUP BY e.id, e.name
+        ORDER BY e.name`,
+    )
+    .all(sale.id) as { id: number; name: string; lineCount: number }[];
+
+  /**
+   * Who rang this ticket.
+   *
+   * The lines each name the technician who did the work, and the payments name
+   * whoever took the money, but until now nothing on this screen said who
+   * opened it — which is the one name you want when a ticket is wrong in a way
+   * that is nobody's fault on the floor: a line rung against the wrong
+   * category, a price typed over, a ticket left open all afternoon.
+   *
+   * Resolved from the id here rather than in the browser because the drawer has
+   * no roster of cashiers, only of mechanics, and a cashier who has since left
+   * would otherwise render as a number.
+   */
+  const cashier = getDb()
+    .prepare("SELECT name FROM employees WHERE id = ?")
+    .get(sale.cashier_id) as { name: string } | undefined;
+
+  /**
+   * Who the ticket is for, if anybody.
+   *
+   * Sent so the drawer's details panel opens with what is already known in it
+   * rather than empty. An edit form that starts blank over a filled record is
+   * not an edit form -- it is a trap: the cashier adding a phone number to a
+   * ticket that already has a name sees no name, types only the number, and
+   * the save looks to the server exactly like somebody meaning to clear it.
+   */
+  const customer = sale.customer_id
+    ? (getDb()
+        .prepare("SELECT id, name, phone FROM customers WHERE id = ?")
+        .get(sale.customer_id) as
+        | { id: number; name: string; phone: string | null }
+        | undefined) ?? null
+    : null;
+  const vehicle = sale.vehicle_id
+    ? (getDb()
+        .prepare(
+          "SELECT id, year, make, model, color, plate FROM vehicles WHERE id = ?",
+        )
+        .get(sale.vehicle_id) as
+        | {
+            id: number;
+            year: string | null;
+            make: string | null;
+            model: string | null;
+            color: string | null;
+            plate: string | null;
+          }
+        | undefined) ?? null
+    : null;
+
   return NextResponse.json({
     sale,
-    items: listSaleItems(sale.id, true),
+    cashierName: cashier?.name ?? null,
+    customer,
+    vehicle,
+    items,
     payments: listPayments(sale.id),
+    mechanics,
+    // The whole floor, which is a different question from the one above and
+    // needed for a different job: the tip panel offers who DID work the ticket,
+    // while reassigning a line has to offer everybody who COULD have. The two
+    // were the same list once and reassignment silently inherited the wrong
+    // one -- on a ticket rung with nobody attached it was empty, so the one
+    // case that most needs fixing was the one case that could not be.
+    roster: listMechanics().map((e) => ({ id: e.id, name: e.name })),
   });
 }
 
@@ -36,7 +119,6 @@ export async function PATCH(
   if (!getSale(saleId)) return jsonError("Not found", 404);
 
   let body: {
-    seq?: string | null;
     po?: string | null;
     customerId?: number | null;
     vehicleId?: number | null;
@@ -48,12 +130,6 @@ export async function PATCH(
     return jsonError("Invalid JSON");
   }
 
-  if (body.seq !== undefined) {
-    const seqAuth = await requirePos("editSeq");
-    if (!seqAuth.ok) return seqAuth.response;
-    const r = updateSeq(auth.user, saleId, body.seq);
-    if (!r.ok) return jsonError(r.error);
-  }
   if (body.po !== undefined) {
     const r = updatePo(auth.user, saleId, body.po);
     if (!r.ok) return jsonError(r.error);

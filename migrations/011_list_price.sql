@@ -1,0 +1,39 @@
+-- What the shelf said, at the moment the line was rung.
+--
+-- The register lets a cashier tick "Edit price" and type over the price that
+-- came off the rack. That is allowed on purpose -- a tire gets matched to a
+-- competitor, a regular gets ten dollars off -- but it has to leave a mark,
+-- because a price changed at the counter and never mentioned again is exactly
+-- the sale nobody can find later when the month's margin looks wrong.
+--
+-- WHY A SNAPSHOT AND NOT A JOIN
+--
+-- The obvious version of this flag is a live join: compare the line's
+-- unit_price_cents against products.price_cents and call it edited when they
+-- differ. That is wrong, and it is wrong in the direction that destroys trust
+-- in the flag.
+--
+-- Shelf prices move. The day the shop raises a tire from $170 to $175, every
+-- sale of that tire ever rung at $170 -- all of them honest, all of them at the
+-- shelf price of the day -- starts showing the flag. A report that cries wolf
+-- across a year of clean sales gets ignored inside a week, and then it is not
+-- there for the one sale that mattered.
+--
+-- So the shelf price is copied onto the line when the line is created, and never
+-- touched again. Same reasoning as unit_cost_cents next to it: what a thing cost
+-- and what it listed for are facts about a moment, not about the product.
+--
+-- NULLABLE, AND NULL MEANS SOMETHING
+--
+-- NULL is "no shelf price was in play here" -- a free-text service line, a used
+-- tire (which has no shelf price at all; the counter is where its price is
+-- decided), a purchase. Those can never be flagged, which is correct: there is
+-- no number they could have deviated from. Zero would have been the wrong
+-- default because zero is also a real answer to "what does this list for",
+-- and the flag would then fire on every used tire in the shop.
+--
+-- Existing rows stay NULL. Backfilling them from today's products table would be
+-- inventing a fact about the past, and would mislabel exactly the sales the flag
+-- exists to find.
+
+ALTER TABLE sale_items ADD COLUMN list_price_cents INTEGER;

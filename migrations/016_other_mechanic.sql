@@ -1,0 +1,36 @@
+-- A name on a line that belongs to nobody on the payroll.
+--
+-- The register credits a line to an employee id, and that is right for the
+-- floor: the leaderboard, the commission run and the payout all count
+-- sale_items.mechanic_id, and they can only count a row that points at a real
+-- person. But not everybody who fits a tire in this shop is a row in
+-- `employees`. A cousin covers a Saturday. A new hire works three days before
+-- anybody sits down and sets up a PIN. Somebody from the yard helps on a truck
+-- because it is that kind of afternoon.
+--
+-- Until now those lines were rung against nobody, which put them on the ticket
+-- and nowhere else, and left the counter with no way to write down what it
+-- knew. The alternative -- creating an employee row from the register so the
+-- name has an id -- is worse: it puts a person on the payroll list, in the PIN
+-- picker and in every report's per-fitter table, permanently, because somebody
+-- needed to note who did one $20 mount.
+--
+-- So: `mechanic_id` stays NULL and the name goes here as text. The rule the
+-- rest of the code reads is deliberately simple, and it is the only rule:
+--
+--   mechanic_id NOT NULL  -> a real employee, counts toward their figures
+--   mechanic_name NOT NULL -> "Other", shown by the name, counted as Other
+--   both NULL              -> nobody, as before
+--
+-- Every per-mechanic report folds these into a single Other row rather than
+-- one row per spelling. That is the honest presentation: these are lines the
+-- shop cannot pay a commission on and cannot rank, and a written-in name is
+-- typed by hand at a counter -- "Miguel", "miguel", "Miguel R" are three
+-- strings and one person, and a report that ranked them as three would be
+-- inventing precision it does not have.
+--
+-- The name is a label, not an identity. It exists so the ticket, the receipt
+-- and the close-out can say who did the work, and so somebody reading it back
+-- on Monday has more than a blank.
+
+ALTER TABLE sale_items ADD COLUMN mechanic_name TEXT;

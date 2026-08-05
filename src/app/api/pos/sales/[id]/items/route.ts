@@ -19,6 +19,7 @@ export async function POST(
     productId?: number | null;
     categoryId?: number | null;
     mechanicId?: number | null;
+    mechanicName?: string | null;
   };
   try {
     body = await req.json();
@@ -33,6 +34,10 @@ export async function POST(
     productId: body.productId ?? null,
     categoryId: body.categoryId ?? null,
     mechanicId: body.mechanicId ?? null,
+    // Undefined and null are the same here — no written-in name — but an empty
+    // string is not: that is Other with nobody written in, and `addItem`
+    // stores it as the word.
+    mechanicName: body.mechanicName ?? null,
   });
   if (!result.ok) return jsonError(result.error);
 

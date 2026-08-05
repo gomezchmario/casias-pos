@@ -1,0 +1,24 @@
+-- Where the car is: waiting, being worked on, or done and parked out front.
+--
+-- WHY THIS IS NOT `fulfillment_status`
+--
+-- The two look alike and are about completely different things. Fulfillment is
+-- about a TIRE the shop does not have yet and has promised to get -- it moves
+-- over days, it involves a supplier, and most tickets never have one. This is
+-- about a CAR that is on the lot right now, this afternoon, and it moves over
+-- minutes. Sharing a column would mean a special order that arrived and a car
+-- up on the lift were the same state, which is only true in a database.
+--
+-- WHY NULL RATHER THAN A DEFAULT OF 'waiting'
+--
+-- NULL means nobody has touched it, and every reader shows that as Waiting --
+-- which is what a ticket nobody has said anything about is. Writing 'waiting'
+-- onto every existing row would have been a backfill that claimed somebody had
+-- looked at each of them. The distinction costs one COALESCE and keeps the
+-- column honest about what it knows.
+--
+-- No CHECK constraint, deliberately: the three words are a shop's shorthand and
+-- the shop may want a fourth. A constraint here would turn "add 'needs parts'"
+-- into a migration on a table with every sale in it.
+
+ALTER TABLE sales ADD COLUMN work_status TEXT;

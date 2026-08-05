@@ -25,6 +25,33 @@ export type FulfillmentStatus =
   | "delivered"
   | "cancelled";
 
+/**
+ * Where the car is. Chosen because these are the answers to the question
+ * somebody at the counter is actually being asked — "is my truck ready?" — and
+ * not because they are a tidy state machine.
+ *
+ * 'delivery' is the answer that is nobody's fault: the car is stripped, the
+ * tire is on a truck, and there is nothing the shop can do until it lands. It
+ * is worth its own word because it is the one status where the honest reply to
+ * "how long?" is a different sentence — the other three are all "soon".
+ *
+ * It is NOT `fulfillment_status`. That tracks the ORDER, over days, with a
+ * supplier at the other end; this says where the CAR is sitting this afternoon.
+ * A ticket can easily be 'ordered' on one and 'working' on the other, and
+ * collapsing them would make a special order that arrived and a car up on the
+ * lift the same state.
+ *
+ * There is no "picked up". A ticket that has been paid and driven away leaves
+ * the outstanding list by paying, which is the only signal anybody trusts.
+ *
+ * Adding to this list is deliberately cheap -- migration 014 left the column
+ * without a CHECK constraint precisely so a fourth word would not need a
+ * migration on a table holding every sale the shop has ever made. Old rows
+ * carrying a word since removed still read fine; they just render as raw text.
+ */
+export const WORK_STATUSES = ["waiting", "working", "delivery", "ready"] as const;
+export type WorkStatus = (typeof WORK_STATUSES)[number];
+
 export type Sale = {
   id: number;
   sale_no: string;
@@ -34,6 +61,8 @@ export type Sale = {
   status: SaleStatus;
   kind: SaleKind;
   fulfillment_status: FulfillmentStatus;
+  /** Where the car is, right now. NULL until somebody says. See 014. */
+  work_status: WorkStatus | null;
   is_special_order: number;
   cashier_id: number;
   customer_id: number | null;
@@ -42,6 +71,12 @@ export type Sale = {
   po: string | null;
   notes: string | null;
   subtotal_cents: number;
+  /** Taken off the goods, held POSITIVE and subtracted. See 009_discounts.sql
+   *  for why this is a header column rather than a negative line. */
+  discount_cents: number;
+  discount_reason: string | null;
+  discount_by: number | null;
+  discount_at: string | null;
   tip_cents: number;
   comm_cents: number;
   total_cents: number;
@@ -62,10 +97,24 @@ export type SaleItem = {
   description: string;
   category_id: number | null;
   mechanic_id: number | null;
+  /**
+   * A written-in name, for work done by somebody who is not on the payroll.
+   * Only ever set when `mechanic_id` is NULL. See migrations/016 for the rule:
+   * this is a label the ticket and the receipt can show, and every per-mechanic
+   * report folds it into a single "Other" — it is never an identity.
+   */
+  mechanic_name: string | null;
   qty: number;
   unit_price_cents: number;
   line_total_cents: number;
   unit_cost_cents: number;
+  /**
+   * What the shelf said when this line was rung, or NULL if no shelf price was
+   * in play (free-text service, used tire, purchase). Frozen on purpose — see
+   * migrations/011_list_price.sql. Compare it to unit_price_cents to know the
+   * price was typed over at the counter.
+   */
+  list_price_cents: number | null;
   voided: number;
   voided_by: number | null;
   voided_at: string | null;
@@ -130,6 +179,16 @@ function recalcSubtotal(saleId: number): void {
     nowLocalIso(),
     saleId,
   );
+  // A discount can outlive the lines it was given against: $15 off a $60 ticket,
+  // then three of the four lines come back off, and the ticket owes -$5. Clamped
+  // here rather than at the point of sale because this is the only place that
+  // knows the subtotal moved. Reducing a discount someone authorised is a real
+  // change to the ticket, so it is written down rather than applied on the fly
+  // in `recalcMoney` -- a stored figure that disagrees with the arithmetic done
+  // on it is how a report and a receipt end up telling different stories.
+  db.prepare(
+    "UPDATE sales SET discount_cents = ? WHERE id = ? AND discount_cents > ?",
+  ).run(n, saleId, n);
   recalcMoney(saleId);
 }
 
@@ -149,11 +208,18 @@ export function recalcMoney(saleId: number): void {
        FROM payments WHERE sale_id = ?`,
     )
     .get(saleId) as { paid: number; tip: number; comm: number };
-  const { subtotal_cents, status, kind } = db
-    .prepare("SELECT subtotal_cents, status, kind FROM sales WHERE id = ?")
-    .get(saleId) as { subtotal_cents: number; status: SaleStatus; kind: SaleKind };
+  const { subtotal_cents, discount_cents, status, kind } = db
+    .prepare("SELECT subtotal_cents, discount_cents, status, kind FROM sales WHERE id = ?")
+    .get(saleId) as {
+    subtotal_cents: number;
+    discount_cents: number;
+    status: SaleStatus;
+    kind: SaleKind;
+  };
 
-  const total = subtotal_cents + sums.tip + sums.comm;
+  // The one place the discount's sign is decided. It is stored positive; every
+  // other reader takes the total's word for it rather than doing this again.
+  const total = subtotal_cents - discount_cents + sums.tip + sums.comm;
   // On a purchase the money runs the other way — its ledger rows are negative —
   // so settling one drives `paid` down rather than up. Comparing on magnitude
   // lets a settled purchase land at a zero balance like a settled sale.
@@ -218,6 +284,33 @@ export function createSale(
   });
 }
 
+/**
+ * Settle the two mechanic columns against each other, once, here.
+ *
+ * They are mutually exclusive by design and there is exactly one place that
+ * decides it, because the alternative is a row with both set — and then every
+ * report has to guess which one wins, and two of them will guess differently.
+ * An employee id always wins: if the counter picked a real person, a name typed
+ * next to it is stale and must not survive to be shown on the receipt instead
+ * of them.
+ *
+ * A blank name with no id is the plain "Other" case — somebody pressed Other
+ * and did not bother writing who. That is a real answer and is stored as the
+ * word, not as NULL, because NULL already means "nobody did this" and the two
+ * are different facts.
+ */
+function normalizeMechanic(args: {
+  mechanicId?: number | null;
+  mechanicName?: string | null;
+}): { mechanicId: number | null; mechanicName: string | null } {
+  const id = args.mechanicId ?? null;
+  if (id !== null) return { mechanicId: id, mechanicName: null };
+  if (args.mechanicName === undefined || args.mechanicName === null)
+    return { mechanicId: null, mechanicName: null };
+  const name = args.mechanicName.trim().slice(0, 60);
+  return { mechanicId: null, mechanicName: name || "Other" };
+}
+
 export function addItem(
   user: PosUser,
   saleId: number,
@@ -228,6 +321,8 @@ export function addItem(
     productId?: number | null;
     categoryId?: number | null;
     mechanicId?: number | null;
+    /** Only honoured when `mechanicId` is absent. See `normalizeMechanic`. */
+    mechanicName?: string | null;
     unitCostCents?: number;
   },
 ): Result<{ item: SaleItem }> {
@@ -243,6 +338,8 @@ export function addItem(
   if (!Number.isInteger(args.unitPriceCents) || args.unitPriceCents < 0)
     return { ok: false, error: "Price is not valid" };
 
+  const mech = normalizeMechanic(args);
+
   return inTx(() => {
     const db = getDb();
     const now = nowLocalIso();
@@ -252,12 +349,33 @@ export function addItem(
       )
       .get(saleId) as { next: number };
 
+    /**
+     * The shelf price is read here, from the database, rather than accepted
+     * from whatever posted the line. It is the number the flag will be judged
+     * against, so a caller must not be able to supply it — a client that sent
+     * its own list price could hand over the price it charged and produce a
+     * line that was edited and does not say so, which is the one failure this
+     * whole column exists to prevent.
+     *
+     * A price of 0 is stored as NULL: that is a used tire or anything else the
+     * shop prices at the counter, and there is no shelf figure it could have
+     * deviated from.
+     */
+    let listPriceCents: number | null = null;
+    if (args.productId) {
+      const p = db
+        .prepare("SELECT price_cents FROM products WHERE id = ?")
+        .get(args.productId) as { price_cents: number } | undefined;
+      if (p && p.price_cents > 0) listPriceCents = p.price_cents;
+    }
+
     const info = db
       .prepare(
         `INSERT INTO sale_items
            (sale_id, line_no, product_id, description, category_id, mechanic_id,
-            qty, unit_price_cents, line_total_cents, unit_cost_cents, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            mechanic_name, qty, unit_price_cents, line_total_cents, unit_cost_cents,
+            list_price_cents, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         saleId,
@@ -265,11 +383,13 @@ export function addItem(
         args.productId ?? null,
         description,
         args.categoryId ?? null,
-        args.mechanicId ?? null,
+        mech.mechanicId,
+        mech.mechanicName,
         args.qty,
         args.unitPriceCents,
         args.qty * args.unitPriceCents,
         args.unitCostCents ?? 0,
+        listPriceCents,
         now,
         now,
       );
@@ -285,7 +405,8 @@ export function addItem(
         description,
         qty: args.qty,
         unit_price_cents: args.unitPriceCents,
-        mechanic_id: args.mechanicId ?? null,
+        mechanic_id: mech.mechanicId,
+        mechanic_name: mech.mechanicName,
       },
     });
     const item = db.prepare("SELECT * FROM sale_items WHERE id = ?").get(id) as SaleItem;
@@ -301,6 +422,7 @@ export function updateItem(
     qty?: number;
     unitPriceCents?: number;
     mechanicId?: number | null;
+    mechanicName?: string | null;
     categoryId?: number | null;
   },
 ): Result {
@@ -317,11 +439,24 @@ export function updateItem(
   if (sale.status === "completed" && !canEditCompleted(user))
     return { ok: false, error: "Only a manager can edit a completed ticket" };
 
+  // Either mechanic column being touched re-settles both, so an edit that moves
+  // a line from Other onto a real fitter clears the written-in name instead of
+  // leaving it behind to be printed next to somebody else's work.
+  const mech =
+    args.mechanicId === undefined && args.mechanicName === undefined
+      ? { mechanicId: item.mechanic_id, mechanicName: item.mechanic_name }
+      : normalizeMechanic({
+          mechanicId: args.mechanicId ?? null,
+          mechanicName:
+            args.mechanicName === undefined ? item.mechanic_name : args.mechanicName,
+        });
+
   const next = {
     description: args.description?.trim() ?? item.description,
     qty: args.qty ?? item.qty,
     unit_price_cents: args.unitPriceCents ?? item.unit_price_cents,
-    mechanic_id: args.mechanicId === undefined ? item.mechanic_id : args.mechanicId,
+    mechanic_id: mech.mechanicId,
+    mechanic_name: mech.mechanicName,
     category_id: args.categoryId === undefined ? item.category_id : args.categoryId,
   };
   if (!next.description) return { ok: false, error: "Description cannot be empty" };
@@ -334,7 +469,8 @@ export function updateItem(
     const lineTotal = next.qty * next.unit_price_cents;
     db.prepare(
       `UPDATE sale_items SET description = ?, qty = ?, unit_price_cents = ?,
-                             line_total_cents = ?, mechanic_id = ?, category_id = ?, updated_at = ?
+                             line_total_cents = ?, mechanic_id = ?, mechanic_name = ?,
+                             category_id = ?, updated_at = ?
        WHERE id = ?`,
     ).run(
       next.description,
@@ -342,6 +478,7 @@ export function updateItem(
       next.unit_price_cents,
       lineTotal,
       next.mechanic_id,
+      next.mechanic_name,
       next.category_id,
       nowLocalIso(),
       itemId,
@@ -369,6 +506,80 @@ export function updateItem(
 
 function canEditCompleted(user: PosUser): boolean {
   return user.role === "manager" || user.role === "owner";
+}
+
+/**
+ * Move a line to a different mechanic — and change nothing else.
+ *
+ * Deliberately not a call to `updateItem` with only `mechanicId` set. That path
+ * refuses a cashier on a completed ticket, and rightly so: it can also move the
+ * price, the quantity and the description, so opening it up to cashiers would
+ * hand every cashier the ability to rewrite what a customer was charged after
+ * the money was taken.
+ *
+ * Attribution is a different kind of fact from money. Reassigning a line does
+ * not touch `line_total_cents`, the subtotal, the frozen total or any payment —
+ * the customer paid what the customer paid. What moves is who gets the credit
+ * on the leaderboard and the commission that rides on it, and the person best
+ * placed to know that is the cashier who rang the ticket and watched who did
+ * the work. Making them fetch a manager to fix a name is how the name stays
+ * wrong: the shop's answer would be to leave it, and the leaderboard is only
+ * worth having if it is right.
+ *
+ * So: cashier and up, open or completed, always audited. A voided ticket is
+ * still refused — there is no credit on it to move.
+ *
+ * `recalcSubtotal` is NOT called, because nothing here can change it. That is
+ * the whole point of the narrower operation, and it is what makes this safe on
+ * a ticket whose total is frozen.
+ */
+export function reassignMechanic(
+  user: PosUser,
+  itemId: number,
+  mechanicId: number | null,
+  /**
+   * A written-in name, when the line is being moved to Other rather than to a
+   * person. Left off entirely, a null `mechanicId` still means "nobody" — the
+   * two are different answers and the caller has to say which it means.
+   */
+  mechanicName?: string | null,
+): Result {
+  const db = getDb();
+  const item = db.prepare("SELECT * FROM sale_items WHERE id = ?").get(itemId) as
+    | SaleItem
+    | undefined;
+  if (!item) return { ok: false, error: "Line not found" };
+  if (item.voided) return { ok: false, error: "That line is voided" };
+
+  const sale = getSale(item.sale_id);
+  if (!sale) return { ok: false, error: "Sale not found" };
+  if (sale.status === "voided") return { ok: false, error: "This ticket is voided" };
+
+  if (mechanicId !== null) {
+    const who = db
+      .prepare("SELECT id FROM employees WHERE id = ? AND active = 1")
+      .get(mechanicId) as { id: number } | undefined;
+    if (!who) return { ok: false, error: "That employee is not on the books" };
+  }
+
+  const mech = normalizeMechanic({ mechanicId, mechanicName });
+  if (item.mechanic_id === mech.mechanicId && item.mechanic_name === mech.mechanicName)
+    return { ok: true as const };
+
+  return inTx(() => {
+    db.prepare(
+      "UPDATE sale_items SET mechanic_id = ?, mechanic_name = ?, updated_at = ? WHERE id = ?",
+    ).run(mech.mechanicId, mech.mechanicName, nowLocalIso(), itemId);
+    logActorAudit(actorOf(user), {
+      action: "sale_item.update",
+      targetType: "sale",
+      targetId: item.sale_id,
+      details: { item_id: itemId, sale_status: sale.status, reassigned: true },
+      before: { mechanic_id: item.mechanic_id, mechanic_name: item.mechanic_name },
+      after: { mechanic_id: mech.mechanicId, mechanic_name: mech.mechanicName },
+    });
+    return { ok: true as const };
+  });
 }
 
 export function voidItem(user: PosUser, itemId: number, reason: string): Result {
@@ -470,28 +681,109 @@ export function completeSale(user: PosUser, saleId: number): Result<{ sale: Sale
 /** Not enough stock, and nobody present may override it. */
 class StockError extends Error {}
 
-/** SEQ is the card terminal's ticket number. Anyone at the register may fix it,
- *  but every change is on the record — that is the whole point of the column. */
-export function updateSeq(user: PosUser, saleId: number, seq: string | null): Result {
+/** The most a cashier may take off without a manager, in cents. */
+export function cashierDiscountMaxCents(): number {
+  return Number(getSetting("discount_cashier_max_cents"));
+}
+
+/**
+ * Take money off a ticket.
+ *
+ * Set to zero to remove one. That is deliberately the same call as setting one:
+ * "the discount on this ticket is now $0" is a change to the ticket like any
+ * other, and it lands in the audit log with a before and an after, which
+ * removing a row would not.
+ *
+ * The ceiling is checked here rather than at the route, because the route is not
+ * the only caller this will ever have and a permission enforced next to the
+ * database is one that cannot be walked around by adding a second entry point.
+ */
+export function setDiscount(
+  user: PosUser,
+  saleId: number,
+  cents: number,
+  reason: string,
+): Result<{ sale: Sale }> {
   const sale = getSale(saleId);
   if (!sale) return { ok: false, error: "Sale not found" };
-  const next = seq?.trim() || null;
-  if (next === sale.seq) return { ok: true };
+  if (sale.kind === "purchase")
+    return { ok: false, error: "You cannot discount a ticket the shop is paying out on" };
+  if (sale.status === "voided") return { ok: false, error: "This ticket is voided" };
+  if (sale.status === "completed" && !canEditCompleted(user))
+    return { ok: false, error: "Only a manager can change a paid ticket" };
+  if (!can(user.role, "discountSale"))
+    return { ok: false, error: "Your account can't give discounts" };
+
+  if (!Number.isInteger(cents) || cents < 0)
+    return { ok: false, error: "That is not a valid amount" };
+  // Not "would make the total negative" — a ticket that gives back more than it
+  // charges is a refund, and a refund is a different operation with a different
+  // paper trail. Saying so is more use than clamping silently.
+  if (cents > sale.subtotal_cents)
+    return {
+      ok: false,
+      error: `That is more than the ticket comes to (${(sale.subtotal_cents / 100).toFixed(2)})`,
+    };
+
+  const max = cashierDiscountMaxCents();
+  if (cents > max && !can(user.role, "discountAnyAmount"))
+    return {
+      ok: false,
+      error: `A manager has to approve more than $${(max / 100).toFixed(2)} off`,
+    };
+
+  const why = reason.trim();
+  // Required whenever money is actually coming off. This is the column the
+  // close-out prints, and a flagged discount with nothing beside it tells the
+  // owner only that they have a question to ask and nobody left to ask it of.
+  if (cents > 0 && !why)
+    return { ok: false, error: "Say why the discount is being given" };
 
   return inTx(() => {
+    const now = nowLocalIso();
     getDb()
-      .prepare("UPDATE sales SET seq = ?, updated_at = ? WHERE id = ?")
-      .run(next, nowLocalIso(), saleId);
+      .prepare(
+        `UPDATE sales SET discount_cents = ?, discount_reason = ?, discount_by = ?,
+                          discount_at = ?, updated_at = ?
+         WHERE id = ?`,
+      )
+      .run(cents, cents > 0 ? why : null, cents > 0 ? user.employeeId : null,
+           cents > 0 ? now : null, now, saleId);
+    recalcMoney(saleId);
+    const after = getSale(saleId)!;
     logActorAudit(actorOf(user), {
-      action: "sale.seq_update",
+      action: "sale.discount",
       targetType: "sale",
       targetId: saleId,
-      before: { seq: sale.seq },
-      after: { seq: next },
+      details: { sale_no: sale.sale_no, sale_status: sale.status },
+      before: {
+        discount_cents: sale.discount_cents,
+        discount_reason: sale.discount_reason,
+        total_cents: sale.total_cents,
+      },
+      after: {
+        discount_cents: after.discount_cents,
+        discount_reason: after.discount_reason,
+        total_cents: after.total_cents,
+      },
     });
-    return { ok: true as const };
+    return { ok: true as const, sale: after };
   });
 }
+
+/*
+ * There is no `updateSeq` here any more, and `sales.seq` is not written by
+ * anything.
+ *
+ * A sequence number belongs to a swipe, and a swipe is a payment: a ticket paid
+ * half on one card and half on another is two charges off the terminal and two
+ * numbers, which one column on the header cannot hold. The header's copy was
+ * always the wrong shape and nothing ever read it. The live one is
+ * `payments.seq`, handed out automatically and renumbered in exactly one place
+ * — see `setPaymentSeq`. The column is left in the schema rather than dropped
+ * because rows written before this still carry values, and a migration that
+ * throws away recorded numbers to tidy up is not a trade worth making.
+ */
 
 export function updatePo(user: PosUser, saleId: number, po: string | null): Result {
   const sale = getSale(saleId);
@@ -512,6 +804,36 @@ export function updatePo(user: PosUser, saleId: number, po: string | null): Resu
     });
     return { ok: true as const };
   });
+}
+
+/**
+ * Say where the car is.
+ *
+ * Not audited with a before/after diff like the money is, and that is on
+ * purpose: this is a note somebody moves three times an hour while a car is on
+ * the lift, and a full audit row per move would bury the log that exists to
+ * answer questions about money under a pile of shrugs. It is written straight
+ * onto the ticket, it is not part of any total, and the worst case of it being
+ * wrong is somebody walks out to the lot to look.
+ */
+export function setWorkStatus(
+  user: PosUser,
+  saleId: number,
+  status: WorkStatus | null,
+): Result {
+  if (!can(user.role, "ringSale"))
+    return { ok: false, error: "You cannot change tickets" };
+
+  const sale = getSale(saleId);
+  if (!sale) return { ok: false, error: "Sale not found" };
+  if (status !== null && !WORK_STATUSES.includes(status))
+    return { ok: false, error: "That is not one of the work statuses" };
+  if (status === sale.work_status) return { ok: true };
+
+  getDb()
+    .prepare("UPDATE sales SET work_status = ?, updated_at = ? WHERE id = ?")
+    .run(status, nowLocalIso(), saleId);
+  return { ok: true };
 }
 
 export function updateSaleMeta(
@@ -557,7 +879,8 @@ export function integrityCheck(businessDate?: string): {
   const db = getDb();
   const rows = db
     .prepare(
-      `SELECT s.id, s.sale_no, s.subtotal_cents, s.total_cents, s.paid_cents, s.tip_cents, s.comm_cents,
+      `SELECT s.id, s.sale_no, s.subtotal_cents, s.discount_cents, s.total_cents,
+              s.paid_cents, s.tip_cents, s.comm_cents,
               (SELECT COALESCE(SUM(line_total_cents), 0) FROM sale_items i
                 WHERE i.sale_id = s.id AND i.voided = 0) AS items_total,
               (SELECT COALESCE(SUM(amount_cents), 0) FROM payments p WHERE p.sale_id = s.id) AS paid_actual,
@@ -570,6 +893,7 @@ export function integrityCheck(businessDate?: string): {
     id: number;
     sale_no: string;
     subtotal_cents: number;
+    discount_cents: number;
     total_cents: number;
     paid_cents: number;
     tip_cents: number;
@@ -600,11 +924,22 @@ export function integrityCheck(businessDate?: string): {
         saleNo: r.sale_no,
         issue: `comm_cents ${r.comm_cents} but payments sum to ${r.comm_actual}`,
       });
-    if (r.total_cents !== r.subtotal_cents + r.tip_actual + r.comm_actual)
+    const expected =
+      r.subtotal_cents - r.discount_cents + r.tip_actual + r.comm_actual;
+    if (r.total_cents !== expected)
       issues.push({
         saleId: r.id,
         saleNo: r.sale_no,
-        issue: `total_cents ${r.total_cents} but subtotal + tips + commission is ${r.subtotal_cents + r.tip_actual + r.comm_actual}`,
+        issue: `total_cents ${r.total_cents} but subtotal − discount + tips + commission is ${expected}`,
+      });
+    // A discount bigger than the goods it came off means the total went
+    // negative, which is a refund wearing a discount's clothes. `recalcSubtotal`
+    // clamps this, so seeing it here means the clamp was bypassed.
+    if (r.discount_cents > r.subtotal_cents)
+      issues.push({
+        saleId: r.id,
+        saleNo: r.sale_no,
+        issue: `discount ${r.discount_cents} exceeds the goods total ${r.subtotal_cents}`,
       });
   }
   return issues;
