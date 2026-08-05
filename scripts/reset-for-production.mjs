@@ -84,6 +84,28 @@ const KEEP = [
   "_migrations",
 ];
 
+/**
+ * Settings keys that are HISTORY wearing configuration's clothes, and so have
+ * to be blanked even though the table around them survives.
+ *
+ * `last_inventory_check` is a claim that somebody walked the racks and counted
+ * them. That claim is about a specific set of counts — the ones that were in
+ * the database at the time. Wipe the stock and the claim outlives the thing it
+ * was about: the sheet goes live announcing a physical count of inventory that
+ * did not exist when the count happened, signed by whoever last did it. Worse,
+ * it does it quietly — the strip looks right, just old, so the first person to
+ * read it thinks the racks were walked three weeks ago rather than never.
+ *
+ * The alarm-cleared stamp goes for the same reason: it is an excuse for a
+ * silence that no longer exists.
+ */
+const BLANK_SETTINGS = [
+  "last_inventory_check",
+  "last_inventory_check_by",
+  "inventory_alarm_cleared",
+  "inventory_alarm_cleared_by",
+];
+
 const db = new Database(dbPath);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
@@ -128,6 +150,7 @@ const photos = fs.existsSync(uploads) ? fs.readdirSync(uploads).filter((f) => f 
 console.log(`\nPhotos in uploads/: ${photos.length} (orphaned once time_entries is empty)`);
 
 console.log("\nCounters reset to 1: sale_no, customer_no, lot_no, shift_no");
+console.log(`Settings blanked: ${BLANK_SETTINGS.join(", ")}`);
 
 if (!commit) {
   db.close();
@@ -153,6 +176,12 @@ db.transaction(() => {
   // from the test data and the first real sale would be id 132.
   db.prepare("DELETE FROM sqlite_sequence WHERE name NOT IN ('employees', 'admin_users')").run();
   db.prepare("UPDATE counters SET next_value = 1").run();
+  // UPDATE, not DELETE: settings are read with a default-if-missing helper, and
+  // an empty string is what "never happened" already looks like everywhere that
+  // reads these. Removing the row would work too, but leaves the next reader
+  // guessing whether the key was blanked or simply never added.
+  const blank = db.prepare("UPDATE settings SET value = '' WHERE key = ?");
+  for (const k of BLANK_SETTINGS) blank.run(k);
 })();
 
 for (const f of photos) fs.unlinkSync(path.join(uploads, f));

@@ -94,6 +94,8 @@ export default function InventoryPage() {
   const [printedAt, setPrintedAt] = useState("");
   const [checking, setChecking] = useState(false);
   const [confirmingCheck, setConfirmingCheck] = useState(false);
+  // Shut on arrival every time, deliberately not remembered. See the panel.
+  const [pricingOpen, setPricingOpen] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/pos/inventory?all=${showEmpty ? "1" : "0"}`);
@@ -312,10 +314,39 @@ export default function InventoryPage() {
       */}
       {data?.pricing && (data.pricing.noPrice.length > 0 || data.pricing.belowCost.length > 0) && (
         <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm no-print">
-          <div className="font-semibold text-amber-900 mb-1">
+          {/*
+            Shut by default, and the lists only render when it is open.
+
+            The warning is a standing one — a shop of five hundred products has
+            a handful priced wrong at any given moment, and fixing them is an
+            afternoon's work somebody schedules, not something done between two
+            customers. Left expanded, thirty lines of it sit above the stock
+            sheet every single time the page loads, and within a week nobody
+            reads past it; they scroll. A banner people scroll past is worse
+            than no banner, because it also buries the thing underneath it.
+
+            One line stays visible so the fact of it is never hidden. Opening it
+            is the deliberate act of somebody who has decided to deal with it.
+          */}
+          <button
+            type="button"
+            className="flex w-full items-center gap-1.5 text-left font-semibold text-amber-900"
+            onClick={() => setPricingOpen((v) => !v)}
+            aria-expanded={pricingOpen}
+          >
+            <span
+              aria-hidden="true"
+              className="inline-block transition-transform"
+              style={{ transform: pricingOpen ? "rotate(90deg)" : "none" }}
+            >
+              ▶
+            </span>
             Pricing needs a look
             <span className="font-normal text-amber-700"> · managers only</span>
-          </div>
+          </button>
+
+          {pricingOpen && (
+          <div className="mt-2">
 
           {data.pricing.noPrice.length > 0 && (
             <div className="mb-2">
@@ -340,7 +371,6 @@ export default function InventoryPage() {
             <div>
               <div className="text-amber-900">
                 <strong>{data.pricing.belowCost.length}</strong> priced below what they cost.
-                Usually a supplier put their price up and the shelf never followed.
               </div>
               <ul className="mt-1 list-disc pl-5 text-amber-800">
                 {data.pricing.belowCost.map((p) => (
@@ -355,6 +385,9 @@ export default function InventoryPage() {
                 ))}
               </ul>
             </div>
+          )}
+
+          </div>
           )}
         </div>
       )}
