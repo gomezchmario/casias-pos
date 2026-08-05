@@ -8,6 +8,7 @@ import {
   withStock,
 } from "@/lib/products";
 import { lotIntegrityCheck } from "@/lib/inventory";
+import { pricingFlags } from "@/lib/pricing-flags";
 import { can } from "@/lib/roles";
 import { costCode } from "@/lib/money";
 import { getSetting, setSetting } from "@/lib/settings";
@@ -80,6 +81,13 @@ export async function GET(req: NextRequest) {
     })),
     lastCheck: readInventoryCheck(),
     showCosts,
+    // Manager and up only, and computed here rather than derived in the browser
+    // from the rows above — a cashier's copy of this payload must not contain
+    // the answer at all, and `sections` has already had costs stripped out of
+    // it, so the page could not work it out even if it wanted to.
+    pricing: can(auth.user.role, "reviewPricing")
+      ? pricingFlags({ includeCosts: showCosts })
+      : null,
     lowStock: can(auth.user.role, "receiveInventory") ? listLowStock().length : 0,
     // Surfaced, never auto-repaired: a repair would destroy the evidence.
     integrityIssues: can(auth.user.role, "adjustInventory") ? lotIntegrityCheck() : [],

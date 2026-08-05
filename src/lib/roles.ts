@@ -88,6 +88,19 @@ export const CAPABILITIES = {
   // open on a counter anyone can walk past.
   viewTechIncomeCash: "owner",
   viewCosts: "owner",
+  // Tires in stock with no price, and tires priced under what they cost.
+  //
+  // Manager, and deliberately not cashier: both flags are statements about
+  // MARGIN. "Priced below cost" tells whoever reads it that this tire can be
+  // had for less than the shop paid — the exact sentence you do not want read
+  // over a shoulder at the counter — and "no price" is an invitation to name
+  // one. Neither ever reaches the public rack sheet.
+  //
+  // Separate from viewCosts (owner) on purpose. A manager sees THAT a tire is
+  // underwater and what it sells for; only an owner sees the figure it cost.
+  // Knowing something is priced wrong is what you need in order to fix it.
+  // Knowing the shop's margin on it is a different question.
+  reviewPricing: "manager",
   // The "P140" on the end of a tire name: what the shop paid, disguised as a
   // spec code so it can sit on the counter facing the customer.
   //
@@ -199,6 +212,10 @@ export const CAPABILITY_INFO: Record<
     group: "Money and reports",
   },
   viewCosts: { label: "See what the shop paid for stock", group: "Money and reports" },
+  reviewPricing: {
+    label: "See pricing warnings: in stock with no price, or priced below cost",
+    group: "Stock",
+  },
   viewCostCode: {
     label: "See the coded cost on tire names (the “P140”), for haggling",
     group: "Stock",

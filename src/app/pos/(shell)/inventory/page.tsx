@@ -58,6 +58,15 @@ type RimSection = {
   total: number;
 };
 
+type PricingFlag = {
+  productId: number;
+  name: string;
+  size: string | null;
+  onHand: number;
+  priceCents: number;
+  costCents: number | null;
+};
+
 type Data = {
   sections: RimSection[];
   batteries: Tire[];
@@ -65,6 +74,8 @@ type Data = {
   showCosts: boolean;
   lowStock: number;
   integrityIssues: { lotId: number; lotNo: string; issue: string }[];
+  /** Null for anyone below manager — the server does not send it at all. */
+  pricing: { noPrice: PricingFlag[]; belowCost: PricingFlag[] } | null;
 };
 
 type Sheet =
@@ -286,6 +297,65 @@ export default function InventoryPage() {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/*
+        Pricing warnings. Manager and up: `data.pricing` is null for everyone
+        else because the server never sent it, so there is nothing here for a
+        cashier to reveal by poking at the page.
+
+        `no-print` on purpose, and it is the point rather than an oversight. The
+        printable sheet is the one that gets carried around the racks and left
+        on the counter, and "priced below cost" is the last line the shop wants
+        a customer reading upside down. This lives on the screen, in the office.
+      */}
+      {data?.pricing && (data.pricing.noPrice.length > 0 || data.pricing.belowCost.length > 0) && (
+        <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm no-print">
+          <div className="font-semibold text-amber-900 mb-1">
+            Pricing needs a look
+            <span className="font-normal text-amber-700"> · managers only</span>
+          </div>
+
+          {data.pricing.noPrice.length > 0 && (
+            <div className="mb-2">
+              <div className="text-amber-900">
+                <strong>{data.pricing.noPrice.length}</strong> on the rack with no price. The
+                register will ring these at $0 until somebody sets one.
+              </div>
+              <ul className="mt-1 list-disc pl-5 text-amber-800">
+                {/* `name` already ends with the size for every tire — it is
+                    built from brand + model + size — so prefixing p.size here
+                    would print it twice. */}
+                {data.pricing.noPrice.map((p) => (
+                  <li key={p.productId}>
+                    {p.name} — {p.onHand} on hand
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {data.pricing.belowCost.length > 0 && (
+            <div>
+              <div className="text-amber-900">
+                <strong>{data.pricing.belowCost.length}</strong> priced below what they cost.
+                Usually a supplier put their price up and the shelf never followed.
+              </div>
+              <ul className="mt-1 list-disc pl-5 text-amber-800">
+                {data.pricing.belowCost.map((p) => (
+                  <li key={p.productId}>
+                    {p.name} — sells for {formatCents(p.priceCents)}
+                    {/* The cost figure is a second gate: owner only. A manager
+                        gets told the tire is underwater, which is what they need
+                        to act; the number itself is the owner's book. */}
+                    {p.costCents !== null && <> , cost {formatCents(p.costCents)}</>}
+                    {p.onHand > 0 && <> · {p.onHand} on hand</>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 
