@@ -34,6 +34,23 @@ export const CAPABILITIES = {
   takePayment: "cashier",
   editSeq: "cashier",
   editOwnOpenSale: "cashier",
+  // Taking money off a ticket. Two capabilities rather than one, because the
+  // question "may you discount at all" and the question "may you discount
+  // *this much*" have different answers: a cashier can knock a few dollars off
+  // for a regular, and only a manager can decide a ticket is half price. The
+  // ceiling itself is `discount_cashier_max_cents`, not a role.
+  discountSale: "cashier",
+  discountAnyAmount: "manager",
+  // Marking a ticket as ordered in, and walking it along the board. Cashier,
+  // because whoever is at the counter when the truck pulls up is who knows the
+  // tire arrived — a board only a manager can move is a board that is wrong by
+  // Wednesday.
+  manageSpecialOrders: "cashier",
+  // Moving one BACK a stage, or cancelling it. A different question: going
+  // backwards means the shop already told the customer something that turned
+  // out not to be true, and cancelling usually means a deposit has to go back
+  // out of the drawer.
+  reverseSpecialOrder: "manager",
   editCompletedSale: "manager",
   voidSale: "manager",
   refund: "manager",
@@ -49,13 +66,59 @@ export const CAPABILITIES = {
   // Counting down the drawer is the job of whoever is handing it over, which is
   // usually the cashier going home rather than a manager who has already left.
   closeShift: "cashier",
+  // Removing a midday register log. Owner, and deliberately far above the
+  // capability to take one: the whole value of a timeline of counts is that
+  // nobody on the floor can quietly drop the one that came out short.
+  deleteRegisterCheck: "owner",
+  // Seeing what the register EXPECTS before having typed what is actually
+  // there. Everyone else counts blind — see the note in the close-out page.
+  // The owner is exempt because the owner is who reviews the sheet rather than
+  // the person the sheet is a control on, and making them count twice to read
+  // their own figures buys nothing.
+  skipBlindCount: "owner",
+  // Taking cash out of the till and walking it to the safe. Deliberately higher
+  // than closeShift: counting money you are handing over is supervised by the
+  // person you hand it to, whereas removing it is not supervised by anyone.
+  drawerCash: "manager",
   viewReports: "manager",
+  // What each technician individually brought in, in dollars. Separate from
+  // viewReports on purpose: a manager runs the floor and needs to know who is
+  // carrying the week, which the percentage share tells them. The dollar figure
+  // is closer to naming what someone is paid, and the day screen is often left
+  // open on a counter anyone can walk past.
+  viewTechIncomeCash: "owner",
   viewCosts: "owner",
+  // The "P140" on the end of a tire name: what the shop paid, disguised as a
+  // spec code so it can sit on the counter facing the customer.
+  //
+  // Deliberately NOT the same permission as viewCosts, and deliberately lower.
+  // The two answer different questions. viewCosts is "what is this business
+  // paying for stock", which is an owner's book. The code answers "how far down
+  // can I go on this tire", which is the question the person actually doing the
+  // haggling has to answer, at the counter, in front of the customer, now. A
+  // cashier who cannot see it either sells at list or guesses.
+  //
+  // The gap between them is real and worth keeping: a cashier gets a rounded
+  // number attached to one tire they are looking at, an owner gets every cost,
+  // per lot, exportable, and the supplier it came from.
+  viewCostCode: "cashier",
+  // The standing note on the main screen. Manager rather than owner: it is the
+  // person running the floor who knows the tire truck is late, and a notice
+  // board only the absent owner can write to is a notice board nobody reads.
+  writeNotice: "manager",
   managePayroll: "owner",
   manageEmployees: "owner",
   manageSettings: "owner",
   manageProducts: "manager",
-  manageQuickButtons: "manager",
+  // Owner, not manager. The register grid is the shape of the shop's whole
+  // pricing — change a button and every ticket rung after it is different. It
+  // is also the one screen back here that nobody needs during a shift, so
+  // raising it costs no one any speed.
+  //
+  // Kept in step with the nav on purpose: the gear tab is the only way to reach
+  // this page, so a manager holding the capability but unable to see the tab
+  // would make the permissions screen tell a lie about what they can do.
+  manageQuickButtons: "owner",
 } as const satisfies Record<string, PosRole>;
 
 export type Capability = keyof typeof CAPABILITIES;
@@ -91,12 +154,36 @@ export const CAPABILITY_INFO: Record<
   editOwnOpenSale: { label: "Edit a ticket before it is paid", group: "At the register" },
   editSeq: { label: "Edit the terminal SEQ", group: "At the register" },
   viewDay: { label: "See today's tickets", group: "At the register" },
+  discountSale: { label: "Take money off a ticket", group: "At the register" },
+  discountAnyAmount: {
+    label: "Take off more than the counter limit",
+    group: "At the register",
+  },
+
+  manageSpecialOrders: {
+    label: "Order a tire in, and move it along the board",
+    group: "At the register",
+  },
+  reverseSpecialOrder: {
+    label: "Move an order back a stage, or cancel it",
+    group: "Fixing mistakes",
+  },
 
   editCompletedSale: { label: "Edit a paid ticket", group: "Fixing mistakes" },
   voidSale: { label: "Void a ticket", group: "Fixing mistakes" },
   refund: { label: "Give a refund", group: "Fixing mistakes" },
   overrideCommission: { label: "Override commission", group: "Fixing mistakes" },
   closeShift: { label: "Count the drawer and close a shift", group: "Fixing mistakes" },
+  deleteRegisterCheck: {
+    label: "Remove a midday register log",
+    group: "Money and reports",
+  },
+  skipBlindCount: {
+    label: "See the expected totals before counting (everyone else counts blind)",
+    group: "Money and reports",
+  },
+
+  drawerCash: { label: "Take cash out of the drawer (bank run, safe)", group: "Money and reports" },
 
   viewInventory: { label: "Look up stock", group: "Stock" },
   searchProducts: { label: "Search prices", group: "Stock" },
@@ -107,7 +194,19 @@ export const CAPABILITY_INFO: Record<
 
   cashPurchase: { label: "Buy stock over the counter (cash out)", group: "Money and reports" },
   viewReports: { label: "See reports", group: "Money and reports" },
+  viewTechIncomeCash: {
+    label: "See each technician's income in dollars (not just their share)",
+    group: "Money and reports",
+  },
   viewCosts: { label: "See what the shop paid for stock", group: "Money and reports" },
+  viewCostCode: {
+    label: "See the coded cost on tire names (the “P140”), for haggling",
+    group: "Stock",
+  },
+  writeNotice: {
+    label: "Write the note for the counter on the main screen",
+    group: "At the register",
+  },
   managePayroll: { label: "Run and lock payroll", group: "Money and reports" },
 
   manageQuickButtons: { label: "Change the register buttons", group: "Setup" },

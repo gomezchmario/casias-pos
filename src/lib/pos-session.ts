@@ -38,7 +38,15 @@ function plusSeconds(seconds: number): string {
   return toLocalIso(d);
 }
 
-function idleSeconds(): number {
+/**
+ * How long the register may sit untouched before it locks.
+ *
+ * Exported because the browser needs the same number: the server can only
+ * measure the gap between REQUESTS, and a request is not the same thing as a
+ * person. Only the client can tell the difference between a register somebody
+ * is working at and a tab left open on an empty counter.
+ */
+export function posIdleSeconds(): number {
   const n = Number(getSetting("pos_idle_lock_seconds"));
   return Number.isFinite(n) && n > 0 ? n : 900;
 }
@@ -145,7 +153,7 @@ export async function createPosSession(user: PosUser): Promise<void> {
     `INSERT INTO pos_sessions
        (token_hash, employee_id, role_snapshot, created_at, last_seen_at, expires_at)
      VALUES (?, ?, ?, ?, ?, ?)`,
-  ).run(hashToken(token), user.employeeId, user.role, now, now, plusSeconds(idleSeconds()));
+  ).run(hashToken(token), user.employeeId, user.role, now, now, plusSeconds(posIdleSeconds()));
 
   const store = await cookies();
   store.set(POS_COOKIE, token, {
@@ -170,9 +178,19 @@ export async function destroyPosSession(): Promise<PosUser | null> {
 }
 
 /**
- * Resolve the current POS user, sliding the expiry forward. An untouched
- * register therefore locks itself after `pos_idle_lock_seconds` — the same
- * mechanism serves as both session expiry and idle lock.
+ * Resolve the current POS user, sliding the expiry forward.
+ *
+ * This is the BACKSTOP for an abandoned register, not the idle lock itself. It
+ * cannot be, because it measures the gap between requests and the browser can
+ * make requests on its own: the shell used to poll this endpoint on a timer,
+ * every poll slid the expiry another quarter hour, and a tab left open on an
+ * empty counter therefore stayed signed in indefinitely. Sessions were observed
+ * alive 22 minutes untouched against a 15 minute setting.
+ *
+ * The lock proper now lives in `PosShell`, which watches for actual keys and
+ * taps and revokes the session itself. This still expires a session whose
+ * browser is gone — closed tab, killed process, pulled power — where nothing
+ * client-side is left to do it.
  */
 export async function getPosUser(): Promise<PosUser | null> {
   const store = await cookies();
@@ -196,7 +214,7 @@ export async function getPosUser(): Promise<PosUser | null> {
 
   db.prepare("UPDATE pos_sessions SET last_seen_at = ?, expires_at = ? WHERE id = ?").run(
     now,
-    plusSeconds(idleSeconds()),
+    plusSeconds(posIdleSeconds()),
     row.id,
   );
 

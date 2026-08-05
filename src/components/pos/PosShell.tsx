@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { LockScreen } from "@/components/pos/LockScreen";
 import { TireMark } from "@/components/ui/TireMark";
 import { ROLE_LABELS, type Capability, type PosRole } from "@/lib/roles";
 
@@ -19,18 +20,63 @@ export function usePosAuth(): PosAuth {
   return ctx;
 }
 
-const NAV: { href: string; label: string; capability: Capability }[] = [
-  { href: "/pos", label: "Today", capability: "viewDay" },
+const NAV: {
+  href: string;
+  label: string;
+  capability: Capability;
+  /** Accessible name, for tabs whose label is a glyph. */
+  title?: string;
+}[] = [
+  { href: "/pos", label: "Main", capability: "viewDay" },
   { href: "/pos/register", label: "New sale", capability: "ringSale" },
+  // Sits next to Main because it is the other half of the same question: Main
+  // says how the day is going, Entries says what the day actually did. The
+  // ticket list used to hang off the bottom of Main and made it too long to
+  // read; this is where it went.
+  { href: "/pos/entries", label: "Entries", capability: "viewDay" },
+  // Orders is deliberately NOT a tab. The board at /pos/orders still exists and
+  // still works — the lifecycle, the drawer control, the API — but it is not on
+  // the header until the shop has decided it wants it. A tab nobody asked for is
+  // a tab that gets clicked once.
   { href: "/pos/inventory", label: "Inventory", capability: "viewInventory" },
   { href: "/pos/eod", label: "End of day", capability: "closeShift" },
-  { href: "/pos/buttons", label: "Buttons", capability: "manageQuickButtons" },
+  // Just the gear. The other tabs are places to do the day's work and are
+  // named for the work; this one is setup, is opened rarely, and does not earn
+  // a word next to them. It sits last so the eye reaches it only after the
+  // things that get used every hour.
+  //
+  // A glyph has no accessible name of its own, hence `title` — the browser tab
+  // title is set separately in settings/layout.tsx and stays the plain word.
+  {
+    href: "/pos/settings",
+    label: "⚙",
+    title: "Settings",
+    capability: "manageSettings",
+  },
 ];
 
-// How often to confirm the session is still alive. The server slides the
-// expiry on every request, so this poll doubles as the idle-lock heartbeat:
-// stop touching the register and the session lapses on its own.
+// How often to confirm the session is still alive, while somebody is actually
+// using the register. NOT a heartbeat: see the tick loop below for why the
+// distinction matters.
 const SESSION_POLL_MS = 60_000;
+
+// How often to ask "has the counter gone quiet?". Costs nothing — it is a
+// clock comparison, no network — so it can be frequent enough that the lock
+// lands when it says it will rather than up to a minute late.
+const IDLE_TICK_MS = 5_000;
+
+/** Used until `/me` reports the shop's real setting. */
+const FALLBACK_IDLE_SECONDS = 900;
+
+/**
+ * What counts as somebody being here.
+ *
+ * Deliberately not `mousemove`. A register shares a counter with tire irons and
+ * people leaning on things, and a knocked mouse should not read as a cashier.
+ * These four are all things a person did on purpose — including `wheel`, so
+ * that reading a long inventory list without clicking anything still counts.
+ */
+const ACTIVITY_EVENTS = ["pointerdown", "keydown", "wheel", "touchstart"] as const;
 
 export function PosShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -38,45 +84,132 @@ export function PosShell({ children }: { children: React.ReactNode }) {
   const [auth, setAuth] = useState<PosAuth | null>(null);
   const [locked, setLocked] = useState(false);
 
+  const lastActivityRef = useRef(Date.now());
+  const idleMsRef = useRef(FALLBACK_IDLE_SECONDS * 1000);
+  // Mirrors `locked` for the interval, which closes over its first render.
+  const lockedRef = useRef(false);
+
   // The register has no login screen of its own any more — the time-clock
   // kiosk is the only door in, so a lapsed session goes back there.
   const toLogin = useCallback(() => {
     router.replace("/");
   }, [router]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function check(initial: boolean) {
+  const check = useCallback(
+    async (initial: boolean): Promise<PosAuth | null> => {
       try {
         const res = await fetch("/api/pos/auth/me");
-        if (cancelled) return;
         if (!res.ok) {
           if (initial) toLogin();
-          else setLocked(true);
-          return;
+          else {
+            lockedRef.current = true;
+            setLocked(true);
+          }
+          return null;
         }
-        const d: { user: PosUser; capabilities: Capabilities } = await res.json();
-        if (cancelled) return;
+        const d: {
+          user: PosUser;
+          capabilities: Capabilities;
+          idleSeconds?: number;
+        } = await res.json();
+        if (typeof d.idleSeconds === "number" && d.idleSeconds > 0) {
+          idleMsRef.current = d.idleSeconds * 1000;
+        }
+        const next: PosAuth = {
+          user: d.user,
+          can: (c) => d.capabilities[c] === true,
+        };
+        lockedRef.current = false;
         setLocked(false);
-        setAuth({ user: d.user, can: (c) => d.capabilities[c] === true });
+        setAuth(next);
+        return next;
       } catch {
-        if (!cancelled && initial) toLogin();
+        if (initial) toLogin();
+        return null;
       }
+    },
+    [toLogin],
+  );
+
+  /**
+   * Lock, and mean it.
+   *
+   * The session is revoked rather than merely covered up. A panel drawn over
+   * the page stops the person standing in front of it and nobody else: the
+   * cookie would still be live, so a second tab opened at /pos — or the same
+   * tab, reloaded — would walk straight back in. Throwing the session away
+   * makes the lock true at the server, where it counts.
+   */
+  const lock = useCallback(async () => {
+    if (lockedRef.current) return;
+    lockedRef.current = true;
+    setLocked(true);
+    try {
+      await fetch("/api/pos/auth/logout", { method: "POST" });
+    } catch {
+      // The screen is locked either way; the session will lapse on its own.
     }
+  }, []);
 
-    void check(true);
-    const t = setInterval(() => void check(false), SESSION_POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(t);
+  /**
+   * Somebody has PINned back in — possibly not the person who locked it, which
+   * is the point now that "switch user" is gone.
+   */
+  const unlock = useCallback(async () => {
+    lastActivityRef.current = Date.now();
+    const next = await check(false);
+    if (!next) return;
+    // They may be standing on a page their role cannot open — a cashier
+    // unlocking a register a manager left on the settings screen. Send them
+    // home rather than leaving them on a form that will refuse to save.
+    const here = NAV.find((n) =>
+      n.href === "/pos" ? pathname === "/pos" : pathname.startsWith(n.href),
+    );
+    if (here && !next.can(here.capability)) router.replace("/pos");
+  }, [check, pathname, router]);
+
+  // Record that a person is here.
+  useEffect(() => {
+    const bump = () => {
+      lastActivityRef.current = Date.now();
     };
-  }, [toLogin]);
+    for (const e of ACTIVITY_EVENTS) {
+      window.addEventListener(e, bump, { passive: true });
+    }
+    return () => {
+      for (const e of ACTIVITY_EVENTS) window.removeEventListener(e, bump);
+    };
+  }, []);
 
-  async function signOut() {
-    await fetch("/api/pos/auth/logout", { method: "POST" });
-    toLogin();
-  }
+  useEffect(() => {
+    void check(true);
+    let lastPoll = Date.now();
+
+    // The bug this shape exists to avoid: the poll used to fire unconditionally
+    // every minute, and the server slides the session expiry forward on every
+    // request it serves. So the tab kept its own session alive by asking
+    // whether it was still alive — a register left open on an empty counter
+    // never locked, no matter what `pos_idle_lock_seconds` said. Sessions were
+    // measured still live 22 minutes untouched against a 15 minute setting.
+    //
+    // The fix is that idleness gates the poll instead of the poll defining
+    // idleness. Go quiet and the requests stop, which is what lets the counter
+    // actually go quiet.
+    const t = setInterval(() => {
+      if (lockedRef.current) return;
+      const now = Date.now();
+      if (now - lastActivityRef.current >= idleMsRef.current) {
+        void lock();
+        return;
+      }
+      if (now - lastPoll >= SESSION_POLL_MS) {
+        lastPoll = now;
+        void check(false);
+      }
+    }, IDLE_TICK_MS);
+
+    return () => clearInterval(t);
+  }, [check, lock]);
 
   if (!auth) {
     return (
@@ -113,6 +246,8 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                     background: active ? "rgba(255,200,61,0.18)" : "transparent",
                     color: active ? "#ffd35a" : "rgba(255,255,255,0.78)",
                   }}
+                  title={n.title}
+                  aria-label={n.title}
                 >
                   {n.label}
                 </Link>
@@ -125,35 +260,35 @@ export function PosShell({ children }: { children: React.ReactNode }) {
               {ROLE_LABELS[auth.user.role]}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={signOut}
-            className="text-xs px-3 py-2 rounded-lg"
+          {/* Deliberately loud, and deliberately NOT a sign-out. Somebody
+              stepping away to punch out for lunch is coming straight back to
+              this register, so the POS session is left alive and the kiosk is
+              just another screen.
+
+              There is no "switch user" beside it any more. Handing the register
+              over was two buttons doing one job: signing out only to have the
+              next person sign in is exactly what the lock screen already does,
+              and it does it without needing anyone to remember the courtesy of
+              pressing it first. Walk away, it locks itself; the next person
+              types their PIN and it is theirs. */}
+          <Link
+            href="/"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold whitespace-nowrap"
             style={{
-              border: "1px solid rgba(255,255,255,0.18)",
-              color: "rgba(255,255,255,0.85)",
+              background: "linear-gradient(180deg, #ffd35a 0%, #e0a91d 100%)",
+              color: "#0a2540",
+              boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
             }}
           >
-            Switch user
-          </button>
+            <span style={{ fontSize: "1.1rem" }}>🕒</span>
+            Time Clock
+          </Link>
         </header>
 
         <main className="flex-1 p-6">{children}</main>
       </div>
 
-      {locked && (
-        <div
-          className="fixed inset-0 flex flex-col items-center justify-center gap-4 z-50"
-          style={{ background: "rgba(7,24,44,0.94)", color: "#fff" }}
-        >
-          <TireMark size={44} />
-          <div className="text-lg font-semibold">Register locked</div>
-          <p className="text-sm text-white/60">Signed out after a period of inactivity.</p>
-          <button type="button" className="btn btn-primary" onClick={toLogin}>
-            Sign back in
-          </button>
-        </div>
-      )}
+      {locked && <LockScreen onUnlocked={() => void unlock()} />}
     </PosAuthContext.Provider>
   );
 }
