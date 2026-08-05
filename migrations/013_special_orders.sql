@@ -1,0 +1,23 @@
+-- When a special order last moved, so the board can say how long it has sat.
+--
+-- WHY THIS IS NOT `updated_at`
+--
+-- `sales.updated_at` moves for every reason a row can move: a line added, a
+-- payment taken, a note typed, a total recalculated. The question the orders
+-- board exists to answer is narrower and much sharper -- how long has this
+-- tire been sitting in the corner with nobody calling the customer -- and a
+-- column that also moves when somebody takes fifty cents off the price cannot
+-- answer it. Two different clocks, so two different columns.
+--
+-- WHY NOT DERIVE IT FROM THE AUDIT LOG
+--
+-- The status changes are all in `audit_log` already, and reading them back out
+-- would be correct. It would also mean the busiest screen in the back office
+-- runs a scan of the log per row, and it would make the board's ordering depend
+-- on the log staying un-pruned. The log is the record of what happened; this is
+-- a working field. They are allowed to say the same thing.
+--
+-- NULL means it has not moved since it was opened, and every reader falls back
+-- to `opened_at` -- which is the truth in that case, not a default.
+
+ALTER TABLE sales ADD COLUMN fulfillment_at TEXT;
