@@ -93,6 +93,21 @@
     font-size: 11pt;
   }
 
+  /* "Last physical inventory check" is a statement about how far to trust the
+     rest of the page, so it belongs at the top of the paper too -- but as a line
+     of text under the header, not the tinted box it is on screen. A filled panel
+     costs toner, and the amber "never recorded" variant would print as a grey
+     slab that reads like a highlight rather than a warning. */
+  .inv-check {
+    background: none !important;
+    border: none !important;
+    border-bottom: 0.75pt solid #999 !important;
+    border-radius: 0;
+    padding: 0 0 3pt !important;
+    margin: 0 0 9pt !important;
+    font-size: 9.5pt;
+  }
+
   .inv-table td,
   .inv-table th {
     padding: 1pt 0;

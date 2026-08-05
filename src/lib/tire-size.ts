@@ -51,8 +51,19 @@ export function normalizeTireSize(raw: string): string {
 
   // Two-part commercial and trailer sizes: 11-22.5, 9R22.5, 7.5-16, 480-8.
   // "R" here marks radial construction and sits where a separator goes, so it
-  // is treated as one -- 9R-22.5 and 9-22.5 are the same tire.
-  const pair = s.match(/^([A-Z]{0,3})\s*(\d{1,3}(?:\.\d+)?)\s*R?\s*[-\s]\s*(\d{1,2}(?:\.\d+)?)$/);
+  // is treated as one -- 9R22.5, 9R-22.5 and 9-22.5 are all the same tire.
+  //
+  // The R must be able to stand ALONE as the separator. It reads as though it
+  // obviously would, which is how this shipped requiring a dash as well and
+  // silently passing "11R22.5" straight through unparsed -- and an unparsed
+  // size is not a cosmetic problem: rimDiameterOf takes the last dash-separated
+  // field, so it read the rim of an 11R22.5 semi tire as 11, filing it on the
+  // printed sheet under a rim heading the shop does not own a single tire for.
+  // 11R22.5, 11R24.5, 12R22.5 and 9R22.5 are among the most common truck sizes
+  // there are.
+  const pair = s.match(
+    /^([A-Z]{0,3})\s*(\d{1,3}(?:\.\d+)?)\s*(?:R\s*[-\s]?|[-\s])\s*(\d{1,2}(?:\.\d+)?)$/,
+  );
   if (pair) return `${pair[1]}${pair[2]}-${pair[3]}`;
 
   return s;

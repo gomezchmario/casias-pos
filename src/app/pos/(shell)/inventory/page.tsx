@@ -2,7 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePosAuth } from "@/components/pos/PosShell";
+import { ProductSearch, type FoundProduct } from "@/components/pos/ProductSearch";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Modal } from "@/components/ui/Modal";
+import {
+  ALARM_ICON,
+  ALARM_STYLE,
+  alarmLevel,
+  daysSinceDate,
+  formatCheckDate,
+  type InventoryCheck,
+} from "@/lib/inventory-alarm";
 import { formatCents, parseCents } from "@/lib/money";
 import { looksSpecialized } from "@/lib/tire-size";
 import "./inventory.css";
@@ -11,12 +21,21 @@ type Tire = {
   id: number;
   name: string;
   sku: string;
+  /** "tire" for everything in a rim section; "part" for the battery shelf. */
+  kind: "tire" | "part" | "service" | "fee";
   brand: string | null;
   model: string | null;
   ply: string | null;
   condition: "new" | "used" | null;
   price_cents: number;
+  /** Owner only. Null for everyone else — stripped server-side, not hidden here. */
   default_cost_cents: number | null;
+  /**
+   * The "P140" suffix, pre-rendered by the server for callers with
+   * `viewCostCode`. Null when they may not see it, when the cost is zero, and
+   * always for batteries. Never derived from `default_cost_cents` on this side.
+   */
+  cost_code: string | null;
   reorder_point: number;
   supplier: string | null;
   on_hand: number;
@@ -41,6 +60,8 @@ type RimSection = {
 
 type Data = {
   sections: RimSection[];
+  batteries: Tire[];
+  lastCheck: InventoryCheck;
   showCosts: boolean;
   lowStock: number;
   integrityIssues: { lotId: number; lotNo: string; issue: string }[];
@@ -49,35 +70,19 @@ type Data = {
 type Sheet =
   | { mode: "receive"; product?: Tire; size?: string; used?: boolean }
   | { mode: "count"; product: Tire; size: string }
+  | { mode: "edit"; product: Tire; size: string }
   | null;
 
-/**
- * What the shop paid, written so it can sit on the counter in front of the
- * customer. $140 becomes "P140" on the end of the name, where a ply or spec
- * code would normally live -- which is the whole point, because that is a place
- * the eye already skips. It is there so whoever is haggling knows the floor.
- *
- * This is a disguise, not a permission. The real control is the server, which
- * sends `default_cost_cents` as null to anyone without `viewCosts`; this only
- * ever renders a number the caller was already entitled to see.
- *
- * Whole dollars, because the cents are noise when you are deciding how far down
- * you will go -- but kept when they are not zero rather than rounding away real
- * money.
- */
-function costCode(cents: number): string {
-  const dollars = cents / 100;
-  return `P${Number.isInteger(dollars) ? dollars : dollars.toFixed(2)}`;
-}
-
 export default function InventoryPage() {
-  const { can } = usePosAuth();
+  const { can, user } = usePosAuth();
   const [data, setData] = useState<Data | null>(null);
   const [query, setQuery] = useState("");
   const [showEmpty, setShowEmpty] = useState(false);
   const [sheet, setSheet] = useState<Sheet>(null);
   const [error, setError] = useState<string | null>(null);
   const [printedAt, setPrintedAt] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [confirmingCheck, setConfirmingCheck] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/pos/inventory?all=${showEmpty ? "1" : "0"}`);
@@ -117,6 +122,35 @@ export default function InventoryPage() {
       }))
       .filter((s) => s.groups.length > 0);
   }, [data, query]);
+
+  const batteries = useMemo(() => {
+    if (!data) return [];
+    const q = query.trim().toLowerCase();
+    if (!q) return data.batteries;
+    return data.batteries.filter((b) => b.name.toLowerCase().includes(q));
+  }, [data, query]);
+
+  // Confirmed, because this button is a claim about the physical world: that
+  // somebody walked the racks and counted them. Everything else on this screen
+  // is a fact derived from the ledger and a stray click cannot make it lie —
+  // this one can, and the resulting lie is invisible. A sheet reading "checked
+  // today" when nobody checked is strictly worse than one reading "never", as
+  // the second is honest about knowing nothing.
+  //
+  // Found the hard way: two accidental clicks during testing wrote two counts
+  // that never happened, and the only reason they were caught is that someone
+  // happened to read the audit log.
+  async function markChecked() {
+    setChecking(true);
+    const res = await fetch("/api/pos/inventory", { method: "POST" });
+    setChecking(false);
+    setConfirmingCheck(false);
+    if (!res.ok) {
+      setError("Could not record the check");
+      return;
+    }
+    void load();
+  }
 
   const totals = useMemo(() => {
     const groups = sections.flatMap((s) => s.groups);
@@ -171,6 +205,69 @@ export default function InventoryPage() {
           {printedAt} · {totals.sizes} sizes · {totals.newCount} new · {totals.usedCount} used
         </div>
       </div>
+
+      {/*
+        When the racks were last actually walked and counted.
+
+        On the sheet as well as the screen, and that is the more important of
+        the two: a printed inventory has no other way of saying how much to
+        trust itself. "Counted three days ago" and "counted in March" are the
+        same document otherwise, and only one of them is worth ordering from.
+      */}
+      {data && (
+        <div
+          className="inv-check flex items-center justify-between gap-3 mb-4 rounded-lg px-3 py-2 text-sm"
+          // Green, then yellow, then red — see `alarmLevel`. The colour is the
+          // only part of this line anybody reads from across the room, so it
+          // carries the whole message: a sheet nobody has checked in a
+          // fortnight should not look the same as one counted yesterday.
+          style={ALARM_STYLE[alarmLevel(data.lastCheck)]}
+        >
+          <span className="text-brand-400">
+            {ALARM_ICON[alarmLevel(data.lastCheck)] && (
+              <span className="mr-1.5" aria-hidden="true">
+                {ALARM_ICON[alarmLevel(data.lastCheck)]}
+              </span>
+            )}
+            <strong className="text-brand-500">Last physical inventory check:</strong>{" "}
+            {data.lastCheck.date ? (
+              <>
+                {formatCheckDate(data.lastCheck.date)}
+                {data.lastCheck.by && ` · ${data.lastCheck.by}`}
+                {/* The age, spelled out. A date alone makes the reader do
+                    subtraction, and the whole point of the line is the answer
+                    to that subtraction. */}
+                {(() => {
+                  const n = daysSinceDate(data.lastCheck.date);
+                  if (n <= 0) return " · today";
+                  return ` · ${n} ${n === 1 ? "day" : "days"} ago`;
+                })()}
+              </>
+            ) : (
+              <span className="text-amber-800">never recorded</span>
+            )}
+            {/*
+              No "alarm cleared" note here, deliberately. This line answers one
+              question — how old is the number on this sheet — and the answer is
+              the date, which clearing never moves. Who silenced the colour is a
+              question about the shop, not about the stock, and it is answered on
+              the settings page next to the button that did it, where somebody
+              looking for it will actually look.
+            */}
+          </span>
+          {can("adjustInventory") && (
+            <button
+              type="button"
+              className="btn btn-ghost no-print whitespace-nowrap"
+              style={{ padding: "0.3rem 0.7rem", fontSize: "0.8rem" }}
+              onClick={() => setConfirmingCheck(true)}
+              disabled={checking}
+            >
+              {checking ? "Saving…" : "Counted today"}
+            </button>
+          )}
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 rounded-lg px-3 py-2 text-sm bg-red-50 text-red-700 no-print">
@@ -246,8 +343,14 @@ export default function InventoryPage() {
                             colour, same weight. Set apart in any way at all and
                             it stops being camouflage and starts being a label
                             that invites the question "what's the P for?".
+
+                            Handed down ready-made by the server, which decides
+                            both whether this caller may see it and whether
+                            there is one worth showing. Nothing here reconstructs
+                            it from a cost, because a browser entitled only to
+                            the code is never sent the cost.
                           */}
-                          {t.default_cost_cents != null && ` ${costCode(t.default_cost_cents)}`}
+                          {t.cost_code && ` ${t.cost_code}`}
                         </span>
                         {t.ply && <span className="text-brand-300 text-xs"> · {t.ply}</span>}
                         {/*
@@ -277,17 +380,26 @@ export default function InventoryPage() {
                       <td className="inv-c-note py-1 text-right w-8 print-only">
                         <span className="inv-count-box">&nbsp;</span>
                       </td>
-                      {can("adjustInventory") && (
-                        <td className="py-1 text-right w-24 no-print">
+                      <td className="py-1 text-right w-32 no-print whitespace-nowrap">
+                        {can("manageProducts") && (
                           <button
                             type="button"
                             className="text-xs text-brand-400 hover:text-brand-500 underline"
+                            onClick={() => setSheet({ mode: "edit", product: t, size: g.size })}
+                          >
+                            Edit
+                          </button>
+                        )}
+                        {can("adjustInventory") && (
+                          <button
+                            type="button"
+                            className="text-xs text-brand-400 hover:text-brand-500 underline ml-3"
                             onClick={() => setSheet({ mode: "count", product: t, size: g.size })}
                           >
                             Count
                           </button>
-                        </td>
-                      )}
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -329,7 +441,82 @@ export default function InventoryPage() {
         </div>
       ))}
 
-      {data && totals.sizes === 0 && (
+      {/*
+        Batteries, last, and not pretending to be tires.
+
+        Kept out of the rim sections on purpose: those headings are rack
+        positions, and there is no such thing as a 15" battery. Three lines with
+        a heading of their own is the honest shape, and it is also the shape the
+        person walking the sheet expects — the batteries are on their own shelf.
+      */}
+      {batteries.length > 0 && (
+        <div className="inv-section">
+          <div className="inv-rim flex items-baseline gap-3 mt-5 mb-2">
+            <h2 className="text-xl font-bold text-brand-500">Batteries</h2>
+            <span className="text-xs text-brand-300">
+              {batteries.reduce((s, b) => s + b.on_hand, 0)} on hand
+            </span>
+          </div>
+
+          <section className="inv-group bg-white rounded-xl shadow-sm p-4 mb-3">
+            <table className="inv-table w-full text-sm">
+              <tbody>
+                {batteries.map((b) => (
+                  <tr key={b.id} className="border-t border-black/5 first:border-t-0">
+                    <td className="inv-c-name py-1">
+                      <span className="inv-tire-name text-brand-500">
+                        {/* "BATTERY LARGE" under a heading that already says
+                            Batteries is the word twice. The stored name keeps
+                            the prefix because it is what shows up on a receipt
+                            and in a search, where the context is gone. */}
+                        {b.name.replace(/^BATTERY\s+/i, "")}
+                      </span>
+                      {b.reorder_point > 0 && b.on_hand <= b.reorder_point && (
+                        <span className="text-amber-700 text-xs no-print"> · low</span>
+                      )}
+                    </td>
+                    <td className="inv-c-price py-1 text-right tabular-nums text-brand-400 w-20">
+                      {formatCents(b.price_cents)}
+                    </td>
+                    <td
+                      className={`inv-c-qty py-1 text-right tabular-nums w-12 font-semibold ${
+                        b.on_hand < 0 ? "text-red-700" : "text-brand-500"
+                      }`}
+                    >
+                      {b.on_hand}
+                    </td>
+                    <td className="inv-c-note py-1 text-right w-8 print-only">
+                      <span className="inv-count-box">&nbsp;</span>
+                    </td>
+                    <td className="py-1 text-right w-32 no-print whitespace-nowrap">
+                      {can("manageProducts") && (
+                        <button
+                          type="button"
+                          className="text-xs text-brand-400 hover:text-brand-500 underline"
+                          onClick={() => setSheet({ mode: "edit", product: b, size: b.name })}
+                        >
+                          Edit
+                        </button>
+                      )}
+                      {can("adjustInventory") && (
+                        <button
+                          type="button"
+                          className="text-xs text-brand-400 hover:text-brand-500 underline ml-3"
+                          onClick={() => setSheet({ mode: "count", product: b, size: b.name })}
+                        >
+                          Count
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        </div>
+      )}
+
+      {data && totals.sizes === 0 && batteries.length === 0 && (
         <div className="bg-white rounded-xl shadow-sm p-8 text-center text-brand-300">
           {query
             ? `Nothing on the racks matches "${query}".`
@@ -350,6 +537,18 @@ export default function InventoryPage() {
           }}
         />
       )}
+      {sheet?.mode === "edit" && (
+        <EditModal
+          product={sheet.product}
+          size={sheet.size}
+          showCosts={data?.showCosts ?? false}
+          onClose={() => setSheet(null)}
+          onSaved={() => {
+            setSheet(null);
+            void load();
+          }}
+        />
+      )}
       {sheet?.mode === "count" && (
         <CountModal
           product={sheet.product}
@@ -361,6 +560,26 @@ export default function InventoryPage() {
           }}
         />
       )}
+
+      <ConfirmModal
+        open={confirmingCheck}
+        onCancel={() => setConfirmingCheck(false)}
+        onConfirm={() => void markChecked()}
+        busy={checking}
+        title="Counted today?"
+        // Naming the action rather than saying "OK", because "OK" answers a
+        // question you have already stopped reading by the time you click it.
+        confirmLabel="Yes, I counted them"
+        cancelLabel="Not yet"
+        acknowledge="Somebody walked the racks and counted them"
+      >
+        <p>
+          This stamps the stock sheet as counted{" "}
+          <strong className="text-brand-500">today</strong>, by{" "}
+          <strong className="text-brand-500">{user.name}</strong>, and everyone who prints
+          it will read it that way.
+        </p>
+      </ConfirmModal>
     </div>
   );
 }
@@ -396,17 +615,23 @@ function ReceiveModal({
   const [cost, setCost] = useState("");
   const [supplier, setSupplier] = useState("");
   const [reference, setReference] = useState("");
-  const [productId, setProductId] = useState<number | null>(null);
-  const [products, setProducts] = useState<Tire[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    if (tab !== "new") return;
-    fetch("/api/pos/products")
-      .then((r) => r.json())
-      .then((d) => setProducts(d.products || []));
-  }, [tab]);
+  // The tire being received, once found. Held whole rather than as an id so the
+  // form can show what was picked — size, price, what is already on the rack —
+  // without a second lookup. Confirming you grabbed the right one out of five
+  // near-identical sizes is the entire point of showing it back.
+  const [picked, setPicked] = useState<FoundProduct | null>(null);
+
+  // "It's not in the list." Off by default: on a normal delivery every tire is
+  // already known, and a create form standing open invites a duplicate row for a
+  // tire that was there all along under a slightly different spelling.
+  const [adding, setAdding] = useState(false);
+  const [newBrand, setNewBrand] = useState("");
+  const [newModel, setNewModel] = useState("");
+  const [newSize, setNewSize] = useState("");
+  const [newPrice, setNewPrice] = useState("");
 
   async function submit() {
     setError(null);
@@ -416,23 +641,46 @@ function ReceiveModal({
       return;
     }
 
-    const body =
-      tab === "used"
-        ? { usedSize: size, qty: n, specialized }
-        : {
-            productId,
-            qty: n,
-            unitCostCents: parseCents(cost) ?? 0,
-            supplier: supplier || null,
-            reference: reference || null,
-          };
-    if (tab === "used" && !size.trim()) {
-      setError("Which size?");
-      return;
-    }
-    if (tab === "new" && !productId) {
-      setError("Pick a tire");
-      return;
+    let body: Record<string, unknown>;
+    if (tab === "used") {
+      if (!size.trim()) {
+        setError("Which size?");
+        return;
+      }
+      body = { usedSize: size, qty: n, specialized };
+    } else {
+      const common = {
+        qty: n,
+        unitCostCents: parseCents(cost) ?? 0,
+        supplier: supplier || null,
+        reference: reference || null,
+      };
+      if (adding) {
+        if (!newBrand.trim()) {
+          setError("Which brand?");
+          return;
+        }
+        if (!newSize.trim()) {
+          setError("Which size?");
+          return;
+        }
+        body = {
+          ...common,
+          newTire: {
+            brand: newBrand.trim(),
+            model: newModel.trim() || null,
+            tireSize: newSize.trim(),
+            priceCents: parseCents(newPrice) ?? 0,
+            specialized,
+          },
+        };
+      } else {
+        if (!picked) {
+          setError("Which tire?");
+          return;
+        }
+        body = { ...common, productId: picked.id };
+      }
     }
 
     setBusy(true);
@@ -527,21 +775,179 @@ function ReceiveModal({
           </>
         ) : (
           <>
-            <label className="text-sm text-brand-400">
-              Tire
-              <select
-                className="input mt-1 w-full"
-                value={productId ?? ""}
-                onChange={(e) => setProductId(e.target.value ? Number(e.target.value) : null)}
+            {/*
+              Was a <select> of every tire the shop has ever carried — 557 rows
+              by the time anyone tried to use it, in one scroll, with no way to
+              type. Nobody unloading a truck is going to scroll to find
+              "LANDSAIL LS588 215-35-19"; they know the size in their hand and
+              want to type it. Same search the register uses, so the two screens
+              behave identically and the tire-size normaliser means 195/65R15,
+              195 65 15 and 1956515 all land on the same row.
+            */}
+            {!adding &&
+              (picked ? (
+                <div
+                  className="rounded-lg px-3 py-2 flex items-center gap-3"
+                  style={{ background: "rgba(10,37,64,0.04)" }}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-brand-500 truncate">{picked.name}</div>
+                    <div className="text-xs text-brand-300">
+                      {picked.tire_size ?? picked.sku}
+                      {picked.price_cents > 0 && ` · sells at ${formatCents(picked.price_cents)}`}
+                      {` · ${picked.on_hand} on the rack`}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="text-xs text-brand-400 underline whitespace-nowrap"
+                    onClick={() => setPicked(null)}
+                  >
+                    Change
+                  </button>
+                </div>
+              ) : (
+                <label className="text-sm text-brand-400">
+                  Tire
+                  <div className="mt-1">
+                    <ProductSearch
+                      autoFocus
+                      placeholder="Type a size or a brand — 215 55 17, vantage…"
+                      // Only things that can actually be received: no services,
+                      // no fees, and not the used sizes, which have their own tab
+                      // precisely because they are received differently.
+                      filter={(p) => p.track_inventory === 1 && p.condition !== "used"}
+                      clearOnPick
+                      onPick={(p) => {
+                        setPicked(p);
+                        // Pre-fill from what the shop paid last time. It is the
+                        // right answer often enough to save typing and is fully
+                        // editable, because the whole reason to record a cost per
+                        // lot is that it changes between deliveries.
+                        if (!cost && p.default_cost_cents)
+                          setCost((p.default_cost_cents / 100).toFixed(2));
+                        if (!supplier && p.supplier) setSupplier(p.supplier);
+                      }}
+                    />
+                  </div>
+                </label>
+              ))}
+
+            {adding ? (
+              <div className="flex flex-col gap-3">
+                <div className="flex gap-3">
+                  <label className="text-sm text-brand-400 flex-1">
+                    Brand
+                    <input
+                      className="input mt-1 w-full"
+                      value={newBrand}
+                      onChange={(e) => setNewBrand(e.target.value)}
+                      placeholder="GOODYEAR"
+                      autoFocus
+                    />
+                  </label>
+                  <label className="text-sm text-brand-400 flex-1">
+                    Model
+                    <input
+                      className="input mt-1 w-full"
+                      value={newModel}
+                      onChange={(e) => setNewModel(e.target.value)}
+                      placeholder="TRAVEZA"
+                    />
+                  </label>
+                </div>
+                <div className="flex gap-3">
+                  <label className="text-sm text-brand-400 flex-1">
+                    Size
+                    <input
+                      className="input mt-1 w-full tabular-nums"
+                      value={newSize}
+                      onChange={(e) => {
+                        setNewSize(e.target.value);
+                        // Same self-ticking rule as the used tab: half-inch rims
+                        // are commercial without exception.
+                        if (looksSpecialized(e.target.value)) setSpecialized(true);
+                      }}
+                      placeholder="195-65-15"
+                    />
+                  </label>
+                  <label className="text-sm text-brand-400 flex-1">
+                    Sells at
+                    <input
+                      className="input mt-1 w-full tabular-nums"
+                      value={newPrice}
+                      onChange={(e) => setNewPrice(e.target.value)}
+                      placeholder="100.00"
+                      inputMode="decimal"
+                    />
+                  </label>
+                </div>
+                {/*
+                  Same note as the used tab, and it belongs here more, not less:
+                  this field is the one that creates a product row. A size typed
+                  in an unfamiliar shape here does not just look odd, it decides
+                  which rim heading the tire prints under forever. Saying plainly
+                  that every shape works is what stops someone hesitating and
+                  inventing their own.
+
+                  Outside the half-width Size column on purpose. In there the
+                  line wraps mid-example — "195 65 / 15" — and a broken example
+                  reads as two examples, which is worse than no note at all.
+                  Left-aligned it still sits directly under the field it is
+                  about; it just has room to say it once.
+                */}
+                <span className="-mt-1 text-xs text-brand-300">
+                  Any way of writing it works — 195 65 15, 195/65R15, 1956515.
+                </span>
+                <button
+                  type="button"
+                  className="text-xs text-brand-400 underline self-start"
+                  onClick={() => setAdding(false)}
+                >
+                  ← It is in the list after all
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="text-xs text-brand-400 underline self-start"
+                onClick={() => {
+                  setAdding(true);
+                  setPicked(null);
+                }}
               >
-                <option value="">Pick one…</option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+                Not in the list? Add a tire
+              </button>
+            )}
+
+            {/*
+              On the new tab as well as the used one. A semi or trailer tire is
+              just as likely to arrive new, and if the box is missing here it
+              lands among the passenger sizes on the printed sheet with no way to
+              move it except editing the product afterwards — which nobody does.
+
+              Only while creating: for a tire already in the list this is settled,
+              and a ticked box next to an existing product would read as an offer
+              to change which rack it lives on, which this is not.
+            */}
+            {adding && (
+              <label className="flex items-start gap-2 text-sm text-brand-400">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={specialized}
+                  onChange={(e) => setSpecialized(e.target.checked)}
+                />
+                <span>
+                  18-wheeler or specialty
+                  <span className="block text-xs text-brand-300">
+                    Semi, trailer, tow truck, mower. Keeps it in its own section at
+                    the end of the sheet instead of among the passenger sizes.
+                  </span>
+                </span>
+              </label>
+            )}
+
             <label className="text-sm text-brand-400">
               Cost each
               <input
@@ -675,6 +1081,255 @@ function CountModal({
             placeholder="Miscount, damaged, sold off the books…"
           />
         </label>
+        {error && <div className="text-sm text-red-700">{error}</div>}
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * Edit one tire.
+ *
+ * Deliberately not a stock screen: nothing here moves a count. Receiving and
+ * counting are ledger events that need a reason and leave a movement behind,
+ * and folding them into a form where someone is fixing a typo in a brand name
+ * is how a stock level gets changed by accident.
+ *
+ * Cost and supplier are only rendered for those who may see them, and the
+ * fields are simply absent otherwise -- so a manager's save cannot carry a cost
+ * at all, and the server rejects one that somehow does.
+ */
+function EditModal({
+  product,
+  size,
+  showCosts,
+  onClose,
+  onSaved,
+}: {
+  product: Tire;
+  size: string;
+  showCosts: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  // A battery has no brand, model, ply or size — it is Large, Medium or Small
+  // and that is the whole description. Rather than render four boxes that must
+  // be left empty (and a "Brand is required" error when they are), the form
+  // collapses to what a battery actually has: a name, a price and a cost.
+  const simple = product.kind !== "tire";
+  const [name, setName] = useState(product.name);
+  const [brand, setBrand] = useState(product.brand ?? "");
+  const [model, setModel] = useState(product.model ?? "");
+  const [ply, setPly] = useState(product.ply ?? "");
+  const [tireSize, setTireSize] = useState(size);
+  const [price, setPrice] = useState(
+    product.price_cents ? (product.price_cents / 100).toFixed(2) : "",
+  );
+  const [cost, setCost] = useState(
+    product.default_cost_cents ? (product.default_cost_cents / 100).toFixed(2) : "",
+  );
+  const [supplier, setSupplier] = useState(product.supplier ?? "");
+  const [reorder, setReorder] = useState(String(product.reorder_point ?? 0));
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const priceCents = parseCents(price);
+  const costCents = parseCents(cost);
+
+  async function submit() {
+    setError(null);
+    if (simple && !name.trim()) {
+      setError("It needs a name");
+      return;
+    }
+    if (!simple && !brand.trim()) {
+      setError("A tire needs at least a brand");
+      return;
+    }
+    if (priceCents == null || priceCents < 0) {
+      setError("Enter a price, or 0 if it is priced at the counter");
+      return;
+    }
+    if (showCosts && cost.trim() && (costCents == null || costCents < 0)) {
+      setError("That cost is not a number");
+      return;
+    }
+
+    setBusy(true);
+    const res = await fetch(`/api/pos/products/${product.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...(simple
+          ? { name: name.trim() }
+          : {
+              brand: brand.trim(),
+              model: model.trim() || null,
+              ply: ply.trim() || null,
+              tireSize,
+            }),
+        priceCents,
+        reorderPoint: parseInt(reorder, 10) || 0,
+        // Omitted entirely rather than sent as null: the route treats the key
+        // being present at all as an attempt to write a cost, and refuses it
+        // from anyone who cannot read one.
+        ...(showCosts
+          ? { defaultCostCents: costCents ?? 0, supplier: supplier.trim() || null }
+          : {}),
+      }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setError((await res.json().catch(() => ({}))).error || "Could not save");
+      return;
+    }
+    onSaved();
+  }
+
+  const belowCost =
+    showCosts &&
+    priceCents != null &&
+    priceCents > 0 &&
+    costCents != null &&
+    costCents > priceCents;
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={simple ? "Edit item" : "Edit tire"}
+      footer={
+        <>
+          <button type="button" className="btn btn-ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="button" className="btn btn-primary" onClick={submit} disabled={busy}>
+            {busy ? "Saving…" : "Save"}
+          </button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-3">
+        {simple ? (
+          <label className="text-sm text-brand-400">
+            Name
+            <input
+              className="input mt-1 w-full"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+            />
+          </label>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="text-sm text-brand-400">
+                Brand
+                <input
+                  className="input mt-1 w-full"
+                  value={brand}
+                  onChange={(e) => setBrand(e.target.value)}
+                  autoFocus
+                />
+              </label>
+              <label className="text-sm text-brand-400">
+                Model <span className="text-brand-300">(optional)</span>
+                <input
+                  className="input mt-1 w-full"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                />
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="text-sm text-brand-400">
+                Size
+                <input
+                  className="input mt-1 w-full tabular-nums"
+                  value={tireSize}
+                  onChange={(e) => setTireSize(e.target.value)}
+                  placeholder="195-65-15"
+                />
+              </label>
+              <label className="text-sm text-brand-400">
+                Ply <span className="text-brand-300">(optional)</span>
+                <input
+                  className="input mt-1 w-full"
+                  value={ply}
+                  onChange={(e) => setPly(e.target.value)}
+                  placeholder="8PLY"
+                />
+              </label>
+            </div>
+          </>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <label className="text-sm text-brand-400">
+            Price <span className="text-brand-300">(tax included)</span>
+            <input
+              className="input mt-1 w-full tabular-nums"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              inputMode="decimal"
+              placeholder="100.00"
+            />
+          </label>
+          {showCosts && (
+            <label className="text-sm text-brand-400">
+              Cost <span className="text-brand-300">(what we paid)</span>
+              <input
+                className="input mt-1 w-full tabular-nums"
+                value={cost}
+                onChange={(e) => setCost(e.target.value)}
+                inputMode="decimal"
+                placeholder="45.00"
+              />
+            </label>
+          )}
+        </div>
+
+        {/*
+          Warned, never blocked. The shop really does sell below cost sometimes
+          to clear a tire that has sat too long, and a form that refuses would
+          only get worked around. Thirteen rows arrived from the spreadsheet
+          this way, so it is worth saying out loud when it happens.
+        */}
+        {belowCost && (
+          <p className="text-sm text-amber-800">
+            That is below cost — {formatCents(costCents!)} in, {formatCents(priceCents!)} out.
+            Fine if you mean it.
+          </p>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          {showCosts && (
+            <label className="text-sm text-brand-400">
+              Supplier <span className="text-brand-300">(optional)</span>
+              <input
+                className="input mt-1 w-full"
+                value={supplier}
+                onChange={(e) => setSupplier(e.target.value)}
+                placeholder="Who to call for more"
+              />
+            </label>
+          )}
+          <label className="text-sm text-brand-400">
+            Warn below <span className="text-brand-300">(0 = never)</span>
+            <input
+              className="input mt-1 w-full tabular-nums"
+              value={reorder}
+              onChange={(e) => setReorder(e.target.value.replace(/[^\d]/g, ""))}
+              inputMode="numeric"
+            />
+          </label>
+        </div>
+
+        <p className="text-xs text-brand-300">
+          This changes the {simple ? "item" : "tire"}, not the count —{" "}
+          {product.on_hand} on the {simple ? "shelf" : "rack"}. Use Count for that.
+        </p>
         {error && <div className="text-sm text-red-700">{error}</div>}
       </div>
     </Modal>

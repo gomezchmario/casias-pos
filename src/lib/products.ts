@@ -214,6 +214,42 @@ export function inventoryBySection(opts: { includeOutOfStock?: boolean } = {}): 
 }
 
 // ---------------------------------------------------------------------------
+// Batteries
+// ---------------------------------------------------------------------------
+
+/**
+ * The battery shelf: Large, Medium, Small, and nothing else. See
+ * 010_batteries.sql for why these are ordinary stocked products rather than a
+ * table of three numbers.
+ *
+ * Ordered by price descending, which is the same order as biggest-to-smallest
+ * and does not depend on anyone spelling the three names the same way twice.
+ * The alternative -- a hand-maintained list of size labels -- goes stale the
+ * first time a fourth size appears.
+ *
+ * Zero-stock rows are dropped under the same rule as a used tire line: a shelf
+ * heading with "Small: 0" under it teaches people to skim the sheet. Unlike a
+ * used size, though, the row survives at zero when `includeOutOfStock` is on,
+ * because "we are out of small batteries" is a thing someone reordering needs
+ * to see.
+ */
+export function listBatteries(
+  opts: { includeOutOfStock?: boolean } = {},
+): ProductWithStock[] {
+  const rows = withStock(
+    getDb()
+      .prepare(
+        `SELECT p.* FROM products p
+           JOIN service_categories c ON c.id = p.category_id
+          WHERE c.code = 'battery' AND p.deleted = 0 AND p.active = 1
+          ORDER BY p.price_cents DESC`,
+      )
+      .all() as Product[],
+  );
+  return opts.includeOutOfStock ? rows : rows.filter((b) => b.on_hand !== 0);
+}
+
+// ---------------------------------------------------------------------------
 // Used tires
 // ---------------------------------------------------------------------------
 

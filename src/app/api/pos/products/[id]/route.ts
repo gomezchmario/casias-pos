@@ -53,8 +53,17 @@ export async function PATCH(
     return jsonError("Invalid JSON");
   }
 
-  // `body` is passed whole: every key on it is an updateProduct argument, and
-  // listing them again here would be one more place to forget a new field.
+  // Cost is owner-only to read, so it is owner-only to write. A manager who
+  // cannot see what the shop paid has no business overwriting it either, and
+  // without this the edit form's hidden cost field would be a hole you could
+  // drive a crafted PATCH through.
+  if (body.defaultCostCents !== undefined && !can(auth.user.role, "viewCosts")) {
+    return jsonError("Only an owner can change what the shop paid", 403);
+  }
+
+  // Otherwise `body` is passed whole: every remaining key on it is an
+  // updateProduct argument, and listing them again here would be one more place
+  // to forget a new field.
   const result = updateProduct(auth.user, id, body);
   if (!result.ok) return jsonError(result.error);
   return NextResponse.json({ product: getProduct(id) });
