@@ -178,21 +178,24 @@ export default function InventoryPage() {
 
   return (
     <div className="inv max-w-5xl mx-auto">
-      <div className="flex items-end justify-between mb-5 gap-4 flex-wrap no-print">
+      {/* gap-8 rather than gap-4: the controls are already hard against the
+          right edge, so the only thing that can un-cram them is a wider gutter
+          between them and the heading on the left. */}
+      <div className="flex items-end justify-between mb-5 gap-8 flex-wrap no-print">
         <div>
           <h1 className="text-2xl font-semibold text-brand-500">Inventory</h1>
           <p className="text-sm text-brand-400">
             Everything on the racks, by size.
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
           <input
-            className="input"
+            className="input ml-1"
             placeholder="Size or brand…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <label className="flex items-center gap-2 text-sm text-brand-400">
+          <label className="flex items-center gap-2 text-sm text-brand-400 whitespace-nowrap">
             <input
               type="checkbox"
               checked={showEmpty}
