@@ -44,7 +44,13 @@ export async function PATCH(req: NextRequest) {
         k === "customer_prompt_threshold_cents" ||
         k === "business_day_start_hour" ||
         k === "pos_idle_lock_seconds" ||
-        k === "search_log_retention_days"
+        k === "search_log_retention_days" ||
+        // Same reasoning as tax_rate_bp: these three are multiplied and added
+        // straight into a quoted price, so a stray letter here would put "NaN"
+        // in front of a customer rather than failing anywhere visible.
+        k === "quote_margin_bp" ||
+        k === "quote_mount_balance_cents" ||
+        k === "quote_round_to_cents"
       ) {
         const n = parseInt(v, 10);
         if (Number.isNaN(n)) return jsonError(`${k} must be a number`);
@@ -65,6 +71,14 @@ export async function PATCH(req: NextRequest) {
           return jsonError("tip_comm_charge_cents must be ≥ 0");
         if (k === "pos_idle_lock_seconds" && n < 60)
           return jsonError("pos_idle_lock_seconds must be ≥ 60");
+        if (k === "quote_margin_bp" && n < 0)
+          return jsonError("quote_margin_bp must be ≥ 0");
+        if (k === "quote_mount_balance_cents" && n < 0)
+          return jsonError("quote_mount_balance_cents must be ≥ 0");
+        // Zero is meaningful — it turns rounding off — but a negative step would
+        // send Math.ceil the wrong way and quote UNDER the computed price.
+        if (k === "quote_round_to_cents" && n < 0)
+          return jsonError("quote_round_to_cents must be ≥ 0");
       }
       setSetting(k, v);
       changes[k] = v;

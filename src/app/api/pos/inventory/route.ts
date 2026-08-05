@@ -88,6 +88,19 @@ export async function GET(req: NextRequest) {
     pricing: can(auth.user.role, "reviewPricing")
       ? pricingFlags({ includeCosts: showCosts })
       : null,
+    // Starting values for the quoter, not a quote. The arithmetic itself runs
+    // in the browser from `quoteTire`, because the counter types a cost with a
+    // customer on the phone and a round-trip per keystroke is how a tool stops
+    // being used. Nothing here is derived from stock, so there is no cost to
+    // leak: these are the shop's own posted markup and labour rate.
+    quoteDefaults: can(auth.user.role, "quoteTire")
+      ? {
+          marginBp: Number(getSetting("quote_margin_bp")),
+          taxRateBp: Number(getSetting("tax_rate_bp")),
+          mountBalanceCents: Number(getSetting("quote_mount_balance_cents")),
+          roundToCents: Number(getSetting("quote_round_to_cents")),
+        }
+      : null,
     lowStock: can(auth.user.role, "receiveInventory") ? listLowStock().length : 0,
     // Surfaced, never auto-repaired: a repair would destroy the evidence.
     integrityIssues: can(auth.user.role, "adjustInventory") ? lotIntegrityCheck() : [],

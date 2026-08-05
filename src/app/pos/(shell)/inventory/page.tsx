@@ -5,6 +5,7 @@ import { usePosAuth } from "@/components/pos/PosShell";
 import { ProductSearch, type FoundProduct } from "@/components/pos/ProductSearch";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Modal } from "@/components/ui/Modal";
+import { TireQuote, type QuoteDefaults } from "@/components/pos/TireQuote";
 import {
   ALARM_ICON,
   ALARM_STYLE,
@@ -76,6 +77,8 @@ type Data = {
   integrityIssues: { lotId: number; lotNo: string; issue: string }[];
   /** Null for anyone below manager — the server does not send it at all. */
   pricing: { noPrice: PricingFlag[]; belowCost: PricingFlag[] } | null;
+  /** Null unless the caller may quote. Starting values only — see TireQuote. */
+  quoteDefaults: QuoteDefaults | null;
 };
 
 type Sheet =
@@ -96,6 +99,7 @@ export default function InventoryPage() {
   const [confirmingCheck, setConfirmingCheck] = useState(false);
   // Shut on arrival every time, deliberately not remembered. See the panel.
   const [pricingOpen, setPricingOpen] = useState(false);
+  const [quoting, setQuoting] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/pos/inventory?all=${showEmpty ? "1" : "0"}`);
@@ -199,6 +203,13 @@ export default function InventoryPage() {
           <button type="button" className="btn" onClick={() => window.print()}>
             Print
           </button>
+          {/* Sits on the inventory page because "do we have it, and if not what
+              would it cost" is one question asked in one breath. */}
+          {data?.quoteDefaults && (
+            <button type="button" className="btn" onClick={() => setQuoting(true)}>
+              Price a tire
+            </button>
+          )}
           {can("receiveInventory") && (
             <button
               type="button"
@@ -683,6 +694,14 @@ export default function InventoryPage() {
           it will read it that way.
         </p>
       </ConfirmModal>
+
+      {data?.quoteDefaults && (
+        <TireQuote
+          open={quoting}
+          onClose={() => setQuoting(false)}
+          defaults={data.quoteDefaults}
+        />
+      )}
     </div>
   );
 }

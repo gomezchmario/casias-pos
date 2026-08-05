@@ -88,6 +88,20 @@ export const CAPABILITIES = {
   // open on a counter anyone can walk past.
   viewTechIncomeCash: "owner",
   viewCosts: "owner",
+  // Working out what to charge for a tire the shop does not stock, from what a
+  // supplier is quoting today.
+  //
+  // Cashier, and that is the point of it. Most of these quotes happen on the
+  // phone with somebody asking about a size that is not on the rack, and the
+  // person holding the phone is whoever is at the counter. A quoting tool only
+  // a manager can open is one that gets replaced by a cashier guessing, or by
+  // the customer being told to call back.
+  //
+  // It does not read a single stored cost — the cost is typed in from the
+  // supplier's price, so this reveals nothing about what the shop paid for
+  // anything already on the rack. What it does show is the shop's MARKUP, which
+  // is why it stops at cashier and is not on the public sheet.
+  quoteTire: "cashier",
   // Tires in stock with no price, and tires priced under what they cost.
   //
   // Manager, and deliberately not cashier: both flags are statements about
@@ -218,6 +232,10 @@ export const CAPABILITY_INFO: Record<
   },
   viewCostCode: {
     label: "See the coded cost on tire names (the “P140”), for haggling",
+    group: "Stock",
+  },
+  quoteTire: {
+    label: "Price a tire the shop doesn’t stock, from the supplier’s cost",
     group: "Stock",
   },
   writeNotice: {

@@ -37,6 +37,20 @@ export type SettingsMap = {
   // stopping is the large one.
   discount_cashier_max_cents: string;
 
+  // The tire quoter — see tire-quote.ts for the chain these feed.
+  //
+  // Settings rather than constants because all three are commercial decisions
+  // that move: the markup is the shop's margin, mount-and-balance is a posted
+  // labour price, and the rounding step is how coarse the shop wants its quotes
+  // to sound. None of them should need a programmer.
+  //
+  // The tax rate is deliberately NOT duplicated here. It is `tax_rate_bp`, the
+  // same one the register rings on, because a quote computed at a different
+  // rate than the ticket is a quote that comes apart at the counter.
+  quote_margin_bp: string; // 2000 = 20%
+  quote_mount_balance_cents: string;
+  quote_round_to_cents: string; // 1000 = round up to the next $10
+
   // The last time somebody physically walked the racks and counted.
   //
   // Deliberately NOT derived from `inventory_movements`. The obvious derivation
@@ -113,6 +127,10 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   search_log_retention_days: "180",
   register_float_cents: "10000", // $100 in the drawer to make change with
   discount_cashier_max_cents: "1500", // $15
+
+  quote_margin_bp: "2000", // 20%
+  quote_mount_balance_cents: "3500", // $35
+  quote_round_to_cents: "1000", // next $10
 
   last_inventory_check: "",
   last_inventory_check_by: "",
