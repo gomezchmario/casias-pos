@@ -95,7 +95,10 @@ function runMigrations(db) {
 function ensureDefaultSettings(db) {
   const defaults = {
     company_name: "Casias Tire Shop",
-    week_start_day: "0",
+    // Thursday -- the shop's week. Must match DEFAULT_SETTINGS in
+    // src/lib/settings.ts, or a fresh install reports a different week than the
+    // app was written for.
+    week_start_day: "4",
     auto_close_hour: "21",
     photo_retention_days: "90",
     break_auto_deduct_minutes: "0",
