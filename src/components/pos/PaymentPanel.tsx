@@ -5,20 +5,28 @@ import { computeTipCommission, formatCents, parseCents } from "@/lib/money";
 import type { Sale } from "@/lib/sales";
 import type { PaymentMethod } from "@/lib/payments";
 
-/** "0042" + 1 -> "0043". Keeps the terminal's padding so the two match. */
-function bumpSeq(seq: string): string {
-  const t = seq.trim();
-  if (!/^\d+$/.test(t)) return "";
-  const next = String(Number(t) + 1);
-  return next.length < t.length ? next.padStart(t.length, "0") : next;
-}
+/*
+ * NOTHING HERE TOUCHES SEQ, AND THAT IS THE DESIGN.
+ *
+ * The card terminal's sequence number is the Nth card charge of the day. The
+ * server counts, the server assigns, and this screen — the busiest one in the
+ * shop, where a $15 flat has to be two taps — never asks about it. It used to
+ * prefill a guess and ask the cashier to confirm it, which is a field, a read
+ * of the terminal, and a chance to fat-finger a number that the register could
+ * have known on its own.
+ *
+ * If the register's order and the terminal's batch ever disagree, they are put
+ * right on Entries, against the actual list of the day's card charges. Not
+ * here, mid-sale, from memory.
+ */
 
 /** One tender in a split. */
-type TenderLine = { methodId: number; amount: string; seq: string };
+type TenderLine = { methodId: number; amount: string };
 
 export function PaymentPanel({
   sale,
   methods,
+  mechanics,
   commPerCents,
   commChargeCents,
   onError,
@@ -26,17 +34,27 @@ export function PaymentPanel({
 }: {
   sale: Sale;
   methods: PaymentMethod[];
+  /** The technicians whose work is on this ticket, for attributing a tip. */
+  mechanics: { id: number; name: string }[];
   commPerCents: number;
   commChargeCents: number;
   onError: (msg: string | null) => void;
   onDone: (saleId: number) => void;
 }) {
   const [methodId, setMethodId] = useState<number>(methods[0]?.id ?? 0);
-  const [cashback, setCashback] = useState("");
-  const [seq, setSeq] = useState("");
+  const [tip, setTip] = useState("");
   const [splitTip, setSplitTip] = useState(false);
-  const [tipSeq, setTipSeq] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Who the tip is for. On the overwhelmingly common one-technician ticket
+  // there is nothing to ask, so it is answered for them; the picker only
+  // appears when the ticket genuinely has more than one person on it.
+  const [tipMechanicId, setTipMechanicId] = useState<number | "">(
+    mechanics.length === 1 ? mechanics[0].id : "",
+  );
+  useEffect(() => {
+    setTipMechanicId(mechanics.length === 1 ? mechanics[0].id : "");
+  }, [mechanics]);
 
   // Paying with more than one tender. Off by default and deliberately tucked
   // away: it is a handful of tickets a week, and putting it in the main path
@@ -45,34 +63,13 @@ export function PaymentPanel({
   const [lines, setLines] = useState<TenderLine[]>([]);
 
   const method = methods.find((m) => m.id === methodId);
-  const tipCents = Math.max(0, parseCents(cashback) ?? 0);
+  const tipCents = Math.max(0, parseCents(tip) ?? 0);
   const commCents = useMemo(
     () => computeTipCommission(tipCents, commPerCents, commChargeCents),
     [tipCents, commPerCents, commChargeCents],
   );
 
-  // Prefill the terminal's next sequence number so the cashier confirms a
-  // number instead of reading one off the terminal and typing it every sale.
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/pos/next-seq")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { nextSeq: string | null } | null) => {
-        if (cancelled || !d?.nextSeq) return;
-        setSeq(d.nextSeq);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // The tip's own charge is the very next one off the terminal.
-  useEffect(() => {
-    if (splitTip) setTipSeq((prev) => prev || bumpSeq(seq));
-  }, [splitTip, seq]);
-
-  // Running the cashback separately means the card is charged twice: the goods
+  // Running the tip separately means the card is charged twice: the goods
   // first, then the tip plus its fee. The ticket total is the same either way.
   const splitting = splitTip && tipCents > 0 && !splitTender;
   const firstChargeCents = sale.subtotal_cents + (splitting ? 0 : tipCents + commCents);
@@ -84,11 +81,11 @@ export function PaymentPanel({
   function startSplit() {
     setSplitTender(true);
     setSplitTip(false);
-    setCashback("");
+    setTip("");
     // Two lines is the overwhelmingly common case — usually "the rest in cash".
     setLines([
-      { methodId: methods[0]?.id ?? 0, amount: "", seq: "" },
-      { methodId: methods[1]?.id ?? methods[0]?.id ?? 0, amount: "", seq: "" },
+      { methodId: methods[0]?.id ?? 0, amount: "" },
+      { methodId: methods[1]?.id ?? methods[0]?.id ?? 0, amount: "" },
     ]);
   }
 
@@ -118,16 +115,37 @@ export function PaymentPanel({
     const frozenSubtotal = (completed.sale as Sale).subtotal_cents;
 
     if (splitTender) {
+      /*
+        Zero-amount lines are dropped rather than sent. An empty third tender
+        left on the form is not a charge, and posting it would write a $0 row
+        into the ledger and spend a sequence number on it — the phantom gap that
+        makes a batch impossible to reconcile at the end of the night.
+      */
       const parsed = lines.map((l) => ({
         methodId: l.methodId,
         amountCents: Math.max(0, parseCents(l.amount) ?? 0),
-        seq: l.seq.trim() || null,
       }));
       const total = parsed.reduce((s, p) => s + p.amountCents, 0);
-      if (total !== frozenSubtotal) {
+
+      /*
+        Short is allowed; over is not.
+
+        Refusing to close a ticket that was not paid in full was wrong, and it
+        was wrong in the direction that hurts: the customer who leaves $20 on a
+        $40 job is a real, ordinary afternoon in this shop, and the register's
+        answer was to refuse. What actually happened then is that somebody rang
+        a $20 ticket instead and the other $20 was never owed by anyone.
+
+        Taking less closes the ticket at its real total and leaves the rest on
+        the balance, where Today can chase it. Taking MORE is still refused,
+        because at this point in the flow it is arithmetic that went wrong — the
+        deliberate overpayment, a deposit against the next job, has its own path
+        on the ticket once it is closed and says out loud that it is doing it.
+      */
+      if (total > frozenSubtotal) {
         setBusy(false);
         onError(
-          `The ticket froze at ${formatCents(frozenSubtotal)} but the split adds up to ${formatCents(total)} — take payment from Today.`,
+          `The ticket froze at ${formatCents(frozenSubtotal)} but the split adds up to ${formatCents(total)} — take the extra from Today if it is a deposit.`,
         );
         return;
       }
@@ -165,7 +183,7 @@ export function PaymentPanel({
         methodId,
         amountCents: frozenSubtotal + (splitting ? 0 : tipCents + commCents),
         tipCents: splitting ? 0 : tipCents,
-        seq: seq.trim() || null,
+        mechanicId: tipMechanicId === "" ? null : tipMechanicId,
       }),
     });
     const paid = await payRes.json().catch(() => ({}));
@@ -185,7 +203,7 @@ export function PaymentPanel({
           kind: "tip_adjustment",
           methodId,
           tipCents,
-          seq: tipSeq.trim() || null,
+          mechanicId: tipMechanicId === "" ? null : tipMechanicId,
         }),
       });
       const tipped = await tipRes.json().catch(() => ({}));
@@ -193,7 +211,7 @@ export function PaymentPanel({
         setBusy(false);
         onError(
           tipped.error ||
-            "The sale went through but the cashback charge did not — add it from Today.",
+            "The sale went through but the tip charge did not — add it from Today.",
         );
         return;
       }
@@ -208,7 +226,7 @@ export function PaymentPanel({
       <div className="mt-4 pt-4 border-t border-black/10">
         <div className="flex items-center justify-between mb-2">
           <div className="text-xs uppercase tracking-wider text-brand-300">
-            Split across tenders
+            Split it, or take part of it
           </div>
           <button
             type="button"
@@ -255,14 +273,10 @@ export function PaymentPanel({
                     </button>
                   )}
                 </div>
-                {lineMethod?.is_card === 1 && (
-                  <input
-                    className="input tabular-nums text-sm"
-                    placeholder={`SEQ for ${lineMethod.label}`}
-                    value={l.seq}
-                    onChange={(e) => updateLine(i, { seq: e.target.value })}
-                  />
-                )}
+                {/* No SEQ box here, or anywhere on this screen — see the note
+                    at the top of the file. Each card line takes the next number
+                    of the day as the server writes it, in the order the tenders
+                    are posted, which is the order the cards were charged. */}
               </div>
             );
           })}
@@ -273,10 +287,7 @@ export function PaymentPanel({
             type="button"
             className="text-brand-400 underline"
             onClick={() =>
-              setLines((ls) => [
-                ...ls,
-                { methodId: methods[0]?.id ?? 0, amount: "", seq: "" },
-              ])
+              setLines((ls) => [...ls, { methodId: methods[0]?.id ?? 0, amount: "" }])
             }
           >
             Add another tender
@@ -306,18 +317,37 @@ export function PaymentPanel({
           <span>Ticket</span>
           <span className="tabular-nums">{formatCents(sale.subtotal_cents)}</span>
         </div>
+        {/*
+          Three states, and the short one is not an error.
+
+          It is worded as what the shop will be left holding — "they will owe"
+          rather than "still to allocate" — because those are the same number
+          but only one of them is a fact about the customer. The cashier is
+          about to close a ticket on it, and needs to read it as a decision
+          rather than as a form they have not finished filling in.
+        */}
         <div
           className={`flex justify-between text-lg font-semibold mb-3 ${
-            remainingCents === 0 ? "text-green-700" : "text-brand-500"
+            remainingCents === 0
+              ? "text-green-700"
+              : remainingCents < 0
+                ? "text-red-700"
+                : "text-amber-700"
           }`}
         >
-          <span>{remainingCents === 0 ? "Covered" : "Still to allocate"}</span>
-          <span className="tabular-nums">{formatCents(remainingCents)}</span>
+          <span>
+            {remainingCents === 0
+              ? "Covered"
+              : remainingCents < 0
+                ? "Over by"
+                : "They will owe"}
+          </span>
+          <span className="tabular-nums">{formatCents(Math.abs(remainingCents))}</span>
         </div>
 
         <p className="text-xs text-brand-300 mb-3">
-          Cashback isn&apos;t offered on a split — add it from Today afterwards if they
-          ask for it.
+          Tips aren&apos;t offered on a split — add one from Today afterwards if they
+          leave one.
         </p>
 
         <button
@@ -325,9 +355,13 @@ export function PaymentPanel({
           className="btn btn-primary w-full"
           style={{ height: 52, fontSize: 17 }}
           onClick={() => void complete()}
-          disabled={busy || remainingCents !== 0}
+          disabled={busy || allocatedCents <= 0 || remainingCents < 0}
         >
-          {busy ? "Working…" : `Take ${lines.filter((l) => parseCents(l.amount)).length} payments`}
+          {busy
+            ? "Working…"
+            : remainingCents > 0
+              ? `Take ${formatCents(allocatedCents)} — they owe ${formatCents(remainingCents)}`
+              : `Take ${lines.filter((l) => parseCents(l.amount)).length} payments`}
         </button>
       </div>
     );
@@ -357,22 +391,59 @@ export function PaymentPanel({
         <>
           <div className="flex gap-2 mb-2">
             <label className="text-xs text-brand-400 flex-1">
-              Cashback
+              Tip
               <input
                 className="input mt-1 w-full text-right tabular-nums"
                 inputMode="decimal"
                 placeholder="0.00"
-                value={cashback}
-                onChange={(e) => setCashback(e.target.value)}
+                value={tip}
+                onChange={(e) => setTip(e.target.value)}
               />
             </label>
             <div className="text-xs text-brand-400 flex-1">
-              Fee
+              Terminal tax
               <div className="input mt-1 w-full text-right tabular-nums bg-black/5">
                 {formatCents(commCents)}
               </div>
             </div>
           </div>
+
+          {/*
+            Who earned it. Only asked when the ticket cannot answer on its own:
+            one technician on the ticket and it is filled in silently, none and
+            there is nobody to ask about. Left blank the tip still goes through
+            and simply counts for nobody, which is the truth rather than a
+            guess -- but it says so, so it is a choice and not an oversight.
+          */}
+          {tipCents > 0 && mechanics.length > 1 && (
+            <label className="text-xs text-brand-400 block mb-2">
+              Tip goes to
+              <select
+                className="input mt-1 w-full"
+                value={tipMechanicId}
+                onChange={(e) =>
+                  setTipMechanicId(e.target.value === "" ? "" : Number(e.target.value))
+                }
+              >
+                <option value="">Nobody in particular</option>
+                {mechanics.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {tipCents > 0 && mechanics.length === 1 && (
+            <p className="text-xs text-brand-300 mb-2">
+              Tip goes to {mechanics[0].name}.
+            </p>
+          )}
+          {tipCents > 0 && mechanics.length === 0 && (
+            <p className="text-xs text-brand-300 mb-2">
+              No technician on this ticket — this tip won&apos;t count for anyone.
+            </p>
+          )}
 
           {tipCents > 0 && method?.is_card === 1 && (
             <label className="flex items-center gap-2 text-xs text-brand-400 mb-2">
@@ -381,35 +452,10 @@ export function PaymentPanel({
                 checked={splitTip}
                 onChange={(e) => setSplitTip(e.target.checked)}
               />
-              Run cashback as a second charge (its own SEQ)
+              Run the tip as a second charge on the card
             </label>
           )}
         </>
-      )}
-
-      {method?.is_card === 1 && (
-        <div className="flex gap-2 mb-2">
-          <label className="text-xs text-brand-400 flex-1">
-            {splitting ? "SEQ — sale" : "SEQ"}
-            <input
-              className="input mt-1 w-full tabular-nums"
-              placeholder="Terminal sequence #"
-              value={seq}
-              onChange={(e) => setSeq(e.target.value)}
-            />
-          </label>
-          {splitting && (
-            <label className="text-xs text-brand-400 flex-1">
-              SEQ — cashback
-              <input
-                className="input mt-1 w-full tabular-nums"
-                placeholder="Second charge #"
-                value={tipSeq}
-                onChange={(e) => setTipSeq(e.target.value)}
-              />
-            </label>
-          )}
-        </div>
       )}
 
       <div className="flex justify-between text-lg font-semibold text-brand-500 mb-1">
@@ -440,7 +486,7 @@ export function PaymentPanel({
           className="w-full mt-2 text-xs text-brand-400 underline"
           onClick={startSplit}
         >
-          Paying with more than one tender
+          More than one tender, or only part of it now
         </button>
       )}
     </div>

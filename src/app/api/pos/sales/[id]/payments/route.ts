@@ -24,8 +24,9 @@ export async function POST(
     methodId?: number;
     amountCents?: number;
     tipCents?: number;
+    mechanicId?: number | null;
+    split?: "equal" | "lines" | null;
     commCents?: number | null;
-    seq?: string | null;
     note?: string | null;
     reason?: string;
   };
@@ -43,8 +44,13 @@ export async function POST(
       ? addTipAdjustment(auth.user, saleId, {
           methodId: body.methodId,
           tipCents: body.tipCents ?? 0,
+          // `undefined` and `null` mean different things here, so the ??
+          // shortcut the other fields use would be wrong: undefined lets the
+          // library fall back to the ticket's own technician, while an explicit
+          // null is the cashier saying this tip counts for nobody.
+          mechanicId: body.mechanicId,
+          split: body.split ?? null,
           commCentsOverride: body.commCents ?? null,
-          seq: body.seq ?? null,
           note: body.note ?? null,
         })
       : kind === "refund"
@@ -62,15 +68,18 @@ export async function POST(
               methodId: body.methodId,
               amountCents: body.amountCents ?? 0,
               tipCents: body.tipCents ?? 0,
+              mechanicId: body.mechanicId,
               commCentsOverride: body.commCents ?? null,
-              seq: body.seq ?? null,
               note: body.note ?? null,
             });
 
   if (!result.ok) return jsonError(result.error);
 
   return NextResponse.json({
-    payment: result.payment,
+    // A split tip writes several rows, so the singular is the first of them and
+    // is there only for callers that still want "the payment I just made". The
+    // full picture is `payments`, which is the whole ticket's ledger anyway.
+    payment: "payments" in result ? result.payments[0] : result.payment,
     sale: getSale(saleId),
     payments: listPayments(saleId),
   });

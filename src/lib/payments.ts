@@ -3,7 +3,7 @@ import { inTx } from "./tx";
 import { nowLocalIso } from "./time";
 import { currentBusinessDate } from "./business-date";
 import { getSetting } from "./settings";
-import { computeTipCommission } from "./money";
+import { apportionCents, computeTipCommission } from "./money";
 import { logActorAudit, type Actor } from "./audit";
 import { getSale, recalcMoney } from "./sales";
 import { reverseSaleMovements } from "./inventory";
@@ -27,6 +27,9 @@ export type Payment = {
   tip_cents: number;
   comm_cents: number;
   comm_overridden: number;
+  /** Who the tip on this row was left for. Null when there is no tip, or when
+   *  the ticket had no technician to attribute it to. */
+  mechanic_id: number | null;
   seq: string | null;
   reverses_payment_id: number | null;
   taken_by: number;
@@ -70,29 +73,136 @@ export function listPayments(saleId: number): Payment[] {
 }
 
 /**
- * The SEQ the card terminal will most likely print next: one past the last one
- * recorded. Deliberately ordered by insertion rather than by business date,
- * because the terminal's counter keeps climbing across a close — the number
- * after tonight's last sale is tomorrow's first.
+ * The next card sequence number of the day.
  *
- * Zero-padding is preserved so "0042" begets "0043", not "43". Returns null
- * when there's nothing to count from or the last SEQ wasn't a plain number, so
- * the cashier types it rather than being handed a confident wrong guess.
+ * SEQ IS THE REGISTER'S OWN COUNTER, NOT SOMETHING ANYBODY TYPES.
+ *
+ * It is the Nth card charge of the business day: 1, 2, 3, restarting every
+ * morning because the terminal is batched out every night. Nothing about that
+ * needs a human, so nothing about it asks for one — it is handed out here, at
+ * the moment a card payment is written, and the cashier never sees a SEQ box at
+ * the register.
+ *
+ * The one thing a human does get to do is correct the ORDER, on Entries, and
+ * only there. Charges taken on the terminal in one burst and keyed into the
+ * register afterwards go in in whatever order somebody picked the slips up in,
+ * and the numbers then need shuffling to match the batch. That is a renumbering
+ * job, done once, on a screen listing the day's card charges — see
+ * `setPaymentSeq`.
+ *
+ * The highest so far plus one, rather than the count of charges: after that
+ * renumbering the next sale must not be handed a number already in use. A gap
+ * is harmless — it is a number nothing points at — whereas a duplicate makes
+ * two charges indistinguishable against the batch, which is the whole thing
+ * this number exists to prevent.
+ *
+ * Only plain integers count toward it, so a stray value from before this was
+ * automatic cannot poison the arithmetic. And only CARD rows count: a sequence
+ * number on cash is by definition wrong, the terminal never saw that money, and
+ * counting one would push every later charge past where the terminal actually
+ * is.
  */
-export function nextSeq(): string | null {
-  const row = getDb()
+export function nextSeq(businessDate: string = currentBusinessDate()): string {
+  const rows = getDb()
     .prepare(
-      `SELECT seq FROM payments
-       WHERE seq IS NOT NULL AND seq <> ''
-       ORDER BY id DESC LIMIT 1`,
+      `SELECT p.seq AS seq FROM payments p
+         JOIN payment_methods m ON m.id = p.method_id
+       WHERE p.business_date = ? AND p.seq IS NOT NULL AND p.seq <> ''
+         AND m.is_card = 1`,
     )
-    .get() as { seq: string } | undefined;
-  if (!row) return null;
+    .all(businessDate) as { seq: string }[];
 
-  const trimmed = row.seq.trim();
-  if (!/^\d+$/.test(trimmed)) return null;
-  const next = String(Number(trimmed) + 1);
-  return next.length < trimmed.length ? next.padStart(trimmed.length, "0") : next;
+  let highest = 0;
+  for (const r of rows) {
+    const trimmed = r.seq.trim();
+    if (!/^\d+$/.test(trimmed)) continue;
+    highest = Math.max(highest, Number(trimmed));
+  }
+  return String(highest + 1);
+}
+
+/**
+ * Renumber one card charge. THE ONLY WAY A SEQ IS EVER SET BY A PERSON.
+ *
+ * WHY THIS EXISTS AT ALL, WHEN THE NUMBER IS AUTOMATIC
+ *
+ * The register hands out sequence numbers in the order it is rung, and that is
+ * usually the order the terminal charged the cards in. Usually. On a busy
+ * afternoon the shop runs several cards on the terminal and keys the tickets in
+ * afterwards, off a handful of slips, in whatever order they come off the
+ * counter — and then the register's run and the terminal's batch disagree by a
+ * permutation. Nothing is wrong with the money; the numbers are simply shuffled.
+ * So the day's card charges can be renumbered where they are listed, and that
+ * is the entire human involvement with SEQ.
+ *
+ * DUPLICATES ARE ALLOWED, DELIBERATELY. Renumbering is nearly always a swap,
+ * and a swap passes through a state where two rows hold the same number. Barring
+ * it would make the ordinary correction impossible without inventing a scratch
+ * value first. `nextSeq` takes the highest plus one, so it stays correct
+ * whatever intermediate state this passes through, and two rows sharing a number
+ * are visible on the very screen the renumbering is done on.
+ *
+ * WHY THIS DOES NOT BREAK THE APPEND-ONLY RULE
+ *
+ * Payments are a ledger: no row is deleted and no amount is ever rewritten,
+ * because the only honest way to undo money is a reversing row. SEQ is not
+ * money. It is a pointer at a slip in the card batch, it moves no cents, and a
+ * reversing row for a reference number would mean voiding and re-taking a real
+ * payment — a far worse lie about the day than a mis-ordered pointer. So this
+ * one field is correctable in place, and every correction is audited
+ * before/after.
+ *
+ * Cards only. A sequence number on cash is by definition wrong — the terminal
+ * never saw that money — and letting one in pushes `nextSeq` past where the
+ * terminal actually is.
+ */
+export function setPaymentSeq(
+  user: PosUser,
+  paymentId: number,
+  seq: string | null,
+): Result<{ payment: Payment }> {
+  const db = getDb();
+  const payment = db
+    .prepare("SELECT * FROM payments WHERE id = ?")
+    .get(paymentId) as Payment | undefined;
+  if (!payment) return { ok: false, error: "Payment not found" };
+
+  const next = seq?.trim() || null;
+  // Digits, because that is what the terminal prints and what the counter
+  // counts. Free text used to be accepted so a cashier could annotate an
+  // oddity, and every one of those annotations then sat outside the arithmetic
+  // in `nextSeq` — a number that is sometimes a number is not a sequence.
+  if (next !== null && !/^\d{1,9}$/.test(next))
+    return { ok: false, error: "A SEQ is a plain number off the terminal, like 14." };
+
+  const method = db
+    .prepare("SELECT is_card FROM payment_methods WHERE id = ?")
+    .get(payment.method_id) as { is_card: number } | undefined;
+  if (next && method?.is_card !== 1)
+    return {
+      ok: false,
+      error: "Only card payments carry a SEQ — the terminal never saw this money.",
+    };
+
+  if (next === payment.seq) return { ok: true as const, payment };
+
+  return inTx(() => {
+    db.prepare("UPDATE payments SET seq = ? WHERE id = ?").run(next, paymentId);
+    logActorAudit(actorOf(user), {
+      action: "payment.seq_update",
+      targetType: "sale",
+      targetId: payment.sale_id,
+      details: { payment_id: paymentId },
+      before: { seq: payment.seq },
+      after: { seq: next },
+    });
+    return {
+      ok: true as const,
+      payment: db
+        .prepare("SELECT * FROM payments WHERE id = ?")
+        .get(paymentId) as Payment,
+    };
+  });
 }
 
 /** The shop's $1-per-$5 rule, with the rate read from settings so it can change
@@ -110,8 +220,30 @@ function canOverrideCommission(user: PosUser): boolean {
 }
 
 /**
+ * Who a tip on this ticket belongs to, when nobody said.
+ *
+ * A tip is left for the person who did the work. If every line on the ticket
+ * was worked by the same technician, that is not a guess — it is the only
+ * answer the ticket admits, and making the cashier confirm it on the common
+ * one-technician ticket would be friction for nothing.
+ *
+ * The moment two technicians are on the ticket it returns null and the caller
+ * has to ask, because splitting it evenly or handing it to whoever happens to
+ * be on the first line would be inventing an answer.
+ */
+export function soleMechanicOf(saleId: number): number | null {
+  const rows = getDb()
+    .prepare(
+      `SELECT DISTINCT mechanic_id FROM sale_items
+       WHERE sale_id = ? AND voided = 0 AND mechanic_id IS NOT NULL`,
+    )
+    .all(saleId) as { mechanic_id: number }[];
+  return rows.length === 1 ? rows[0].mechanic_id : null;
+}
+
+/**
  * Take money. `amountCents` is the full amount that hits the card or drawer —
- * goods plus any cashback the customer took plus the fee for it.
+ * goods plus any tip the customer left plus the shop's charge on it.
  */
 export function takePayment(
   user: PosUser,
@@ -120,8 +252,8 @@ export function takePayment(
     methodId: number;
     amountCents: number;
     tipCents?: number;
+    mechanicId?: number | null;
     commCentsOverride?: number | null;
-    seq?: string | null;
     note?: string | null;
   },
 ): Result<{ payment: Payment }> {
@@ -134,7 +266,11 @@ export function takePayment(
   if (!Number.isInteger(args.amountCents) || args.amountCents <= 0)
     return { ok: false, error: "Payment amount is not valid" };
   if (!Number.isInteger(tip) || tip < 0)
-    return { ok: false, error: "Cashback amount is not valid" };
+    return { ok: false, error: "Tip amount is not valid" };
+
+  // Only meaningful when there is a tip to attribute. Falls back to the
+  // ticket's own technician when the caller didn't name one.
+  const mechanicId = tip > 0 ? (args.mechanicId ?? soleMechanicOf(saleId)) : null;
 
   const method = getDb()
     .prepare("SELECT * FROM payment_methods WHERE id = ? AND active = 1")
@@ -155,12 +291,16 @@ export function takePayment(
 
   return inTx(() => {
     const db = getDb();
+    const businessDate = currentBusinessDate();
+    // Inside the transaction, so the number is read and taken in one go and two
+    // registers ringing at once cannot both be handed the same one.
+    const seq = method.is_card === 1 ? nextSeq(businessDate) : null;
     const info = db
       .prepare(
         `INSERT INTO payments
            (sale_id, method_id, kind, amount_cents, tip_cents, comm_cents, comm_overridden,
-            seq, taken_by, business_date, shift_id, note, created_at)
-         VALUES (?, ?, 'payment', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            mechanic_id, seq, taken_by, business_date, shift_id, note, created_at)
+         VALUES (?, ?, 'payment', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         saleId,
@@ -169,9 +309,10 @@ export function takePayment(
         tip,
         comm,
         overridden,
-        args.seq?.trim() || null,
+        mechanicId,
+        seq,
         user.employeeId,
-        currentBusinessDate(),
+        businessDate,
         ensureShift(user).id,
         args.note?.trim() || null,
         nowLocalIso(),
@@ -189,6 +330,7 @@ export function takePayment(
         amount_cents: args.amountCents,
         tip_cents: tip,
         comm_cents: comm,
+        mechanic_id: mechanicId,
       },
     });
     if (overridden)
@@ -205,10 +347,71 @@ export function takePayment(
   });
 }
 
+/** How a tip is to be divided when more than one technician worked the ticket. */
+export type TipSplit = "equal" | "lines";
+
+/**
+ * Who shares a tip, and in what proportion.
+ *
+ * `equal` is one weight each — two technicians on the ticket, half and half,
+ * regardless of who did what.
+ *
+ * `lines` weights by how many lines each of them worked, which is the shop's own
+ * rough measure of effort: three mounts and one mount is three quarters and one
+ * quarter. Deliberately NOT weighted by money. A technician who fitted one $200
+ * tire while the other did three $8 flats did not earn 96% of the tip, and a
+ * split that says so is the kind of arithmetic that starts arguments in the bay.
+ * Line count is crude, but everybody can check it by looking at the ticket, and
+ * a rule people can verify beats a rule that is subtly fairer and trusted by
+ * nobody.
+ *
+ * Voided lines do not count. Work that was struck off the ticket is work the
+ * customer did not pay for.
+ */
+export function tipSplitWeights(
+  saleId: number,
+  mode: TipSplit,
+): { mechanicId: number; weight: number }[] {
+  // ORDERED BY NAME, and that is load-bearing rather than cosmetic. An odd cent
+  // has to land somewhere, and `apportionCents` breaks ties by position — so the
+  // order of this list decides who gets it. The panel that previews the split
+  // lists people by name, because that is how the ticket screen shows them, and
+  // if this ordered by id instead the preview would name one person and the
+  // ledger would credit another. One cent, which is exactly the size of bug
+  // nobody investigates and everybody half-remembers as "the tips are wrong".
+  const rows = getDb()
+    .prepare(
+      `SELECT i.mechanic_id AS mechanicId, COUNT(*) AS lineCount
+         FROM sale_items i
+         JOIN employees e ON e.id = i.mechanic_id
+        WHERE i.sale_id = ? AND i.voided = 0
+        GROUP BY i.mechanic_id, e.name
+        ORDER BY e.name`,
+    )
+    .all(saleId) as { mechanicId: number; lineCount: number }[];
+  return rows.map((r) => ({
+    mechanicId: r.mechanicId,
+    weight: mode === "equal" ? 1 : r.lineCount,
+  }));
+}
+
 /**
  * The forgotten-tip fix. A tip that turns up after the ticket closed is an
  * adjustment row pointing at the original sale — never a second phantom sale,
  * which is what the spreadsheet forced them to do.
+ *
+ * SPLITTING, AND WHY THE COMMISSION IS WORKED OUT FIRST
+ *
+ * A split tip writes one adjustment row per technician, because the ledger's
+ * whole job is to say who is owed what — a single row for $5 "shared somehow"
+ * would push that question to payroll, where the answer is a memory.
+ *
+ * But the shop's cut is computed on the WHOLE tip before anything is divided,
+ * and then divided too. Charging each row separately would quietly raise the
+ * shop's take every time a tip was shared: at $1 per $5, a $5 tip costs $1 whole
+ * and $2 if split in two, which is the same tip costing the customer more
+ * because of an arrangement between two employees. Working it out first and
+ * apportioning it means the customer is charged the same amount either way.
  */
 export function addTipAdjustment(
   user: PosUser,
@@ -216,21 +419,38 @@ export function addTipAdjustment(
   args: {
     methodId: number;
     tipCents: number;
+    mechanicId?: number | null;
+    /** Divide between everyone who worked the ticket. Overrides `mechanicId`. */
+    split?: TipSplit | null;
     commCentsOverride?: number | null;
-    seq?: string | null;
     note?: string | null;
   },
-): Result<{ payment: Payment }> {
+): Result<{ payments: Payment[] }> {
   const sale = getSale(saleId);
   if (!sale) return { ok: false, error: "Sale not found" };
   if (sale.status === "voided") return { ok: false, error: "This ticket is voided" };
   if (!Number.isInteger(args.tipCents) || args.tipCents <= 0)
-    return { ok: false, error: "Cashback amount is not valid" };
+    return { ok: false, error: "Tip amount is not valid" };
 
   const method = getDb()
     .prepare("SELECT * FROM payment_methods WHERE id = ? AND active = 1")
     .get(args.methodId) as PaymentMethod | undefined;
   if (!method) return { ok: false, error: "Unknown payment method" };
+
+  // The shares. One entry with a null mechanic is the un-split case, so the
+  // insert below has exactly one shape to deal with.
+  let shares: { mechanicId: number | null; weight: number }[];
+  if (args.split) {
+    const weights = tipSplitWeights(saleId, args.split);
+    if (weights.length === 0)
+      return {
+        ok: false,
+        error: "Nobody is named on this ticket's lines, so there is nothing to split between.",
+      };
+    shares = weights;
+  } else {
+    shares = [{ mechanicId: args.mechanicId ?? soleMechanicOf(saleId), weight: 1 }];
+  }
 
   const defaultComm = defaultCommissionFor(args.tipCents);
   let comm = defaultComm;
@@ -244,31 +464,49 @@ export function addTipAdjustment(
     overridden = 1;
   }
 
+  const weights = shares.map((s) => s.weight);
+  const tipParts = apportionCents(args.tipCents, weights);
+  const commParts = apportionCents(comm, weights);
+
   return inTx(() => {
     const db = getDb();
-    const info = db
-      .prepare(
-        `INSERT INTO payments
-           (sale_id, method_id, kind, amount_cents, tip_cents, comm_cents, comm_overridden,
-            seq, taken_by, business_date, shift_id, note, created_at)
-         VALUES (?, ?, 'tip_adjustment', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        saleId,
-        args.methodId,
-        args.tipCents + comm,
-        args.tipCents,
-        comm,
-        overridden,
-        args.seq?.trim() || null,
-        user.employeeId,
-        // Booked to TODAY's business date, not the sale's: the money moved today.
-        currentBusinessDate(),
-        ensureShift(user).id,
-        args.note?.trim() || null,
-        nowLocalIso(),
-      );
-    const id = Number(info.lastInsertRowid);
+    const now = nowLocalIso();
+    // Booked to TODAY's business date, not the sale's: the money moved today.
+    const businessDate = currentBusinessDate();
+    const shiftId = ensureShift(user).id;
+    const ids: number[] = [];
+    // One swipe, so one number, whatever it ends up divided into below.
+    const seq = method.is_card === 1 ? nextSeq(businessDate) : null;
+
+    shares.forEach((share, n) => {
+      const info = db
+        .prepare(
+          `INSERT INTO payments
+             (sale_id, method_id, kind, amount_cents, tip_cents, comm_cents, comm_overridden,
+              mechanic_id, seq, taken_by, business_date, shift_id, note, created_at)
+           VALUES (?, ?, 'tip_adjustment', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          saleId,
+          args.methodId,
+          tipParts[n] + commParts[n],
+          tipParts[n],
+          commParts[n],
+          overridden,
+          share.mechanicId,
+          // The SEQ goes on the first row only. All of these rows are one swipe
+          // on the terminal, and repeating its sequence number on each would
+          // make the batch look like it had three charges where it had one.
+          n === 0 ? seq : null,
+          user.employeeId,
+          businessDate,
+          shiftId,
+          args.note?.trim() || null,
+          now,
+        );
+      ids.push(Number(info.lastInsertRowid));
+    });
+
     recalcMoney(saleId);
 
     logActorAudit(actorOf(user), {
@@ -276,15 +514,24 @@ export function addTipAdjustment(
       targetType: "sale",
       targetId: saleId,
       details: {
-        payment_id: id,
+        payment_ids: ids,
         sale_no: sale.sale_no,
         sale_business_date: sale.business_date,
         tip_cents: args.tipCents,
         comm_cents: comm,
+        split: args.split ?? null,
+        shares: shares.map((s, n) => ({
+          mechanic_id: s.mechanicId,
+          tip_cents: tipParts[n],
+          comm_cents: commParts[n],
+        })),
       },
     });
-    const payment = db.prepare("SELECT * FROM payments WHERE id = ?").get(id) as Payment;
-    return { ok: true as const, payment };
+
+    const payments = ids.map(
+      (id) => db.prepare("SELECT * FROM payments WHERE id = ?").get(id) as Payment,
+    );
+    return { ok: true as const, payments };
   });
 }
 
@@ -434,14 +681,19 @@ export function voidSale(user: PosUser, saleId: number, reason: string): Result 
       db.prepare(
         `INSERT INTO payments
            (sale_id, method_id, kind, amount_cents, tip_cents, comm_cents,
-            reverses_payment_id, taken_by, business_date, shift_id, note, created_at)
-         VALUES (?, ?, 'reversal', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            mechanic_id, reverses_payment_id, taken_by, business_date, shift_id, note, created_at)
+         VALUES (?, ?, 'reversal', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         saleId,
         p.method_id,
         -p.amount_cents,
         -p.tip_cents,
         -p.comm_cents,
+        // The same technician as the row being reversed, so the negative lands
+        // on the same person the positive did. Left null it would sum to a
+        // technician keeping credit for a tip on a voided ticket, which is
+        // exactly the kind of quiet payroll error this ledger exists to prevent.
+        p.mechanic_id,
         p.id,
         user.employeeId,
         businessDate,
