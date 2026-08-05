@@ -2,6 +2,7 @@ import { getDb } from "./db";
 import { hashPin, isValidPinFormat, pinIsTakenByOther } from "./pin";
 import { nowLocalIso } from "./time";
 import { isPosRole, type PosRole } from "./roles";
+import { properName } from "./names";
 
 export type Employee = {
   id: number;
@@ -29,6 +30,28 @@ export function listEmployees(includeInactive = false): Employee[] {
   return db.prepare(sql).all() as Employee[];
 }
 
+/**
+ * Who can be credited with a line of work.
+ *
+ * The floor, not the payroll. `role` here is the job on the time clock, not the
+ * POS permission — an owner may well have a manager's POS role and never touch
+ * a tire, and putting the office staff in the register's mechanic list only
+ * makes the right name harder to hit on a busy Saturday.
+ *
+ * Matched on a prefix because the existing rows disagree with themselves:
+ * "TIRE" and "TIRES" both exist, typed by hand years apart. Anyone whose job
+ * title starts with TIRE is on the floor.
+ */
+export function listMechanics(): Employee[] {
+  return getDb()
+    .prepare(
+      `SELECT ${EMPLOYEE_COLUMNS} FROM employees
+        WHERE active = 1 AND UPPER(COALESCE(role, '')) LIKE 'TIRE%'
+        ORDER BY name`,
+    )
+    .all() as Employee[];
+}
+
 export function getEmployee(id: number): Employee | null {
   const db = getDb();
   return (
@@ -44,7 +67,10 @@ export function createEmployee(args: {
   role?: string | null;
   posRole?: string | null;
 }): { ok: true; id: number } | { ok: false; error: string } {
-  const name = args.name.trim();
+  // Tidied on the way in rather than on the way out to every screen. See the
+  // note on `properName` for what it does and does not touch — a name typed with
+  // deliberate mixed case survives it untouched.
+  const name = properName(args.name);
   if (!name) return { ok: false, error: "Name is required" };
   if (!isValidPinFormat(args.pin))
     return { ok: false, error: "PIN must be exactly 4 digits" };
@@ -69,7 +95,7 @@ export function updateEmployee(
   const fields: string[] = [];
   const values: (string | number | null)[] = [];
   if (args.name !== undefined) {
-    const name = args.name.trim();
+    const name = properName(args.name);
     if (!name) return { ok: false, error: "Name cannot be empty" };
     fields.push("name = ?");
     values.push(name);
