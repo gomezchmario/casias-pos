@@ -200,13 +200,25 @@ export default function InventoryPage() {
             />
             Show sold out
           </label>
-          <button type="button" className="btn" onClick={() => window.print()}>
+          {/* `btn` on its own has a transparent background and a transparent
+              border, so on this white page it rendered as a word rather than
+              something to press. These two are real actions and are styled as
+              such. */}
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => window.print()}
+          >
             Print
           </button>
           {/* Sits on the inventory page because "do we have it, and if not what
               would it cost" is one question asked in one breath. */}
           {data?.quoteDefaults && (
-            <button type="button" className="btn" onClick={() => setQuoting(true)}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setQuoting(true)}
+            >
               Price a tire
             </button>
           )}

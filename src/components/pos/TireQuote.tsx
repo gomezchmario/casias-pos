@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { formatCents, parseCents } from "@/lib/money";
 import { quoteTire } from "@/lib/tire-quote";
@@ -45,18 +45,28 @@ export function TireQuote({
   const [mb, setMb] = useState("");
   const [round, setRound] = useState("");
 
+  // Read through a ref so the effect below can depend on `open` ALONE.
+  //
+  // Depending on `defaults` looks more correct and is a live bug: saving new
+  // defaults replaces the object, which would re-run the effect and blank the
+  // cost the user had just typed — mid-quote, with someone on the phone, at the
+  // exact moment they were most confident the number on screen was theirs.
+  const latest = useRef(defaults);
+  latest.current = defaults;
+
   // Cleared on every open. A quote is about one tire and one phone call, and
   // the failure mode of remembering is quoting the next customer the last
   // customer's cost — which reads as a perfectly plausible price.
   useEffect(() => {
     if (!open) return;
+    const d = latest.current;
     setCost("");
     setFreight("");
     setAdjusting(false);
-    setMargin(String(defaults.marginBp / 100));
-    setMb(String(defaults.mountBalanceCents / 100));
-    setRound(String(defaults.roundToCents / 100));
-  }, [open, defaults]);
+    setMargin(String(d.marginBp / 100));
+    setMb(String(d.mountBalanceCents / 100));
+    setRound(String(d.roundToCents / 100));
+  }, [open]);
 
   const marginBp = useMemo(() => {
     const n = Number(margin.replace(/[%\s]/g, ""));
@@ -210,9 +220,22 @@ export function TireQuote({
             would drop the markup for one awkward customer believing they had
             changed it back afterwards.
           */}
+          {/*
+            Nothing here saves, deliberately, and the sentence says so.
+
+            Moving the markup is haggling — it belongs to the one awkward
+            customer it was done for, and it should not outlive the phone call.
+            A Save button here would put the shop's standing margin one click
+            from a screen used dozens of times a day under time pressure, and
+            the drift would be invisible: every future quote would come out
+            wrong-but-plausible, with nothing on screen to say the number had
+            ever moved. So the box reopens on the shop's defaults, every time.
+            Changing those for good is a settings-page decision, made when
+            nobody is waiting.
+          */}
           <div className="mt-2 flex items-center justify-between gap-3">
             <span className="text-xs text-brand-400">
-              This quote only. The shop’s defaults are on the settings page.
+              This quote only — reopening starts from the shop’s defaults again.
             </span>
             {moved && (
               <button
