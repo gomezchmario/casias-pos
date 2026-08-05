@@ -140,30 +140,75 @@ export function resetEmployeePin(
 }
 
 /**
- * Deleting an employee who appears anywhere in the POS books would either
- * orphan or erase money records, so it is refused — deactivate them instead.
+ * Deleting an employee who appears anywhere in the books would either orphan or
+ * erase money records, so it is refused — deactivate them instead.
+ *
+ * WHY THIS READS THE SCHEMA INSTEAD OF LISTING THE TABLES
+ *
+ * It used to name four columns by hand: sales, sale_items, payments,
+ * inventory_movements. There are twenty-five columns pointing at `employees`.
+ * The other twenty-one — who opened the shift, who received the lot, who locked
+ * payroll, who counted the register — got no check at all, so deleting one of
+ * those people did not produce the friendly refusal above, it produced a raw
+ * SQLITE_CONSTRAINT_FOREIGNKEY out of the depths of the driver, on a screen
+ * with no handler for it. A hand-written list is also wrong the day somebody
+ * adds a table, and wrong silently, which is the worst way to be wrong here.
+ *
+ * `foreign_key_list` is the same thing SQLite itself is about to consult. If it
+ * says nobody points at this row, the DELETE below cannot fail.
+ *
+ * TWO DELIBERATE EXCEPTIONS
+ *
+ * `pos_sessions` is a live credential, not history — the right thing to do with
+ * a departing employee's session is end it, so those rows are deleted here
+ * rather than counted as a reason to refuse.
+ *
+ * `audit_log` is the opposite, and it is the reason this function refuses more
+ * often than it looks like it should. One line in there — even just a login —
+ * makes an employee permanently undeletable, and that is correct: the log is
+ * the record of who did what, and an employee row it points at is how the log
+ * stays readable. Erasing the person to tidy up the list is exactly the edit
+ * the whole append-only design exists to prevent.
  */
 export function deleteEmployee(
   id: number,
 ): { ok: true } | { ok: false; error: string } {
   const db = getDb();
-  const referenced = db
-    .prepare(
-      `SELECT
-         (SELECT COUNT(*) FROM sales WHERE cashier_id = ?1) +
-         (SELECT COUNT(*) FROM sale_items WHERE mechanic_id = ?1) +
-         (SELECT COUNT(*) FROM payments WHERE taken_by = ?1) +
-         (SELECT COUNT(*) FROM inventory_movements WHERE created_by = ?1) AS n`,
-    )
-    .get(id) as { n: number };
 
-  if (referenced.n > 0) {
+  const refs = db
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+    )
+    .all() as { name: string }[];
+
+  let total = 0;
+  const where: string[] = [];
+  for (const { name } of refs) {
+    if (name === "pos_sessions") continue;
+    const cols = (db.pragma(`foreign_key_list("${name}")`) as { table: string; from: string }[])
+      .filter((f) => f.table === "employees")
+      .map((f) => f.from);
+    if (cols.length === 0) continue;
+    const clause = cols.map((c) => `"${c}" = ?`).join(" OR ");
+    const n = (
+      db.prepare(`SELECT COUNT(*) n FROM "${name}" WHERE ${clause}`).get(...cols.map(() => id)) as {
+        n: number;
+      }
+    ).n;
+    if (n > 0) {
+      total += n;
+      where.push(name);
+    }
+  }
+
+  if (total > 0) {
     return {
       ok: false,
-      error: `This employee appears on ${referenced.n} sales or inventory records and can't be deleted. Deactivate them instead.`,
+      error: `This employee appears on ${total} record${total === 1 ? "" : "s"} (${where.join(", ")}) and can't be deleted. Deactivate them instead.`,
     };
   }
 
+  db.prepare("DELETE FROM pos_sessions WHERE employee_id = ?").run(id);
   db.prepare("DELETE FROM employees WHERE id = ?").run(id);
   return { ok: true };
 }
