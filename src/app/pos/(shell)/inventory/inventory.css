@@ -16,6 +16,27 @@
   text-transform: uppercase;
 }
 
+/* "Low" as a badge rather than as more words on the end of a tire name.
+   Yellow and not red on purpose: red on this page belongs to a count that has
+   gone negative, which is a fault, and being down to the last two of something
+   is just Tuesday. The panel at the top is the loud version. Its own uppercase
+   rule because only the name span inherits one. */
+.inv-pill-low {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid #fcd34d;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
 @media print {
   .no-print {
     display: none !important;

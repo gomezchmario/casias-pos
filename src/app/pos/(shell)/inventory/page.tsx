@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePosAuth } from "@/components/pos/PosShell";
 import { ProductSearch, type FoundProduct } from "@/components/pos/ProductSearch";
+import { BackToTop } from "@/components/ui/BackToTop";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Modal } from "@/components/ui/Modal";
 import { TireQuote, type QuoteDefaults } from "@/components/pos/TireQuote";
@@ -68,12 +69,22 @@ type PricingFlag = {
   costCents: number | null;
 };
 
+type LowStockFlag = {
+  productId: number;
+  name: string;
+  size: string | null;
+  onHand: number;
+  /** The "warn below" number somebody set on the product. Always > 0 here. */
+  reorderPoint: number;
+};
+
 type Data = {
   sections: RimSection[];
   batteries: Tire[];
   lastCheck: InventoryCheck;
   showCosts: boolean;
-  lowStock: number;
+  /** Worst first, and including rows the sheet is currently hiding. */
+  lowStock: LowStockFlag[];
   integrityIssues: { lotId: number; lotNo: string; issue: string }[];
   /** Null for anyone below manager — the server does not send it at all. */
   pricing: { noPrice: PricingFlag[]; belowCost: PricingFlag[] } | null;
@@ -99,6 +110,7 @@ export default function InventoryPage() {
   const [confirmingCheck, setConfirmingCheck] = useState(false);
   // Shut on arrival every time, deliberately not remembered. See the panel.
   const [pricingOpen, setPricingOpen] = useState(false);
+  const [lowOpen, setLowOpen] = useState(false);
   const [quoting, setQuoting] = useState(false);
 
   const load = useCallback(async () => {
@@ -329,6 +341,77 @@ export default function InventoryPage() {
       )}
 
       {/*
+        What to order. Same disclosure as the pricing block below it, and red
+        rather than amber on purpose: a tire priced wrong is paperwork somebody
+        schedules an afternoon for, and an empty rack is a customer walking back
+        out of the door this morning. The two warnings genuinely are not the same
+        urgency, so they do not get the same colour.
+
+        Above pricing for that reason, and because everybody who can see the
+        racks sees this one, while pricing is managers only.
+
+        The list arrives from the server rather than being sifted out of the rows
+        below, which matters more than it looks: the sheet hides sold-out sizes
+        unless somebody ticks the box, and a size at zero is precisely what this
+        panel is for. Read off the visible rows it would go quiet at its most
+        useful moment.
+
+        `no-print` like the pricing block, though for a milder reason — the
+        printout is a counting sheet, and what to reorder is a decision taken
+        afterwards, sitting down, from the count that sheet comes back with.
+      */}
+      {data && data.lowStock.length > 0 && (
+        <div className="mb-4 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm no-print">
+          <button
+            type="button"
+            className="flex w-full items-center gap-1.5 text-left font-semibold text-red-900"
+            onClick={() => setLowOpen((v) => !v)}
+            aria-expanded={lowOpen}
+          >
+            <span
+              aria-hidden="true"
+              className="inline-block transition-transform"
+              style={{ transform: lowOpen ? "rotate(90deg)" : "none" }}
+            >
+              ▶
+            </span>
+            Running low
+            <span className="font-normal text-red-700">
+              {" "}
+              · {data.lowStock.length} to reorder
+            </span>
+          </button>
+
+          {lowOpen && (
+            <ul className="mt-2 list-disc pl-5 text-red-800">
+              {data.lowStock.map((p) => (
+                <li key={p.productId}>
+                  {/* `name` already ends in the size for every tire, so the
+                      size is not repeated here — same as the pricing lists. */}
+                  {p.name} —{" "}
+                  {p.onHand < 0 ? (
+                    // Below zero is an oversell: tires sold that the racks did
+                    // not have. Said as a debt rather than as "-2 on hand",
+                    // because that is what it is — somebody is waiting for them.
+                    <strong>
+                      {-p.onHand} owed to customers
+                    </strong>
+                  ) : p.onHand === 0 ? (
+                    <strong>none left</strong>
+                  ) : (
+                    <>{p.onHand} left</>
+                  )}{" "}
+                  <span className="text-red-700">
+                    · warns at {p.reorderPoint} or fewer
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/*
         Pricing warnings. Manager and up: `data.pricing` is null for everyone
         else because the server never sent it, so there is nothing here for a
         cashier to reveal by poking at the page.
@@ -492,8 +575,15 @@ export default function InventoryPage() {
                         {t.supplier && data?.showCosts && (
                           <span className="text-brand-300 text-xs no-print"> · {t.supplier}</span>
                         )}
+                        {/* A pill rather than the words " · low" tacked on the
+                            end. As text it read as part of the tire's name —
+                            "LANDSAIL LS588 205 55 16 · low" — which is both a
+                            thing to squint at and, on a rack of forty rows,
+                            invisible. Boxed, it is a badge the eye finds while
+                            scrolling past, which is the only way anybody ever
+                            actually reads it. */}
                         {t.reorder_point > 0 && t.on_hand <= t.reorder_point && (
-                          <span className="text-amber-700 text-xs no-print"> · low</span>
+                          <span className="inv-pill-low no-print">low</span>
                         )}
                       </td>
                       <td className="inv-c-price py-1 text-right tabular-nums text-brand-400 w-20">
@@ -601,7 +691,7 @@ export default function InventoryPage() {
                         {b.name.replace(/^BATTERY\s+/i, "")}
                       </span>
                       {b.reorder_point > 0 && b.on_hand <= b.reorder_point && (
-                        <span className="text-amber-700 text-xs no-print"> · low</span>
+                        <span className="inv-pill-low no-print">low</span>
                       )}
                     </td>
                     <td className="inv-c-price py-1 text-right tabular-nums text-brand-400 w-20">
@@ -717,6 +807,8 @@ export default function InventoryPage() {
           defaults={data.quoteDefaults}
         />
       )}
+
+      <BackToTop />
     </div>
   );
 }

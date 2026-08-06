@@ -101,7 +101,25 @@ export async function GET(req: NextRequest) {
           roundToCents: Number(getSetting("quote_round_to_cents")),
         }
       : null,
-    lowStock: can(auth.user.role, "receiveInventory") ? listLowStock().length : 0,
+    // The list, not a count — and computed here rather than derived in the
+    // browser from `sections`, which is the whole reason it is on this payload.
+    // The sheet hides sold-out rows by default, and a size at zero is the single
+    // most urgent thing this list exists to say. Worked out client-side, it
+    // would fall silent exactly when the shop is worst off.
+    //
+    // Ungated, unlike the pricing block above. Every figure in it — the name,
+    // what is on hand, the point it warns below — already reaches anyone allowed
+    // to see the racks at all, unstripped, and the "low" pill on those rows says
+    // it out loud. Gating a summary of ungated facts is theatre. Narrowed to
+    // named fields by hand regardless, so a cost can never ride along on a
+    // column somebody adds to `products` next year.
+    lowStock: listLowStock().map((p) => ({
+      productId: p.id,
+      name: p.name,
+      size: p.tire_size,
+      onHand: p.on_hand,
+      reorderPoint: p.reorder_point,
+    })),
     // Surfaced, never auto-repaired: a repair would destroy the evidence.
     integrityIssues: can(auth.user.role, "adjustInventory") ? lotIntegrityCheck() : [],
   });
