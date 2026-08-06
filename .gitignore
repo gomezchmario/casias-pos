@@ -23,6 +23,11 @@ next-env.d.ts
 # Backups live under here too and carry PIN hashes, so none of it ships.
 data/
 
+# The other place backups land: scripts that are about to change the database
+# wholesale drop a copy here first. Same content as data/, same reason to keep
+# it out — PIN hashes, customer names, every ticket the shop has rung.
+backups/
+
 # uploads (runtime)
 uploads/
 
