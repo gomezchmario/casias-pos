@@ -76,5 +76,9 @@ export async function POST(req: NextRequest) {
     supplier: body.supplier,
   });
   if (!result.ok) return jsonError(result.error);
-  return NextResponse.json({ product: result.product });
+  // With its count on it. A used size is get-or-create — ask for one that has
+  // existed since March and you get back the row that was already there, tires
+  // and all — and the caller puts this straight onto a ticket, where a hardcoded
+  // "0 on hand" is a number somebody at the counter reads and believes.
+  return NextResponse.json({ product: withStock([result.product])[0] });
 }

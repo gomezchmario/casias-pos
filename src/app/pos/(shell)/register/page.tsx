@@ -6,11 +6,18 @@ import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { formatCents, parseCents } from "@/lib/money";
 import { PaymentPanel } from "@/components/pos/PaymentPanel";
 import { PayoutPanel } from "@/components/pos/PayoutPanel";
-import { ProductSearch, type FoundProduct } from "@/components/pos/ProductSearch";
+import { OrderedTire } from "@/components/pos/OrderedTire";
+import {
+  ProductSearch,
+  type FoundProduct,
+  type SearchAction,
+} from "@/components/pos/ProductSearch";
 import { TicketDetails } from "@/components/pos/TicketDetails";
+import { normalizeTireSize } from "@/lib/tire-size";
 import type { Sale, SaleItem } from "@/lib/sales";
 import type { PaymentMethod } from "@/lib/payments";
 import type { QuickButton } from "@/lib/quick-buttons";
+import "./register.css";
 
 type RegisterData = {
   quickButtons: QuickButton[];
@@ -87,6 +94,11 @@ export default function RegisterPage() {
   // the time: the tire is on the truck, or it is on the rack and the count is
   // wrong. One tap gets the whole catalogue back.
   const [onlyInStock, setOnlyInStock] = useState(true);
+  // The "we don't carry this one" box. Manager-gated, because it writes a row
+  // to the price list that every future search and report will read.
+  const [orderingTire, setOrderingTire] = useState(false);
+  // Carried from the search that opened the box, so the size arrives typed.
+  const [orderSize, setOrderSize] = useState("");
   /**
    * Which register is on screen: the service one or the tire one.
    *
@@ -298,6 +310,14 @@ export default function RegisterPage() {
     amountRef.current?.focus();
   }
 
+  /** Put the search box back. The way out of a tire picked by mistake. */
+  function clearPicked() {
+    setPicked(null);
+    setDescription("");
+    setCategoryId(null);
+    setQty(1);
+  }
+
   function onQuickAmount(cents: number) {
     // Two clicks per line is the whole point: pick a service, pick a price.
     // The category came in with the service tap and is still held in state, so
@@ -421,13 +441,85 @@ export default function RegisterPage() {
 
   // Untracked stock (a can of oil, a disposal fee) has no count to be out of,
   // so it is never hidden — only things the racks are actually meant to hold.
+  //
+  // Used sizes are never hidden either, for a different reason: a used tire can
+  // arrive without anybody receiving it. Somebody leaves their old set behind at
+  // a change and an hour later the next customer wants one off it. The count
+  // reads zero because the count is about what was written down, not about what
+  // is leaning against the wall — so hiding the row would make the one tire the
+  // shop can definitely sell the one tire the register refuses to find.
   const stockFilter = useMemo(
     () =>
       onlyInStock
-        ? (p: FoundProduct) => p.track_inventory !== 1 || p.on_hand > 0
+        ? (p: FoundProduct) =>
+            p.track_inventory !== 1 || p.on_hand > 0 || p.condition === "used"
         : undefined,
     [onlyInStock],
   );
+
+  /**
+   * Give a used size a row, then put it on the ticket.
+   *
+   * Get-or-create on the server, which is what makes this safe to offer every
+   * time the size is missing from the list: press it on a size that has been
+   * selling since March and you get back that same row, count and all, rather
+   * than a second 215-55-16 for the counter to pick the wrong one of.
+   */
+  async function ringUsedTire(size: string) {
+    const res = await fetch("/api/pos/products", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: "tire", condition: "used", tireSize: size }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(d.error || "Could not add that size");
+      return;
+    }
+    onPickProduct(d.product);
+  }
+
+  /**
+   * The two tires the search can never find, offered where it fails to find
+   * them.
+   *
+   * Both were unreachable from here. A used size had no path at all — the shop
+   * takes a customer's old set in at a change and sells one off it an hour
+   * later, and the register could not name the thing being sold. A tire being
+   * ordered in had a link above the box, which is a place nobody looks after
+   * the list has come back empty.
+   *
+   * Only on something that reads as a size. Typing a brand is not a request to
+   * invent a product, and "sell a used vantage" is not a tire anybody can hand
+   * to a customer.
+   */
+  function tireActions(raw: string, shown: FoundProduct[]): SearchAction[] {
+    if (!can("manageProducts")) return [];
+    const size = normalizeTireSize(raw);
+    if (!size) return [];
+    const acts: SearchAction[] = [];
+    // Stands down when the used row is already on screen. Two ways to sell the
+    // same used 215-55-16, a foot apart, is a decision the counter has to stop
+    // and make in front of a customer.
+    if (!shown.some((p) => p.condition === "used" && p.tire_size === size)) {
+      acts.push({
+        key: `used-${size}`,
+        label: `Sell a used ${size}`,
+        hint: "Priced here at the counter — a used tire carries no set price",
+        run: () => void ringUsedTire(size),
+      });
+    }
+    acts.push({
+      key: `order-${size}`,
+      label: `Order in a new ${size}`,
+      hint: "Goes on this ticket and on the price list; racks stay at none",
+      run: () => {
+        setOrderSize(size);
+        setOrderingTire(true);
+      },
+    });
+    return acts;
+  }
 
   const amountButtons = useMemo(
     () => data?.quickButtons.filter((b) => b.kind === "amount") ?? [],
@@ -587,24 +679,6 @@ export default function RegisterPage() {
                 Only show current stock
               </label>
             </div>
-            {picked && (
-              <div className="text-xs text-brand-400">
-                {picked.name}
-                {picked.track_inventory === 1 && ` · ${picked.on_hand} on hand`}
-                <button
-                  type="button"
-                  className="ml-2 underline text-brand-300"
-                  onClick={() => {
-                    setPicked(null);
-                    setDescription("");
-                    setCategoryId(null);
-                    setQty(1);
-                  }}
-                >
-                  clear
-                </button>
-              </div>
-            )}
           </div>
           {/* The mechanic used to be a third column here and a dropdown down in
               the service card — the same one selection, drawn twice, in two
@@ -614,11 +688,30 @@ export default function RegisterPage() {
             className="grid gap-3"
             style={{ gridTemplateColumns: "minmax(0,1fr) 72px" }}
           >
-            <ProductSearch
-              onPick={onPickProduct}
-              placeholder="Size, brand or name…"
-              filter={stockFilter}
-            />
+            {picked ? (
+              <div className="picked-tire">
+                <div className="min-w-0 flex-1">
+                  <div className="picked-tire-name">{picked.name}</div>
+                  {picked.track_inventory === 1 && (
+                    <div className="picked-tire-stock">{picked.on_hand} on hand</div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="picked-tire-clear"
+                  onClick={clearPicked}
+                >
+                  Clear
+                </button>
+              </div>
+            ) : (
+              <ProductSearch
+                onPick={onPickProduct}
+                placeholder="Size, brand or name…"
+                filter={stockFilter}
+                actions={tireActions}
+              />
+            )}
             <input
               className="input text-center tabular-nums"
               inputMode="numeric"
@@ -733,8 +826,8 @@ export default function RegisterPage() {
                     : "Price is off the rack. Pick who fitted it, then Add."
                   : "Used tires are priced at the counter — enter the price and add."
                 : readyToAutoAdd
-                  ? "Picking a priced tire rings it straight through and takes it off the rack."
-                  : "Pick the fitter and a priced tire rings straight through; with none, it waits for Add."}
+                  ? "Picking a priced tire rings it straight through and takes it off the rack. Used tires and batteries are rung here too."
+                  : "Pick the fitter and a priced tire rings straight through. Used tires and batteries are rung here too."}
             </span>
           </p>
         </div>
@@ -835,7 +928,7 @@ export default function RegisterPage() {
                 )}
               </div>
             </div>
-            <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+            <div className="keypad">
               {data.mechanics.map((m) => {
                 const on = mechanicId === m.id;
                 return (
@@ -963,28 +1056,26 @@ export default function RegisterPage() {
           </div>
         )}
 
-        {/* Prices belong to both registers. In the service one they finish the
-            line a service button started; in the tire one they only appear once
-            a tire is picked, so that a used size can be priced in a single tap
-            instead of typed. Showing them in the tire register with nothing
-            picked would be a grid of buttons that silently do nothing.
+        {/* Prices belong to the service register only.
 
-            A NEW tire hides them outright. Its price is already filled in off
-            the rack, so eight buttons offering to replace a $145 tire's price
-            with $20 are not a shortcut, they are a hazard — and they made the
-            grid mean two different things depending on what was picked. The
-            used register still gets them, because that is the one place a price
-            genuinely is chosen at the counter and a tap beats typing.
+            These are the shop's service prices — $5 to $35, the amounts a flat
+            or a rotation is rung at. No tire has ever cost that. A used one goes
+            out somewhere around fifty and a new one at three times the top
+            button, so on the tire register the whole grid is eight wrong
+            answers, offered in the largest type on the screen, right where the
+            correct one has to be typed.
 
-            Keyed on whether the tire HAS a shelf price, not on whether the lock
-            is open. Keying it on the lock brought the grid back the moment Edit
-            price was ticked, which is the worst moment for it: eight buttons
-            topping out at $35 offering themselves to a $170 tire whose price is
-            already being changed by hand. */}
-        {!purchasing && (mode === "service" || (picked && picked.price_cents === 0)) && (
+            They were shown for used tires on the reasoning that a used price is
+            genuinely chosen at the counter and a tap beats typing. True about
+            the choosing; wrong about the buttons, because none of them is a
+            number anybody would choose. What they actually did was make the
+            tire register look like the service one at the moment the two are
+            least alike — so it read as a screen waiting for a service, and it
+            put a $20 button one slip of the thumb from a $60 tire. */}
+        {!purchasing && mode === "service" && (
         <div className="bg-white rounded-2xl shadow-sm p-4 mb-4">
           <div className="text-xs uppercase tracking-wider text-brand-300 mb-2">Price</div>
-          <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+          <div className="keypad">
             {amountButtons.map((b) => (
               <button
                 key={b.id}
@@ -1004,7 +1095,7 @@ export default function RegisterPage() {
         {!purchasing && mode === "service" && (
         <div className="bg-white rounded-2xl shadow-sm p-4">
           <div className="text-xs uppercase tracking-wider text-brand-300 mb-2">Service</div>
-          <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+          <div className="keypad">
             {serviceButtons.map((b) => (
               <button
                 key={b.id}
@@ -1276,6 +1367,14 @@ export default function RegisterPage() {
           is frozen now — a price change later will not move what they owe.
         </p>
       </ConfirmModal>
+
+      <OrderedTire
+        open={orderingTire}
+        onClose={() => setOrderingTire(false)}
+        onCreated={onPickProduct}
+        showCosts={can("viewCosts")}
+        initialSize={orderSize}
+      />
       </div>
     </>
   );

@@ -1,0 +1,115 @@
+/* The register's keypads: prices, services and the fitter grid.
+   All three are the same object -- a block of big fixed-height cells with one
+   centred word each -- so they share one rule rather than three inline styles
+   that have to be kept in step. */
+
+/*
+  `minmax(0, 1fr)` and not a bare `1fr`, which is the whole bug.
+
+  `1fr` is shorthand for `minmax(auto, 1fr)`, and that `auto` floor is the width
+  of the longest unbreakable word in the cell. Four buttons reading DISPOSAL and
+  ROTACION therefore refuse to shrink below their own labels: the grid grows to
+  whatever they demand and runs straight out through the right-hand edge of the
+  white card it sits in, over the gutter and under the ticket panel. A floor of
+  zero lets the tracks give way instead, so the grid can never be wider than the
+  card whatever ends up written on the buttons.
+
+  This is the second time it has happened here -- see the note on the service
+  register's description row -- which is why it is now a class and not another
+  one-off.
+*/
+.keypad {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/*
+  Three across once the ticket panel has squeezed the left column too far.
+
+  Not shrinking to fit, because these are the buttons the whole shift is rung
+  on: four cells seventy pixels wide is not something anybody hits accurately
+  with a thumb, and the labels are words rather than icons -- ROTACION has no
+  short version to fall back on. Dropping a column keeps both the target and the
+  word. The breakpoint is where a four-wide row stops holding the longest label,
+  measured against the 380px ticket panel beside it.
+*/
+@media (max-width: 940px) {
+  .keypad {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* The stock `.btn` side padding is sized for a button with text sitting next to
+   other things in a row. These are fixed-height cells holding one centred
+   label, so that padding buys nothing and costs the label the room it needs. */
+.keypad > .btn {
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+  line-height: 1.15;
+}
+
+/*
+  The tire that is already picked, standing in the search box's place.
+
+  It used to be a line of small grey text up in the card's header while the
+  search box sat underneath still reading "Size, brand or name…" -- and the
+  counter read that box as one waiting for the NEXT tire. Two tires on a ticket
+  is an ordinary thing to want, so nothing on the screen argued otherwise.
+  People typed into it, which threw away the tire they had just chosen and the
+  price they were part-way through deciding on.
+
+  So the box is gone for as long as a tire is held, and the tire stands where it
+  was, big enough to read without leaning in. There is nothing to type into
+  because at that moment there is nothing to type -- the next thing to do is
+  price it, and the price box is directly below.
+*/
+.picked-tire {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  /* Matched to `.input` so the row does not jump height when a tire is picked
+     -- the quantity box beside it keeps its own size either way. */
+  padding: 0.45rem 0.55rem 0.45rem 0.85rem;
+  border: 1px solid rgba(10, 37, 64, 0.18);
+  border-radius: 8px;
+  background: rgba(10, 37, 64, 0.04);
+}
+
+.picked-tire-name {
+  overflow: hidden;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #0a2540;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picked-tire-stock {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: #4f6e8e;
+}
+
+/* Says the word rather than drawing an ✕. This is the way back out of a tire
+   somebody picked by accident, on a screen where the wrong tire silently
+   becomes the wrong line on a customer's ticket -- worth a label. */
+.picked-tire-clear {
+  flex-shrink: 0;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid rgba(10, 37, 64, 0.18);
+  border-radius: 6px;
+  background: #fff;
+  color: #4f6e8e;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.picked-tire-clear:hover {
+  border-color: rgba(10, 37, 64, 0.35);
+  color: #0a2540;
+}

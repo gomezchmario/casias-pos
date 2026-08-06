@@ -22,6 +22,25 @@ export type FoundProduct = {
 };
 
 /**
+ * A row under the matches that is a thing to DO rather than a thing to sell.
+ *
+ * The counter's two commonest tire questions have no product to find: a used
+ * tire in that size, which may never have been given a row because used stock
+ * turns up out of nowhere, and a new tire the shop does not carry and is about
+ * to order in. Both used to be answered somewhere other than here — one not at
+ * all, one by a link above the box — and both are asked at the exact moment the
+ * search comes back short. So they are answered in the list, under the misses,
+ * where somebody is already looking.
+ */
+export type SearchAction = {
+  /** Stable per action, not per render: it keys the row and the cursor. */
+  key: string;
+  label: string;
+  hint?: string;
+  run: () => void;
+};
+
+/**
  * Type to find stock.
  *
  * Replaces a dropdown, which stopped being usable somewhere around the two
@@ -42,6 +61,7 @@ export function ProductSearch({
   showStock = true,
   filter,
   clearOnPick = true,
+  actions,
 }: {
   onPick: (p: FoundProduct) => void;
   placeholder?: string;
@@ -54,6 +74,11 @@ export function ProductSearch({
    *  keystroke to take effect. */
   filter?: (p: FoundProduct) => boolean;
   clearOnPick?: boolean;
+  /** Given what was typed and the rows actually on screen, so an action can
+   *  stand down when a real product already covers it — offering "sell a used
+   *  215-55-16" directly underneath the used 215-55-16 is two answers to one
+   *  question, and the counter has to stop and work out which is which. */
+  actions?: (query: string, shown: FoundProduct[]) => SearchAction[];
 }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<FoundProduct[]>([]);
@@ -107,21 +132,34 @@ export function ProductSearch({
   }
 
   const shown = filter ? results.filter(filter) : results;
+  const acts = actions ? actions(q.trim(), shown) : [];
+  // Products and actions are one list to the arrow keys. Anything else means a
+  // second, invisible rule about where the cursor stops, and the only way to
+  // learn it is to press Down and watch nothing happen.
+  const rows = shown.length + acts.length;
   // Clamps rather than resets: hiding the row the cursor was on should leave it
   // on the last row, not fling it back to the top of a list someone is reading.
-  const activeIndex = Math.min(active, Math.max(0, shown.length - 1));
+  const activeIndex = Math.min(active, Math.max(0, rows - 1));
+
+  function runAction(a: SearchAction) {
+    a.run();
+    setOpen(false);
+    setQ("");
+    setResults([]);
+  }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (!open || shown.length === 0) return;
+    if (!open || rows === 0) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActive(Math.min(activeIndex + 1, shown.length - 1));
+      setActive(Math.min(activeIndex + 1, rows - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActive(Math.max(activeIndex - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      pick(shown[activeIndex]);
+      if (activeIndex < shown.length) pick(shown[activeIndex]);
+      else runAction(acts[activeIndex - shown.length]);
     } else if (e.key === "Escape") {
       setOpen(false);
     }
@@ -135,7 +173,7 @@ export function ProductSearch({
         placeholder={placeholder}
         autoFocus={autoFocus}
         onChange={(e) => setQ(e.target.value)}
-        onFocus={() => shown.length > 0 && setOpen(true)}
+        onFocus={() => rows > 0 && setOpen(true)}
         onKeyDown={onKeyDown}
       />
       {loading && (
@@ -159,13 +197,13 @@ export function ProductSearch({
             border: "1px solid rgba(10,37,64,0.1)",
           }}
         >
-          {shown.length === 0 ? (
+          {shown.length === 0 &&
             // Two different nothings. A search that genuinely found no such
             // product is purchasing signal and gets logged as such; a search
             // whose matches were all filtered off the screen is not, and saying
             // "noted for purchasing" there would be a lie about what was
             // recorded.
-            results.length > 0 ? (
+            (results.length > 0 ? (
               <div className="px-3 py-3 text-sm text-brand-300">
                 {results.length} match{results.length === 1 ? "" : "es"}, all hidden.
               </div>
@@ -173,9 +211,9 @@ export function ProductSearch({
               <div className="px-3 py-3 text-sm text-brand-300">
                 Nothing matches “{q.trim()}”. It has been noted for purchasing.
               </div>
-            )
-          ) : (
-            shown.map((p, i) => {
+            ))}
+
+          {shown.map((p, i) => {
               const tracked = p.track_inventory === 1;
               const out = tracked && p.on_hand <= 0;
               return (
@@ -217,8 +255,37 @@ export function ProductSearch({
                   </div>
                 </button>
               );
-            })
-          )}
+            })}
+
+          {/* Under the matches, never above them. Nine times in ten the tire is
+              on the rack and the first row is the answer, and a list whose top
+              row is a form to fill in is a list that has made the common case
+              pay for the rare one. */}
+          {acts.map((a, i) => {
+            const idx = shown.length + i;
+            return (
+              <button
+                key={a.key}
+                type="button"
+                className="w-full text-left px-3 py-2"
+                style={{
+                  background: idx === activeIndex ? "rgba(10,37,64,0.05)" : undefined,
+                  // Dashed, and only above the first one: it fences the actions
+                  // off from the tires as a group, so nothing in here can be
+                  // mistaken for something already on the racks.
+                  borderTop: i === 0 ? "1px dashed rgba(10,37,64,0.18)" : undefined,
+                }}
+                onMouseEnter={() => setActive(idx)}
+                onClick={() => runAction(a)}
+              >
+                <div className="text-sm text-brand-500">
+                  <span className="text-brand-300 mr-1.5">+</span>
+                  {a.label}
+                </div>
+                {a.hint && <div className="text-xs text-brand-300">{a.hint}</div>}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
