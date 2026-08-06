@@ -367,13 +367,14 @@ type StockLine = {
   voided: number;
   name: string;
   default_cost_cents: number;
+  condition: string | null;
 };
 
 function stockedLinesFor(saleId: number): StockLine[] {
   return getDb()
     .prepare(
       `SELECT i.id, i.product_id, i.description, i.qty, i.voided,
-              p.name, p.default_cost_cents
+              p.name, p.default_cost_cents, p.condition
          FROM sale_items i
          JOIN products p ON p.id = i.product_id
         WHERE i.sale_id = ? AND p.track_inventory = 1`,
@@ -395,6 +396,25 @@ function stockedLinesFor(saleId: number): StockLine[] {
  * and costed at the product's default cost since the real cost is unknown. The
  * negative is the point: it says "we sold something we did not have" in a way
  * that shows up in the review queue instead of quietly rounding to zero.
+ *
+ * USED TIRES ARE THE EXCEPTION, and the reason is about the trade rather than
+ * the code. A used tire can turn up without ever being received: a customer
+ * leaves their old set behind at a change, and the next customer buys one off
+ * it the same afternoon. Nobody wrote either event down, and nobody was going
+ * to. So a used size at zero is not a discrepancy — it is the normal state of a
+ * bucket that fills and empties between counts.
+ *
+ * Treating it like a new tire would be wrong twice over. The count would go
+ * negative, and "-3 used 205-55-16" is not a claim about the racks that could
+ * ever be true or acted on. And every one of those sales would land in the
+ * oversell review queue, which is a list of things somebody should look into —
+ * fill it with the ordinary business of used tires and it stops being read,
+ * taking the real discrepancies with it.
+ *
+ * So a used line takes what the ledger has, down to zero, and the rest simply
+ * does not move stock. That is not a fudge: the tire that walked in unrecorded
+ * walked out unrecorded, and the ledger is telling the exact truth about the
+ * only thing it ever knew about.
  */
 export function applySaleMovements(
   user: PosUser,
@@ -417,7 +437,10 @@ export function applySaleMovements(
         .get(line.id);
       if (already) continue;
 
-      const { allocations, short } = allocateFifo(line.product_id, line.qty);
+      const { allocations, short: rawShort } = allocateFifo(line.product_id, line.qty);
+      // Dropped rather than booked for used sizes — see the note above. Every
+      // decision below keys off this, so the floor-at-zero rule is stated once.
+      const short = line.condition === "used" ? 0 : rawShort;
 
       if (short > 0 && !oversellAllowed) {
         const have = line.qty - short;
