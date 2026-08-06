@@ -395,7 +395,9 @@ export function createProduct(
   if (!Number.isInteger(costCents) || costCents < 0)
     return { ok: false, error: "Cost is not valid" };
 
-  const sku = (args.sku?.trim() || autoSku(args.kind, name, size)).toUpperCase();
+  const sku = (
+    args.sku?.trim() || autoSku(args.kind, name, size, args.brand, args.model)
+  ).toUpperCase();
   const db = getDb();
   const clash = db
     .prepare("SELECT id, name FROM products WHERE sku = ? AND deleted = 0")
@@ -447,12 +449,38 @@ export function createProduct(
   });
 }
 
-function autoSku(kind: ProductKind, name: string, size: string | null): string {
-  const base = (size ?? name)
-    .replace(/[^A-Za-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 24);
-  return `${kind.slice(0, 3).toUpperCase()}-${base.toUpperCase()}`;
+/**
+ * A SKU nobody at the counter has to invent.
+ *
+ * Built from size AND brand, because size alone collides the moment a size has
+ * two brands in it — and most do here: the shop carries nine different 11-22.5s.
+ * Both import scripts already generated their own SKUs to dodge this, which was
+ * the tell that the shared helper was wrong rather than that the imports were
+ * special. Matching their format keeps one scheme across all 556 rows.
+ *
+ * The suffix is checked against the table rather than a set held in memory, so
+ * two tires added a week apart de-duplicate as reliably as two in one import.
+ */
+function autoSku(
+  kind: ProductKind,
+  name: string,
+  size: string | null,
+  brand?: string | null,
+  model?: string | null,
+): string {
+  const slug = (s: string) => s.replace(/[^A-Za-z0-9]+/g, "").toUpperCase();
+  const detail = `${slug(brand ?? "").slice(0, 6)}${slug(model ?? "").slice(0, 6)}`;
+  const base = size
+    ? `${slug(size)}${detail ? `-${detail}` : ""}`
+    : `${kind.slice(0, 3).toUpperCase()}-${slug(name).slice(0, 20)}`;
+
+  // `deleted = 0` matches the partial unique index exactly. A soft-deleted row
+  // does not own its SKU, so skipping past one would suffix every future tire
+  // in that size for no reason.
+  const taken = getDb().prepare("SELECT 1 FROM products WHERE sku = ? AND deleted = 0 LIMIT 1");
+  let sku = base;
+  for (let i = 2; taken.get(sku); i++) sku = `${base}-${i}`;
+  return sku;
 }
 
 export function updateProduct(
@@ -675,8 +703,23 @@ export function listUnmetDemand(
   }[];
 }
 
-/** Stocked products at or below their reorder point. */
+/**
+ * Stocked products at or below their reorder point, worst first.
+ *
+ * Sold out sorts above merely thin, even when the thin one is further under its
+ * own point. A size at zero is a customer being turned away today; three of a
+ * six-deep size is a phone call this week. Sorting purely by how far below the
+ * point each one sits would file the empties in among sizes the shop still has,
+ * which is the one thing this order exists to prevent.
+ */
 export function listLowStock(): ProductWithStock[] {
   const products = listProducts().filter((p) => p.track_inventory && p.reorder_point > 0);
-  return withStock(products).filter((p) => p.on_hand <= p.reorder_point);
+  return withStock(products)
+    .filter((p) => p.on_hand <= p.reorder_point)
+    .sort(
+      (a, b) =>
+        a.on_hand - b.on_hand ||
+        b.reorder_point - a.reorder_point ||
+        a.name.localeCompare(b.name),
+    );
 }
