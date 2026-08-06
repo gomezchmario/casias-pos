@@ -131,7 +131,7 @@ export default function SettingsPage() {
   const services = buttons?.filter((b) => b.kind !== "amount") ?? [];
 
   return (
-    <div className="max-w-4xl">
+    <div className="max-w-4xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-brand-500">Settings</h1>
         <p className="text-brand-400 text-sm">

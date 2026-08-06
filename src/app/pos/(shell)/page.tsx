@@ -305,7 +305,7 @@ export default function DayPage() {
   const tipPoolCents = lb.techs.reduce((s, x) => s + x.tipCentsToday, 0);
 
   return (
-    <div className="max-w-7xl">
+    <div className="max-w-7xl mx-auto">
       <div className="flex items-end justify-between mb-6 gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold text-brand-500">Casias Tire Shop</h1>

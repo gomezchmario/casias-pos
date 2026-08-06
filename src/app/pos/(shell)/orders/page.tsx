@@ -126,7 +126,7 @@ export default function OrdersPage() {
   if (!data) return <div className="text-brand-300">Loading…</div>;
 
   return (
-    <div className="max-w-6xl">
+    <div className="max-w-6xl mx-auto">
       <div className="flex items-end justify-between mb-5 gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold text-brand-500">Orders</h1>

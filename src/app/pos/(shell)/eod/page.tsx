@@ -342,7 +342,7 @@ export default function EndOfDayPage() {
     data.businessDate === data.today && shiftId === "" && can("closeShift");
 
   return (
-    <div className="max-w-4xl eod">
+    <div className="max-w-4xl mx-auto eod">
       <div className="flex items-end justify-between mb-6 no-print">
         <div>
           <h1 className="text-2xl font-semibold text-brand-500">End of day</h1>
