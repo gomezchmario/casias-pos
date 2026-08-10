@@ -425,13 +425,13 @@ export default function OrdersPage() {
                   />
                 )}
 
-                {/* The order's own history, folded away.
-                    Only on the log, and only when there is one: the board is
-                    about what to do next and this is about what already
-                    happened, and a chevron on every row of the counter's screen
-                    would be one more thing to read past with a customer
-                    waiting. */}
-                {view === "log" && (
+                {/* The order's own history, folded away on every row of both
+                    readings. Shut by default, because the board is read to find
+                    the next job and an unfolded history on every row would bury
+                    it — but one press away, because "when did this actually
+                    arrive" and "who rang them last" get asked at the counter
+                    with the customer already on the phone. */}
+                {(
                   <div style={{ flexBasis: "100%" }}>
                     <button
                       type="button"

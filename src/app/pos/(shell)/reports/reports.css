@@ -1,0 +1,511 @@
+/* The management reports.
+ *
+ * A LONG PAGE READ TOP TO BOTTOM, not a grid of tiles. The sections are an
+ * argument in order — money, then where it comes from, then when, then who,
+ * then what it is tied up in, then what is owed, then what was missed — and a
+ * dashboard of equal-sized boxes would flatten that into a wall with no
+ * reading order. Sections are wide and separated by rules; panels inside them
+ * are cards.
+ *
+ * It also has to print. An owner takes this to an accountant, and a screen
+ * layout on paper is a screen layout with the buttons cut off. */
+
+.rp {
+  padding-bottom: 40px;
+}
+
+.rp-print-head {
+  display: none;
+}
+
+/* ── The window picker ────────────────────────────────────────────────── */
+
+.rp-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: rgba(10, 37, 64, 0.5);
+  margin-bottom: 24px;
+}
+
+.rp-range .input {
+  height: 32px;
+  font-size: 13px;
+}
+
+.rp-range-note {
+  color: rgba(10, 37, 64, 0.35);
+}
+
+/* ── Sections ─────────────────────────────────────────────────────────── */
+
+.rp-section {
+  margin-bottom: 34px;
+}
+
+.rp-h2 {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #0a2540;
+  padding-bottom: 6px;
+  border-bottom: 2px solid rgba(10, 37, 64, 0.12);
+  margin-bottom: 8px;
+}
+
+/* The sentence that says how to read the section. Deliberately not small
+   print: it is the difference between a figure being understood and being
+   assumed, and it is the first thing that should be read. */
+.rp-note {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: rgba(10, 37, 64, 0.5);
+  margin-bottom: 14px;
+  max-width: 74ch;
+}
+
+/* ── The figure tiles ─────────────────────────────────────────────────── */
+
+.rp-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.rp-stat {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgb(10 37 64 / 0.05);
+  padding: 12px 14px;
+}
+
+.rp-stat-lab {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: rgba(10, 37, 64, 0.42);
+  margin-bottom: 3px;
+}
+
+.rp-stat-val {
+  font-size: 21px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+
+.rp-stat-sub {
+  font-size: 11.5px;
+  color: rgba(10, 37, 64, 0.45);
+  margin-top: 2px;
+  line-height: 1.35;
+}
+
+/* ── Panels ───────────────────────────────────────────────────────────── */
+
+.rp-panel {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgb(10 37 64 / 0.05);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+
+.rp-panel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(10, 37, 64, 0.45);
+  margin-bottom: 10px;
+}
+
+.rp-panel-head em {
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 12px;
+  color: rgba(10, 37, 64, 0.35);
+}
+
+.rp-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .rp-two {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rp-chart-wrap {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgb(10 37 64 / 0.05);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+
+/* An empty state is a sentence, never an empty axis. A blank chart reads as a
+   broken page and sends somebody looking for a bug that is not there. */
+.rp-empty {
+  padding: 24px 8px;
+  text-align: center;
+  font-size: 13px;
+  color: rgba(10, 37, 64, 0.3);
+}
+
+.rp-more {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: rgba(10, 37, 64, 0.45);
+  text-decoration: underline;
+}
+
+.rp-more:hover {
+  color: #0a2540;
+}
+
+/* ── Vertical bars ────────────────────────────────────────────────────── */
+
+.rp-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  overflow-x: auto;
+}
+
+.rp-bar-col {
+  flex: 1 1 0;
+  min-width: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  height: 100%;
+}
+
+/* Reserved whether or not it holds a number, so the bars all stand on the same
+   line — a row of bars whose baselines wander is a chart that cannot be read
+   across. */
+.rp-bar-val {
+  height: 14px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(10, 37, 64, 0.55);
+  white-space: nowrap;
+}
+
+.rp-bar {
+  width: 100%;
+  max-width: 34px;
+  border-radius: 3px 3px 0 0;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.rp-pair {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  width: 100%;
+  justify-content: center;
+  height: 100%;
+}
+
+.rp-pair .rp-bar {
+  max-width: 15px;
+}
+
+.rp-bar-lab {
+  font-size: 9.5px;
+  color: rgba(10, 37, 64, 0.4);
+  margin-top: 4px;
+  white-space: nowrap;
+}
+
+.rp-bar-sub {
+  font-size: 9px;
+  color: rgba(10, 37, 64, 0.28);
+}
+
+.rp-legend {
+  display: flex;
+  gap: 14px;
+  font-size: 11.5px;
+  color: rgba(10, 37, 64, 0.5);
+  margin-bottom: 8px;
+}
+
+.rp-legend i {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  margin-right: 5px;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* ── Horizontal ranked bars ───────────────────────────────────────────── */
+
+.rp-ranked {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.rp-rank-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 30%) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+}
+
+.rp-rank-lab {
+  color: #0a2540;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rp-rank-track {
+  background: rgba(10, 37, 64, 0.05);
+  border-radius: 4px;
+  height: 15px;
+  overflow: hidden;
+}
+
+.rp-rank-fill {
+  height: 100%;
+  border-radius: 4px;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.rp-rank-val {
+  font-variant-numeric: tabular-nums;
+  color: #0a2540;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.rp-rank-note {
+  font-weight: 400;
+  color: rgba(10, 37, 64, 0.38);
+}
+
+/* ── The ring ─────────────────────────────────────────────────────────── */
+
+.rp-donut-wrap {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.rp-donut-wrap svg {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  flex: none;
+}
+
+.rp-donut-key {
+  flex: 1 1 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+  min-width: 0;
+}
+
+.rp-donut-key li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.rp-donut-key i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex: none;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.rp-key-lab {
+  color: rgba(10, 37, 64, 0.7);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rp-key-val {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: #0a2540;
+  white-space: nowrap;
+}
+
+.rp-key-val em {
+  font-style: normal;
+  color: rgba(10, 37, 64, 0.35);
+  margin-left: 6px;
+}
+
+/* ── The week grid ────────────────────────────────────────────────────── */
+
+.rp-heat {
+  display: grid;
+  gap: 2px;
+  align-items: center;
+}
+
+.rp-heat-hour {
+  font-size: 9px;
+  color: rgba(10, 37, 64, 0.35);
+  text-align: center;
+}
+
+.rp-heat-day {
+  font-size: 10.5px;
+  color: rgba(10, 37, 64, 0.5);
+  padding-right: 6px;
+}
+
+.rp-heat-cell {
+  height: 20px;
+  border-radius: 3px;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* ── Tables ───────────────────────────────────────────────────────────── */
+
+.rp-table {
+  width: 100%;
+  font-size: 12.5px;
+  border-collapse: collapse;
+}
+
+.rp-table th {
+  text-align: left;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(10, 37, 64, 0.4);
+  padding: 4px 0 6px;
+}
+
+.rp-table td {
+  padding: 5px 0;
+  border-top: 1px solid rgba(10, 37, 64, 0.06);
+  color: #0a2540;
+}
+
+/* Right-aligned columns get left padding rather than a margin, because a
+   right-aligned number with no space before it butts straight into the column
+   on its left — which has happened on three other tables in this app. */
+.rp-table .r {
+  text-align: right;
+  padding-left: 14px;
+}
+
+.rp-table .n {
+  font-variant-numeric: tabular-nums;
+}
+
+.rp-foot {
+  font-size: 11.5px;
+  color: rgba(10, 37, 64, 0.35);
+  border-top: 1px solid rgba(10, 37, 64, 0.08);
+  padding-top: 10px;
+}
+
+/* ── Paper ────────────────────────────────────────────────────────────── */
+
+@media print {
+  /* The shell, undone — the same rule the close-out needs and for the same
+     reason: the POS wrapper is a full-height flex column, and a flex container
+     that has to fragment across printed pages paginates badly. */
+  html,
+  body,
+  body > div,
+  main {
+    background: #fff !important;
+    display: block !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  header,
+  nav {
+    display: none !important;
+  }
+
+  .rp-no-print {
+    display: none !important;
+  }
+
+  .rp {
+    max-width: none;
+    width: 100%;
+    color: #111;
+    font-size: 9.5pt;
+  }
+
+  .rp-print-head {
+    display: flex;
+    align-items: center;
+    gap: 4mm;
+    border-bottom: 1px solid #111;
+    padding-bottom: 2.5mm;
+    margin-bottom: 5mm;
+  }
+
+  /* A section is the unit that must not be split, not the page. Some of them
+     are longer than a sheet and forcing those whole would leave half a page
+     blank in front of every one. */
+  .rp-section {
+    margin-bottom: 7mm;
+  }
+
+  .rp-panel,
+  .rp-chart-wrap,
+  .rp-stat {
+    box-shadow: none !important;
+    border: 1px solid #ddd;
+    border-radius: 0;
+    break-inside: avoid;
+  }
+
+  .rp-h2 {
+    break-after: avoid;
+  }
+
+  .rp-table tr {
+    break-inside: avoid;
+  }
+
+  @page {
+    size: letter;
+    margin: 14mm;
+  }
+}

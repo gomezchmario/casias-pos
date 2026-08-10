@@ -29,13 +29,13 @@ export async function GET(req: NextRequest) {
       })
     : listSpecialOrders();
 
+  // Sent for both readings. It was the log's alone, on the theory that the
+  // counter only cares about what happens next — but "when did this actually
+  // arrive" and "who rang them last" get asked at the counter, with the
+  // customer already on the phone, which is where the answer is worth the most.
+  // It is one indexed read over a short list; withholding it saved nothing.
   return NextResponse.json({
     orders,
-    // Only on the log. The board is about now and has no use for how an order
-    // got here; sending a move history for every row would be a query and a
-    // payload spent on something nothing draws.
-    history: log
-      ? Object.fromEntries(orderHistory(orders.map((o) => o.saleId)))
-      : {},
+    history: Object.fromEntries(orderHistory(orders.map((o) => o.saleId))),
   });
 }

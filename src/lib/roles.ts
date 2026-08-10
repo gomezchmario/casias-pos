@@ -184,6 +184,12 @@ export const CAPABILITIES = {
   // stops existing for everyone else in the building, and the person who takes
   // it away should be the one who answers for it not being there.
   deleteEntry: "owner",
+  // The management reports: margin, stock value, what each customer spends, who
+  // gives the discounts. Its own capability rather than `viewReports`, which a
+  // manager needs to run a shift — this is the shape of the BUSINESS rather
+  // than the state of the day, and it is the one screen where every figure an
+  // owner would rather not leave on a counter appears together.
+  viewBusinessReports: "owner",
   // The day screen is the register's home page, so a cashier has to be able to
   // open it. `viewReports` stays manager-only for the figures a cashier has no
   // business seeing — what the shop paid out for stock, above all.
@@ -388,6 +394,10 @@ export const CAPABILITY_INFO: Record<
   deleteEntry: {
     label: "Take a dead row off the day's log",
     group: "Fixing mistakes",
+  },
+  viewBusinessReports: {
+    label: "See the management reports",
+    group: "Money and reports",
   },
 
   cashPurchase: { label: "Buy stock over the counter (cash out)", group: "Money and reports" },

@@ -53,6 +53,10 @@ const NAV: {
   // of them in the first place.
   { href: "/pos/inventory", label: "Inventory", capability: "viewInventory" },
   { href: "/pos/eod", label: "Close-out", capability: "closeShift" },
+  // Last of the worded tabs, and deliberately after the close-out. The others
+  // are places the day's work happens; this is the one you open when the work
+  // is done and the question is how the business is doing.
+  { href: "/pos/reports", label: "Reports", capability: "viewBusinessReports" },
   // Just the gear. The other tabs are places to do the day's work and are
   // named for the work; this one is setup, is opened rarely, and does not earn
   // a word next to them. It sits last so the eye reaches it only after the

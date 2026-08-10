@@ -43,6 +43,7 @@ It is a single application on a single machine. No cloud account, no external da
 - Low-stock and negative-stock warnings, ordered worst-first.
 - Printable rack sheet for walking the aisles on a clipboard.
 - Public stock lookup at a login-free URL, served through a hand-written field whitelist so cost, internal price codes and supplier never leave the building.
+- An optional lost-sale study: a faded button on every register screen records the size a customer asked for and left without — the demand signal no sales system captures by construction — reported by units wanted with current stock beside each size.
 
 ### Special orders
 
@@ -75,7 +76,7 @@ It is a single application on a single machine. No cloud account, no external da
 - Timesheet correction with full attribution, payroll periods and exportable reports.
 - Per-technician performance board — units sold by category, income share, and change against the comparable prior period — readable by day, week or month, with the day view comparing each technician against their own last shift rather than against a calendar day they may not have worked.
 
-### Reporting
+### Day-to-day reporting
 
 - Daily figures split by what was sold and what was collected, which are deliberately different numbers.
 - Consecutive event log for the day: every line rung and every movement of money, in the order it happened, searchable by ticket, customer, phone, service, tender or card sequence number.
@@ -83,6 +84,22 @@ It is a single application on a single machine. No cloud account, no external da
 - Monthly tire reports: units sold and units received, with tax backed out and order-versus-stock attribution.
 - Price-override report showing every line sold away from the rack price.
 - Excel export.
+
+### Management reporting
+
+A separate owner-level screen, organised by the decision each panel feeds rather than by where the data lives, over any date window with the equivalent preceding window computed for comparison.
+
+- **Money** — revenue and collections over time, ticket count, average ticket, gross margin and discounts given, each against the same length of time before it.
+- **What sells** — sales mix and payment mix, margin by category, and the best sellers by units.
+- **When** — a week-by-hour heatmap of ticket volume, takings by day of the week averaged over how many of each the window held, and the busiest hours. This is the report that settles a rota.
+- **Who** — per-technician units, tickets, tips and share of takings, over the same window as everything else on the page.
+- **The racks** — stock at cost by brand and rim size, capital tied up in stock that has not moved, and what has reached its reorder point with how fast it has been selling.
+- **Owed** — ticket balances and house-account balances aged into 30-day buckets, kept in separate columns because they are chased by different people.
+- **Customers** — new against returning, repeat share, and who spends the most, bounded by how many tickets took a name at all.
+- **Missed** — sizes asked for and not in stock, from the counter's own lost-sale study, alongside register searches that returned nothing.
+- **Control** — voids, refunds, price overrides, post-completion edits, oversells and register logs that did not balance, attributed by name.
+
+Margin is computed only over lines that carry a recorded cost — a flat repair has none and never should — and the coverage percentage is printed beside every margin figure rather than left to be assumed. Charts are hand-drawn SVG with no external dependency. The whole page prints to letter paper.
 
 ---
 
@@ -99,7 +116,7 @@ It is a single application on a single machine. No cloud account, no external da
 | Export | `exceljs` |
 | Runtime | Node.js 22+, single process, HTTPS |
 
-Roughly 45 domain modules, 67 API route handlers, 24 screens, 30 tables and 29 ordered migrations.
+Roughly 48 domain modules, 70 API route handlers, 26 screens, 31 tables and 30 ordered migrations.
 
 **Why SQLite.** One machine, one process, no IT staff on site. A server database adds an install step, a service that must stay running, and a failure mode the shop cannot diagnose. `better-sqlite3` is also synchronous, which removes an entire category of interleaved-transaction bug: a transaction is a plain function call with nothing that can suspend inside it.
 
@@ -249,6 +266,7 @@ npm run build && npm start   # production, HTTPS
 | `/pos/movements` | Stock movement history and monthly tire reports |
 | `/pos/orders` | Special-order board |
 | `/pos/eod` | Close-out |
+| `/pos/reports` | Management reports |
 | `/inventory` | Public stock lookup, no login |
 | `/help` | Staff manual, English and Spanish |
 
