@@ -648,6 +648,11 @@ const ES: Record<string, string> = {
     "Directo al libro, sin ticket de por medio — para una cuenta que se abre antes de su primera factura. Con el nombre basta; el teléfono y los carros pueden venir después.",
   "optional — “Fleet: Gomez Landscaping”": "opcional — “Flotilla: Gomez Landscaping”",
 
+  "Trends report": "Informe de tendencias",
+  "The written report, in Spanish, as a printable PDF: where the business is heading, why, and the evidence — every chart explained in plain words. It is rebuilt from today's figures each time, so opening it takes a few seconds.":
+    "El informe escrito, en español, como PDF imprimible: hacia dónde va el negocio, por qué, y la evidencia — cada gráfica explicada con palabras sencillas. Se rearma con las cifras de hoy cada vez, así que abrirlo tarda unos segundos.",
+  "Open the report": "Abrir el informe",
+
   "The racks": "Los racks",
   "Stock on hand": "Existencia",
   "units, at cost": "unidades, a costo",

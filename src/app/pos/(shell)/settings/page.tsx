@@ -163,6 +163,7 @@ export default function SettingsPage() {
 
       {canShop && <LockCard onError={setError} />}
       {canShop && <CostsCard onError={setError} />}
+      {canShop && <ReportCard />}
       {canShop && <TireStudyCard onError={setError} />}
       {can("managePermissions") && <ExtraPermissionsCard onError={setError} />}
       {canShop && <InventoryAlarmCard onError={setError} />}
@@ -292,6 +293,44 @@ export default function SettingsPage() {
  * actually has about it — not "what does this do" but "what does this put in
  * front of my cashier while there is a queue".
  */
+/**
+ * The written trends report — the Spanish PDF — a click away.
+ *
+ * A plain link in a new tab rather than a fetch with a spinner, on purpose. The
+ * server rebuilds the document from live figures before answering, which takes
+ * several seconds, and a browser tab already knows how to show "working on it"
+ * — its own spinner — and then how to show a PDF: its own viewer, with print
+ * and save built in. Reimplementing that dance with a busy flag and a blob URL
+ * buys a popup-blocker fight and nothing else. The card's text carries the one
+ * thing the tab cannot say, which is that the wait is the figures being
+ * recalculated.
+ */
+function ReportCard() {
+  const { t: tr } = useLang();
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-4 mb-6">
+      <div className="text-xs uppercase tracking-wider text-brand-300 mb-2">
+        {tr("Trends report")}
+      </div>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div style={{ maxWidth: 560 }}>
+          <p className="text-sm text-brand-400">
+            {tr("The written report, in Spanish, as a printable PDF: where the business is heading, why, and the evidence — every chart explained in plain words. It is rebuilt from today's figures each time, so opening it takes a few seconds.")}
+          </p>
+        </div>
+        <a
+          className="btn btn-primary"
+          href="/api/pos/reports/document"
+          target="_blank"
+          rel="noreferrer"
+        >
+          {tr("Open the report")}
+        </a>
+      </div>
+    </div>
+  );
+}
+
 function TireStudyCard({ onError }: { onError: (m: string | null) => void }) {
   const [on, setOn] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
