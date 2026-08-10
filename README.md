@@ -1,72 +1,117 @@
-# Casias Muffler and Tire Shop — Time Clock + Point of Sale
+# Shop System — Point of Sale, Inventory and Time Clock
 
-A single self-hosted application that runs the front counter of a real tire shop in San Antonio: employee time clock, register, inventory, special orders, and the end-of-day cash close-out. It runs on one Windows PC, on localhost, with no cloud services, no external database, and no network dependency — because the shop needs to ring a $15 flat repair when the internet is down.
+A self-hosted point-of-sale and workforce system for independent tire and auto service shops. It runs the front counter end to end: ringing sales, taking payment, tracking stock, managing special orders and house accounts, reconciling the drawer and the card terminal at close, and recording the hours the staff worked.
 
----
-
-## The problem this replaces
-
-The shop ran its sales on an Excel workbook driven by a VBA quick-entry form. A flat log of one row per service, a separate special-orders sheet, a tire price list, a daily dashboard. It worked, and it had five structural problems that no amount of additional spreadsheet could fix:
-
-1. **No link between sales and inventory.** Selling a tire didn't decrement anything. Stock was a number someone retyped.
-2. **No receipts.**
-3. **No permissions.** Anyone at the counter could see and change anything.
-4. **No record of who changed what.** Rows could be silently edited or deleted, and frequently were.
-5. **Money was floats in cells.** With the rounding behaviour you'd expect.
-
-The design constraint that dominated everything else: **most tickets here are $5–$20 and take seconds to ring.** If the register is slower than the VBA form, the project has failed no matter how correct its books are. Several decisions below look over-engineered until you weigh them against that — and several obvious "improvements" were rejected because they cost keystrokes at the counter.
-
-It was built *inside* the shop's existing Next.js time clock rather than as a new app. The employees, PINs, SQLite database, migration runner, audit log and one-click Windows launcher already existed and were already trusted. The time clock still works, untouched, on the same database.
+It is a single application on a single machine. No cloud account, no external database, no network dependency. The register keeps working when the internet does not.
 
 ---
 
-## Stack
+## Contents
 
-| Layer | Choice | Why |
-|---|---|---|
-| Framework | Next.js 15, App Router | Server and client in one deployable; route handlers are the API |
-| UI | React 19, TypeScript, Tailwind v4 | — |
-| Database | SQLite via `better-sqlite3` | Embedded, single file, synchronous |
-| Auth | `iron-session` (admin), custom token sessions (POS) | Two different threat models, see below |
-| Hashing | `bcryptjs` | PINs and the admin password |
-| Export | `exceljs` | The shop lives in Excel; reports have to land there |
-| Process | One Node process, HTTPS via `server.mjs` + mkcert | Camera access requires a secure context |
-
-**Why SQLite and not Postgres.** One PC, one process, one user at a time, and a hard requirement to work with no network. A server database would add an install step, a service to keep running, and a failure mode ("the database service didn't start") to a shop with no IT staff. `better-sqlite3` is also *synchronous*, which removes an entire category of async-transaction bugs — a transaction is a plain function call, and there is no `await` inside one that can interleave with something else.
-
-WAL mode is on, foreign keys are on, and the connection is a module-level singleton.
+- [What it does](#what-it-does)
+- [Technology](#technology)
+- [Deployment model](#deployment-model)
+- [Architecture](#architecture)
+- [Security and access control](#security-and-access-control)
+- [Data integrity guarantees](#data-integrity-guarantees)
+- [Data model](#data-model)
+- [Reporting and printed documents](#reporting-and-printed-documents)
+- [Operations](#operations)
+- [Scope and current limitations](#scope-and-current-limitations)
 
 ---
 
-## The six invariants
+## What it does
 
-These are the whole point of the project. Everything else was negotiable.
+### Register
 
-### 1. Money is integer cents. Never a float, anywhere.
+- Configurable quick-button grid for the shop's common services and price points, editable from the app without a code change.
+- Free-text lines with typed prices for anything the grid does not cover.
+- Per-line technician attribution, plus a separate fitter credit so one line can pay two people — the person who sold a set of tires and the person who mounted them days later.
+- Split and partial payment across any number of tenders on one ticket.
+- Configurable payment methods (cash, card, SNAP, financing, purchase order, house account, and others), each flagged as card or not so the card batch can be reconciled against a sequence number.
+- Customer and vehicle capture, prompted above a configurable ticket value and always skippable.
+- Printable receipts.
 
-`src/lib/money.ts` owns parsing and formatting. Nothing else divides money.
+### Inventory
 
-### 2. Ledgers are append-only
+- Products, lots and an append-only movement ledger. Stock on hand is derived from the ledger rather than stored, so no count can drift out of step with the reasons it changed.
+- FIFO cost allocation for landed cost and margin.
+- Stock decrements automatically on sale completion and restores automatically on void, inside the same transaction as the sale.
+- New and used tires are modelled separately. A used tire carries only its size — no brand, cost or shelf price — because it is priced at the counter from its condition; the system refuses to store fields that would invite a number nobody can stand behind.
+- Overselling is permitted as a flagged, attributable manager decision when the shop enables it, and surfaces in a review queue.
+- Low-stock and negative-stock warnings, ordered worst-first.
+- Printable rack sheet for walking the aisles on a clipboard.
+- Public stock lookup at a login-free URL, served through a hand-written field whitelist so cost, internal price codes and supplier never leave the building.
 
-`payments`, `inventory_movements` and `drawer_movements` have **no soft-delete column**. The only way to undo a row is to write a reversing row that points at it.
+### Special orders
 
-This is deliberately stronger than a `deleted` flag, and the reason is bug-shaped: with a flag, every report needs `WHERE deleted = 0`, forever, including reports written next year by someone who didn't know. One forgotten clause silently misstates the day's takings. If there is nothing to filter, nothing can forget to filter.
+- A special order is an ordinary ticket with a fulfilment status, not a parallel money model, so a deposit and a balance behave exactly as they do anywhere else.
+- Status board covering ordered → arrived → customer called → ready → collected, with the states the counter actually uses.
+- Fulfilment asks whether the arriving tire was already booked into stock by hand, shows that product's full movement history as evidence, and gates the answer behind an explicit confirmation — the one fact the database cannot infer and the one that silently corrupts a count.
 
-### 3. Entities are soft-deleted, never dropped
+### Customers and house accounts
 
-`sales`, `products`, `customers`, `vehicles`, `inventory_lots` carry `deleted / deleted_by / deleted_at / deleted_reason` and a human-readable unique key.
+- Customer book with vehicles, full ticket history, and a pinned note visible to everyone.
+- Filters for customers who owe money, customers running a tab, and tabs nobody approved.
+- Credit approval is an explicit, recorded decision, shown at the register the moment the customer is attached to a ticket.
+- House accounts are derived from the payment ledger rather than stored, so voided tickets and corrected tenders remove their own charges with no reconciling entry.
+- Account payments record amount, the date the money actually arrived, how it was paid and which bank account it landed in. Corrections are written as reversing entries, never erasures.
+- Per-customer printable statement, and a monthly account sheet with opening balance, charges, payments and closing balance — four columns that must reconcile, with the identity checked and reported.
 
-### 4. Every mutation writes a before/after JSON diff to `audit_log`
+### Close-out and reconciliation
 
-Attributed to the employee **and their role at the time of the action** — a role snapshot, not a join, because a technician promoted to manager in November must not retroactively appear to have been a manager in July. The audit row is written inside the same transaction as the change (`inTx` in `src/lib/tx.ts`), so a change without its audit row is not a state the database can be in.
+- Blind drawer count: expected figures stay covered until the count is logged, so a count is a count rather than a transcription.
+- Per-tender variance with direction and magnitude, plus automatic detection of the classic wrong-tender error — two tenders out by the same amount in opposite directions — naming the candidate tickets.
+- Mid-shift register checks, signed and frozen against the expectation at the moment of counting, so a loss can be localised to a two-hour window rather than to a whole day.
+- Cash movements in and out of the drawer are tracked separately from revenue, so a bank run is never a shortage.
+- Card batch confirmation gated in sequence: count, log, settle, print.
+- One-page signed close-out plus a detailed financial report, formatted for letter paper and designed to be filed.
 
-### 5. `business_date` is not `substr(created_at, 1, 10)`
+### Workforce
 
-The shop's day runs 4am to 4am (configurable). A ticket corrected at 12:30am after a 9pm close belongs to the *previous* business day. One helper computes it (`src/lib/business-date.ts`) and everything that buckets money by day goes through it. Midnight-based bucketing would split one night's takings across two days and make the close-out unreconcilable.
+- PIN-based employee clock-in and clock-out on a kiosk screen.
+- Optional photo capture at punch.
+- Timesheet correction with full attribution, payroll periods and exportable reports.
+- Per-technician performance board — units sold by category, income share, and change against the comparable prior period — readable by day, week or month, with the day view comparing each technician against their own last shift rather than against a calendar day they may not have worked.
 
-### 6. Totals freeze when a sale completes
+### Reporting
 
-Payments are taken against a number. A later price correction must not silently rewrite what the customer already owed.
+- Daily figures split by what was sold and what was collected, which are deliberately different numbers.
+- Consecutive event log for the day: every line rung and every movement of money, in the order it happened, searchable by ticket, customer, phone, service, tender or card sequence number.
+- Tip and commission summaries.
+- Monthly tire reports: units sold and units received, with tax backed out and order-versus-stock attribution.
+- Price-override report showing every line sold away from the rack price.
+- Excel export.
+
+---
+
+## Technology
+
+| Layer | Choice |
+|---|---|
+| Framework | Next.js 15 (App Router) |
+| Language | TypeScript |
+| UI | React 19, Tailwind CSS v4 |
+| Database | SQLite via `better-sqlite3`, WAL mode, foreign keys enforced |
+| Sessions | `iron-session` (back office), token sessions in httpOnly cookies (register) |
+| Hashing | `bcryptjs` |
+| Export | `exceljs` |
+| Runtime | Node.js 22+, single process, HTTPS |
+
+Roughly 45 domain modules, 67 API route handlers, 24 screens, 30 tables and 29 ordered migrations.
+
+**Why SQLite.** One machine, one process, no IT staff on site. A server database adds an install step, a service that must stay running, and a failure mode the shop cannot diagnose. `better-sqlite3` is also synchronous, which removes an entire category of interleaved-transaction bug: a transaction is a plain function call with nothing that can suspend inside it.
+
+---
+
+## Deployment model
+
+A single Node process on one Windows PC, serving HTTPS on localhost. HTTPS is required rather than cosmetic — camera access for punch photos needs a secure context.
+
+The shop's own deployment is a double-clicked launcher that starts the server with no visible window, so there is nothing on the taskbar for somebody to close at the end of a shift. Output is written to a log file for diagnosis. The process is safe to launch twice; a second launch detects the running server and exits.
+
+Nothing leaves the machine. There is no telemetry, no vendor callback and no external service in the request path.
 
 ---
 
@@ -75,143 +120,157 @@ Payments are taken against a number. A later price correction must not silently 
 ```
 src/
 ├── app/
-│   ├── (kiosk)/            Time-clock kiosk — the screen bolted to the wall
-│   ├── admin/(authed)/     Time-clock admin: employees, entries, payroll reports, audit
-│   ├── pos/(shell)/        The register and back office (locked, role-gated)
-│   ├── pos/sale/[id]/      Printable receipt (outside the shell — it prints)
-│   ├── inventory/          Public rack lookup, no login
+│   ├── (kiosk)/            Time-clock kiosk — the wall-mounted screen
+│   ├── admin/(authed)/     Back office: employees, timesheets, payroll, audit
+│   ├── pos/(shell)/        Register and shop back office, locked and role-gated
+│   ├── pos/sale/[id]/      Printable receipt, outside the shell
+│   ├── inventory/          Public stock lookup, no login
 │   └── api/                Route handlers — the entire API surface
-├── components/
-│   ├── kiosk/  admin/  pos/  ui/
-└── lib/                    All business logic. No SQL above this layer.
+├── components/             kiosk · admin · pos · shared UI
+└── lib/                    All business logic
 ```
 
-**The rule that keeps this honest: no route handler contains SQL.** Routes parse input, call a `lib/` function, and serialise the result. Everything that touches the database lives in `src/lib`, which means the invariants above are enforced in one place per concept rather than at each of ~55 endpoints.
+**No SQL exists above `src/lib/`.** Route handlers parse input, call a domain function and serialise the result. Every rule in this document is therefore enforced in one place per concept rather than repeated across 67 endpoints, and a new endpoint inherits the guarantees rather than having to remember them.
 
-### Two auth systems, on purpose
-
-- **Admin** (`iron-session`, encrypted cookie) — username and password, for the time-clock back office. Sessions are long. The threat model is "someone who isn't the owner opened the laptop."
-- **POS** (`src/lib/pos-session.ts`) — employee picker, then PIN, then a hashed token in an httpOnly cookie. The threat model is completely different: *one shared PC, on a counter, that a dozen people use all day.*
-
-That second model is why POS auth is **employee-picker-then-PIN rather than PIN-only**. The time clock's `findEmployeeByPin` bcrypt-compares against every active employee — fine once a day at check-in, far too slow for a register. Picking the name first makes it one comparison.
-
-### The idle lock, and a bug worth describing
-
-The register locks itself when untouched. The first implementation did this as session expiry slid forward on each request — and it did not work. The shell polled `/api/pos/auth/me` on a timer, every poll bought another quarter hour, and a tab left open on an empty counter stayed signed in indefinitely. Sessions were observed alive 22 minutes against a 15-minute setting.
-
-The lesson is a general one: **the server can only measure the gap between requests, and a request is not a person.** The lock now lives client-side in `PosShell`, watching for real keys and taps, and revokes the session itself. Server-side expiry stayed as the backstop for what the client can't cover — closed tab, killed process, pulled power.
-
-Unlocking returns to the same screen rather than dumping the cashier at a login page, because the alternative is that people stop locking it.
-
-### Permissions are capabilities, not roles
-
-Roles are `technician → cashier → manager → owner`, but no route checks a role. `src/lib/roles.ts` maps ~30 *capabilities* to a minimum role, and handlers call `requirePos("voidSale")`. Adding a role, or moving one permission, is a change in one table rather than a grep across the codebase. The admin permissions screen renders from that same table and the same `can()` the server enforces with, so the screen an owner uses to decide who can touch money cannot drift from the rules actually applied.
-
-There are places where the split is finer than it first looks — `discountSale` and `discountAnyAmount` are separate, because "may you discount at all" and "may you discount *this much*" have different answers, and the ceiling itself is a setting rather than a role.
+Migrations are ordered files applied by a runner that records each filename and skips what is already applied. They run on an explicit setup command, never on server start, so restarting the application can never reshape the shop's database.
 
 ---
 
-## Data model highlights
+## Security and access control
 
-Sixteen migrations, applied by a runner that records each filename in a table and skips what's already applied. They run only via `npm run setup`, never on server start — a dev server restarting shouldn't reshape the shop's database.
+### Two session systems
 
-### Sales
+The back office and the register have genuinely different threat models and are treated as such.
 
-`sales` (header: `sale_no`, `business_date`, `status`, frozen totals, cashier, discount) + `sale_items`. **The mechanic lives on the line, not the ticket**, because commission and the leaderboard are per-line — a ticket can easily have a tire from one tech and two flats from another.
+- **Back office** — username and password, encrypted session cookie, long sessions. The risk is somebody who is not the owner opening the machine.
+- **Register** — employee picker, then PIN, then a hashed token in an httpOnly cookie. The risk is a shared PC on a counter that a dozen people use all day.
 
-Line items snapshot their description, unit cost *and* list price at the moment of sale. The snapshot matters: flagging edited prices by comparing against `products.price_cents` at read time seems obviously right and is quietly wrong. The day a tire goes from $170 to $175, every honest sale ever rung at $170 starts showing as edited. A report that cries wolf across a year of clean sales gets ignored inside a week — and then it isn't there for the one sale that mattered.
+Choosing the name before the PIN is a deliberate performance decision: it turns authentication into a single hash comparison instead of one per active employee.
 
-### Payments, and the forgotten-tip problem
+### Idle lock
 
-`payments` is a separate append-only table, so one ticket can have split or partial payments. `kind` ∈ `payment / tip_adjustment / refund / reversal / deposit`, with negative amounts for money going back out.
+The register locks itself when nobody is using it. The lock is driven by real keyboard and pointer activity in the client and revokes the session directly; server-side expiry remains as the backstop for what a client cannot report — a closed tab, a killed process, a power cut. Server-measured inactivity alone is not sufficient, because the gap between requests is not the gap between people.
 
-This is the fix for the shop's most common bookkeeping mess: a tip remembered an hour after the customer left. In the spreadsheet that became a phantom $2 sale, which inflated the day's ticket count and attributed revenue to nothing. Here it's a `tip_adjustment` row pointing at the original sale.
+Unlocking returns to the screen the user was on rather than to a login page, because a lock that costs work is a lock people stop using.
 
-**Commission rides on the payment, not the sale**, precisely because the tip can arrive later. The default is `ceil(tip / 500) * 100` — the shop's $1-per-$5 rule — with divisor and charge in `settings`, never hardcoded.
+### Capabilities, not role checks
 
-### Void vs. refund — three distinct operations
+Roles form a ladder — technician, service writer, cashier, manager, owner — with an accountant role that sits at cashier rank on the floor and carries owner-level authority over customer accounts only.
 
-Conflating these is the classic POS bug:
+No route handler tests a role. The system defines 43 named capabilities mapped to a minimum rank, with explicit grant and denial lists for the cases a ladder cannot express, and handlers ask for the capability they need. The permissions screen renders from the same table the server enforces with, so what an owner sees when deciding who may touch money cannot drift from the rules actually applied.
 
-- **Void an open ticket** — status change only. No inventory moved yet, nothing to undo.
-- **Void a completed ticket** — status change, *plus* a reversal payment per original payment, *plus* a `void_return` inventory movement per original movement (same lot, same cost). Originals are never touched, so daily totals net to zero for free.
-- **Refund later** — a new negative payment and return movements. The sale stays `completed`, because it happened.
-
-### Inventory
-
-`products → inventory_lots → inventory_movements`. **Stock is derived from the append-only ledger, never stored on the product.** There is no count column to drift out of step with the reasons it changed. `inventory_lots.qty_remaining` exists as a FIFO cursor rather than an authority, and an integrity check proves the two still agree.
-
-Decrementing is wired into `completeSale` and restoring into `voidSale` rather than left to callers — a route that completed a sale and forgot to move stock would look identical to a working one until the counts drifted far enough to notice, which is the failure the spreadsheet already had.
-
-**Used tires are a product with almost every field empty.** A used tire carries only its size: no brand, no DOT, no cost, no price, because the price is decided at the counter from the tire's condition and the customer. One row per size, not per tire. `createProduct` and `updateProduct` *refuse* those fields for used stock rather than dropping them silently, because a price stored "just in case" is a number someone eventually trusts. Batteries have the same shape — Large, Medium, Small, no group size, no CCA — for the same reason.
-
-Overselling stays possible, as a flagged manager decision, when the shop switch allows it. A hard block doesn't stop the tire leaving the shop; it stops the sale being *rung against the product*, turning a flagged row in a review queue into no record at all.
-
-### Cash that isn't a sale
-
-A manager empties the till at 3pm because there's $400 sitting in a wooden box in a tire shop. That's not income, not an expense, not a refund — the same money in a different place — and it used to appear as a $400 shortage at close.
-
-`drawer_movements` is a separate table rather than a `payments` row, and that's the whole design. `payments` is the revenue ledger and everything trusts it: day totals, expected-by-method, tips, the method breakdown, the EOD variance. A withdrawal in there means adding "and not a withdrawal" to every one of those queries and every query written afterwards, forever. Revenue queries don't join this table, so they cannot be wrong about it.
-
-### Mid-shift register checks
-
-The close-out answers "was tonight right." It doesn't answer "when did it go wrong," and on the nights that matters that's the only useful question. Anyone can count the drawer at noon and log it; the check is signed, prints on the close-out, and is flagged if it didn't balance. Four clean checks and a short close localise a loss to a two-hour window.
-
-The expected figure is **frozen onto the row** at the moment of counting — otherwise a late tip booked at 8pm rewrites what the noon count was measured against and turns a check that balanced into one that never did.
+Sensitive figures are withheld on the server, not hidden in CSS. Where a page must not show technician earnings, the amounts are blanked before the response is built rather than filtered in the browser.
 
 ---
 
-## Notable design decisions
+## Data integrity guarantees
 
-**Server-side data gating, not CSS.** The daily dashboard is often left open on a counter anyone can walk past. Technician *dollar* figures are blanked server-side for anyone below owner and the *shares* are computed server-side, because handing the page the cents to divide would ship the exact number being withheld. This is explicitly presentational — the shop's total is on that page several ways and multiplying by a share recovers the dollars — and the code says so. The point is what a screen shows at a glance, not secrecy from someone doing arithmetic. Tips are deliberately *not* gated: the cashier usually counted that tip into someone's hand an hour ago, and hiding it would be theatre.
+These are the properties the system is built to hold, and the reason it is trustworthy as a book of record.
 
-**The public rack lookup ships a field whitelist, written out by hand.** `/inventory` answers "do we have a 215 55 17" with no login, from a phone at the bay. The route names each field that may leave rather than spreading and deleting, because `{...product, cost: null}` is one careless refactor away from leaking the next column somebody adds. Cost, the internal price code and the supplier never leave.
+**1. Money is integer cents.** No floating-point value represents money anywhere in the system. One module owns parsing and formatting.
 
-**Three clocks that look like one.** `created_at` (when the row was written), `business_date` (which day's money it is), and `fulfillment_at` (when a special order last moved). Special orders needed their own, because `updated_at` moves when someone takes fifty cents off the price, and "how long has this tire sat with nobody calling the customer" is a different question.
+**2. Ledgers are append-only.** Payments, inventory movements and drawer movements have no delete flag and are never updated. The only way to undo a row is to write a reversing row that points at it. This is stronger than a soft-delete column: with a flag, every report ever written must remember to exclude deleted rows, and one omission silently misstates the day's takings. With nothing to filter, nothing can forget to filter.
 
-**Names are re-cased, but not title-cased.** Employees get typed in as ADRAIN, adrain, Adrain, and the shouting then appears on the leaderboard next to properly typed names. `properName` re-cases only words that carry no case information; a word already mixed is left alone, because blanket title-casing turns McCoy into Mccoy — not tidier, wrong, and wrong in a way the person whose name it is can't fix by retyping it.
+**3. Entities are soft-deleted, never dropped.** Sales, products, customers, vehicles and lots retain who deleted them, when and why, along with a human-readable key.
 
-**Free-text mechanic names don't create employees.** Someone occasionally needs to note who did one $20 mount when it wasn't staff. Creating an employee row would put that person permanently in the PIN picker, the payroll list and every per-fitter report. Instead the line carries an optional name, `mechanic_id` and `mechanic_name` are mutually exclusive, and one function settles which wins. All written-in names collapse to a single "Other" row on reports — "Miguel", "miguel" and "Miguel R" are three strings and one person, and ranking them separately would invent precision the data doesn't have.
+**4. Every mutation is audited.** A before/after JSON diff is written to the audit log, attributed to the employee *and to the rank they held at the time* — a snapshot, not a join, so a promotion cannot retroactively rewrite who was authorised to do what. The audit entry is written inside the same transaction as the change, so a change without its audit record is not a state the database can reach.
+
+**5. The business day is explicit.** The shop's day runs on a configurable boundary rather than on midnight. A ticket corrected at 12:30am after a 9pm close belongs to the previous business day. One helper computes this and everything that buckets money by day goes through it; midnight bucketing would split a night's takings across two days and make the close-out impossible to reconcile.
+
+**6. Totals freeze on completion.** Payment is taken against a specific number. A later price correction is recorded as a correction and never silently rewrites what the customer owed.
+
+**7. Voids, refunds and corrections are three different operations.**
+
+| Operation | Effect |
+|---|---|
+| Void an open ticket | Status change only. Nothing has moved. |
+| Void a completed ticket | Status change, plus a reversing payment per original payment, plus a return movement per original stock movement. Originals untouched; the day nets to zero without special-casing. |
+| Refund later | A new negative payment and return movements. The sale remains completed, because it happened. |
+| Correct a payment | The original is reversed and re-taken saying the right thing, on the original business date, so the day the money moved does not change. |
+
+An on-demand integrity check reconciles sale headers against their line items, and recorded payment totals against the payment ledger. Mismatches are reported, never silently repaired.
 
 ---
 
-## Running it
+## Data model
 
-**Requirements:** Node.js 22+.
+**Sales.** A header carrying the ticket number, business date, status, fulfilment status, cashier, discount and frozen totals; plus line items that snapshot their description, cost and rack price at the moment of sale. The snapshot matters: comparing against the current product price at read time would make every honest sale rung before a price change appear to have been discounted.
+
+**Technician attribution lives on the line**, not the ticket, because commission and performance are per-line — a single ticket routinely carries a tire from one technician and two repairs from another.
+
+**Payments** are a separate append-only table so a ticket can carry split, partial and later payments. Kinds are payment, tip adjustment, refund, reversal and deposit, with negative amounts for money going out. Because a tip is frequently remembered after the customer has left, commission rides on the payment rather than on the sale; a late tip is an adjustment pointing at the original ticket rather than a phantom sale that would inflate the day's ticket count.
+
+**Inventory** runs products → lots → movements. Lots exist as a FIFO cursor for costing rather than as an authority on quantity; stock is always derived from the ledger, and an integrity check proves the two agree.
+
+**Drawer movements** are their own table rather than payment rows. Revenue queries do not join it, so no revenue query can ever be wrong about a bank run. Adding withdrawals to the payment ledger would mean every current and future revenue query carrying an exclusion clause.
+
+**House accounts** derive their charge side from the payment ledger, so a voided ticket or a corrected tender removes its own charge automatically. Payments against an account are stored separately and are never allocated to a specific ticket, because that is not how a monthly account is settled.
+
+**Register checks** freeze the expected figure onto the row at the moment of counting, so a late booking cannot retroactively turn a check that balanced into one that never did.
+
+---
+
+## Reporting and printed documents
+
+Printed output is treated as a product, not an afterthought. Everything intended for paper is laid out for letter size with its own stylesheet, and screen layout is free to differ from print layout where the two are read differently.
+
+- **Receipt** — customer-facing, per ticket.
+- **Close-out** — a fixed one-page sheet ending in a signature block that always lands on the same rule, followed by a detailed financial report. The sheet is identical every night by design, so the eye learns where the numbers are.
+- **Account statement** — per customer, on shop letterhead.
+- **Monthly account sheet** — opening, charges, payments and closing per account, with a reconciliation check.
+- **Rack sheet** — printable inventory for a physical count.
+- **Monthly tire reports** — units sold and units received with tax backed out.
+- **Excel export** — for anything that has to leave the building in a spreadsheet.
+
+A bilingual (English and Spanish) in-app staff manual ships with the system, written against the real interface, with a print build for paper copies.
+
+---
+
+## Operations
+
+**Requirements:** Node.js 22 or later. Windows, macOS or Linux; the shop deployment is Windows.
 
 ```bash
 npm install
-npm run setup      # .env.local, database, migrations, seed admin + employees
-npm run dev        # http://localhost:3000
-# or
-npm run build && npm start    # HTTPS via server.mjs, needs certs/
+npm run setup      # environment file, database, migrations, seed accounts
+npm run dev        # development server
+npm run build && npm start   # production, HTTPS
 ```
 
-Or double-click `start.bat`, which does all of the above and opens the browser — the shop's actual deployment process.
-
-| Path | What |
+| Path | Screen |
 |---|---|
 | `/` | Time-clock kiosk |
-| `/admin` | Time-clock back office |
+| `/admin` | Back office |
+| `/pos` | Today: performance, live activity, outstanding balances |
 | `/pos/register` | The register |
-| `/pos` | Today: podium, live entries, outstanding balances |
-| `/pos/eod` | End-of-day close-out (printable) |
+| `/pos/entries` | Consecutive event log for the day |
+| `/pos/customers` | Customer book and house accounts |
 | `/pos/inventory` | Stock, receiving, printable rack sheet |
+| `/pos/movements` | Stock movement history and monthly tire reports |
 | `/pos/orders` | Special-order board |
-| `/inventory` | Public rack lookup, no login |
+| `/pos/eod` | Close-out |
+| `/inventory` | Public stock lookup, no login |
+| `/help` | Staff manual, English and Spanish |
 
-**Migrations run only on `npm run setup`.** After pulling schema changes, run it.
+**Migrations** run on `npm run setup`. Run it after applying an update.
 
-**Backups:** `node scripts/backup-db.mjs [dest]`. It uses SQLite's `VACUUM INTO` rather than a file copy — the database is in WAL mode, and copying `timeclock.db` alone can silently miss hours of sales still sitting in the WAL. Then it verifies with `integrity_check` and row counts.
+**Backups** are taken with `node scripts/backup-db.mjs [destination]`, which uses SQLite's `VACUUM INTO` rather than a file copy. A plain copy of the database file can silently omit hours of sales still held in the write-ahead log. The script then verifies the copy with an integrity check and a row-count comparison.
 
-**Not in this repo, by design:** `data/` (the database carries PIN hashes and every sale), `certs/` (private key), `uploads/` (employee photos), `.env.local`.
+**Excluded from version control by design:** the database (it holds PIN hashes and every sale), TLS private keys, uploaded photographs, and the environment file.
 
 ---
 
-## Honest limitations
+## Scope and current limitations
 
-- **One machine, no redundancy.** The database exists in one place. Off-machine backup is a scheduled copy, not replication.
-- **No automated tests.** Verification has been manual, per phase, against the real workbook. This is the gap I'd close first, starting with `money.ts`, `business-date.ts` and the void/reversal paths — pure functions with exact expected values and the highest cost of being wrong.
-- **No concurrency story beyond SQLite's.** Correct for one register; a second terminal would need thought about open-ticket locking, not about the database.
-- **Payroll periods aren't locked yet.** The schema is there. Until it's wired up, an edit made in August can still change a July payout report; the design is that a locked week reads frozen lines and later edits book an adjustment into the current period.
-- **Receipts are letter-size only.** The 80mm thermal stylesheet waits on the shop choosing hardware.
+Stated plainly, because a system of record should be honest about its edges.
+
+- **Single machine.** The database exists in one place. Resilience is a scheduled off-machine backup, not replication. A multi-terminal deployment would require a concurrency design for open tickets; the database layer itself would not need to change.
+- **Automated test coverage is limited.** Verification to date has been manual and per-feature against real shop data. The highest-value coverage — money arithmetic, business-date bucketing, and the void and reversal paths — is the first work planned.
+- **Payroll period locking is designed and not yet enabled.** The schema exists. Until it is switched on, an edit made in a later month can still alter an earlier payout report; the intended behaviour is that a locked week reads frozen lines and later edits book an adjustment into the current period.
+- **Receipts are letter-size.** An 80mm thermal stylesheet is designed and awaits a hardware decision.
+
+---
+
+## Status
+
+In daily production use at a working tire and muffler shop, handling live sales, inventory, house accounts and cash reconciliation.
