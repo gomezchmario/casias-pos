@@ -68,9 +68,11 @@ export async function GET(
    */
   const customer = sale.customer_id
     ? (getDb()
-        .prepare("SELECT id, name, phone FROM customers WHERE id = ?")
+        .prepare(
+          "SELECT id, name, phone, credit_approved FROM customers WHERE id = ?",
+        )
         .get(sale.customer_id) as
-        | { id: number; name: string; phone: string | null }
+        | { id: number; name: string; phone: string | null; credit_approved: number }
         | undefined) ?? null
     : null;
   const vehicle = sale.vehicle_id
@@ -90,9 +92,32 @@ export async function GET(
         | undefined) ?? null
     : null;
 
+  /**
+   * Which lines are tires.
+   *
+   * Only a tire can be credited to somebody for fitting it, and the line rows
+   * carry a `category_id` and no code, so the drawer has no way of telling a
+   * set of tires from a flat repair. Sent as ids rather than resolved in the
+   * browser off a categories list, because this is the whole question the
+   * drawer has -- "may I offer a fitter on this row" -- and shipping the
+   * categories table so the client can re-derive it would put a second copy of
+   * that rule somewhere it can disagree with the server's.
+   */
+  const tireItemIds = (
+    getDb()
+      .prepare(
+        `SELECT i.id AS id
+           FROM sale_items i
+           JOIN service_categories c ON c.id = i.category_id
+          WHERE i.sale_id = ? AND c.code IN ('new_tire', 'used_tire')`,
+      )
+      .all(sale.id) as { id: number }[]
+  ).map((r) => r.id);
+
   return NextResponse.json({
     sale,
     cashierName: cashier?.name ?? null,
+    tireItemIds,
     customer,
     vehicle,
     items,

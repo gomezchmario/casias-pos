@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { TireMark } from "@/components/ui/TireMark";
+import { ShopLogo } from "@/components/ui/ShopLogo";
 
 const NAV = [
   { href: "/admin", label: "Dashboard", icon: "▦" },
@@ -68,7 +68,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         }}
       >
         <div className="px-5 py-6 border-b border-white/10 flex items-center gap-3">
-          <TireMark size={32} />
+          <ShopLogo size={32} />
           <div className="leading-tight">
             <div className="font-semibold">Casias Tire Shop</div>
             <div className="text-xs text-accent-500 uppercase tracking-widest">Admin</div>

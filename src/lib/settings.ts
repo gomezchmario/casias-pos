@@ -51,6 +51,20 @@ export type SettingsMap = {
   quote_mount_balance_cents: string;
   quote_round_to_cents: string; // 1000 = round up to the next $10
 
+  /**
+   * What one tire's fitting is worth to the technician who fitted it, when a
+   * line names somebody other than the person who sold it. See
+   * migrations/018_mount_credit.sql.
+   *
+   * Starts life equal to `quote_mount_balance_cents` and is deliberately NOT
+   * the same setting, however tempting that looks while both read $35. One is
+   * what a customer is quoted for mounting; this is what the shop credits a
+   * technician internally. Folded into one key, raising the posted price would
+   * silently move what everybody gets paid -- and it would move it on the
+   * quietest possible change, made by whoever was tidying up the quoter.
+   */
+  mount_credit_cents: string;
+
   // The last time somebody physically walked the racks and counted.
   //
   // Deliberately NOT derived from `inventory_movements`. The obvious derivation
@@ -131,6 +145,8 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   quote_margin_bp: "2000", // 20%
   quote_mount_balance_cents: "3500", // $35
   quote_round_to_cents: "1000", // next $10
+
+  mount_credit_cents: "3500", // $35 a tire, to whoever fitted it
 
   last_inventory_check: "",
   last_inventory_check_by: "",

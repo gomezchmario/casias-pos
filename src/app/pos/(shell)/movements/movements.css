@@ -1,0 +1,131 @@
+/* The month sheet. Screen is a POS page; print is a document somebody files
+   with the month's paperwork, so the shell and the controls drop away. */
+
+.tm-only {
+  display: none;
+}
+
+/* Banded on screen as well as on paper.
+   Both tables here are the same shape — a date, a long tire name, then narrow
+   numbers read across to the far right — and that gap between the name and the
+   figure is exactly where a row gets read against the one above it. The tint is
+   the brand navy rather than a neutral grey so it reads as part of the page,
+   and it starts on the first row so the banding is obvious rather than something
+   you notice three rows down. */
+.tm-table tbody tr:nth-child(odd) {
+  background: rgba(10, 37, 64, 0.035);
+}
+
+@media print {
+  /* The shell, undone. Same reasoning as the close-out: the POS wrapper is a
+     full-height flex column on a grey field, and its `display` has to go with
+     its background or the sheet is laid out by a flex container that cannot
+     paginate. */
+  html,
+  body,
+  body > div,
+  main {
+    background: #fff !important;
+    display: block !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  header,
+  nav {
+    display: none !important;
+  }
+
+  .tm-only {
+    display: block;
+  }
+
+  /* Only the report prints. The filters, the buttons and the day-to-day ledger
+     underneath are the tools used to produce it, and none of them is part of
+     the thing being filed. */
+  .tm-hide-on-print {
+    display: none !important;
+  }
+
+  .tm-sheet {
+    box-shadow: none !important;
+    border-radius: 0;
+    padding: 0;
+  }
+
+  .tm-head {
+    display: flex;
+    align-items: center;
+    gap: 4mm;
+    border-bottom: 1px solid #111;
+    padding-bottom: 2.5mm;
+    margin-bottom: 4mm;
+  }
+
+  .tm-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9.5pt;
+  }
+
+  /* Vertical only. `padding: 2px 0` also sets the horizontal padding to zero,
+     which silently undid the indent on every column that follows a right-
+     aligned number — so a quantity and the ticket beside it printed as
+     "1S-2026-000002" however carefully the screen had been spaced. */
+  .tm-table td,
+  .tm-table th {
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
+
+  /* Banded, and starting coloured, the same rhythm the stock sheet prints in.
+     `print-color-adjust` is not optional: without it Chrome drops the fill
+     unless whoever prints has "Background graphics" ticked. */
+  .tm-table tbody tr:nth-child(odd) {
+    background: #ededed;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* The totals are what the sheet is filed for, so they get the only heavy rule
+     on it and never break away from the rows they sum. */
+  .tm-totals {
+    border-top: 2px solid #111;
+    break-inside: avoid;
+    margin-top: 4mm;
+    padding-top: 2mm;
+  }
+
+  @page {
+    size: letter;
+    margin: 16mm;
+  }
+}
+
+/* Where a tire came from, on the row it came from.
+   Only the ordered ones carry one. Amber, because it is the case that costs
+   the shop a phone call and a wait — and because badging the ordinary row as
+   well would mark most of the sheet, which reads the same as marking none. */
+.tm-pill {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  text-transform: uppercase;
+  white-space: nowrap;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.tm-pill-ordered {
+  border-color: #d97706;
+  background: #fef3c7;
+  color: #92400e;
+}
+

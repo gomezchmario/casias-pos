@@ -1,0 +1,27 @@
+-- A cash move the floor is not shown.
+--
+-- The owner takes an amount out of the till and marks it hidden. The money is
+-- recorded here in full, with who took it, when, why, and an audit row beside
+-- it — nothing about the record is less complete than any other movement. What
+-- changes is that it is left out of the drawer's EXPECTED figure and out of
+-- every screen except the owner's own close-out.
+--
+-- The point is that the count then comes up short by exactly that amount, and
+-- only the owner knows why. A drawer that is quietly a little wrong is the only
+-- way to tell somebody who counts the money from somebody who types in the
+-- number the screen already showed them — and the shop has lost cash to the
+-- second kind. An honest count reports the short and the owner recognises their
+-- own figure; a count that squares perfectly against an expectation that should
+-- not have been met is the thing worth knowing.
+--
+-- IT MUST NOT MOVE THE EXPECTED FIGURE. A hidden movement that adjusted the
+-- expectation would leave the drawer balancing exactly as before, which is a
+-- normal cash-out with an extra column — the flag would do nothing at all. The
+-- whole mechanism is that the books and the box disagree on purpose.
+--
+-- The cost of that is real and is the owner's to carry: the sheet signed that
+-- night records a shortfall the shop did not suffer. The close-out shows the
+-- owner what they hid so it can be reconciled, and the figure is never hidden
+-- from the audit log.
+
+ALTER TABLE drawer_movements ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0;

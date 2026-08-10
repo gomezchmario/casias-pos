@@ -123,6 +123,80 @@ export function listMovements(productId: number, limit = 200): Movement[] {
     .all(productId, limit) as Movement[];
 }
 
+/** A movement with enough around it to read without opening anything else. */
+export type MovementRow = Movement & {
+  productName: string;
+  tireSize: string | null;
+  condition: string;
+  byName: string | null;
+  saleNo: string | null;
+  reviewedByName: string | null;
+};
+
+/**
+ * Every stock movement there has been, newest first.
+ *
+ * `listMovements` above answers "what happened to THIS tire", which is the
+ * question asked with a product already in front of you. This answers the other
+ * one — "what has moved" — and it is the question asked when the count is wrong
+ * and nobody knows where to start looking. Those need different screens because
+ * they need different starting points, and the ledger has always been able to
+ * answer both; there was simply no way in.
+ *
+ * Ordered by id rather than by `created_at`. Two movements written inside one
+ * transaction share a timestamp to the second — a sale of four tires off two
+ * lots is four rows in the same instant — and sorting on the timestamp lets the
+ * order of those shuffle between page loads. The id is the order they were
+ * written in and it never moves.
+ *
+ * A date range and a text filter, and nothing else. Reason and product are the
+ * two things worth narrowing by and both are on screen; anything more would be
+ * a report, and reports live on the day screen.
+ */
+export function listAllMovements(args?: {
+  from?: string;
+  to?: string;
+  q?: string;
+  limit?: number;
+}): MovementRow[] {
+  const where: string[] = [];
+  const params: unknown[] = [];
+
+  if (args?.from) { where.push("m.business_date >= ?"); params.push(args.from); }
+  if (args?.to) { where.push("m.business_date <= ?"); params.push(args.to); }
+
+  // Matched against the tire and the ticket, which are the two things somebody
+  // arrives holding. Not against the note: notes are sentences, and a substring
+  // search over them turns one honest word into a page of unrelated rows.
+  const q = args?.q?.trim();
+  if (q) {
+    where.push("(p.name LIKE ? OR p.tire_size LIKE ? OR p.brand LIKE ? OR s.sale_no LIKE ?)");
+    params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+  }
+
+  params.push(args?.limit ?? 500);
+
+  return getDb()
+    .prepare(
+      `SELECT m.*,
+              p.name        AS productName,
+              p.tire_size   AS tireSize,
+              p.condition   AS condition,
+              e.name        AS byName,
+              s.sale_no     AS saleNo,
+              r.name        AS reviewedByName
+         FROM inventory_movements m
+         JOIN products p ON p.id = m.product_id
+    LEFT JOIN employees e ON e.id = m.created_by
+    LEFT JOIN employees r ON r.id = m.reviewed_by
+    LEFT JOIN sales s ON s.id = m.sale_id
+        ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+     ORDER BY m.id DESC
+        LIMIT ?`,
+    )
+    .all(...params) as MovementRow[];
+}
+
 // ---------------------------------------------------------------------------
 // Lots
 // ---------------------------------------------------------------------------
@@ -239,6 +313,125 @@ export function receiveStock(
       },
     });
     return { ok: true as const, lot };
+  });
+}
+
+/**
+ * Book in the tires a special order brought through the door.
+ *
+ * A tire ordered in for one customer never sits on the rack. It comes off the
+ * delivery van and goes onto the car, often within the same hour, and nobody is
+ * ever going to stop and receive it first -- the whole point of ordering it in
+ * was that the shop did not have one. The lifecycle assumed somebody would, and
+ * booked the sale at fulfilment against stock that had never been received. The
+ * result was a count that went negative every time an order was delivered, and
+ * a review queue filling up with oversells that were not oversells at all: the
+ * shop had the tire, it just arrived and left on the same afternoon.
+ *
+ * So the arrival is recorded as what it was. A receipt for exactly what the
+ * ticket ordered, immediately before the sale takes it out again, which nets to
+ * nothing: a size sitting at zero is still at zero afterwards, a size with one
+ * on the rack still has that one. The shop never sees a number it has to
+ * explain, and the ledger can still answer "where did that tire come from" a
+ * year later, because both halves are on it.
+ *
+ * NOT gated on `receiveInventory`, and that is deliberate rather than an
+ * oversight. Moving an order along the board is a cashier's job on purpose --
+ * whoever is at the counter when the truck pulls up is who knows the tire
+ * arrived. This receipt is not a second decision they are making, it is the
+ * bookkeeping that makes the first one true, so it takes its authority from the
+ * fulfilment. Gating it on a manager would mean the cashier who is allowed to
+ * say "it is here" is not allowed to record it arriving, which is how the
+ * negatives got here in the first place.
+ *
+ * Idempotent per line: a line already carrying a receipt is left alone, so an
+ * order walked back and forward along the board does not receive twice.
+ *
+ * It does assume nobody received the tire separately when it came in, which is
+ * true of this shop and is the reason any of this is needed. If somebody does
+ * book one in by hand against the same order, the count reads one high until the
+ * next count corrects it -- the wrong direction to be wrong in, but a visible
+ * one, and far cheaper than the negatives it replaces.
+ *
+ * Used sizes are skipped. A used tire is not ordered in from anybody, and its
+ * count already floors at zero rather than going negative -- see
+ * `applySaleMovements`.
+ */
+export function receiveOrderedStock(
+  user: PosUser,
+  saleId: number,
+  reference?: string | null,
+  opts?: { skipItemIds?: number[] },
+): Result<{ received: { productId: number; name: string; qty: number }[] }> {
+  const db = getDb();
+  const skip = (opts?.skipItemIds ?? []).filter((n) => Number.isInteger(n));
+  const lines = db
+    .prepare(
+      `SELECT i.id, i.product_id, i.qty, p.name, p.condition,
+              -- The ticket's own cost where it has one, the catalogue's where it
+              -- does not. Zero is left as zero: an invented cost is a margin
+              -- figure that looks researched on a line nobody would question.
+              COALESCE(NULLIF(i.unit_cost_cents, 0), p.default_cost_cents, 0) AS cost
+         FROM sale_items i
+         JOIN products p ON p.id = i.product_id
+        WHERE i.sale_id = ? AND i.voided = 0 AND p.track_inventory = 1
+          AND p.condition <> 'used'
+          AND NOT EXISTS (SELECT 1 FROM inventory_movements m
+                           WHERE m.sale_item_id = i.id AND m.reason = 'receive')
+          -- Lines the counter has said are already on the rack.
+          --
+          -- The NOT EXISTS above only catches a receipt tied to this sale item.
+          -- A tire received through the ordinary Receive Stock screen has no
+          -- sale item on it, so it is invisible here — and booking it in again
+          -- leaves the size one high forever, sold once and received twice.
+          -- Nothing in the data can tell the two apart, so the person holding
+          -- the tire is asked, and this is their answer.
+          ${skip.length ? `AND i.id NOT IN (${skip.map(() => "?").join(",")})` : ""}`,
+    )
+    .all(saleId, ...skip) as {
+    id: number;
+    product_id: number;
+    qty: number;
+    name: string;
+    condition: string;
+    cost: number;
+  }[];
+
+  const received: { productId: number; name: string; qty: number }[] = [];
+  if (lines.length === 0) return { ok: true, received };
+
+  return inTx(() => {
+    const now = nowLocalIso();
+    for (const line of lines) {
+      const lotInfo = db
+        .prepare(
+          `INSERT INTO inventory_lots
+             (lot_no, product_id, received_at, unit_cost_cents, qty_received, qty_remaining,
+              supplier, reference, received_by, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
+        )
+        .run(nextLotNo(), line.product_id, now, line.cost, line.qty, line.qty, reference ?? null, user.employeeId, now, now);
+
+      writeMovement(user, {
+        productId: line.product_id,
+        lotId: Number(lotInfo.lastInsertRowid),
+        qtyDelta: line.qty,
+        unitCostCents: line.cost,
+        reason: "receive",
+        saleId,
+        saleItemId: line.id,
+        note: "Ordered in for this ticket",
+      });
+      received.push({ productId: line.product_id, name: line.name, qty: line.qty });
+    }
+
+    logActorAudit(actorOf(user), {
+      action: "inventory.receive",
+      targetType: "sale",
+      targetId: saleId,
+      details: { ordered_in: received },
+    });
+    return { ok: true as const, received };
   });
 }
 

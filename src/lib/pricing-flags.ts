@@ -98,10 +98,18 @@ export function pricingFlags(opts: { includeCosts: boolean }): PricingFlags {
   // not one is sitting on the rack today.
   //
   // cost > price, strictly. Equal is a break-even the shop may well have chosen.
+  //
+  // `discounted = 0` is the other half of that thought. Some tires are under
+  // cost on purpose — a size that has sat a year, a set being cleared, a fleet
+  // customer kept at cost — and those are decisions rather than errors. Left in,
+  // they make this the same eleven rows every week, which teaches everybody to
+  // scroll past it; and the row that gets scrolled past with them is the real
+  // mistake. A warning nobody can clear is a warning nobody reads.
   const belowCost = db
     .prepare(
       `${BASE} AND p.price_cents > 0
          AND p.default_cost_cents > p.price_cents
+         AND p.discounted = 0
        ORDER BY (p.default_cost_cents - p.price_cents) DESC`,
     )
     .all() as PricingFlag[];

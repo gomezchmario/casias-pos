@@ -4,6 +4,7 @@ import { nowLocalIso } from "./time";
 import { currentBusinessDate } from "./business-date";
 import { ensureShift } from "./shifts";
 import { logActorAudit, type Actor } from "./audit";
+import { can } from "./roles";
 import type { PosUser } from "./pos-session";
 
 export type DrawerKind = "withdrawal" | "deposit" | "reversal";
@@ -18,6 +19,11 @@ export type DrawerMovement = {
   reason: string;
   note: string | null;
   reverses_id: number | null;
+  /**
+   * Kept off the floor. Excluded from the expected drawer figure and from
+   * every screen except the owner close-out — see `026_drawer_hidden.sql`.
+   */
+  hidden: number;
   created_by: number;
   created_at: string;
   /** Joined for display; not columns. */
@@ -49,16 +55,56 @@ export function getDrawerMovement(id: number): DrawerMovement | null {
   );
 }
 
-export function drawerMovementsForDay(businessDate: string): DrawerMovement[] {
+/**
+ * Hidden rows are left out unless they are explicitly asked for.
+ *
+ * The default is the safe direction: a caller that has not thought about this
+ * shows the floor exactly what the floor is meant to see, and only a caller
+ * that names `includeHidden` — the owner's own close-out — gets the rest.
+ */
+const visible = (includeHidden?: boolean) => (includeHidden ? "" : " AND d.hidden = 0");
+
+export function drawerMovementsForDay(
+  businessDate: string,
+  opts?: { includeHidden?: boolean },
+): DrawerMovement[] {
   return getDb()
-    .prepare(`${SELECT} WHERE d.business_date = ? ORDER BY d.id`)
+    .prepare(
+      `${SELECT} WHERE d.business_date = ?${visible(opts?.includeHidden)} ORDER BY d.id`,
+    )
     .all(businessDate) as DrawerMovement[];
 }
 
-export function drawerMovementsForShift(shiftId: number): DrawerMovement[] {
+export function drawerMovementsForShift(
+  shiftId: number,
+  opts?: { includeHidden?: boolean },
+): DrawerMovement[] {
   return getDb()
-    .prepare(`${SELECT} WHERE d.shift_id = ? ORDER BY d.id`)
+    .prepare(`${SELECT} WHERE d.shift_id = ?${visible(opts?.includeHidden)} ORDER BY d.id`)
     .all(shiftId) as DrawerMovement[];
+}
+
+/**
+ * What has been taken out of sight, for the one screen allowed to say so.
+ *
+ * Signed like everything else in this table, so a day with one hidden $40
+ * withdrawal returns -4000. The close-out shows it to the owner beside the
+ * count, because the count is short by exactly this and the owner is the only
+ * person who can tell that apart from a genuine shortfall.
+ */
+export function hiddenDrawerCents(
+  scope: { shiftId: number } | { businessDate: string },
+): number {
+  const where = "shiftId" in scope ? "shift_id = ?" : "business_date = ?";
+  const param = "shiftId" in scope ? scope.shiftId : scope.businessDate;
+  return (
+    getDb()
+      .prepare(
+        `SELECT COALESCE(SUM(amount_cents), 0) AS n
+           FROM drawer_movements WHERE ${where} AND hidden = 1`,
+      )
+      .get(param) as { n: number }
+  ).n;
 }
 
 /**
@@ -70,6 +116,18 @@ export function drawerMovementsForShift(shiftId: number): DrawerMovement[] {
  * This is the ONLY number the rest of the app should take from this table, and
  * only the drawer count should take it. Nothing about revenue changes when
  * money moves from a wooden box to a safe.
+ *
+ * HIDDEN MOVEMENTS ARE EXCLUDED, and that exclusion is the entire mechanism
+ * rather than a detail of it. A hidden withdrawal that adjusted this number
+ * would leave the drawer balancing exactly as it did before — an ordinary
+ * cash-out with a flag that changed nothing. Leaving it out is what makes the
+ * box come up short against the books on purpose, which is the only way to tell
+ * a person who counts the money from a person who reads the expected figure off
+ * the screen and types it back in.
+ *
+ * There is no `includeHidden` here, deliberately. What the drawer is expected to
+ * hold has exactly one answer on any given night, and offering a second one
+ * would eventually get the two compared.
  */
 export function drawerAdjustmentCents(
   scope: { shiftId: number } | { businessDate: string },
@@ -78,7 +136,8 @@ export function drawerAdjustmentCents(
   const param = "shiftId" in scope ? scope.shiftId : scope.businessDate;
   const row = getDb()
     .prepare(
-      `SELECT COALESCE(SUM(amount_cents), 0) AS n FROM drawer_movements WHERE ${where}`,
+      `SELECT COALESCE(SUM(amount_cents), 0) AS n
+         FROM drawer_movements WHERE ${where} AND hidden = 0`,
     )
     .get(param) as { n: number };
   return row.n;
@@ -101,6 +160,8 @@ export function recordDrawerMovement(
     kind: "withdrawal" | "deposit";
     reason: string;
     note?: string | null;
+    /** Owner only. See `026_drawer_hidden.sql`. */
+    hidden?: boolean;
   },
 ): Result<{ movement: DrawerMovement }> {
   const amount = Math.round(args.amountCents);
@@ -110,6 +171,10 @@ export function recordDrawerMovement(
   if (!reason) return { ok: false, error: "Say what the money is for" };
   if (args.kind !== "withdrawal" && args.kind !== "deposit")
     return { ok: false, error: "Invalid drawer movement" };
+  // Checked here rather than only at the route, because this is the function
+  // that decides whether a night's count is allowed to be wrong on purpose.
+  if (args.hidden && !can(user.role, "hideDrawerMovement"))
+    return { ok: false, error: "Only the owner can keep a drawer move off the sheet" };
 
   const signed = args.kind === "withdrawal" ? -amount : amount;
 
@@ -119,8 +184,9 @@ export function recordDrawerMovement(
     const info = getDb()
       .prepare(
         `INSERT INTO drawer_movements
-           (shift_id, business_date, amount_cents, kind, reason, note, created_by, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+           (shift_id, business_date, amount_cents, kind, reason, note, hidden,
+            created_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         shift.id,
@@ -129,6 +195,7 @@ export function recordDrawerMovement(
         args.kind,
         reason,
         args.note?.trim() || null,
+        args.hidden ? 1 : 0,
         user.employeeId,
         now,
       );
@@ -138,7 +205,15 @@ export function recordDrawerMovement(
       action: args.kind === "withdrawal" ? "drawer.withdraw" : "drawer.deposit",
       targetType: "drawer_movement",
       targetId: id,
-      details: { amount_cents: signed, reason, shift_id: shift.id },
+      // Hidden is recorded in the audit details on purpose. The row is kept off
+      // the floor's screens; it is not kept off the record, and the audit log is
+      // the record.
+      details: {
+        amount_cents: signed,
+        reason,
+        shift_id: shift.id,
+        hidden: !!args.hidden,
+      },
     });
 
     return { ok: true as const, movement: getDrawerMovement(id)! };
@@ -171,8 +246,8 @@ export function reverseDrawerMovement(
       .prepare(
         `INSERT INTO drawer_movements
            (shift_id, business_date, amount_cents, kind, reason, note, reverses_id,
-            created_by, created_at)
-         VALUES (?, ?, ?, 'reversal', ?, ?, ?, ?, ?)`,
+            hidden, created_by, created_at)
+         VALUES (?, ?, ?, 'reversal', ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         shift.id,
@@ -183,6 +258,13 @@ export function reverseDrawerMovement(
         why,
         `Reverses #${original.id}: ${original.reason}`,
         original.id,
+        // Inherited, and it has to be. A reversal defaulting to visible would
+        // put a matching deposit on the floor's sheet for a withdrawal they
+        // were never shown — the drawer would jump by an amount with no cause
+        // anywhere on the page, which is more revealing than the original
+        // withdrawal would have been. Undoing something invisible has to be
+        // invisible too.
+        original.hidden,
         user.employeeId,
         nowLocalIso(),
       );

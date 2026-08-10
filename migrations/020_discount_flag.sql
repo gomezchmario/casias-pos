@@ -1,0 +1,27 @@
+-- "This one is meant to be cheap."
+--
+-- The pricing review flags every tire whose shelf price is under what the shop
+-- paid for it, because that is nearly always a mistake — a supplier raised a
+-- cost and the price never followed. Nearly always. Some of them are on purpose:
+-- a size that has sat on the rack for a year, a set somebody wants gone, a tire
+-- being sold at cost to keep a fleet customer. Those are decisions, not errors.
+--
+-- Without a way to say so, the review list is the same eleven rows every week
+-- and the shop learns to scroll past it — which is exactly how the twelfth one,
+-- the real mistake, gets scrolled past too. A warning nobody can clear is a
+-- warning nobody reads.
+--
+-- So a tire can be marked as deliberately discounted. It drops out of the
+-- below-cost review and says so on the inventory sheet instead, where the person
+-- pricing a sale can see the shop meant it.
+--
+-- ONE FLAG, NOT TWO. It does double duty: on a tire that IS under cost it
+-- silences the warning, and on one that is not it simply shows the mark — which
+-- is what "force discount" means. Splitting it into "silence the warning" and
+-- "show the badge" would be two switches nobody could tell apart a month later,
+-- and every combination of them would need a meaning.
+--
+-- Not audited by a column of its own. `updateProduct` already writes a
+-- before/after audit row for every field it touches, and this rides in on that.
+
+ALTER TABLE products ADD COLUMN discounted INTEGER NOT NULL DEFAULT 0;

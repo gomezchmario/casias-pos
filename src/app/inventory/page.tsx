@@ -9,7 +9,9 @@ import {
   formatCheckDate,
   type InventoryCheck,
 } from "@/lib/inventory-alarm";
+import { TireQuote } from "@/components/pos/TireQuote";
 import { formatCents } from "@/lib/money";
+import { sizeMatches } from "@/lib/tire-size";
 import "../pos/(shell)/inventory/inventory.css";
 
 /**
@@ -57,6 +59,8 @@ type RimSection = {
 type Data = {
   sections: RimSection[];
   batteries: Battery[];
+  /** Stock that is neither a tire nor a battery — TPMS sensors and the like. */
+  misc: Battery[];
   lastCheck: InventoryCheck;
 };
 
@@ -66,6 +70,7 @@ export default function PublicInventoryPage() {
   const [showEmpty, setShowEmpty] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [printedAt, setPrintedAt] = useState("");
+  const [quoting, setQuoting] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/public/inventory?all=${showEmpty ? "1" : "0"}`);
@@ -76,8 +81,39 @@ export default function PublicInventoryPage() {
     setData(await res.json());
   }, [showEmpty]);
 
+  /**
+   * The sheet keeps itself current.
+   *
+   * This page is left open — on the phone at the bay, on a second screen at the
+   * counter — and stock moves under it every time somebody completes a ticket.
+   * A number that was true when the tab was opened this morning is worse than no
+   * number: it is the same wrong answer the shop already had from memory, only
+   * now it looks authoritative.
+   *
+   * Paused while the tab is out of sight, and asked again the moment it comes
+   * back, so a screen sitting behind the register overnight is not polling a
+   * closed shop every half minute — and so somebody switching to it gets the
+   * fresh figures before they have finished reading the first line, rather than
+   * up to thirty seconds later.
+   *
+   * Nothing on screen is disturbed by a refresh: the search box and the sold-out
+   * tick are separate state and the list re-renders under them.
+   */
   useEffect(() => {
     void load();
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") void load();
+    }, 30_000);
+    const onFocus = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
   }, [load]);
 
   useEffect(() => {
@@ -93,7 +129,7 @@ export default function PublicInventoryPage() {
         ...s,
         groups: s.groups.filter(
           (g) =>
-            g.size.toLowerCase().includes(q) ||
+            sizeMatches(g.size, q) ||
             g.newTires.some((t) =>
               [t.name, t.brand, t.model].some((v) => v?.toLowerCase().includes(q)),
             ),
@@ -107,6 +143,13 @@ export default function PublicInventoryPage() {
     const q = query.trim().toLowerCase();
     if (!q) return data.batteries;
     return data.batteries.filter((b) => b.name.toLowerCase().includes(q));
+  }, [data, query]);
+
+  const misc = useMemo(() => {
+    if (!data) return [];
+    const q = query.trim().toLowerCase();
+    if (!q) return data.misc;
+    return data.misc.filter((b) => b.name.toLowerCase().includes(q));
   }, [data, query]);
 
   const totals = useMemo(() => {
@@ -145,6 +188,25 @@ export default function PublicInventoryPage() {
               />
               Show sold out
             </label>
+            {/* The quoter, on the board anyone can reach.
+                Half the reason somebody walks up to this screen is a size the
+                racks do not hold, and until now the answer to that was "go and
+                find the register". It runs in its discreet form — see the note
+                on `discreet` — because the person asking is usually standing
+                right there reading it. */}
+            {/* Filled, not the bare `.btn` it started as — which draws a
+                transparent border on no background and reads as a line of text
+                somebody happened to make clickable. This is the one thing on
+                the board that DOES something, and on a screen whose whole
+                promise is "look only" it has to announce itself as the
+                exception rather than blend into the controls beside it. */}
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setQuoting(true)}
+            >
+              Price a tire
+            </button>
             <button type="button" className="btn" onClick={() => window.print()}>
               Print
             </button>
@@ -323,7 +385,49 @@ export default function PublicInventoryPage() {
           </div>
         )}
 
-        {data && totals.sizes === 0 && batteries.length === 0 && (
+        {/* Miscellaneous, after the batteries. Same reasoning: stock that has
+            no rim and belongs on no rack. Names print whole here — unlike the
+            battery rows, which drop a "BATTERY" prefix the heading above
+            already said. */}
+        {misc.length > 0 && (
+          <div className="inv-section">
+            <div className="inv-rim flex items-baseline gap-3 mt-5 mb-2">
+              <h2 className="text-xl font-bold text-brand-500">Miscellaneous</h2>
+              <span className="text-xs text-brand-300">
+                {misc.reduce((s, b) => s + b.on_hand, 0)} on hand
+              </span>
+            </div>
+
+            <section className="inv-group bg-white rounded-xl shadow-sm p-4 mb-3">
+              <table className="inv-table w-full text-sm">
+                <tbody>
+                  {misc.map((b) => (
+                    <tr key={b.id} className="border-t border-black/5 first:border-t-0">
+                      <td className="inv-c-name py-1">
+                        <span className="inv-tire-name text-brand-500">{b.name}</span>
+                      </td>
+                      <td className="inv-c-price py-1 text-right tabular-nums text-brand-400 w-20">
+                        {formatCents(b.price_cents)}
+                      </td>
+                      <td
+                        className={`inv-c-qty py-1 text-right tabular-nums w-12 font-semibold ${
+                          b.on_hand < 0 ? "text-red-700" : "text-brand-500"
+                        }`}
+                      >
+                        {b.on_hand}
+                      </td>
+                      <td className="inv-c-note py-1 text-right w-8 print-only">
+                        <span className="inv-count-box">&nbsp;</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          </div>
+        )}
+
+        {data && totals.sizes === 0 && batteries.length === 0 && misc.length === 0 && (
           <div className="bg-white rounded-xl shadow-sm p-8 text-center text-brand-300">
             {query
               ? `Nothing on the racks matches "${query}".`
@@ -335,6 +439,31 @@ export default function PublicInventoryPage() {
 
         {!data && !error && <div className="text-brand-300">Loading…</div>}
       </div>
+
+      <TireQuote
+        open={quoting}
+        onClose={() => setQuoting(false)}
+        discreet
+        defaults={null}
+        remoteQuote={quotePublicly}
+      />
     </div>
   );
+}
+
+/**
+ * Ask the server what to charge.
+ *
+ * Module scope, not inside the component: a function rebuilt on every render
+ * would be a new dependency for the quoter's debounce effect every time, which
+ * restarts the timer on each keystroke and means the request never fires.
+ */
+async function quotePublicly(costCents: number, freightCents: number) {
+  const res = await fetch("/api/public/quote", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ costCents, freightCents }),
+  });
+  if (!res.ok) throw new Error("quote failed");
+  return res.json();
 }

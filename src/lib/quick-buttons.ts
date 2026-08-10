@@ -48,6 +48,29 @@ export function getQuickButton(id: number): QuickButton | undefined {
     | undefined;
 }
 
+export type ServiceCategory = { id: number; code: string; label: string };
+
+/**
+ * What a button can be counted as, for the editor's dropdown.
+ *
+ * The category is not decoration and it is not the label. The leaderboard and
+ * the close-out bucket a line by `service_categories.code` and never read the
+ * words on the button, so this is the field that decides whether something
+ * lands in New tires, Used tires, or Other.
+ */
+export function listServiceCategories(): ServiceCategory[] {
+  return getDb()
+    .prepare("SELECT id, code, label FROM service_categories ORDER BY sort_order, id")
+    .all() as ServiceCategory[];
+}
+
+/** Reject an id that is not a real category rather than writing a dangling one. */
+function categoryExists(id: number): boolean {
+  return (
+    getDb().prepare("SELECT 1 FROM service_categories WHERE id = ?").get(id) !== undefined
+  );
+}
+
 /**
  * The schema requires an amount on an 'amount' button and a description on a
  * 'service' one, so reject those here with a readable message rather than
@@ -78,11 +101,13 @@ export function createQuickButton(
     kind: QuickButtonKind;
     amountCents?: number | null;
     description?: string | null;
+    categoryId?: number | null;
     sortOrder?: number;
   },
 ): Result<{ button: QuickButton }> {
   const amountCents = args.amountCents ?? null;
   const description = args.description?.trim() || null;
+  const categoryId = args.categoryId ?? null;
   const invalid = validate({
     label: args.label,
     kind: args.kind,
@@ -90,6 +115,8 @@ export function createQuickButton(
     description,
   });
   if (invalid) return { ok: false, error: invalid };
+  if (categoryId !== null && !categoryExists(categoryId))
+    return { ok: false, error: "That is not a category the reports know about" };
 
   return inTx(() => {
     const db = getDb();
@@ -104,10 +131,10 @@ export function createQuickButton(
 
     const info = db
       .prepare(
-        `INSERT INTO quick_buttons (label, kind, amount_cents, description, sort_order, active)
-         VALUES (?, ?, ?, ?, ?, 1)`,
+        `INSERT INTO quick_buttons (label, kind, amount_cents, description, category_id, sort_order, active)
+         VALUES (?, ?, ?, ?, ?, ?, 1)`,
       )
-      .run(args.label.trim(), args.kind, amountCents, description, sortOrder);
+      .run(args.label.trim(), args.kind, amountCents, description, categoryId, sortOrder);
 
     const id = Number(info.lastInsertRowid);
     const button = getQuickButton(id)!;
@@ -129,6 +156,7 @@ export function updateQuickButton(
     label?: string;
     amountCents?: number | null;
     description?: string | null;
+    categoryId?: number | null;
     sortOrder?: number;
     active?: boolean;
   },
@@ -144,6 +172,7 @@ export function updateQuickButton(
       args.description !== undefined
         ? args.description?.trim() || null
         : before.description,
+    categoryId: args.categoryId !== undefined ? args.categoryId : before.category_id,
     sortOrder: args.sortOrder !== undefined ? args.sortOrder : before.sort_order,
     active: args.active !== undefined ? (args.active ? 1 : 0) : before.active,
   };
@@ -155,18 +184,22 @@ export function updateQuickButton(
     description: next.description,
   });
   if (invalid) return { ok: false, error: invalid };
+  if (next.categoryId !== null && !categoryExists(next.categoryId))
+    return { ok: false, error: "That is not a category the reports know about" };
 
   return inTx(() => {
     getDb()
       .prepare(
         `UPDATE quick_buttons
-            SET label = ?, amount_cents = ?, description = ?, sort_order = ?, active = ?
+            SET label = ?, amount_cents = ?, description = ?, category_id = ?,
+                sort_order = ?, active = ?
           WHERE id = ?`,
       )
       .run(
         next.label,
         next.amountCents,
         next.description,
+        next.categoryId,
         next.sortOrder,
         next.active,
         id,

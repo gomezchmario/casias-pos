@@ -6,6 +6,144 @@
   display: none;
 }
 
+/* The screen reads in a different order from the sheet, and the DOM is the
+   sheet.
+
+   On paper the blocks have to fall in the order that argues the case: the
+   count, then what was taken out of the drawer, then the register logs — one
+   continuous argument about what should have been in the till and what was.
+   Document order is the only thing a print engine reliably paginates by, so
+   that is the order the JSX is written in and it is not to be rearranged for
+   the screen's convenience.
+
+   Screen wants the same facts in the order somebody works through them, which
+   is not the same thing, and the difference is done HERE. Deliberately not in
+   the print rules: a flex container that has to FRAGMENT across printed pages
+   paginates badly, and this sheet runs to three. Screen has no pages to break,
+   so screen is where the reordering goes.
+
+   Paper does use one flex container — see `.eod-page-one` — and it is exactly
+   the case this reasoning allows: a box that is precisely one page tall and
+   never fragments at all.
+
+   Everything defaults to 7 so the rest of the page keeps document order among
+   itself; only the blocks whose position is a decision are named. */
+@media screen {
+  .eod {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Page one is a print construct and nothing else. `display: contents` takes
+     the box out of the way on screen so its children stay flex items of `.eod`
+     and can still be ordered below — otherwise wrapping them would have moved
+     the whole top of the screen out of reach of these rules. */
+  .eod-page-one {
+    display: contents;
+  }
+
+  .eod > *,
+  .eod-page-one > * {
+    order: 7;
+  }
+
+  /* The screen's reading order, which is not the sheet's.
+
+     What happened → how it compares → who did it → does the money agree →
+     what physically moved in and out of the till → the detail behind all of it.
+
+     The drawer used to sit second, directly under the takings, because that is
+     where the bank-run button lives and the button was what people came for.
+     It reads badly: cash in and out of the till is a consequence of the night,
+     and putting it above the charts and the count meant the screen opened on a
+     detail before it had said anything about the day. Now it lands where it
+     belongs in the sequence, immediately after the reconciliation it explains —
+     a drawer that is short is read against the movements that took cash out of
+     it, and the two are now next to each other rather than a page apart. */
+  .eod-before-drawer {
+    order: 1;
+  }
+
+  /* The charts and the week board are pinned rather than left to document
+     order, because the board is the one block whose position in the MARKUP
+     depends on the day: past twelve combined rows it renders overleaf instead
+     of on page one — see `weekOnPageOne`. Naming its place here means the
+     screen looks the same on a five-technician Tuesday and a nine-technician
+     Saturday, while the paper does the thing it has to do. */
+
+  /* The heading over both of them. Same order as the charts, and before them in
+     the markup, so the three read as one block. */
+  .eod-weekhead {
+    order: 2;
+  }
+
+  .eod-charts {
+    order: 2;
+  }
+
+  /* Folded away on screen; on paper it is as though this class were never
+     applied. That asymmetry is the whole trick — the printed close-out has no
+     idea the fold exists, so nothing anybody clicks tonight can change the
+     sheet that gets signed. `display: none` rather than `visibility` because
+     these are flex items and a hidden one would still hold its gap. */
+  .eod-screen-hide {
+    display: none;
+  }
+
+  .eod-week {
+    order: 3;
+  }
+
+  .eod-tender {
+    order: 4;
+  }
+
+  .eod-drawer {
+    order: 6;
+  }
+
+  /* The warnings, given the same card as everything else on the screen.
+
+     They had none, and it showed: three blocks of bare text between two white
+     panels, reading as something half-rendered rather than as the most
+     important sentences on the page. Every other block on this screen is a
+     card, so a warning that is not one does not stand out — it looks broken,
+     and a control that looks broken gets skimmed.
+
+     The card is added HERE rather than by putting the boxes in `<Section>`,
+     because these are the same divs that print as the ruled warning boxes at
+     the head of the financial report, and that sheet is right as it is. Screen
+     gets a card; paper keeps its heavy rule; the markup says one thing and each
+     medium reads it its own way. */
+  .eod-flag,
+  .eod-mixups {
+    /* Directly under the reconciliation, above the drawer. These sentences
+       explain the differences in the table immediately before them, and a
+       block of cash movements standing between a number and its explanation is
+       how the explanation stops being read. */
+    order: 5;
+  }
+
+  .eod-flag {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 1px 2px rgb(10 37 64 / 0.05);
+    /* The red edge is the whole reason this is not just a section. A warning
+       that looks exactly like the takings panel above it has been filed away
+       rather than read. */
+    border-left: 4px solid #b91c1c;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+  }
+
+  /* Not an alarm — a note that something was left uncounted. Grey edge, because
+     dressing it in red teaches people that red on this screen is ordinary. */
+  .eod-flag-quiet {
+    border-left-color: rgb(10 37 64 / 0.18);
+    color: rgb(10 37 64 / 0.62);
+  }
+}
+
 @media print {
   .no-print {
     display: none !important;
@@ -28,12 +166,26 @@
      comes out as a solid tint over the whole thing on a colour printer and a
      dirty wash on a mono one, and its padding fights the @page margin so the
      real margins were 16mm plus whatever the shell felt like. Stripped back to
-     white with no padding, and the page margin is left as the only margin. */
+     white with no padding, and the page margin is left as the only margin.
+
+     `display: block` is the part that took three attempts to find, and it is
+     the same rule the note at the top of this file states: a flex container
+     that has to FRAGMENT across printed pages paginates badly. The shell IS
+     one — `min-h-screen flex flex-col` with `flex-1` on `main` — and it wraps
+     the entire sheet, so every page break on the close-out was being asked for
+     inside a flex item. Chrome answers that by honouring the geometry and
+     silently dropping the forced breaks: `min-height` on page one still pushed
+     the signature to the foot of the sheet, so the layout looked deliberate,
+     while `break-after` did nothing and "Financial Report" printed underneath
+     the signature on page one. Undoing the height and the padding without
+     undoing the `display` left exactly that: a shell that no longer looked
+     like a shell and still laid out like one. */
   html,
   body,
   body > div,
   main {
     background: #fff !important;
+    display: block !important;
     min-height: 0 !important;
     padding: 0 !important;
     margin: 0 !important;
@@ -48,6 +200,99 @@
        whatever the print engine guesses. */
     width: 100%;
     line-height: 1.35;
+  }
+
+  /* Page one, given a floor to stand on.
+     A column tall enough to fill the sheet, so the signature block inside it can
+     be pushed to the bottom with `margin-top: auto` and land on the same rule
+     every night. Without the height the column is only as tall as its contents
+     and the signature rides up the page on a quiet day.
+
+     242mm is letter minus the 32mm of page margin, minus the band the repeating
+     footer paints in. It is sized to leave too little room after it for the
+     heading that follows, and that is the point rather than a side effect:
+     `break-after` below and `break-before` on that heading are what SHOULD move
+     it overleaf, but a browser that ignores both -- and one did, in the field --
+     will happily squeeze a 15pt heading into whatever millimetres are left, and
+     the sheet comes off the printer with "Financial Report" orphaned under the
+     signature. At 236mm there were eight of those millimetres. At 242mm there
+     are not enough for the heading to fit, so the geometry forces what the
+     break properties ask for, and it takes both mechanisms failing at once for
+     the page to go wrong.
+
+     Deliberately `min-height` and not `height`: if the count ever did run
+     longer than the page, growing and spilling onto page two is a fault
+     somebody notices immediately, where clipping to a fixed height would
+     silently cut a tender off the bottom of a document that gets signed. */
+  /* Both spellings of the break, and `.eod-ledger` is why.
+     That block is the one forced break on this sheet that has never failed in
+     the field, and the one that carries the legacy alias as well. The two that
+     did fail carried only the modern property. Whether the print path really
+     treats them differently or the ledger has simply been lucky, the pair costs
+     two lines and removes the question — so both are written wherever a break
+     actually has to happen. */
+  .eod-page-one {
+    display: flex;
+    flex-direction: column;
+    min-height: 242mm;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .eod-signature {
+    margin-top: auto;
+    padding-top: 8mm;
+  }
+
+  /* The heading each of the back pages opens with.
+     These sheets are stapled once and separated forever after, so every page
+     that is not page one has to say what it is and which day it belongs to.
+     `break-before` is what actually starts the page — the heading and the break
+     are one decision, so they are one rule. */
+  .eod-report-head {
+    break-before: page;
+    page-break-before: always;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6mm;
+    border-bottom: 2px solid #111;
+    padding-bottom: 2.5mm;
+    margin-bottom: 5mm;
+  }
+
+  .eod-report-head .t {
+    font-size: 15pt;
+    font-weight: 700;
+  }
+
+  .eod-report-head .d {
+    font-size: 9pt;
+    color: #444;
+  }
+
+  /* The ledger already breaks to its own page — see `.eod-ledger`. Letting its
+     heading break as well would throw a blank sheet between the two.
+
+     BOTH spellings have to be undone here, not just the modern one. The rule
+     above now sets the legacy alias too, and cancelling half of a pair leaves
+     the other half still asking for a page — which is the blank sheet this
+     rule exists to prevent, reintroduced by the fix for a different bug. */
+  .eod-ledger .eod-report-head {
+    break-before: auto;
+    page-break-before: auto;
+  }
+
+  /* The letterhead: badge left, shop and day right.
+     `display: flex` has to be stated here rather than in a class on the div,
+     because `.print-only` sets `display: block` in this same stylesheet and
+     would win on paper — which is the only place this element exists. */
+  .eod-sheet-head {
+    display: flex;
+    align-items: center;
+    gap: 4mm;
+    border-bottom: 1px solid #111;
+    padding-bottom: 2.5mm;
   }
 
   /* Widows and orphans are what make a two-page close-out feel accidental. */
@@ -98,6 +343,21 @@
     margin-bottom: 6mm;
   }
 
+  /* The week board sits under the charts, and it is the one wide table on the
+     sheet: ten columns, because this week and last week are read side by side
+     or there is no point printing either. On screen the extra width scrolls;
+     on paper a scrollbar is a guillotine, and the column it would take off is
+     Income, which is the column the table exists for. So the wrapper's
+     overflow is released and the type is dropped a size, which is enough to
+     land ten columns inside letter without touching how it reads on screen. */
+  .eod-week > div {
+    overflow: visible !important;
+  }
+
+  .eod-week table {
+    font-size: 9pt;
+  }
+
   .eod-chart {
     box-shadow: none !important;
     border-radius: 0;
@@ -137,18 +397,7 @@
     page-break-before: always;
   }
 
-  /* Repeats the shop, the date and what this is, because page two gets
-     separated from page one in a filing cabinet and a sheet of forty
-     unlabelled rows is a sheet nobody can put back. */
-  .eod-ledger-head {
-    font-size: 9pt;
-    color: #444;
-    border-bottom: 1px solid #111;
-    padding-bottom: 2mm;
-    margin-bottom: 4mm;
-  }
-
-  .eod-ledger-block {
+.eod-ledger-block {
     margin-bottom: 8mm;
   }
 
@@ -165,6 +414,49 @@
   .eod-ledger td {
     font-size: 9.5pt;
     padding: 2px 0;
+  }
+
+  /* Banded, and only back here.
+     The sheet above the signature is short blocks of a few rows each, where a
+     band buys nothing and costs toner. This is the other thing: forty to a
+     hundred rows of six narrow columns, read across, on paper, by somebody
+     tired. Unbanded, that is the table where a time gets read against the wrong
+     ticket's total -- and unlike on screen there is no cursor to keep your
+     place with.
+
+     `print-color-adjust: exact` because a fill that the print engine helpfully
+     drops is worse than no fill: the rows would band on some printers in the
+     building and not others, and nobody would know which sheet they were
+     holding. Kept pale for the same reason it is kept at all -- it has to
+     separate the rows without competing with the struck-through ones below. */
+  .eod-ledger tbody tr:nth-child(even) {
+    background: #f1f1f1;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* A voided row wins over whichever band it lands on.
+     Struck through AND filled, because on paper the strike alone disappears
+     into a grey band -- and the voided rows are most of the reason anybody
+     opens this list at all: the thing being looked for is usually the thing
+     that went wrong. Darker than the band by enough to read as deliberate on a
+     mono laser rather than as a printing fault. */
+  .eod-ledger tbody tr.eod-void,
+  .eod-ledger tbody tr.eod-void:nth-child(even) {
+    background: #d9d9d9 !important;
+    text-decoration: line-through;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* The reason, NOT struck through.
+     It is the one part of a voided row somebody has to read, and running a line
+     through the sentence that explains the line is a small joke at the reader's
+     expense. `line-through` inherits down the row, so it has to be turned off
+     here rather than simply not turned on. */
+  .eod-ledger tbody tr.eod-void .eod-void-why {
+    text-decoration: none;
+    font-style: italic;
   }
 
   /* The sign-off never splits across a page break. Half a signature block at
@@ -261,8 +553,105 @@
     flex: 0 0 38mm;
   }
 
+  /* A footer on every sheet.
+     Pages get separated in a filing cabinet, and page three of a close-out is
+     forty unlabelled rows of numbers — worth nothing to whoever finds it unless
+     it says which shop and which day it belongs to. `position: fixed` is what
+     repeats it: in print, a fixed element is painted once per page rather than
+     once per document.
+
+     The room for it is bought with padding on `.eod` rather than a bigger page
+     margin, so it eats into the content rather than the 16mm the whole sheet is
+     laid out against.
+
+     NO PAGE NUMBER HERE, and not for want of trying: numbering needs
+     `counter(page)` inside an `@page` margin box, which Chrome has never
+     implemented. Printing "1 of 1" on every sheet of a three-page close-out
+     would be worse than printing nothing — see the note where this is used. */
+  .eod-print-footer {
+    display: block;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    font-size: 8pt;
+    color: #444;
+    border-top: 1px solid #ccc;
+    padding-top: 1.5mm;
+  }
+
+  .eod {
+    padding-bottom: 10mm;
+  }
+
   @page {
     size: letter;
     margin: 16mm;
   }
+}
+
+/* The owner's own hidden withdrawals, on screen and never on paper.
+   Amber rather than red: it is not a fault, it is a figure only one person is
+   meant to be able to explain. Both of these are inside `no-print` wrappers as
+   well, so this styling is belt and braces on a rule that already holds. */
+.eod-hidden-note {
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  color: #78350f;
+  border-radius: 10px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  margin-bottom: 0.75rem;
+}
+
+.eod-hidden-pill {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid #d97706;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* The heading that folds the charts and the board away together.
+
+   Not a `<Section>` and deliberately not styled as one. A card here would make
+   the reading block look like one more panel to work through, when the whole
+   point of it is to be a line you skip past on a night you are only counting.
+   So it is a rule with a word on it — small, quiet, and unmistakably a control
+   because of the chevron. */
+.eod-weekhead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 6px 2px;
+  border-top: 1px solid rgb(10 37 64 / 0.08);
+  color: rgb(10 37 64 / 0.55);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+}
+
+.eod-weekhead:hover {
+  color: rgb(10 37 64 / 0.75);
+}
+
+/* What is behind the fold, said in words, and only while it is shut. Open, the
+   charts and the table say it themselves and a caption would be repeating them.
+   Lower case and unspaced, so it reads as a sentence beside the label rather
+   than as a second heading. */
+.eod-weekhead-hint {
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: rgb(10 37 64 / 0.38);
 }

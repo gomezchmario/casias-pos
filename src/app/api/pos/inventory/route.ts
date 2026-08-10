@@ -3,7 +3,9 @@ import { requirePos } from "@/lib/api-helpers";
 import {
   inventoryBySection,
   listBatteries,
+  listMisc,
   listLowStock,
+  listNegativeStock,
   listProducts,
   withStock,
 } from "@/lib/products";
@@ -79,6 +81,13 @@ export async function GET(req: NextRequest) {
       default_cost_cents: showCosts ? b.default_cost_cents : null,
       cost_code: null,
     })),
+    // The same shape and the same reasoning as batteries above -- a shelf that
+    // is not a rim section. Rides on this endpoint for the same reason too.
+    misc: listMisc({ includeOutOfStock }).map((b) => ({
+      ...b,
+      default_cost_cents: showCosts ? b.default_cost_cents : null,
+      cost_code: null,
+    })),
     lastCheck: readInventoryCheck(),
     showCosts,
     // Manager and up only, and computed here rather than derived in the browser
@@ -119,6 +128,15 @@ export async function GET(req: NextRequest) {
       size: p.tire_size,
       onHand: p.on_hand,
       reorderPoint: p.reorder_point,
+    })),
+    // Ungated for the same reason as `lowStock`: it is a count, and anyone
+    // allowed to see the racks already sees the count on the row.
+    negativeStock: listNegativeStock().map((p) => ({
+      productId: p.id,
+      name: p.name,
+      size: p.tire_size,
+      onHand: p.on_hand,
+      condition: p.condition,
     })),
     // Surfaced, never auto-repaired: a repair would destroy the evidence.
     integrityIssues: can(auth.user.role, "adjustInventory") ? lotIntegrityCheck() : [],

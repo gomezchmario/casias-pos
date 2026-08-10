@@ -3,7 +3,7 @@ import { inTx } from "./tx";
 import { nowLocalIso } from "./time";
 import { currentBusinessDate } from "./business-date";
 import { getSetting } from "./settings";
-import { apportionCents, computeTipCommission } from "./money";
+import { apportionCents, computeTipCommission, formatCents } from "./money";
 import { logActorAudit, type Actor } from "./audit";
 import { getSale, recalcMoney } from "./sales";
 import { reverseSaleMovements } from "./inventory";
@@ -34,6 +34,9 @@ export type Payment = {
   reverses_payment_id: number | null;
   taken_by: number;
   business_date: string;
+  /** The till session this row belongs to. Null on rows written before shifts
+   *  existed, and on a reversal that had no drawer open to land in. */
+  shift_id: number | null;
   note: string | null;
   created_at: string;
 };
@@ -83,7 +86,7 @@ export function listPayments(saleId: number): Payment[] {
  * the moment a card payment is written, and the cashier never sees a SEQ box at
  * the register.
  *
- * The one thing a human does get to do is correct the ORDER, on Entries, and
+ * The one thing a human does get to do is correct the ORDER, on Logs, and
  * only there. Charges taken on the terminal in one burst and keyed into the
  * register afterwards go in in whatever order somebody picked the slips up in,
  * and the numbers then need shuffling to match the batch. That is a renumbering
@@ -726,5 +729,216 @@ export function voidSale(user: PosUser, saleId: number, reason: string): Result 
       after: { status: "voided" },
     });
     return { ok: true as const };
+  });
+}
+
+/**
+ * The customer paid, but the row says the wrong thing about it.
+ *
+ * Two mistakes, one shape. A ticket gets rung to Credit Account when the card
+ * was actually swiped — the money is right and the bucket is wrong. Or $210 goes
+ * in as $120 — the bucket is right and the money is wrong. Both are a record
+ * that disagrees with what happened at the counter, and both are fixed the same
+ * way. Either can be corrected on its own, or the two together.
+ *
+ * Left alone, a wrong TENDER breaks the drawer count and the card batch. A wrong
+ * AMOUNT is worse: the ticket's balance is derived from what was collected, so a
+ * mis-keyed figure invents a debt the customer does not owe, or settles one they
+ * do — and the shop chases the wrong person or nobody at all.
+ *
+ * It does NOT edit the row. `setPaymentSeq` is the one field in this ledger that
+ * is correctable in place, and the reason it is the only one is that a reference
+ * number moves no money. These do. So this reverses the original and takes it
+ * again saying the right thing, which is the same shape as every other undo here
+ * — the wrong row stays as the record that the mistake was made, and the two new
+ * rows say what was done about it.
+ *
+ * BOTH NEW ROWS KEEP THE ORIGINAL'S BUSINESS DATE AND SHIFT, and that is the
+ * whole difference between this and a void. A void takes money back out of the
+ * drawer now, so it belongs to the shift doing the voiding. Nothing moves here —
+ * the customer paid once, on the day they paid, and the correction is to the
+ * record rather than to the till. Landing them in today's shift would take $210
+ * out of one day's card total and put it into another's.
+ *
+ * The consequence, said out loud: correcting a payment on a shift that has
+ * already been counted changes what that shift expected. That is intended. The
+ * count was taken against a number that was wrong, and the honest thing is for
+ * it to move.
+ *
+ * Manager and up. A cashier fixing their own figures at the counter is how the
+ * day's cash total becomes whatever the last person to touch it decided.
+ */
+export function correctPayment(
+  user: PosUser,
+  paymentId: number,
+  args: { methodId?: number; amountCents?: number; reason: string },
+): Result<{ payment: Payment }> {
+  const reason = args.reason;
+  if (!can(user.role, "correctPayment"))
+    return { ok: false, error: "Only a manager can correct a payment" };
+  if (!reason.trim()) return { ok: false, error: "A reason is required" };
+
+  const db = getDb();
+  const payment = db.prepare("SELECT * FROM payments WHERE id = ?").get(paymentId) as
+    | Payment
+    | undefined;
+  if (!payment) return { ok: false, error: "Payment not found" };
+
+  // Only a plain payment. A reversal, a refund or a tip adjustment each mean
+  // something specific about money that already moved, and correcting one would
+  // be answering a question nobody asked.
+  if (payment.kind !== "payment")
+    return { ok: false, error: `A ${payment.kind.replace("_", " ")} cannot be corrected this way` };
+
+  const methodId = args.methodId ?? payment.method_id;
+  const amountCents = args.amountCents ?? payment.amount_cents;
+  if (methodId === payment.method_id && amountCents === payment.amount_cents)
+    return { ok: true as const, payment };
+
+  if (!Number.isInteger(amountCents) || amountCents <= 0)
+    return { ok: false, error: "The amount is not valid" };
+  // The amount is the whole charge, tip and terminal tax included, so it cannot
+  // be less than the part of itself that is not goods.
+  if (amountCents < payment.tip_cents + payment.comm_cents)
+    return {
+      ok: false,
+      error: `That is less than the ${formatCents(payment.tip_cents + payment.comm_cents)} of tip and terminal tax already on this payment`,
+    };
+
+  const already = db
+    .prepare("SELECT 1 FROM payments WHERE reverses_payment_id = ? LIMIT 1")
+    .get(paymentId);
+  if (already)
+    return { ok: false, error: "That payment has already been reversed" };
+
+  const sale = getSale(payment.sale_id);
+  if (!sale) return { ok: false, error: "Sale not found" };
+  if (sale.status === "voided")
+    return { ok: false, error: "This ticket is voided — nothing to correct" };
+
+  // Over the ticket is refused, the same rule the register follows when the
+  // money is first taken: short is an ordinary afternoon and leaves a balance to
+  // chase, over is arithmetic that went wrong. A deliberate overpayment is a
+  // deposit and has its own path.
+  const others = db
+    .prepare(
+      "SELECT COALESCE(SUM(amount_cents), 0) AS n FROM payments WHERE sale_id = ? AND id <> ?",
+    )
+    .get(payment.sale_id, paymentId) as { n: number };
+  if (others.n + amountCents > sale.total_cents)
+    return {
+      ok: false,
+      error: `That would put ${formatCents(others.n + amountCents)} against a ${formatCents(sale.total_cents)} ticket`,
+    };
+
+  const method = db
+    .prepare("SELECT * FROM payment_methods WHERE id = ? AND active = 1")
+    .get(methodId) as PaymentMethod | undefined;
+  if (!method) return { ok: false, error: "Unknown payment method" };
+
+  // Named for what was actually wrong, so the ledger and the audit log read as
+  // the sentence somebody would say about it rather than as one generic word
+  // covering two different mistakes.
+  const changedMethod = methodId !== payment.method_id;
+  const changedAmount = amountCents !== payment.amount_cents;
+  const what = changedMethod && changedAmount ? "Wrong tender and amount" : changedMethod ? "Wrong tender" : "Wrong amount";
+
+  return inTx(() => {
+    const now = nowLocalIso();
+
+    db.prepare(
+      `INSERT INTO payments
+         (sale_id, method_id, kind, amount_cents, tip_cents, comm_cents,
+          mechanic_id, reverses_payment_id, taken_by, business_date, shift_id, note, created_at)
+       VALUES (?, ?, 'reversal', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      payment.sale_id,
+      payment.method_id,
+      -payment.amount_cents,
+      -payment.tip_cents,
+      -payment.comm_cents,
+      payment.mechanic_id,
+      payment.id,
+      user.employeeId,
+      payment.business_date,
+      payment.shift_id,
+      `${what}: ${reason.trim()}`,
+      now,
+    );
+
+    /*
+      The SEQ follows the CHARGE, not the row.
+
+      A different tender is a different charge: money that was on the house
+      account is now on the card, the terminal has a slip for it, and it needs a
+      number of its own. So that takes a fresh one -- against the original day,
+      because that is the batch it belongs to.
+
+      Re-stating the SAME card at a corrected amount is not a second charge. The
+      terminal ran one transaction and printed one slip; the register wrote the
+      wrong figure down beside it. Handing the replacement a new number would put
+      two numbered card charges in the register against one in the batch, which
+      is precisely the disagreement SEQ exists to make findable. It carries the
+      original's number instead.
+
+      Duplicates are already allowed here -- see `setPaymentSeq` -- and the
+      reversal carries none, so the batch still lines up one-to-one.
+    */
+    const seq =
+      method.is_card === 1
+        ? changedMethod
+          ? nextSeq(payment.business_date)
+          : payment.seq
+        : null;
+
+    const info = db
+      .prepare(
+        `INSERT INTO payments
+           (sale_id, method_id, kind, amount_cents, tip_cents, comm_cents, comm_overridden,
+            mechanic_id, seq, taken_by, business_date, shift_id, note, created_at)
+         VALUES (?, ?, 'payment', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        payment.sale_id,
+        methodId,
+        amountCents,
+        payment.tip_cents,
+        payment.comm_cents,
+        payment.comm_overridden,
+        payment.mechanic_id,
+        seq,
+        user.employeeId,
+        payment.business_date,
+        payment.shift_id,
+        `Corrected: ${reason.trim()}`,
+        now,
+      );
+
+    recalcMoney(payment.sale_id);
+
+    const next = db
+      .prepare("SELECT * FROM payments WHERE id = ?")
+      .get(Number(info.lastInsertRowid)) as Payment;
+
+    logActorAudit(actorOf(user), {
+      action: "payment.correct",
+      targetType: "sale",
+      targetId: payment.sale_id,
+      details: {
+        sale_no: sale.sale_no,
+        what,
+        reason: reason.trim(),
+        reversed_payment_id: payment.id,
+        new_payment_id: next.id,
+      },
+      before: {
+        method_id: payment.method_id,
+        amount_cents: payment.amount_cents,
+        seq: payment.seq,
+      },
+      after: { method_id: methodId, amount_cents: amountCents, seq },
+    });
+
+    return { ok: true as const, payment: next };
   });
 }

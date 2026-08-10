@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { WORK_PILLS } from "@/lib/work-status";
 import { TicketDrawer } from "@/components/pos/TicketDrawer";
+import { TicketStatusPicker } from "@/components/pos/TicketStatusPicker";
 import { NoticeBoard } from "@/components/pos/NoticeBoard";
 import { usePosAuth } from "@/components/pos/PosShell";
 import { formatCents } from "@/lib/money";
@@ -13,7 +13,7 @@ import type {
   MethodTotal,
   OutstandingTicket,
 } from "@/lib/pos-reports";
-import type { RecentLine, Standings, StandingsPeriod, TechScore } from "@/lib/leaderboard";
+import type { RecentLine, Standings, TechScore } from "@/lib/leaderboard";
 import type { PaymentMethod } from "@/lib/payments";
 
 type DayData = {
@@ -86,92 +86,17 @@ function shortTime(at: string): string {
   return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
-/** Formats a technician's money the way the current viewer is allowed to see it. */
-type MoneyFmt = (cents: number, pct: number) => string;
-
-/**
- * What the podium can be ranked on.
- *
- * New and used tires get their own entries and are never blended into the
- * headline "most tires" alone, because they are different work: a used tire is
- * priced at the counter off its condition, a new one comes off a lot with a
- * cost. Someone who moves twenty used tires and someone who fits five sets of
- * four have both had a good week, and only separate boards say so.
- *
- * `score` is what ranks; anything at or below zero is off the board entirely,
- * which for improvement means only genuine improvements place. Ranking a week
- * where everybody fell as if someone had won it is how a leaderboard stops
- * being believed.
- */
-type PodiumMetric = {
-  key: string;
-  label: string;
-  /** Word under the big number on the block. */
-  unit: string;
-  score: (t: TechScore) => number | null;
-  show: (t: TechScore, money: MoneyFmt) => string;
-};
-
-const PODIUM_METRICS: PodiumMetric[] = [
-  {
-    key: "tires",
-    label: "Most tires sold",
-    unit: "tires",
-    score: (t) => t.newTires + t.usedTires,
-    show: (t) => String(t.newTires + t.usedTires),
-  },
-  {
-    key: "newTires",
-    label: "Most new tires sold",
-    unit: "new tires",
-    score: (t) => t.newTires,
-    show: (t) => String(t.newTires),
-  },
-  {
-    key: "usedTires",
-    label: "Most used tires sold",
-    unit: "used tires",
-    score: (t) => t.usedTires,
-    show: (t) => String(t.usedTires),
-  },
-  {
-    key: "serviceMoney",
-    label: "Most services by money",
-    unit: "in service work",
-    // Ranked on the share, not the cents, because the cents are zeroed for
-    // anyone below owner and ranking on them would put the board in a
-    // meaningless order for everyone else. The share survives the gate.
-    score: (t) => t.otherIncomePct,
-    show: (t, money) => money(t.otherIncomeCents, t.otherIncomePct),
-  },
-  {
-    key: "serviceCount",
-    label: "Most services by count",
-    unit: "jobs",
-    score: (t) => t.otherCount,
-    show: (t) => String(t.otherCount),
-  },
-  {
-    key: "tickets",
-    label: "Most tickets",
-    unit: "tickets",
-    score: (t) => t.ticketCount,
-    show: (t) => String(t.ticketCount),
-  },
-  {
-    key: "improvement",
-    label: "Best improvement",
-    unit: "up on last time",
-    score: (t) => t.improvementPct,
-    show: (t) => `+${(t.improvementPct ?? 0).toFixed(0)}%`,
-  },
-];
-
 export default function DayPage() {
   const { can } = usePosAuth();
   const [date, setDate] = useState("");
   const [data, setData] = useState<DayData | null>(null);
   const [openSaleId, setOpenSaleId] = useState<number | null>(null);
+
+  // Which outstanding rows are showing what was rung on them. A set rather than
+  // one id at a time: the question this answers is "which of these is the tire
+  // that just came in", and answering it by opening one row, closing it and
+  // opening the next is the one-by-one it was meant to replace.
+  const [openWhat, setOpenWhat] = useState<ReadonlySet<number>>(new Set());
 
   // Hidden until asked for, because this screen lives on a counter in a shop
   // with customers on the other side of it. Hiding the money leaves the
@@ -183,26 +108,17 @@ export default function DayPage() {
   // takings, and the failure mode of having to press it is one press.
   const [hideMoney, setHideMoney] = useState(true);
 
-  // Tires stay the default because it is what the shop has always put on the
-  // board, and a dropdown that starts somewhere new every time is one people
-  // stop trusting to mean what it says.
-  const [metricKey, setMetricKey] = useState("tires");
-  const [podiumPeriod, setPodiumPeriod] = useState<StandingsPeriod>("week");
-  /**
-   * Whether the podium shows everybody who placed, or only the top three.
+  /*
+   * No podium here any more.
    *
-   * Three by default and deliberately. A podium is a picture, not a table --
-   * the whole reason it earns the top of the screen is that it reads in one
-   * glance from across the shop, and a fourth and fifth block turn it into
-   * something you have to stand in front of.
-   *
-   * But three is also the number that makes fourth place invisible, and on a
-   * floor of seven that is most of the shop. Somebody who rang eleven tickets
-   * and came fourth has done a day's work the board says nothing about. So the
-   * rest is one click away, listed rather than blocked out, because past third
-   * the interesting question stops being "who won" and becomes "where am I".
+   * It opened this screen once, then moved to the foot of it shut behind a
+   * chevron, and is now gone from it altogether. The reasoning that put it here
+   * was about a board on a wall, and this was never one — the wall board is its
+   * own screen at /leaderboard, running all day where the floor can see it.
+   * What is left is a counter screen, and the questions asked of a counter
+   * screen are who owes us money and did that ticket go through. The standings
+   * table further down still answers "where am I" for anybody who wants it.
    */
-  const [podiumAll, setPodiumAll] = useState(false);
 
   /**
    * Has somebody deliberately gone looking at another day?
@@ -258,15 +174,84 @@ export default function DayPage() {
   const lb = data.leaderboard;
 
   /**
+   * The one list from the server, split into the two boxes above.
+   *
+   * One list, two boxes, no ticket in both. The line is WHO PUT IT THERE.
+   *
+   * OUTSTANDING is for tickets somebody deliberately sent there: a tire marked
+   * to be ordered in, a car marked as left with the shop. Those are statements a
+   * person made about a job, and the box is the list of promises the shop has
+   * made and not yet kept. Nothing lands on it by arithmetic.
+   *
+   * PENDING is money the shop has not got, on everything else. A draft abandoned
+   * half-rung, a ticket closed for the customer to settle at the cashier, a
+   * ticket part-paid at the counter.
+   *
+   * The bug this fixes was both halves at once. Pending demanded that NOTHING
+   * had been collected, so three dollars against a fifty-three dollar ticket
+   * dropped it off the box whose entire job is money nobody has — and the same
+   * three dollars pushed it INTO Outstanding, a board of promises it had never
+   * been put on by anybody. One partial payment moved a ticket between two lists
+   * it had no business moving between, and the fifty still owed appeared on
+   * neither in a way anybody would read.
+   *
+   * A marked ticket that also owes money shows in Outstanding only. That is the
+   * right way round: somebody chose to put it there, the choice says what the
+   * shop still has to do, and the balance rides along in its own column where
+   * the panel already prints it.
+   */
+  const sentThereByHand = (o: OutstandingTicket) =>
+    o.fulfillmentStatus !== "none" || o.workStatus !== null;
+  const outstanding = data.outstanding.filter(sentThereByHand);
+  const pending = data.outstanding.filter(
+    (o) => !sentThereByHand(o) && o.balanceCents > 0,
+  );
+
+  /**
    * Summed from the same list the outstanding panel prints, so the headline
    * figure and the tickets underneath it can never tell different stories. They
    * used to come from two queries and did exactly that — the header claimed
    * $110 over a list of two tickets adding to $60.
    */
-  const outstandingCents = data.outstanding.reduce(
-    (s, o) => s + o.balanceCents,
-    0,
-  );
+  const outstandingCents = outstanding.reduce((s, o) => s + o.balanceCents, 0);
+  const pendingCents = pending.reduce((s, o) => s + o.balanceCents, 0);
+
+  /**
+   * What is still standing, for the dashboard only.
+   *
+   * A void on this page is noise. It is a fixed-height panel answering "what
+   * has the shop rung in the last few minutes", read over somebody's shoulder
+   * between customers, and a struck-through line is a question — what was
+   * that, who cancelled it, does it matter — asked at the moment there is
+   * least time to answer it. On a day with a few corrections the voids crowd
+   * out the live rows the panel exists to show, because the window only holds
+   * so many.
+   *
+   * Filtered HERE and nowhere else. Voids are the first thing looked for when
+   * something is wrong, so Logs, the close-out and the ticket drawer all keep
+   * showing them, struck through and greyed. This is a dashboard deciding what
+   * to put in a small window, not the system deciding what happened.
+   */
+  const recentLines = data.recentLines.filter((l) => !l.voided && !l.saleVoided);
+
+  /**
+   * Tires promised and not yet handed over, counted separately from the money.
+   *
+   * The panel holds two unlike debts now — cash owed to the shop, and goods owed
+   * by it — and one number cannot describe both. A heading reading "8 tickets
+   * owing $370" over a list where five of the eight owe nothing is worse than no
+   * heading at all, because it is the sort of wrong that gets believed.
+   */
+  const owedTires = outstanding.filter(
+    (o) => o.balanceCents === 0 && o.fulfillmentStatus !== "none",
+  ).length;
+
+  // Per panel, because they are two lists now. One flag over both would have the
+  // Outstanding chevron claiming to be open on the strength of the pending rows
+  // above it. `openWhat` is still shared — sale ids are unique across the two.
+  const allWhatOpen =
+    outstanding.length > 0 && outstanding.every((o) => openWhat.has(o.saleId));
+  const allPendingOpen = pending.length > 0 && pending.every((o) => openWhat.has(o.saleId));
 
   /** Money, or a share of the whole when money is hidden. */
   const money = (cents: number, ofTotal?: number) => {
@@ -284,23 +269,6 @@ export default function DayPage() {
   const seesTechIncomeCash = data.canSeeTechIncomeCash;
   const techMoney = (cents: number, pct: number) =>
     seesTechIncomeCash && !hideMoney ? formatCents(cents) : `${pct.toFixed(1)}%`;
-
-  const metrics = PODIUM_METRICS;
-  const metric = metrics.find((m) => m.key === metricKey) ?? metrics[0];
-  const podiumBoard =
-    podiumPeriod === "day"
-      ? data.dayStandings
-      : podiumPeriod === "week"
-        ? lb
-        : data.monthStandings;
-
-  const podium = podiumBoard.techs
-    .map((x) => ({ ...x, podiumScore: metric.score(x) ?? 0 }))
-    .filter((x) => x.podiumScore > 0)
-    // Income breaks ties. For a viewer who may not see it the cents are all
-    // zero, but the server sorted the list by the real figures before blanking
-    // them, so a stable sort still lands ties in the same order an owner sees.
-    .sort((a, b) => b.podiumScore - a.podiumScore || b.incomeCents - a.incomeCents);
 
   const tipPoolCents = lb.techs.reduce((s, x) => s + x.tipCentsToday, 0);
 
@@ -395,60 +363,12 @@ export default function DayPage() {
           and outstanding tickets are listed by name a screen down, and the
           voids, purchases and prior-day money belong to the close-out, which
           is where somebody goes when they are reconciling rather than
-          working. Between the notes and the podium is the worst place for a
+          working. Between the notes and the debts is the worst place for a
           row of small grey qualifiers — it pushes the thing this screen is
           for below the fold to make room for footnotes. */}
 
-      <Podium
-        title={`Employee of the ${podiumPeriod} — ${metric.label.toLowerCase()}`}
-        // One date, not "Aug 5 – Aug 5". This line is also what keeps the
-        // "Today" option honest when somebody is reading back an older date:
-        // the option is named for the span it means, and the date under the
-        // title says which one is actually on screen.
-        span={
-          podiumBoard.range.start === podiumBoard.range.end
-            ? shortDate(podiumBoard.range.start)
-            : `${shortDate(podiumBoard.range.start)} – ${shortDate(podiumBoard.range.end)}`
-        }
-        unit={metric.unit}
-        entries={podium.map((x) => ({
-          employeeId: x.employeeId,
-          name: x.name,
-          value: metric.show(x, techMoney),
-          sub: `${x.newTires} new · ${x.usedTires} used · ${x.otherCount} service`,
-        }))}
-        showAll={podiumAll}
-        onToggleAll={() => setPodiumAll((v) => !v)}
-        control={
-          <div className="flex gap-2">
-            <select
-              className="input"
-              style={{ height: 32, fontSize: 13, paddingBlock: 0 }}
-              value={metric.key}
-              onChange={(e) => setMetricKey(e.target.value)}
-            >
-              {metrics.map((m) => (
-                <option key={m.key} value={m.key}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-            <select
-              className="input"
-              style={{ height: 32, fontSize: 13, paddingBlock: 0 }}
-              value={podiumPeriod}
-              onChange={(e) => setPodiumPeriod(e.target.value as StandingsPeriod)}
-            >
-              <option value="day">Today</option>
-              <option value="week">This week</option>
-              <option value="month">This month</option>
-            </select>
-          </div>
-        }
-      />
-
       {/*
-        Who owes the shop money, directly under the podium.
+        Who owes the shop money, directly under the notes.
 
         High on the page on purpose. This is the only block here that is a list
         of things to DO rather than a record of things that happened, and the
@@ -460,24 +380,263 @@ export default function DayPage() {
         owes is not somebody's wage, and a debt you have to press a button to
         see is a debt nobody collects.
       */}
-      {data.outstanding.length > 0 && (
+      {/* Pending, above the debts and in red rather than amber.
+          Every ticket that has taken nothing at all. Two shapes end up here and
+          they read as one job: a DRAFT nobody pressed Complete on, and a ticket
+          closed with the customer owing the whole amount. Both are work done and
+          not a cent collected, which is the thing that walks out of a tire shop,
+          and both are chased the same way — find the ticket, get the money.
+
+          Red because it is the more urgent of the two boxes and the shorter one.
+          A part-paid order from three weeks ago is a phone call; a ticket that
+          collected nothing is money the shop has not started getting back.
+
+          No status column. Where the car is and how far along a tire is are
+          questions about a job in progress, and a dropdown here would invite
+          somebody to answer the wrong one. The only pill is the Draft mark,
+          which says which of the two shapes a row is — and so which end of it to
+          pick up. */}
+      {pending.length > 0 && (
+        <div
+          className="rounded-2xl shadow-sm p-4 mb-6"
+          style={{ background: "#fef2f2", border: "1px solid rgba(153,27,27,0.30)" }}
+        >
+          <div className="flex items-baseline justify-between gap-3 mb-2 flex-wrap">
+            <div className="text-xs uppercase tracking-wider text-red-800 flex items-center gap-2">
+              <span>
+                ⏳ Pending — {pending.length}{" "}
+                {pending.length === 1 ? "ticket" : "tickets"}
+              </span>
+              <button
+                type="button"
+                className="inline-flex items-center justify-center rounded-md shrink-0 transition-colors"
+                style={{
+                  width: "1.35rem",
+                  height: "1.35rem",
+                  border: "1px solid rgba(153,27,27,0.40)",
+                  background: allPendingOpen ? "rgba(153,27,27,0.15)" : "transparent",
+                  color: "#991b1b",
+                }}
+                aria-expanded={allPendingOpen}
+                aria-label={
+                  allPendingOpen ? "Hide what is on every ticket" : "Show what is on every ticket"
+                }
+                title={allPendingOpen ? "Hide what is on them" : "Show what is on them"}
+                onClick={() =>
+                  setOpenWhat((prev) => {
+                    const next = new Set(prev);
+                    if (allPendingOpen) for (const d of pending) next.delete(d.saleId);
+                    else for (const d of pending) next.add(d.saleId);
+                    return next;
+                  })
+                }
+              >
+                <Caret open={allPendingOpen} />
+              </button>
+            </div>
+            {/* "Uncollected", not "unpaid". Every row in here is unpaid — that is
+                what the box is — and the number is the money nobody has started
+                getting back yet. */}
+            <div className="text-lg font-semibold tabular-nums text-red-900">
+              {formatCents(pendingCents)} uncollected
+            </div>
+          </div>
+          <table className="w-full text-sm">
+            <tbody>
+              {pending.map((o) => {
+                const showWhat = openWhat.has(o.saleId);
+                return (
+                  <Fragment key={o.saleId}>
+                    <tr className="border-t border-red-900/10">
+                      <td className="py-1.5 w-6 align-middle">
+                        <button
+                          type="button"
+                          className="inline-flex items-center justify-center w-5 h-5 rounded text-red-900/55 hover:text-red-900 hover:bg-red-900/10 transition-colors"
+                          aria-expanded={showWhat}
+                          aria-label={
+                            showWhat ? "Hide what is on this draft" : "Show what is on this draft"
+                          }
+                          title="What is on this ticket"
+                          onClick={() =>
+                            setOpenWhat((prev) => {
+                              const next = new Set(prev);
+                              if (!next.delete(o.saleId)) next.add(o.saleId);
+                              return next;
+                            })
+                          }
+                        >
+                          <Caret open={showWhat} />
+                        </button>
+                      </td>
+                      <td className="py-1.5">
+                        <button
+                          type="button"
+                          className="font-medium text-red-900 underline decoration-red-900/30 hover:decoration-current"
+                          onClick={() => setOpenSaleId(o.saleId)}
+                        >
+                          {o.saleNo}
+                        </button>
+                        {/* Only on the ones nobody finished. An unmarked row in
+                            here is a closed ticket that simply took no money —
+                            the customer is coming back with it — and needs no
+                            word for that beyond the box it is sitting in. The
+                            marked ones are still open at the register, which is
+                            a different job: go and finish the ticket. */}
+                        {o.status === "open" && (
+                          <span
+                            className="ml-2 align-middle text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5"
+                            style={{
+                              border: "1px solid rgba(153,27,27,0.35)",
+                              color: "#991b1b",
+                            }}
+                            title="Rung but never completed — finish the ticket"
+                          >
+                            Draft
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-1.5 text-red-900/80">
+                        {o.customerName ?? (
+                          <span className="text-red-900/40">no name taken</span>
+                        )}
+                        {o.customerPhone && ` · ${o.customerPhone}`}
+                        {o.notes && (
+                          <div className="italic text-red-900/60" title="Note on this ticket">
+                            {o.notes}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-1.5 text-red-900/60 tabular-nums text-right whitespace-nowrap">
+                        {shortDate(o.businessDate)}
+                        {o.businessDate !== t.businessDate && " ·"}
+                        {o.businessDate !== t.businessDate && (
+                          <span className="font-medium"> {daysAgo(o.businessDate)}</span>
+                        )}
+                      </td>
+                      <td className="py-1.5 text-right tabular-nums font-semibold text-red-900 w-24">
+                        {formatCents(o.balanceCents)}
+                      </td>
+                    </tr>
+                    {showWhat && (
+                      <tr>
+                        <td />
+                        <td colSpan={4} className="pb-2 text-red-900/70">
+                          {o.what || <span className="italic text-red-900/40">nothing rung yet</span>}
+                          {o.techs && (
+                            <span className="text-xs uppercase text-red-900/45"> — {o.techs}</span>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {outstanding.length > 0 && (
         <div
           className="rounded-2xl shadow-sm p-4 mb-6"
           style={{ background: "#fff7ed", border: "1px solid rgba(180,83,9,0.30)" }}
         >
           <div className="flex items-baseline justify-between gap-3 mb-2 flex-wrap">
-            <div className="text-xs uppercase tracking-wider text-amber-800">
-              ⚠️ Outstanding — {data.outstanding.length}{" "}
-              {data.outstanding.length === 1 ? "ticket" : "tickets"} owing
+            {/* Two clauses because there are two debts, and the tires get their
+                own words rather than being folded into the ticket count. "8
+                tickets owing" over five tickets that owe nothing is the kind of
+                wrong that gets believed. */}
+            <div className="text-xs uppercase tracking-wider text-amber-800 flex items-center gap-2">
+              <span>
+                ⚠️ Outstanding — {outstanding.length}{" "}
+                {outstanding.length === 1 ? "ticket" : "tickets"}
+                {owedTires > 0 && `, ${owedTires} waiting on a tire`}
+              </span>
+              {/* Every row at once, because the reason anybody opens these is to
+                  compare them — which of these is the 205/55R16 the truck just
+                  dropped off. Row by row that is a memory test.
+
+                  Boxed, unlike the arrows in the rows. A bare chevron on the end
+                  of a line of small capitals reads as punctuation somebody left
+                  behind; the border is what says it is a thing to press. It is
+                  the master, so it is allowed to be the louder one. */}
+              <button
+                type="button"
+                className="inline-flex items-center justify-center rounded-md shrink-0 transition-colors"
+                style={{
+                  width: "1.35rem",
+                  height: "1.35rem",
+                  border: "1px solid rgba(180,83,9,0.40)",
+                  background: allWhatOpen ? "rgba(180,83,9,0.15)" : "transparent",
+                  color: "#92400e",
+                }}
+                aria-expanded={allWhatOpen}
+                aria-label={
+                  allWhatOpen
+                    ? "Hide what is on every ticket"
+                    : "Show what is on every ticket"
+                }
+                title={allWhatOpen ? "Hide what is on them" : "Show what is on them"}
+                // Adds and removes its own rows rather than replacing the set.
+                // It used to replace it, which was harmless while this was the
+                // only panel using it and would now shut every draft above the
+                // moment somebody opened the debts.
+                onClick={() =>
+                  setOpenWhat((prev) => {
+                    const next = new Set(prev);
+                    if (allWhatOpen) for (const x of outstanding) next.delete(x.saleId);
+                    else for (const x of outstanding) next.add(x.saleId);
+                    return next;
+                  })
+                }
+              >
+                <Caret open={allWhatOpen} />
+              </button>
             </div>
-            <div className="text-lg font-semibold tabular-nums text-amber-900">
-              {formatCents(outstandingCents)}
-            </div>
+            {/* Money only when there is money. Everything in this box is paid
+                for now — what is outstanding about it is a tire or a car, not a
+                balance — so the figure is almost always zero, and "$0.00 owing"
+                over a list of eight tickets reads as a broken total rather than
+                as good news. The count and the tires in the heading are what
+                this panel is actually about. */}
+            {outstandingCents > 0 && (
+              <div className="text-lg font-semibold tabular-nums text-amber-900">
+                {formatCents(outstandingCents)} owing
+              </div>
+            )}
           </div>
           <table className="w-full text-sm">
             <tbody>
-              {data.outstanding.map((o) => (
-                <tr key={o.saleId} className="border-t border-amber-900/10">
+              {outstanding.map((o) => {
+                const showWhat = openWhat.has(o.saleId);
+                return (
+                <Fragment key={o.saleId}>
+                <tr className="border-t border-amber-900/10">
+                  {/* The arrow, not the ticket number, because the number
+                      already means "open the whole ticket" and the two are
+                      different sizes of question. This one is a glance.
+
+                      Middle-aligned rather than top, so the column of arrows
+                      sits on the same line as the ticket numbers beside them
+                      instead of riding a few pixels high on every row. */}
+                  <td className="py-1.5 w-6 align-middle">
+                    <button
+                      type="button"
+                      className="inline-flex items-center justify-center w-5 h-5 rounded text-amber-900/55 hover:text-amber-900 hover:bg-amber-900/10 transition-colors"
+                      aria-expanded={showWhat}
+                      aria-label={showWhat ? "Hide what is on this ticket" : "Show what is on this ticket"}
+                      title="What is on this ticket"
+                      onClick={() =>
+                        setOpenWhat((prev) => {
+                          const next = new Set(prev);
+                          if (!next.delete(o.saleId)) next.add(o.saleId);
+                          return next;
+                        })
+                      }
+                    >
+                      <Caret open={showWhat} />
+                    </button>
+                  </td>
                   <td className="py-1.5">
                     <button
                       type="button"
@@ -486,12 +645,10 @@ export default function DayPage() {
                     >
                       {o.saleNo}
                     </button>
-                    {/* Every ticket in this panel is owing, so a badge saying
-                        "still open" was only ever repeating the panel's own
-                        heading — and it repeated it in the register's old
-                        vocabulary, where open meant nobody pressed Complete
-                        rather than nobody paid. The amount owed is in the
-                        column on the right and it is the whole story. */}
+                    {/* No badge. Everything that has collected nothing lives in
+                        Pending above, so every ticket left in this one has
+                        either taken money already or is waiting on a tire —
+                        there is no second kind of row here to tell apart. */}
                   </td>
                   {/* Nameless until big-boy mode fills these in — and it says so
                       rather than leaving the column blank, because "who is this"
@@ -502,7 +659,7 @@ export default function DayPage() {
                       <span className="text-amber-900/40">no name taken</span>
                     )}
                     {o.customerPhone && ` · ${o.customerPhone}`}
-                    {/* The ticket's note, printed here as well as on Entries.
+                    {/* The ticket's note, printed here as well as on Logs.
                         It is the same string from the same column on the same
                         sale — the point is that somebody who wrote "DEPOSIT —
                         BALANCE ON PICKUP" on a ticket sees it on whichever
@@ -515,16 +672,25 @@ export default function DayPage() {
                       </div>
                     )}
                   </td>
-                  {/* Where the car is. Only here, on purpose: this panel is the
-                      one place a ticket is looked at while its car is still on
-                      the lot, so it is the one place the answer is worth
-                      keeping. Everywhere else the same three words would be a
-                      field to maintain on tickets whose cars left days ago. */}
-                  <td className="py-1.5 w-32">
-                    <WorkStatusPicker
+                  {/* One column, one question: what is happening with this
+                      ticket. It used to be two — where the car is on an ordinary
+                      ticket, how far along the tire is on an order — drawn by
+                      two different controls depending on the row, with the order
+                      half read-only and moved from the drawer. That was two
+                      vocabularies, two places to change them, and a column whose
+                      behaviour changed under you from row to row.
+
+                      Both lists now sit in the one dropdown, and a ticket may
+                      answer from both. The row still draws one pill — see
+                      `shownSide` for which — with the other in its tooltip. */}
+                  <td className="py-1.5 pr-3 w-px whitespace-nowrap">
+                    <TicketStatusPicker
                       saleId={o.saleId}
-                      value={o.workStatus}
+                      workStatus={o.workStatus}
+                      fulfillmentStatus={o.fulfillmentStatus}
                       canSet={can("ringSale")}
+                      canOrder={can("manageSpecialOrders")}
+                      canReverse={can("reverseSpecialOrder")}
                       onChanged={() => void load()}
                     />
                   </td>
@@ -540,11 +706,41 @@ export default function DayPage() {
                   <td className="py-1.5 text-right tabular-nums text-amber-900/60">
                     of {formatCents(o.totalCents)}
                   </td>
+                  {/* "Paid", not $0.00. A zero in the money column of a panel
+                      headed Outstanding reads as a bug, and the row is here for
+                      the tire rather than the money — saying so in the one cell
+                      somebody would otherwise query is cheaper than a footnote. */}
                   <td className="py-1.5 text-right tabular-nums font-semibold text-amber-900 w-24">
-                    {formatCents(o.balanceCents)}
+                    {o.balanceCents === 0 ? (
+                      <span className="font-medium text-amber-900/50">paid</span>
+                    ) : (
+                      formatCents(o.balanceCents)
+                    )}
                   </td>
                 </tr>
-              ))}
+                {showWhat && (
+                  <tr>
+                    <td />
+                    <td colSpan={6} className="pb-2 text-amber-900/70">
+                      {o.what || <span className="italic text-amber-900/40">nothing rung yet</span>}
+                      {/* Who did it, trailing the what. "Which of these is the
+                          205/55R16" is usually followed by "and who fitted it",
+                          and that second question was a click into the ticket.
+
+                          Quieter than the work itself — it is the answer to a
+                          follow-up, not the reason the row unfolded — but set in
+                          capitals, which is the one thing that gives a name a
+                          shape of its own without a second type size fighting
+                          the line it belongs to. */}
+                      {o.techs && (
+                        <span className="text-xs uppercase text-amber-900/45"> — {o.techs}</span>
+                      )}
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -559,7 +755,7 @@ export default function DayPage() {
           last minute. The summaries can wait; they are read once a day. */}
       <Card title="Last transactions" className="mb-6">
         {/* Fixed height on purpose: a busy Saturday runs to two hundred lines and
-            this is a dashboard, not the ledger. The full list lives on Entries. */}
+            this is a dashboard, not the ledger. The full list lives on Logs. */}
         <div className="overflow-y-auto mt-2" style={{ maxHeight: 340 }}>
           <table className="w-full text-sm">
             <thead className="sticky top-0" style={{ background: "#fff" }}>
@@ -572,8 +768,7 @@ export default function DayPage() {
               </tr>
             </thead>
             <tbody>
-              {data.recentLines.map((l, n) => {
-                const dead = l.voided || l.saleVoided;
+              {recentLines.map((l, n) => {
                 return (
                   <tr
                     key={`${l.saleId}-${n}`}
@@ -581,12 +776,11 @@ export default function DayPage() {
                     // Alternating light blue. This table is read across, at a
                     // glance, on a screen on a counter — five columns of small
                     // numbers with nothing to hold the eye is where a row gets
-                    // read as the one above it. The tint is kept very pale so
-                    // it separates the rows without competing with the voided
-                    // rows, which are the ones that have to stand out.
+                    // read as the one above it. Kept very pale because that is
+                    // all it is for: every row here is a live one, so the tint
+                    // separates them rather than marking any of them out.
                     style={{
                       background: n % 2 === 1 ? "rgba(10,37,64,0.035)" : undefined,
-                      opacity: dead ? 0.45 : undefined,
                     }}
                   >
                     <td className="py-2">
@@ -594,8 +788,13 @@ export default function DayPage() {
                         type="button"
                         className="text-left hover:underline"
                         onClick={() => setOpenSaleId(l.saleId)}
-                        style={dead ? { textDecoration: "line-through" } : undefined}
                       >
+                        {/* Written the same way the ticket drawer, the receipt
+                            and the new-sale list write it, because this panel is
+                            read against those and a count that appears in three
+                            places out of four is worse than one that appears in
+                            none. */}
+                        {l.qty > 1 ? `${l.qty}× ` : ""}
                         {l.description}
                       </button>
                     </td>
@@ -606,7 +805,7 @@ export default function DayPage() {
                   </tr>
                 );
               })}
-              {data.recentLines.length === 0 && (
+              {recentLines.length === 0 && (
                 <tr>
                   <td colSpan={5} className="py-8 text-center text-brand-300">
                     Nothing rung on this day.
@@ -629,138 +828,6 @@ export default function DayPage() {
           Nothing was lost with them. If the bars are wanted back, the numbers
           they drew are still on `lb.techs` (`incomePct`, `improvementPct`). */}
 
-      <Card title="This week" className="mb-6">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-brand-300 text-xs uppercase tracking-wider">
-                <th className="text-left py-2 font-medium" rowSpan={2}>
-                  Technician
-                </th>
-                <th
-                  className="py-2 font-medium border-l border-black/5"
-                  colSpan={3}
-                  title={`${shortDate(lb.range.start)} – ${shortDate(lb.range.end)}`}
-                >
-                  This week
-                  {lb.comparable.days < 7
-                    ? ` (${weekdaySpan(lb.range.start, lb.range.end)})`
-                    : ""}
-                </th>
-                {/* Naming the weekdays is not decoration. This column is the
-                    same days of last week, not all of it, and one headed
-                    plainly "Last week" beside a partial one is how somebody
-                    concludes the shop is collapsing every Thursday. */}
-                <th
-                  className="py-2 font-medium border-l border-black/5"
-                  colSpan={3}
-                  title={`${shortDate(lb.comparable.start)} – ${shortDate(lb.comparable.end)} — the same ${lb.comparable.days} day${lb.comparable.days === 1 ? "" : "s"} of last week, so the two halves cover equal trading`}
-                >
-                  Last week
-                  {lb.comparable.days < 7
-                    ? ` (${weekdaySpan(lb.comparable.start, lb.comparable.end)})`
-                    : ""}
-                </th>
-                <th className="py-2 font-medium border-l border-black/5" rowSpan={2}>
-                  Tips today
-                </th>
-                <th className="py-2 font-medium border-l border-black/5" rowSpan={2}>
-                  Mprvmt
-                </th>
-                <th
-                  className="py-2 font-medium border-l border-black/5"
-                  rowSpan={2}
-                  title={
-                    seesTechIncomeCash
-                      ? "Dollars when money is showing, share of the shop otherwise"
-                      : "Share of everything the shop took this week"
-                  }
-                >
-                  Income
-                </th>
-              </tr>
-              <tr className="text-brand-300 text-xs uppercase tracking-wider">
-                <th className="py-1 font-normal border-l border-black/5">New</th>
-                <th className="py-1 font-normal">Used</th>
-                <th className="py-1 font-normal">Other</th>
-                <th className="py-1 font-normal border-l border-black/5">New</th>
-                <th className="py-1 font-normal">Used</th>
-                <th className="py-1 font-normal">Other</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lb.techs.map((x) => (
-                <tr key={x.employeeId} className="border-t border-black/5">
-                  <td className="py-2 font-medium text-brand-500">{x.name}</td>
-                  <td className="py-2 text-center tabular-nums border-l border-black/5">
-                    {x.newTires || "—"}
-                  </td>
-                  <td className="py-2 text-center tabular-nums">{x.usedTires || "—"}</td>
-                  <td className="py-2 text-center tabular-nums">{x.otherCount || "—"}</td>
-                  <td className="py-2 text-center tabular-nums text-brand-300 border-l border-black/5">
-                    {x.prior.newTires || "—"}
-                  </td>
-                  <td className="py-2 text-center tabular-nums text-brand-300">
-                    {x.prior.usedTires || "—"}
-                  </td>
-                  <td className="py-2 text-center tabular-nums text-brand-300">
-                    {x.prior.otherCount || "—"}
-                  </td>
-                  <td className="py-2 text-center tabular-nums border-l border-black/5">
-                    {x.tipCentsToday ? money(x.tipCentsToday, tipPoolCents) : "—"}
-                  </td>
-                  <td className="py-2 text-center tabular-nums border-l border-black/5">
-                    <Swing pct={x.improvementPct} />
-                  </td>
-                  <td className="py-2 text-center tabular-nums border-l border-black/5">
-                    {techMoney(x.incomeCents, x.incomePct)}
-                  </td>
-                </tr>
-              ))}
-              {lb.techs.length === 0 && (
-                <tr>
-                  <td colSpan={10} className="py-8 text-center text-brand-300">
-                    Nobody has rung a line this week.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-            {lb.techs.length > 0 && (
-              <tfoot>
-                <tr className="border-t-2 border-black/10 font-medium">
-                  <td className="py-2">Shop</td>
-                  <td className="py-2 text-center tabular-nums border-l border-black/5">
-                    {lb.techs.reduce((s, x) => s + x.newTires, 0)}
-                  </td>
-                  <td className="py-2 text-center tabular-nums">
-                    {lb.techs.reduce((s, x) => s + x.usedTires, 0)}
-                  </td>
-                  <td className="py-2 text-center tabular-nums">
-                    {lb.techs.reduce((s, x) => s + x.otherCount, 0)}
-                  </td>
-                  <td className="py-2 text-center tabular-nums text-brand-300 border-l border-black/5">
-                    {lb.techs.reduce((s, x) => s + x.prior.newTires, 0)}
-                  </td>
-                  <td className="py-2 text-center tabular-nums text-brand-300">
-                    {lb.techs.reduce((s, x) => s + x.prior.usedTires, 0)}
-                  </td>
-                  <td className="py-2 text-center tabular-nums text-brand-300">
-                    {lb.techs.reduce((s, x) => s + x.prior.otherCount, 0)}
-                  </td>
-                  <td className="py-2 text-center tabular-nums border-l border-black/5">
-                    {tipPoolCents ? money(tipPoolCents) : "—"}
-                  </td>
-                  <td className="py-2 border-l border-black/5" />
-                  <td className="py-2 text-center tabular-nums border-l border-black/5">
-                    {techMoney(lb.totalIncomeCents, 100)}
-                  </td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
-      </Card>
-
       {/* "By payment method" and "By mechanic — today" used to sit here, and
           both were saying something the page already said better further up.
           The payment split is the close-out's job — that is the screen where a
@@ -773,17 +840,28 @@ export default function DayPage() {
 
           What is left is a dashboard that ends where the numbers end. */}
 
-      {/* The day's ticket table used to sit here. It moved to Entries, which
+      {/* The day's ticket table used to sit here. It moved to Logs, which
           lists every event rather than every ticket and can be filtered and
           sorted — this page is a dashboard, and a two-hundred-row table at the
           bottom of it pushed the numbers anybody actually came for off the top
           of the screen. */}
-      <Link
-        href="/pos/entries"
-        className="block text-center text-sm text-brand-400 underline hover:text-brand-500 mb-6"
-      >
-        Every entry of this day, line by line →
-      </Link>
+      {/* Two ways out of the dashboard, side by side at the foot of it.
+          Help sits here rather than in the tab bar on purpose. The tabs are the
+          working screens somebody moves between all day, and a manual is not
+          one of those — it is the thing you reach for at the moment the working
+          screen stopped making sense, which is this moment, at the bottom of
+          the page you were already on. */}
+      <div className="flex items-center justify-center gap-6 flex-wrap mb-6 text-sm">
+        <Link
+          href="/pos/entries"
+          className="text-brand-400 underline hover:text-brand-500"
+        >
+          Every entry of this day, line by line →
+        </Link>
+        <Link href="/help" className="text-brand-400 underline hover:text-brand-500">
+          Help
+        </Link>
+      </div>
 
       {openSaleId !== null && (
         <TicketDrawer
@@ -800,267 +878,33 @@ export default function DayPage() {
   );
 }
 
-type PodiumEntry = { employeeId: number; name: string; value: string; sub: string };
-
 /**
- * Top three on whatever the dropdowns are asking for.
+ * The disclosure arrow, drawn rather than typed.
  *
- * Deliberately renders even with nobody on it, unlike most empty states here:
- * the dropdowns live in this card, and a component that disappears when its
- * metric has no winners takes the only means of choosing a different metric
- * away with it.
+ * `▸` and `▾` are two different glyphs at two different optical weights that sit
+ * on the baseline differently, so a column of them jitters as rows open and the
+ * pair never quite look like the same arrow rotated. This is one shape turned
+ * ninety degrees, which is what the gesture actually is.
  */
-function Podium({
-  title,
-  span,
-  unit,
-  entries,
-  control,
-  showAll,
-  onToggleAll,
-}: {
-  title: string;
-  span: string;
-  unit: string;
-  /** Everybody who placed, best first — not pre-cut to three. */
-  entries: PodiumEntry[];
-  control: React.ReactNode;
-  showAll: boolean;
-  onToggleAll: () => void;
-}) {
-  const medals = [
-    { bg: "linear-gradient(160deg,#f7e08a,#d4af37)", fg: "#4a3803", h: 132, label: "1st" },
-    { bg: "linear-gradient(160deg,#e6ebf0,#a8b3bd)", fg: "#3a4149", h: 108, label: "2nd" },
-    { bg: "linear-gradient(160deg,#e0b48c,#c08457)", fg: "#4a2c12", h: 92, label: "3rd" },
-  ];
-  const top = entries.slice(0, 3);
-  // Second, first, third -- the winner stands in the middle.
-  const order = [1, 0, 2].filter((i) => i < top.length);
-  const rest = entries.slice(3);
-
-  return (
-    <div className="bg-white rounded-2xl shadow-sm p-4 mb-6">
-      <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
-        <div>
-          <div className="text-xs uppercase tracking-wider text-brand-300">{title}</div>
-          <div className="text-xs text-brand-300 opacity-70 mt-0.5">{span}</div>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Only offered when there is a fourth person to show. An eye that
-              opens nothing is a control that teaches people it does nothing. */}
-          {rest.length > 0 && (
-            <button
-              type="button"
-              onClick={onToggleAll}
-              title={
-                showAll
-                  ? "Back to the top three"
-                  : `Show all ${entries.length} who placed`
-              }
-              aria-label={showAll ? "Show the top three" : "Show everybody who placed"}
-              aria-pressed={showAll}
-              className="rounded-lg flex items-center justify-center"
-              style={{
-                height: 32,
-                width: 34,
-                border: "1px solid rgba(10,37,64,0.18)",
-                background: showAll ? "#0a2540" : "#fff",
-                color: showAll ? "#fff" : "rgba(10,37,64,0.55)",
-              }}
-            >
-              <EyeIcon open={showAll} />
-            </button>
-          )}
-          {control}
-        </div>
-      </div>
-      {entries.length === 0 ? (
-        <div className="py-8 text-center text-brand-300 text-sm">
-          Nobody has placed on this yet.
-        </div>
-      ) : (
-        <div className="flex items-end justify-center gap-4">
-          {order.map((i) => {
-            const e = top[i];
-            const m = medals[i];
-            return (
-              <div
-                key={e.employeeId}
-                className="flex flex-col items-center"
-                style={{ width: 170 }}
-              >
-                <div className="font-semibold text-brand-500 text-center">{e.name}</div>
-                <div className="text-xs text-brand-300 mb-2 text-center">{e.sub}</div>
-                <div
-                  className="w-full rounded-t-xl flex flex-col items-center justify-center"
-                  style={{ background: m.bg, color: m.fg, height: m.h }}
-                >
-                  <div className="text-3xl font-bold tabular-nums leading-none">{e.value}</div>
-                  <div className="text-[11px] uppercase tracking-wider mt-1 opacity-80">
-                    {m.label} · {unit}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Fourth downwards, as a list rather than more blocks.
-          Past third the question stops being "who won" and becomes "where am
-          I", and a list answers that in a way five diminishing coloured boxes
-          never could — the places are numbered, the figures line up in a
-          column, and it costs about as much height as one more block. */}
-      {showAll && rest.length > 0 && (
-        <div className="mt-5 pt-4" style={{ borderTop: "1px solid rgba(10,37,64,0.08)" }}>
-          <table className="w-full text-sm">
-            <tbody>
-              {rest.map((e, i) => (
-                <tr key={e.employeeId} className="border-t border-black/5">
-                  <td className="py-2 text-brand-300 tabular-nums" style={{ width: 44 }}>
-                    {i + 4}
-                  </td>
-                  <td className="py-2 font-medium text-brand-500">{e.name}</td>
-                  <td className="py-2 text-xs text-brand-300">{e.sub}</td>
-                  <td className="py-2 text-right tabular-nums font-semibold">
-                    {e.value}
-                    <span className="text-xs text-brand-300 font-normal"> {unit}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * The eye on the podium. Open when everybody is showing, struck through when
- * only the top three are — the slash is what makes the two states tell apart at
- * a glance, since an eye on its own reads as "look here" either way.
- */
-function EyeIcon({ open }: { open: boolean }) {
+function Caret({ open }: { open: boolean }) {
   return (
     <svg
-      width="18"
-      height="18"
+      width="11"
+      height="11"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
+      strokeWidth="3.5"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
-    >
-      <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z" />
-      <circle cx="12" cy="12" r="2.6" />
-      {!open && <path d="M4 20 20 4" />}
-    </svg>
-  );
-}
-
-/**
- * Waiting / Working on it / Ready for pickup — ONE pill, showing only the state
- * the ticket is actually in.
- *
- * This started as three pills side by side with the inactive two greyed out,
- * which is fine on a mockup with one row and awful on a real panel: eight
- * outstanding tickets meant twenty-four little boxes, twenty-one of which were
- * saying nothing. The noise drowned the column it was meant to explain, and a
- * panel whose job is "these are the tickets that need chasing" cannot afford to
- * be the loudest thing on the screen.
- *
- * So: what is true is shown, what is not is put away behind a click. The colour
- * carries the meaning at a distance — grey nobody has looked, amber under way,
- * green ready to hand back — and the words are there for anyone close enough to
- * read them.
- *
- * It is a native <select> deliberately, not a hand-rolled popover. A menu built
- * out of divs inside a scrolling table is a positioning bug waiting to happen,
- * and it has to reimplement click-outside, escape, and keyboard selection that
- * the browser already does correctly. The pill is the select; the chrome is
- * styled away.
- */
-/* The four pills now live in `@/lib/work-status`, because the close-out prints
-   them too and the board and the paper must not be able to drift apart. */
-
-function WorkStatusPicker({
-  saleId,
-  value,
-  canSet,
-  onChanged,
-}: {
-  saleId: number;
-  value: string | null;
-  canSet: boolean;
-  onChanged: () => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const on = WORK_PILLS.find((p) => p.value === value);
-
-  // Somebody who cannot ring a sale can still be looking at this screen, and
-  // where the car is is not a secret from them — they just do not get to move
-  // it. Show the state, drop the control. Nothing at all when nothing is set:
-  // a read-only dash is a column of dashes.
-  if (!canSet) {
-    if (!on) return null;
-    return (
-      <span
-        className="inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold leading-tight"
-        style={{ background: on.bg, color: on.fg }}
-      >
-        {on.label}
-      </span>
-    );
-  }
-
-  const set = async (next: string) => {
-    setBusy(true);
-    try {
-      await fetch(`/api/pos/sales/${saleId}/work-status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        // "" is how the blank option gets back to meaning null — nobody has
-        // said anything about this ticket, which is a real state and the one
-        // every ticket starts in.
-        body: JSON.stringify({ workStatus: next === "" ? null : next }),
-      });
-      onChanged();
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <select
-      value={value ?? ""}
-      disabled={busy}
-      title={on ? on.title : "Set where this car is"}
-      aria-label="Where this car is"
-      className="cursor-pointer rounded-full px-2 py-0.5 text-[11px] font-semibold leading-tight outline-none disabled:opacity-50"
       style={{
-        // Untouched tickets get a quiet outline rather than a filled pill.
-        // Present enough to be found, faint enough that a panel of eight
-        // untouched tickets does not look like it is trying to tell you
-        // something.
-        background: on ? on.bg : "transparent",
-        color: on ? on.fg : "rgba(120,53,15,0.45)",
-        border: `1px solid ${on ? on.border : "rgba(120,53,15,0.20)"}`,
-        // The browser's arrow doubles the width of a pill this small and adds
-        // a second thing to look at in every row.
-        appearance: "none",
+        transform: open ? "rotate(90deg)" : "none",
+        transition: "transform 120ms ease",
       }}
-      onChange={(e) => void set(e.target.value)}
     >
-      <option value="">Set status…</option>
-      {WORK_PILLS.map((p) => (
-        <option key={p.value} value={p.value}>
-          {p.title}
-        </option>
-      ))}
-    </select>
+      <path d="m9 5 7 7-7 7" />
+    </svg>
   );
 }
 

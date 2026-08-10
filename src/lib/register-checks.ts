@@ -16,6 +16,15 @@ export type RegisterCheckLine = {
   methodId: number;
   code: string;
   label: string;
+  /**
+   * Whether the counted figure came off a card terminal.
+   *
+   * Carried because the close-out reads a difference on a terminal-backed
+   * tender differently from one on a drawer: nothing can be taken out of a
+   * settled batch, so a gap there is the register having logged a payment the
+   * terminal never ran, not money gone. See the close-out's `shownVariance`.
+   */
+  isCard: number;
   countedCents: number;
   expectedCents: number;
   varianceCents: number;
@@ -60,7 +69,7 @@ const actorOf = (user: PosUser): Actor => ({
 function linesFor(checkId: number): RegisterCheckLine[] {
   return getDb()
     .prepare(
-      `SELECT c.method_id AS methodId, m.code, m.label,
+      `SELECT c.method_id AS methodId, m.code, m.label, m.is_card AS isCard,
               c.counted_cents AS countedCents, c.expected_cents AS expectedCents,
               c.counted_cents - c.expected_cents AS varianceCents
          FROM register_check_counts c
@@ -228,5 +237,33 @@ export function deleteRegisterCheck(
     });
 
     return { ok: true as const, check: getRegisterCheck(id)! };
+  });
+}
+
+/**
+ * The same masking the close-out applies, for a midday count.
+ *
+ * This matters more than the close-out does, and it is where the fraud it
+ * defends against actually happens: somebody counts the drawer at two in the
+ * afternoon, sees it is over, and the surplus goes in a pocket. With the cash
+ * line forced to balance there is never a surplus on screen to notice.
+ *
+ * The stored row is untouched. `counted_cents` and `expected_cents` were frozen
+ * when the count was taken and stay exactly as they were — this rewrites what is
+ * shown, not what happened, and the owner reads the originals.
+ */
+export function maskCashChecks(checks: RegisterCheck[]): RegisterCheck[] {
+  return checks.map((c) => {
+    const lines = c.lines.map((l) =>
+      l.isCard === 0 && l.code === "cash"
+        ? { ...l, expectedCents: l.countedCents, varianceCents: 0 }
+        : l,
+    );
+    return {
+      ...c,
+      lines,
+      varianceCents: lines.reduce((s, l) => s + l.varianceCents, 0),
+      balanced: lines.every((l) => l.varianceCents === 0),
+    };
   });
 }

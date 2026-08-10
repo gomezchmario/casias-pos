@@ -21,7 +21,10 @@ type Employee = {
 
 const ROLE_SUMMARY: Record<PosRole, string> = {
   technician: "Look things up. Cannot ring a sale or touch money.",
+  writer: "Writes tickets at the vehicle. Same register, no Logs or close-out.",
   cashier: "Runs the register: sells, takes payment, counts the drawer.",
+  accountant:
+    "Keeps the customer book and the house accounts. Register like a cashier.",
   manager: "Fixes mistakes and handles stock — voids, refunds, receiving.",
   owner: "Everything, including what the shop paid and payroll.",
 };

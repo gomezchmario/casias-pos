@@ -14,7 +14,11 @@ import {
   type InventoryCheck,
 } from "@/lib/inventory-alarm";
 import { formatCents, parseCents } from "@/lib/money";
-import type { QuickButton, QuickButtonKind } from "@/lib/quick-buttons";
+import type {
+  QuickButton,
+  QuickButtonKind,
+  ServiceCategory,
+} from "@/lib/quick-buttons";
 
 /**
  * Everything about the register that is set once and then left alone.
@@ -32,6 +36,7 @@ import type { QuickButton, QuickButtonKind } from "@/lib/quick-buttons";
 export default function SettingsPage() {
   const { can } = usePosAuth();
   const [buttons, setButtons] = useState<QuickButton[] | null>(null);
+  const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -39,6 +44,7 @@ export default function SettingsPage() {
   const [newLabel, setNewLabel] = useState("");
   const [newAmount, setNewAmount] = useState("");
   const [newDesc, setNewDesc] = useState("");
+  const [newCat, setNewCat] = useState<string>("");
 
   const canButtons = can("manageQuickButtons");
 
@@ -49,8 +55,9 @@ export default function SettingsPage() {
       setError("Could not load the buttons");
       return;
     }
-    const d: { buttons: QuickButton[] } = await res.json();
+    const d: { buttons: QuickButton[]; categories: ServiceCategory[] } = await res.json();
     setButtons(d.buttons);
+    setCategories(d.categories ?? []);
   }, [canButtons]);
 
   useEffect(() => {
@@ -95,6 +102,7 @@ export default function SettingsPage() {
         kind: newKind,
         amountCents,
         description: newKind === "service" ? newDesc : null,
+        categoryId: newKind === "service" && newCat ? Number(newCat) : null,
       }),
     });
     const d = await res.json().catch(() => ({}));
@@ -106,6 +114,7 @@ export default function SettingsPage() {
     setNewLabel("");
     setNewAmount("");
     setNewDesc("");
+    setNewCat("");
     await load();
   }
 
@@ -150,11 +159,22 @@ export default function SettingsPage() {
         <>
       <div className="bg-white rounded-2xl shadow-sm p-4 mb-6">
         <div className="text-xs uppercase tracking-wider text-brand-300 mb-1">Register buttons</div>
+        {/* The sentence about counting is here rather than beside the dropdown
+            because it is the thing nobody knew. A button was once relabelled
+            from NEW TIRE to AIR and went on booking new tires for a day — the
+            label is what the counter reads, the category is what the reports
+            read, and until this field existed there was no way to see that they
+            had come apart. */}
         <p className="text-sm text-brand-400 mb-3">
           What the register shows. Retiring a button hides it without touching the
-          tickets it has already rung.
+          tickets it has already rung. <strong>Counts as</strong> is what the
+          leaderboard and the close-out add it up under — it is not the label, and
+          renaming a button does not change it.
         </p>
-        <div className="grid gap-3" style={{ gridTemplateColumns: "130px 1fr 130px auto" }}>
+        <div
+          className="grid gap-3"
+          style={{ gridTemplateColumns: "130px 1fr 130px 150px auto" }}
+        >
           <select
             className="input"
             value={newKind}
@@ -185,6 +205,23 @@ export default function SettingsPage() {
               onChange={(e) => setNewDesc(e.target.value)}
             />
           )}
+          {newKind === "service" ? (
+            <select
+              className="input"
+              value={newCat}
+              onChange={(e) => setNewCat(e.target.value)}
+              aria-label="Counts as"
+            >
+              <option value="">Counts as…</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div />
+          )}
           <button type="button" className="btn btn-primary" onClick={create} disabled={busy}>
             Add
           </button>
@@ -196,6 +233,7 @@ export default function SettingsPage() {
           <Row
             key={b.id}
             button={b}
+            categories={categories}
             busy={busy}
             onSave={(body) => void patch(b.id, body)}
             onMove={(d) => move(amounts, i, d)}
@@ -208,6 +246,7 @@ export default function SettingsPage() {
           <Row
             key={b.id}
             button={b}
+            categories={categories}
             busy={busy}
             onSave={(body) => void patch(b.id, body)}
             onMove={(d) => move(services, i, d)}
@@ -427,11 +466,13 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Row({
   button,
+  categories,
   busy,
   onSave,
   onMove,
 }: {
   button: QuickButton;
+  categories: ServiceCategory[];
   busy: boolean;
   onSave: (body: Record<string, unknown>) => void;
   onMove: (delta: number) => void;
@@ -441,11 +482,13 @@ function Row({
     button.amount_cents === null ? "" : (button.amount_cents / 100).toFixed(2),
   );
   const [desc, setDesc] = useState(button.description ?? "");
+  const [cat, setCat] = useState(button.category_id === null ? "" : String(button.category_id));
   const retired = button.active === 0;
 
   const dirty =
     label !== button.label ||
     desc !== (button.description ?? "") ||
+    cat !== (button.category_id === null ? "" : String(button.category_id)) ||
     parseCents(amount) !== button.amount_cents;
 
   function save() {
@@ -456,6 +499,7 @@ function Row({
       body.amountCents = cents;
     } else {
       body.description = desc;
+      body.categoryId = cat === "" ? null : Number(cat);
     }
     onSave(body);
   }
@@ -463,7 +507,10 @@ function Row({
   return (
     <div
       className="py-2 grid items-center gap-2"
-      style={{ gridTemplateColumns: "1fr 1fr 110px auto auto", opacity: retired ? 0.5 : 1 }}
+      style={{
+        gridTemplateColumns: "1fr 1fr 110px 150px auto auto",
+        opacity: retired ? 0.5 : 1,
+      }}
     >
       <input
         className="input"
@@ -494,6 +541,27 @@ function Row({
         />
       ) : (
         <div />
+      )}
+      {/* Blank is allowed and is not the same as Other: an uncategorised line
+          falls into the Other column of every report anyway, so forcing a
+          choice here would only invite a wrong one. What must never happen
+          again is a category nobody can see. */}
+      {button.kind === "amount" ? (
+        <div />
+      ) : (
+        <select
+          className="input"
+          value={cat}
+          onChange={(e) => setCat(e.target.value)}
+          aria-label={`What ${button.label} counts as`}
+        >
+          <option value="">Not counted</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label}
+            </option>
+          ))}
+        </select>
       )}
       <div className="flex gap-1">
         <button

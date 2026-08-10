@@ -1,0 +1,121 @@
+/* The month's accounts. Screen is an ordinary POS page; print is a letter-size
+   sheet that gets filed with the month's paperwork, so the controls drop away
+   and what is left is the two tables and a letterhead. */
+
+.am-print-head {
+  display: none;
+}
+
+.am-note {
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  color: #78350f;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+@media print {
+  /* The shell, undone — the same rule the close-out and the customer book both
+     need, and for the same reason: the POS wrapper is a full-height flex column
+     on a grey field, and a flex container that has to fragment across printed
+     pages paginates badly. Undoing the background without undoing the `display`
+     leaves a shell that no longer looks like one and still lays out like one. */
+  html,
+  body,
+  body > div,
+  main {
+    background: #fff !important;
+    display: block !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  header,
+  nav {
+    display: none !important;
+  }
+
+  .am {
+    max-width: none;
+    width: 100%;
+    color: #111;
+    font-size: 10pt;
+    line-height: 1.35;
+  }
+
+  .am-hide-on-print {
+    display: none !important;
+  }
+
+  .am-print-head {
+    display: flex;
+    align-items: center;
+    gap: 4mm;
+    border-bottom: 1px solid #111;
+    padding-bottom: 2.5mm;
+    margin-bottom: 4mm;
+  }
+
+  /* On paper a table is not a component. The card fill, the shadow and the
+     radius go; a rule under each block is enough to separate them. */
+  .am-block {
+    box-shadow: none !important;
+    border-radius: 0;
+    padding: 0;
+    margin-bottom: 6mm;
+    break-inside: auto;
+  }
+
+  .am-table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  /* Vertical padding only. Zeroing the horizontal padding here is what put a
+     right-aligned figure hard against the next column on the close-out, and
+     these tables are five columns of money. */
+  .am-table th,
+  .am-table td {
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
+
+  /* The zebra is an inline background, which Chrome drops on paper by default
+     — and without it a five-column money table is very hard to read across. */
+  .am-table tr {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* A row must not be split across a page break; the foot must not be orphaned
+     from the rows it totals. */
+  .am-table tr {
+    break-inside: avoid;
+  }
+
+  .am-table tfoot {
+    break-before: avoid;
+  }
+
+  .am-summary {
+    font-size: 10pt;
+    color: #111;
+  }
+
+  .am-note {
+    border: 1px solid #111;
+    background: transparent;
+    color: #111;
+    border-radius: 0;
+    font-size: 9pt;
+    break-inside: avoid;
+  }
+
+  @page {
+    size: letter;
+    margin: 16mm;
+  }
+}

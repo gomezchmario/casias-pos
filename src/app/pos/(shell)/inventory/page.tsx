@@ -5,6 +5,7 @@ import { usePosAuth } from "@/components/pos/PosShell";
 import { ProductSearch, type FoundProduct } from "@/components/pos/ProductSearch";
 import { BackToTop } from "@/components/ui/BackToTop";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { ShopLogo } from "@/components/ui/ShopLogo";
 import { Modal } from "@/components/ui/Modal";
 import { TireQuote, type QuoteDefaults } from "@/components/pos/TireQuote";
 import {
@@ -16,7 +17,8 @@ import {
   type InventoryCheck,
 } from "@/lib/inventory-alarm";
 import { formatCents, parseCents } from "@/lib/money";
-import { looksSpecialized } from "@/lib/tire-size";
+import { looksSpecialized, sizeMatches } from "@/lib/tire-size";
+import { quoteTire } from "@/lib/tire-quote";
 import "./inventory.css";
 
 type Tire = {
@@ -40,6 +42,8 @@ type Tire = {
   cost_code: string | null;
   reorder_point: number;
   supplier: string | null;
+  /** Priced under cost on purpose — see 020_discount_flag.sql. */
+  discounted: number;
   on_hand: number;
 };
 
@@ -48,6 +52,8 @@ type SizeGroup = {
   newTires: Tire[];
   usedCount: number;
   usedProductId: number | null;
+  /** The used row itself — Count and Remove need the product, not its id. */
+  usedProduct: Tire | null;
   total: number;
 };
 
@@ -81,10 +87,19 @@ type LowStockFlag = {
 type Data = {
   sections: RimSection[];
   batteries: Tire[];
+  misc: Tire[];
   lastCheck: InventoryCheck;
   showCosts: boolean;
   /** Worst first, and including rows the sheet is currently hiding. */
   lowStock: LowStockFlag[];
+  /** Below zero — deepest first. Its own list; see `listNegativeStock`. */
+  negativeStock: {
+    productId: number;
+    name: string;
+    size: string | null;
+    onHand: number;
+    condition: string;
+  }[];
   integrityIssues: { lotId: number; lotNo: string; issue: string }[];
   /** Null for anyone below manager — the server does not send it at all. */
   pricing: { noPrice: PricingFlag[]; belowCost: PricingFlag[] } | null;
@@ -112,6 +127,9 @@ export default function InventoryPage() {
   const [pricingOpen, setPricingOpen] = useState(false);
   const [lowOpen, setLowOpen] = useState(false);
   const [quoting, setQuoting] = useState(false);
+  // The row somebody is about to remove, held so the confirm can name it.
+  const [removing, setRemoving] = useState<Tire | null>(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/pos/inventory?all=${showEmpty ? "1" : "0"}`);
@@ -125,6 +143,34 @@ export default function InventoryPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /**
+   * Take a product off the list.
+   *
+   * Soft, like everything else here: the row keeps its history and every ticket
+   * it ever sold still reads correctly, it simply stops appearing on the racks
+   * and in search. The reason is not optional and goes into the audit row —
+   * "removed by the owner" answers nothing six months later, and the question
+   * this gets asked with is always "where did that size go".
+   */
+  async function removeProduct(p: Tire) {
+    if (removeBusy) return;
+    setRemoveBusy(true);
+    setError(null);
+    const reason = `Removed from the stock list by ${user.name}`;
+    const res = await fetch(
+      `/api/pos/products/${p.id}?reason=${encodeURIComponent(reason)}`,
+      { method: "DELETE" },
+    );
+    const d = await res.json().catch(() => ({}));
+    setRemoveBusy(false);
+    setRemoving(null);
+    if (!res.ok) {
+      setError(d.error || "Could not remove that product");
+      return;
+    }
+    await load();
+  }
 
   // Stamped on the printout so a sheet found on a bench next week is not
   // mistaken for today's counts.
@@ -143,7 +189,7 @@ export default function InventoryPage() {
         ...s,
         groups: s.groups.filter(
           (g) =>
-            g.size.toLowerCase().includes(q) ||
+            sizeMatches(g.size, q) ||
             g.newTires.some((t) =>
               [t.name, t.brand, t.model, t.sku].some((v) => v?.toLowerCase().includes(q)),
             ),
@@ -157,6 +203,13 @@ export default function InventoryPage() {
     const q = query.trim().toLowerCase();
     if (!q) return data.batteries;
     return data.batteries.filter((b) => b.name.toLowerCase().includes(q));
+  }, [data, query]);
+
+  const misc = useMemo(() => {
+    if (!data) return [];
+    const q = query.trim().toLowerCase();
+    if (!q) return data.misc;
+    return data.misc.filter((b) => b.name.toLowerCase().includes(q));
   }, [data, query]);
 
   // Confirmed, because this button is a claim about the physical world: that
@@ -250,10 +303,18 @@ export default function InventoryPage() {
       </div>
 
       {/* The screen has a header; the printout needs its own. */}
-      <div className="print-only mb-3">
-        <div style={{ fontWeight: 700, fontSize: "13pt" }}>Casias Tire Shop — Inventory</div>
-        <div style={{ fontSize: "9pt" }}>
-          {printedAt} · {totals.sizes} sizes · {totals.newCount} new · {totals.usedCount} used
+      <div className="print-only inv-sheet-head mb-3">
+        {/* `priority`, and it is load-bearing rather than a speed tweak. This
+            block is `display: none` until somebody prints, and an element that
+            never displays never intersects the viewport — so a lazily-loaded
+            badge would sit un-fetched all day and come off the printer as a gap
+            where the letterhead should be. Same reasoning as the close-out. */}
+        <ShopLogo size={44} priority />
+        <div>
+          <div style={{ fontWeight: 700, fontSize: "13pt" }}>Casias Tire Shop — Inventory</div>
+          <div style={{ fontSize: "9pt" }}>
+            {printedAt} · {totals.sizes} sizes · {totals.newCount} new · {totals.usedCount} used
+          </div>
         </div>
       </div>
 
@@ -360,6 +421,50 @@ export default function InventoryPage() {
         printout is a counting sheet, and what to reorder is a decision taken
         afterwards, sitting down, from the count that sheet comes back with.
       */}
+      {/*
+        Below zero, above everything.
+
+        First panel on the page and never collapsed, which is the difference
+        between this and Running low underneath it. Low stock is a purchasing
+        decision taken later, sitting down; below zero is a statement that the
+        ledger and the racks disagree RIGHT NOW, and every minute it stands the
+        register is quoting from a number that is not true.
+
+        It prints, unlike the panels below it. Those are decisions made off the
+        sheet; this one is an instruction to whoever is holding it — count these
+        first, because everything else on the page is only as trustworthy as the
+        worst row on it.
+      */}
+      {data && data.negativeStock.length > 0 && (
+        <div className="mb-4 rounded-lg border-2 border-red-500 bg-red-50 px-3 py-2 text-sm">
+          <div className="font-semibold text-red-900">
+            {data.negativeStock.length === 1
+              ? "1 tire is below zero"
+              : `${data.negativeStock.length} tires are below zero`}
+            <span className="font-normal text-red-700">
+              {" "}
+              · the racks and the ledger disagree
+            </span>
+          </div>
+          <ul className="mt-1 list-disc pl-5 text-red-800">
+            {data.negativeStock.map((p) => (
+              <li key={p.productId}>
+                {p.name}
+                {p.condition === "used" && p.size ? ` (used ${p.size})` : ""} —{" "}
+                {/* Said as a debt, the same way Running low says it: "-2 on
+                    hand" is a fact about a column, "2 owed to customers" is a
+                    fact about the shop. */}
+                <strong>{-p.onHand} owed to customers</strong>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-red-700">
+            Either the count is wrong, stock arrived and was never received, or
+            some went missing. Count these before trusting anything else here.
+          </p>
+        </div>
+      )}
+
       {data && data.lowStock.length > 0 && (
         <div className="mb-4 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm no-print">
           <button
@@ -546,7 +651,29 @@ export default function InventoryPage() {
               <table className="inv-table w-full text-sm">
                 <tbody>
                   {g.newTires.map((t) => (
-                    <tr key={t.id} className="border-t border-black/5">
+                    /* Banded, and two states that beat the band.
+                       Green says the shop meant this price even though it is
+                       under cost — see the Discount pill. Red says the register
+                       does not know what to charge for a tire that is on the
+                       rack, which is the one pricing fault that surfaces at the
+                       counter with a customer waiting. */
+                    <tr
+                      key={t.id}
+                      /* Below zero outranks both of the others. A tire with no
+                         price is a question at the counter; a tire at minus
+                         four is stock the shop does not have and has already
+                         sold, and if one row on the sheet is going to be the
+                         loud one it is that. */
+                      className={`inv-row border-t border-black/5${
+                        t.on_hand < 0
+                          ? " inv-row-warn"
+                          : t.price_cents === 0 && t.on_hand > 0
+                            ? " inv-row-warn"
+                            : t.discounted
+                              ? " inv-row-discount"
+                              : ""
+                      }`}
+                    >
                       <td className="inv-c-name py-1">
                         <span className="inv-tire-name text-brand-500">
                           {[t.brand, t.model].filter(Boolean).join(" ") || t.name}
@@ -582,8 +709,45 @@ export default function InventoryPage() {
                             invisible. Boxed, it is a badge the eye finds while
                             scrolling past, which is the only way anybody ever
                             actually reads it. */}
-                        {t.reorder_point > 0 && t.on_hand <= t.reorder_point && (
-                          <span className="inv-pill-low no-print">low</span>
+                        {/* Below zero replaces "low" rather than sitting beside
+                            it. Both would be true and only one is worth reading:
+                            "low" says order more, and ordering more is not the
+                            answer to a count that is already wrong. */}
+                        {t.on_hand < 0 ? (
+                          <span className="inv-pill-owed" title="Sold more than the racks had">
+                            {-t.on_hand} owed
+                          </span>
+                        ) : (
+                          t.reorder_point > 0 &&
+                          t.on_hand <= t.reorder_point && (
+                            <span className="inv-pill-low no-print">low</span>
+                          )
+                        )}
+                        {/* One or the other, never both. A tire with no price
+                            has nothing to discount, and saying it is on offer
+                            would be the wrong answer to the more urgent
+                            question. */}
+                        {t.price_cents === 0 && t.on_hand > 0 ? (
+                          <span
+                            className="inv-pill-warn no-print"
+                            title="On the rack with no price — the register does not know what to charge"
+                          >
+                            Warning
+                          </span>
+                        ) : (
+                          t.discounted === 1 && (
+                            /* Prints, unlike the low-stock pill beside it.
+                               "Low" is a reordering decision made sitting down
+                               at the screen; a discount is a fact about the
+                               price, and this sheet is what gets carried to the
+                               racks and quoted from. */
+                            <span
+                              className="inv-pill-discount"
+                              title="Priced this way on purpose — kept out of the below-cost review"
+                            >
+                              Discount!
+                            </span>
+                          )
                         )}
                       </td>
                       <td className="inv-c-price py-1 text-right tabular-nums text-brand-400 w-20">
@@ -600,6 +764,10 @@ export default function InventoryPage() {
                         <span className="inv-count-box">&nbsp;</span>
                       </td>
                       <td className="py-1 text-right w-32 no-print whitespace-nowrap">
+                        {/* The discount switch is not here. It lives in Edit,
+                            beside the price it is a statement about — a control
+                            on the row would sit next to a count and read as
+                            something to do with stock. */}
                         {can("manageProducts") && (
                           <button
                             type="button"
@@ -618,6 +786,15 @@ export default function InventoryPage() {
                             Count
                           </button>
                         )}
+                        {can("deleteProduct") && (
+                          <button
+                            type="button"
+                            className="text-xs text-red-600 hover:text-red-800 underline ml-3"
+                            onClick={() => setRemoving(t)}
+                          >
+                            Remove
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -630,8 +807,18 @@ export default function InventoryPage() {
               line: how many. Rendered only when there is at least one, because
               a sheet padded with "Used: 0" is a sheet people learn to skim.
             */}
-            {g.usedCount !== 0 && (
-              <div className="flex items-center justify-between text-sm border-t border-black/5 pt-1 mt-1">
+            {(g.usedCount !== 0 || g.usedProduct) && (
+              <div
+                className={`flex items-center justify-between text-sm border-t border-black/5 pt-1 mt-1${
+                  /* At zero the line exists for the buttons and nothing else, so
+                     it stays off the printed sheet — see above for why "Used: 0"
+                     must not print. It has to exist SOMEWHERE though: a used
+                     size keyed wrong has no stock by definition, so hiding the
+                     empty ones was hiding exactly the rows that needed removing,
+                     and the only way to reach one was through the database. */
+                  g.usedCount === 0 ? " no-print" : ""
+                }`}
+              >
                 <span className="text-brand-400">Used</span>
                 <span className="flex items-center gap-3">
                   <span
@@ -649,6 +836,26 @@ export default function InventoryPage() {
                       onClick={() => setSheet({ mode: "receive", size: g.size, used: true })}
                     >
                       Add
+                    </button>
+                  )}
+                  {g.usedProduct && can("adjustInventory") && (
+                    <button
+                      type="button"
+                      className="text-xs text-brand-400 hover:text-brand-500 underline no-print"
+                      onClick={() =>
+                        setSheet({ mode: "count", product: g.usedProduct!, size: g.size })
+                      }
+                    >
+                      Count
+                    </button>
+                  )}
+                  {g.usedProduct && can("deleteProduct") && (
+                    <button
+                      type="button"
+                      className="text-xs text-red-600 hover:text-red-800 underline no-print"
+                      onClick={() => setRemoving(g.usedProduct)}
+                    >
+                      Remove
                     </button>
                   )}
                 </span>
@@ -726,6 +933,15 @@ export default function InventoryPage() {
                           Count
                         </button>
                       )}
+                      {can("deleteProduct") && (
+                        <button
+                          type="button"
+                          className="text-xs text-red-600 hover:text-red-800 underline ml-3"
+                          onClick={() => setRemoving(b)}
+                        >
+                          Remove
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -735,7 +951,86 @@ export default function InventoryPage() {
         </div>
       )}
 
-      {data && totals.sizes === 0 && batteries.length === 0 && (
+      {/*
+        Miscellaneous, after the batteries and for the same reason they are not
+        tires: a TPMS sensor has no rim and belongs on no rack. This is the
+        shelf for everything that is stock but is neither.
+
+        No name mangling, unlike the battery rows. "BATTERY LARGE" repeats a
+        heading that already says Batteries; "TPMS SENSOR AUTEL MX-SENSOR" says
+        three things the heading does not.
+      */}
+      {misc.length > 0 && (
+        <div className="inv-section">
+          <div className="inv-rim flex items-baseline gap-3 mt-5 mb-2">
+            <h2 className="text-xl font-bold text-brand-500">Miscellaneous</h2>
+            <span className="text-xs text-brand-300">
+              {misc.reduce((s, b) => s + b.on_hand, 0)} on hand
+            </span>
+          </div>
+
+          <section className="inv-group bg-white rounded-xl shadow-sm p-4 mb-3">
+            <table className="inv-table w-full text-sm">
+              <tbody>
+                {misc.map((b) => (
+                  <tr key={b.id} className="border-t border-black/5 first:border-t-0">
+                    <td className="inv-c-name py-1">
+                      <span className="inv-tire-name text-brand-500">{b.name}</span>
+                      {b.reorder_point > 0 && b.on_hand <= b.reorder_point && (
+                        <span className="inv-pill-low no-print">low</span>
+                      )}
+                    </td>
+                    <td className="inv-c-price py-1 text-right tabular-nums text-brand-400 w-20">
+                      {formatCents(b.price_cents)}
+                    </td>
+                    <td
+                      className={`inv-c-qty py-1 text-right tabular-nums w-12 font-semibold ${
+                        b.on_hand < 0 ? "text-red-700" : "text-brand-500"
+                      }`}
+                    >
+                      {b.on_hand}
+                    </td>
+                    <td className="inv-c-note py-1 text-right w-8 print-only">
+                      <span className="inv-count-box">&nbsp;</span>
+                    </td>
+                    <td className="py-1 text-right w-32 no-print whitespace-nowrap">
+                      {can("manageProducts") && (
+                        <button
+                          type="button"
+                          className="text-xs text-brand-400 hover:text-brand-500 underline"
+                          onClick={() => setSheet({ mode: "edit", product: b, size: b.name })}
+                        >
+                          Edit
+                        </button>
+                      )}
+                      {can("adjustInventory") && (
+                        <button
+                          type="button"
+                          className="text-xs text-brand-400 hover:text-brand-500 underline ml-3"
+                          onClick={() => setSheet({ mode: "count", product: b, size: b.name })}
+                        >
+                          Count
+                        </button>
+                      )}
+                      {can("deleteProduct") && (
+                        <button
+                          type="button"
+                          className="text-xs text-red-600 hover:text-red-800 underline ml-3"
+                          onClick={() => setRemoving(b)}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        </div>
+      )}
+
+      {data && totals.sizes === 0 && batteries.length === 0 && misc.length === 0 && (
         <div className="bg-white rounded-xl shadow-sm p-8 text-center text-brand-300">
           {query
             ? `Nothing on the racks matches "${query}".`
@@ -749,6 +1044,7 @@ export default function InventoryPage() {
         <ReceiveModal
           initialSize={sheet.size}
           usedOnly={sheet.used}
+          quoteDefaults={data?.quoteDefaults ?? null}
           onClose={() => setSheet(null)}
           onSaved={() => {
             setSheet(null);
@@ -779,6 +1075,37 @@ export default function InventoryPage() {
           }}
         />
       )}
+
+      <ConfirmModal
+        open={removing !== null}
+        onCancel={() => setRemoving(null)}
+        onConfirm={() => removing && void removeProduct(removing)}
+        busy={removeBusy}
+        title="Remove this from the list?"
+        confirmLabel="Yes, remove it"
+        cancelLabel="Keep it"
+        acknowledge="I know this takes it off every rack view and every search"
+        danger
+      >
+        <p>
+          <strong className="text-brand-500">{removing?.name}</strong> stops appearing on
+          the stock sheet, in the racks and in the counter search.
+        </p>
+        {/* Said plainly, because the word "remove" reads as "destroy" and the
+            fear of that is what leaves wrong rows on the board for months. */}
+        <p className="mt-2">
+          Nothing that already happened changes. Every ticket that sold it still
+          reads the same, and the movements stay in the ledger — this only takes
+          it off the list of things you can sell from now on.
+        </p>
+        {(removing?.on_hand ?? 0) !== 0 && (
+          <p className="mt-2 text-red-700">
+            <strong>It still has {removing?.on_hand} on hand.</strong> Removing it
+            leaves that stock counted nowhere. Count it down to zero first unless
+            the row itself is the mistake.
+          </p>
+        )}
+      </ConfirmModal>
 
       <ConfirmModal
         open={confirmingCheck}
@@ -825,11 +1152,15 @@ export default function InventoryPage() {
 function ReceiveModal({
   initialSize,
   usedOnly,
+  quoteDefaults,
   onClose,
   onSaved,
 }: {
   initialSize?: string;
   usedOnly?: boolean;
+  /** The shop's posted markup and labour rate, for the suggested price under
+   *  Sells at. Null for a role that cannot quote — the note simply goes. */
+  quoteDefaults: QuoteDefaults | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -861,6 +1192,24 @@ function ReceiveModal({
   const [newModel, setNewModel] = useState("");
   const [newSize, setNewSize] = useState("");
   const [newPrice, setNewPrice] = useState("");
+
+  /**
+   * What the shop's own quoter would charge for the cost typed above.
+   *
+   * The same `quoteTire` the phone quoter runs, so the two can never give
+   * different answers for the same cost — which they would within a week if
+   * this re-derived the chain itself. Freight is passed as zero on purpose; the
+   * note beside it says so.
+   *
+   * Null when there is nothing to say: no cost typed, or a role that cannot
+   * quote and therefore has never been shown the shop's markup.
+   */
+  const suggestedSell = useMemo(() => {
+    if (!quoteDefaults) return null;
+    const costCents = parseCents(cost);
+    if (costCents === null || costCents <= 0) return null;
+    return quoteTire({ costCents, freightCents: 0, ...quoteDefaults }).sellCents;
+  }, [cost, quoteDefaults]);
 
   async function submit() {
     setError(null);
@@ -1100,13 +1449,18 @@ function ReceiveModal({
                       placeholder="195-65-15"
                     />
                   </label>
+                  {/* Cost sits here, where Sells at used to, because that is
+                      the order the invoice gives them: the delivery note says
+                      what it cost, and what to sell it at is a decision made
+                      afterwards — helped by the suggestion under Sells at
+                      further down, which needs this number to exist first. */}
                   <label className="text-sm text-brand-400 flex-1">
-                    Sells at
+                    Cost each
                     <input
                       className="input mt-1 w-full tabular-nums"
-                      value={newPrice}
-                      onChange={(e) => setNewPrice(e.target.value)}
-                      placeholder="100.00"
+                      value={cost}
+                      onChange={(e) => setCost(e.target.value)}
+                      placeholder="40.00"
                       inputMode="decimal"
                     />
                   </label>
@@ -1177,16 +1531,54 @@ function ReceiveModal({
               </label>
             )}
 
-            <label className="text-sm text-brand-400">
-              Cost each
-              <input
-                className="input mt-1 w-full tabular-nums"
-                value={cost}
-                onChange={(e) => setCost(e.target.value)}
-                placeholder="40.00"
-                inputMode="decimal"
-              />
-            </label>
+            {/* Cost moved up into the Size row while a tire is being created —
+                see the note there. Down here it is only for the ordinary path,
+                where the tire already exists and there is no price to decide. */}
+            {!adding && (
+              <label className="text-sm text-brand-400">
+                Cost each
+                <input
+                  className="input mt-1 w-full tabular-nums"
+                  value={cost}
+                  onChange={(e) => setCost(e.target.value)}
+                  placeholder="40.00"
+                  inputMode="decimal"
+                />
+              </label>
+            )}
+
+            {adding && (
+              <label className="text-sm text-brand-400">
+                Sells at
+                <input
+                  className="input mt-1 w-full tabular-nums"
+                  value={newPrice}
+                  onChange={(e) => setNewPrice(e.target.value)}
+                  placeholder="100.00"
+                  inputMode="decimal"
+                />
+                {/* What the quoter would have said, off the cost typed above.
+                    Not filled in automatically and not enforced: this is a new
+                    tire nobody has priced before, and the number the shop wants
+                    is often not the formula's — a slow size carries more, a
+                    price-matched one carries less. Shown so that decision is
+                    made against the posted markup rather than in the dark.
+
+                    Freight is deliberately left out. The quoter takes it
+                    because a phone quote is usually for something being ordered
+                    in specially; a tire being received has already arrived, its
+                    freight was on the invoice as a whole and not per tire, and
+                    guessing a share of it here would put a number on screen
+                    that no document backs up. */}
+                {suggestedSell !== null && (
+                  <span className="block text-xs text-brand-300 mt-1">
+                    Priced the shop&apos;s way this would be{" "}
+                    <strong className="text-brand-400">{formatCents(suggestedSell)}</strong>
+                    <span className="text-brand-200"> · freight not counted</span>
+                  </span>
+                )}
+              </label>
+            )}
             <div className="flex gap-3">
               <label className="text-sm text-brand-400 flex-1">
                 Supplier
@@ -1359,6 +1751,7 @@ function EditModal({
   );
   const [supplier, setSupplier] = useState(product.supplier ?? "");
   const [reorder, setReorder] = useState(String(product.reorder_point ?? 0));
+  const [discounted, setDiscounted] = useState(product.discounted === 1);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -1399,6 +1792,7 @@ function EditModal({
             }),
         priceCents,
         reorderPoint: parseInt(reorder, 10) || 0,
+        discounted,
         // Omitted entirely rather than sent as null: the route treats the key
         // being present at all as an attempt to write a cost, and refuses it
         // from anyone who cannot read one.
@@ -1528,8 +1922,42 @@ function EditModal({
         {belowCost && (
           <p className="text-sm text-amber-800">
             That is below cost — {formatCents(costCents!)} in, {formatCents(priceCents!)} out.
-            Fine if you mean it.
           </p>
+        )}
+
+        {/*
+          The answer to the warning above, directly under it.
+
+          The warning states the fact and stops there; this is where somebody
+          says the fact is intended.
+          The review list at the top of the inventory page names every tire
+          priced under cost, and most of them really are mistakes; the handful
+          that are not make the list the same rows every week until people stop
+          reading it, and then the real mistake goes past with them.
+
+          Offered on any tire, not only the ones under cost. That is the "force"
+          half: a tire on a clearance price that happens to still be above cost
+          is still a discount the counter should see, and the switch says so.
+
+          Not on batteries and the like — `simple` — because a shelf item at a
+          fixed price is not something anybody haggles over or clears out.
+        */}
+        {!simple && (
+          <label className="flex items-start gap-2 text-sm text-brand-400">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={discounted}
+              onChange={(e) => setDiscounted(e.target.checked)}
+            />
+            <span>
+              This price is a discount
+              <span className="block text-xs text-brand-300">
+                Marks it <strong>Discount!</strong> on the sheet in green
+                {belowCost && ", and keeps it out of the below-cost review."}
+              </span>
+            </span>
+          </label>
         )}
 
         <div className="grid grid-cols-2 gap-3">

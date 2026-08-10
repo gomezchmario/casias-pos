@@ -1,0 +1,1358 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
+import { usePosAuth } from "@/components/pos/PosShell";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { ShopLogo } from "@/components/ui/ShopLogo";
+import { formatCents, parseCents } from "@/lib/money";
+import "./customers.css";
+
+/**
+ * The customer book.
+ *
+ * The register has always been able to FIND a customer — that is what the
+ * type-ahead on a ticket does — and has never been able to show you one. So
+ * "when was he last in", "what did we put on it", and "does he still owe us"
+ * were questions answered by remembering, or by not answering them.
+ *
+ * Two panes rather than two pages. The question is nearly always asked with a
+ * customer on the phone and a name half-remembered, which means moving between
+ * candidates quickly; a page per customer would put a load and a back button
+ * between every guess.
+ */
+
+type Row = {
+  id: number;
+  customerNo: string;
+  name: string;
+  phone: string | null;
+  vehicles: number;
+  tickets: number;
+  spentCents: number;
+  owedCents: number;
+  creditTickets: number;
+  accountBalanceCents: number;
+  lastVisit: string | null;
+  hasNote: boolean;
+  creditApproved: boolean;
+};
+
+type Vehicle = {
+  id: number;
+  year: string | null;
+  make: string | null;
+  model: string | null;
+  color: string | null;
+  plate: string | null;
+  tireSize: string | null;
+  notes: string | null;
+};
+
+type Detail = {
+  customer: {
+    id: number;
+    customerNo: string;
+    name: string;
+    phone: string | null;
+    notes: string | null;
+    pinnedNote: string | null;
+    pinnedNoteBy: string | null;
+    pinnedNoteAt: string | null;
+    creditApproved: boolean;
+    since: string;
+  };
+  vehicles: Vehicle[];
+  tickets: {
+    saleId: number;
+    saleNo: string;
+    businessDate: string;
+    status: string;
+    fulfillmentStatus: string;
+    totalCents: number;
+    paidCents: number;
+    balanceCents: number;
+    po: string | null;
+    vehicle: string | null;
+    what: string | null;
+  }[];
+  creditOnly: boolean;
+};
+
+const carLine = (v: Vehicle) =>
+  [v.year, v.make, v.model, v.color].filter(Boolean).join(" ") || "Vehicle";
+
+export default function CustomersPage() {
+  const { can } = usePosAuth();
+  const [q, setQ] = useState("");
+  const [owing, setOwing] = useState(false);
+  const [credit, setCredit] = useState(false);
+  const [notApproved, setNotApproved] = useState(false);
+  const [rows, setRows] = useState<Row[] | null>(null);
+  const [picked, setPicked] = useState<number | null>(null);
+  const [detail, setDetail] = useState<Detail | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  // Editing state. Null when nothing is open — the panel is a reading screen
+  // first and only becomes a form when somebody asks it to.
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ name: "", phone: "", notes: "" });
+  const [note, setNote] = useState("");
+  const [editCar, setEditCar] = useState<Vehicle | null>(null);
+  const [removingCar, setRemovingCar] = useState<Vehicle | null>(null);
+  const [removingCustomer, setRemovingCustomer] = useState(false);
+  // Bumped when anything on the panel changes, so the account reloads with it.
+  const [accountReload] = useState(0);
+
+  const load = useCallback(async () => {
+    const sp = new URLSearchParams();
+    if (q.trim()) sp.set("q", q.trim());
+    if (owing) sp.set("owing", "1");
+    if (credit) sp.set("credit", "1");
+    if (notApproved) sp.set("notApproved", "1");
+    const res = await fetch(`/api/pos/customers/list?${sp}`);
+    if (!res.ok) {
+      setError("Could not load the customer list");
+      return;
+    }
+    setRows((await res.json()).customers);
+    setError(null);
+  }, [q, owing, credit, notApproved]);
+
+  useEffect(() => {
+    const t = setTimeout(() => void load(), 250);
+    return () => clearTimeout(t);
+  }, [load]);
+
+  const loadDetail = useCallback(async () => {
+    if (picked === null) {
+      setDetail(null);
+      return;
+    }
+    const res = await fetch(`/api/pos/customers/${picked}?credit=${credit ? "1" : "0"}`);
+    if (!res.ok) return;
+    const d: Detail = await res.json();
+    setDetail(d);
+    setForm({
+      name: d.customer.name,
+      phone: d.customer.phone ?? "",
+      notes: d.customer.notes ?? "",
+    });
+    setNote(d.customer.pinnedNote ?? "");
+  }, [picked, credit]);
+
+  useEffect(() => {
+    setEditing(false);
+    void loadDetail();
+  }, [loadDetail]);
+
+  /** One writer for every change on this panel, so errors surface in one place. */
+  async function send(url: string, init: RequestInit) {
+    if (busy) return false;
+    setBusy(true);
+    setError(null);
+    const res = await fetch(url, init);
+    const d = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) {
+      setError(d.error || "That did not save");
+      return false;
+    }
+    await loadDetail();
+    await load();
+    return true;
+  }
+
+  const patchCustomer = (body: Record<string, unknown>) =>
+    send(`/api/pos/customers/${picked}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  if (!can("viewLog"))
+    return <div className="text-brand-400">Your account can&apos;t see the customer list.</div>;
+
+  return (
+    <div className="max-w-6xl mx-auto">
+      <div className="flex items-start justify-between gap-4 flex-wrap mb-4 cu-hide-on-print">
+        <div>
+          <h1 className="text-2xl font-semibold text-brand-500">Customers</h1>
+          <p className="text-brand-400 text-sm">
+            Everyone the shop has taken a name from. Click one to see their cars
+            and everything they have had done.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Only for the people who handle account money. Everybody else can
+              read this book — that is what `viewLog` above allows — and nobody
+              else has any business with a month's worth of what is owed. */}
+          {can("manageCreditAccounts") && (
+            <Link href="/pos/customers/month" className="btn btn-outline">
+              Accounts this month
+            </Link>
+          )}
+          <Link href="/pos/entries" className="btn btn-outline">
+            ← Logs
+          </Link>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>
+      )}
+
+      <div className="grid gap-4" style={{ gridTemplateColumns: "minmax(0,360px) minmax(0,1fr)" }}>
+        <div className="bg-white rounded-2xl shadow-sm p-3 cu-hide-on-print">
+          <input
+            className="input w-full mb-2"
+            placeholder="Name, phone or customer number…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+          {/* Two narrowings, and they compose: both ticked asks for people who
+              owe money AND run an account, which is the shortest and most
+              useful list on the page. */}
+          <div className="flex items-center gap-4 mb-3 text-sm text-brand-400">
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={owing} onChange={(e) => setOwing(e.target.checked)} />
+              Owes money
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={credit}
+                onChange={(e) => setCredit(e.target.checked)}
+              />
+              Credit account
+            </label>
+            {/* The accountant's shortest useful list: people running a tab that
+                nobody ever approved. Implies the box above it — a customer with
+                no account activity is not approved either, and listing all of
+                them would bury the handful that matter. */}
+            {can("manageCreditAccounts") && (
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={notApproved}
+                  onChange={(e) => setNotApproved(e.target.checked)}
+                />
+                <span className={notApproved ? "text-red-700 font-semibold" : undefined}>
+                  Not approved
+                </span>
+              </label>
+            )}
+          </div>
+          <div className="overflow-y-auto" style={{ maxHeight: 620 }}>
+            {rows === null ? (
+              <div className="text-brand-300 p-2">Loading…</div>
+            ) : rows.length === 0 ? (
+              <div className="text-brand-300 p-2">
+                {owing || credit || notApproved
+                  ? "Nobody matches those."
+                  : "Nobody by that name."}
+              </div>
+            ) : (
+              rows.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setPicked(c.id)}
+                  className="w-full text-left px-2 py-2 rounded-lg border-t border-black/5 first:border-t-0"
+                  style={{ background: picked === c.id ? "rgba(10,37,64,0.07)" : undefined }}
+                >
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-brand-500 font-medium truncate">
+                      {/* A star for approved credit, a dot for a note. Both are
+                          markers rather than words because this is a column of
+                          names read at speed — and the star comes first because
+                          it is the one that changes what somebody is allowed to
+                          do at the register. */}
+                      {c.creditApproved && (
+                        <span className="cu-star" title="Store credit approved">
+                          ★
+                        </span>
+                      )}
+                      {c.hasNote && (
+                        <span className="cu-note-dot" title="Has a note" aria-hidden="true" />
+                      )}
+                      {c.name}
+                    </span>
+                    {/* Money owed is the one fact worth seeing before clicking:
+                        it is why somebody is being looked up half the time.
+                        Held a little off the edge — a figure flush against the
+                        border of its own row reads as falling out of it. */}
+                    {/* On the account list, the tab is what the name is being
+                        read for — so it goes beside the name rather than
+                        waiting inside the client. Ticket balances are a
+                        different debt and keep their own badge when that is
+                        what the list is showing. */}
+                    {credit || notApproved ? (
+                      c.accountBalanceCents !== 0 && (
+                        <span
+                          className={`text-xs font-semibold whitespace-nowrap mr-2 ${
+                            c.accountBalanceCents > 0 ? "text-red-700" : "text-green-700"
+                          }`}
+                        >
+                          {c.accountBalanceCents > 0
+                            ? `${formatCents(c.accountBalanceCents)} owing to account`
+                            : `${formatCents(-c.accountBalanceCents)} in credit`}
+                        </span>
+                      )
+                    ) : c.owedCents > 0 ? (
+                      <span className="text-xs font-semibold text-red-700 whitespace-nowrap mr-2">
+                        owes {formatCents(c.owedCents)}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="text-xs text-brand-300 flex gap-2 flex-wrap">
+                    {c.phone && <span>{c.phone}</span>}
+                    <span>
+                      {c.tickets} {c.tickets === 1 ? "ticket" : "tickets"}
+                    </span>
+                    {c.creditTickets > 0 && (
+                      <span className="text-brand-400">· account</span>
+                    )}
+                    {c.lastVisit && <span>last {c.lastVisit}</span>}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-sm p-4 cu-detail">
+          {!detail ? (
+            <div className="text-brand-300 py-12 text-center">Pick somebody on the left.</div>
+          ) : (
+            <>
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div className="min-w-0">
+                  <h2 className="text-xl font-semibold text-brand-500">
+                    {detail.customer.creditApproved && <span className="cu-star">★</span>}
+                    {detail.customer.name}
+                  </h2>
+                  <div className="text-sm text-brand-400">
+                    {detail.customer.phone ?? "no phone"} · {detail.customer.customerNo}
+                  </div>
+                  {/* The decision, on the screen where it is made. A manager
+                      ticks it once and every register that meets this customer
+                      afterwards says so — which is the point: it stops being
+                      decided at the counter by whoever is standing there. */}
+                  {can("manageCustomers") ? (
+                    <label className="flex items-center gap-1.5 mt-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={detail.customer.creditApproved}
+                        disabled={busy}
+                        onChange={(e) =>
+                          void patchCustomer({ creditApproved: e.target.checked })
+                        }
+                      />
+                      <span className={detail.customer.creditApproved ? "cu-approved-on" : "text-brand-400"}>
+                        Store credit approved
+                      </span>
+                    </label>
+                  ) : (
+                    detail.customer.creditApproved && (
+                      <div className="cu-approved mt-2">★ Store credit approved</div>
+                    )
+                  )}
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  {can("manageCustomers") && !editing && (
+                    <button
+                      type="button"
+                      className="text-brand-400 hover:text-brand-500 underline"
+                      onClick={() => setEditing(true)}
+                    >
+                      Edit
+                    </button>
+                  )}
+                  {can("deleteCustomer") && (
+                    <button
+                      type="button"
+                      className="text-red-600 hover:text-red-800 underline"
+                      onClick={() => setRemovingCustomer(true)}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {editing && (
+                <div className="mt-3 rounded-xl border border-black/10 p-3">
+                  <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                    <label className="text-sm">
+                      <span className="block text-brand-400 mb-1">Name</span>
+                      <input
+                        className="input w-full"
+                        value={form.name}
+                        onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      />
+                    </label>
+                    <label className="text-sm">
+                      <span className="block text-brand-400 mb-1">Phone</span>
+                      <input
+                        className="input w-full"
+                        value={form.phone}
+                        onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      />
+                    </label>
+                  </div>
+                  <label className="text-sm block mt-2">
+                    <span className="block text-brand-400 mb-1">
+                      About them — who they are, how they pay
+                    </span>
+                    <input
+                      className="input w-full"
+                      value={form.notes}
+                      onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                    />
+                  </label>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={busy || !form.name.trim()}
+                      onClick={async () => {
+                        if (await patchCustomer(form)) setEditing(false);
+                      }}
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      onClick={() => {
+                        setEditing(false);
+                        setForm({
+                          name: detail.customer.name,
+                          phone: detail.customer.phone ?? "",
+                          notes: detail.customer.notes ?? "",
+                        });
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {!editing && detail.customer.notes && (
+                <p className="mt-2 text-sm text-brand-400 italic">{detail.customer.notes}</p>
+              )}
+
+              {/*
+                The note the counter leaves for the counter, written by anybody.
+
+                Deliberately the same object as the notice board on Main, down to
+                the pin and the wording of its buttons: they are the same kind of
+                message about different subjects, and somebody who has learned
+                one should not have to learn the other. Above the cars and the
+                history because it is the only thing on this panel addressed to
+                whoever opened it, rather than describing what already happened.
+              */}
+              <CustomerNote
+                note={detail.customer.pinnedNote}
+                by={detail.customer.pinnedNoteBy}
+                at={detail.customer.pinnedNoteAt}
+                busy={busy}
+                draft={note}
+                setDraft={setNote}
+                onSave={(text) => patchCustomer({ pinnedNote: text || null })}
+              />
+
+              <div className="mt-4">
+                <div className="text-xs uppercase tracking-wider text-brand-300 mb-1">Cars</div>
+                {detail.vehicles.length === 0 ? (
+                  <div className="text-sm text-brand-300">No car on file.</div>
+                ) : (
+                  <div className="flex flex-col gap-1">
+                    {detail.vehicles.map((v) =>
+                      editCar?.id === v.id ? (
+                        <CarForm
+                          key={v.id}
+                          car={editCar}
+                          busy={busy}
+                          onChange={setEditCar}
+                          onCancel={() => setEditCar(null)}
+                          onSave={async () => {
+                            const ok = await send(`/api/pos/vehicles/${v.id}`, {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify(editCar),
+                            });
+                            if (ok) setEditCar(null);
+                          }}
+                        />
+                      ) : (
+                        <div
+                          key={v.id}
+                          className="flex items-center justify-between gap-2 text-sm rounded-lg px-2 py-1"
+                          style={{ background: "rgba(10,37,64,0.05)" }}
+                        >
+                          <span className="truncate">
+                            {carLine(v)}
+                            {v.plate && <span className="text-brand-300"> · {v.plate}</span>}
+                            {v.tireSize && <span className="text-brand-300"> · {v.tireSize}</span>}
+                          </span>
+                          {can("manageCustomers") && (
+                            <span className="flex gap-3 whitespace-nowrap">
+                              <button
+                                type="button"
+                                className="text-xs text-brand-400 hover:text-brand-500 underline"
+                                onClick={() => setEditCar(v)}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="text-xs text-red-600 hover:text-red-800 underline"
+                                onClick={() => setRemovingCar(v)}
+                              >
+                                Remove
+                              </button>
+                            </span>
+                          )}
+                        </div>
+                      ),
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4">
+                <div className="text-xs uppercase tracking-wider text-brand-300 mb-1">
+                  {detail.creditOnly
+                    ? "What they have put on the account"
+                    : "Everything they have had done"}
+                </div>
+                {detail.tickets.length === 0 ? (
+                  <div className="text-brand-300 py-4">
+                    {detail.creditOnly ? "Nothing on the account." : "No tickets yet."}
+                  </div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <tbody>
+                      {detail.tickets.map((t) => (
+                        <tr
+                          key={t.saleId}
+                          className="border-t border-black/5 align-top cu-row"
+                        >
+                          <td className="py-2 whitespace-nowrap">
+                            <Link
+                              href={`/pos/sale/${t.saleId}/receipt`}
+                              className="hover:underline text-brand-500"
+                              style={
+                                t.status === "voided"
+                                  ? { textDecoration: "line-through", opacity: 0.55 }
+                                  : undefined
+                              }
+                            >
+                              {t.saleNo}
+                            </Link>
+                            <div className="text-xs text-brand-300 tabular-nums">
+                              {t.businessDate}
+                            </div>
+                          </td>
+                          {/* Indented off the ticket number beside it, or the
+                              two run together — "S-2026-000183VANTAGE". */}
+                          <td className="py-2 pl-4 text-brand-400">
+                            {t.what ?? "—"}
+                            {t.vehicle && (
+                              <div className="text-xs text-brand-300">{t.vehicle}</div>
+                            )}
+                          </td>
+                          <td className="py-2 pl-4 text-right tabular-nums whitespace-nowrap">
+                            {formatCents(t.totalCents)}
+                            {t.balanceCents > 0 && (
+                              <div className="text-xs font-semibold text-red-700">
+                                owes {formatCents(t.balanceCents)}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+              {can("manageCreditAccounts") && (
+                <AccountPanel
+                  customerId={detail.customer.id}
+                  name={detail.customer.name}
+                  reload={accountReload}
+                  onError={setError}
+                />
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      <ConfirmModal
+        open={removingCar !== null}
+        onCancel={() => setRemovingCar(null)}
+        onConfirm={async () => {
+          if (!removingCar) return;
+          const ok = await send(
+            `/api/pos/vehicles/${removingCar.id}?reason=${encodeURIComponent("Removed from the customer book")}`,
+            { method: "DELETE" },
+          );
+          if (ok) setRemovingCar(null);
+        }}
+        busy={busy}
+        title="Remove this car?"
+        confirmLabel="Yes, remove it"
+        cancelLabel="Keep it"
+        danger
+      >
+        <p>
+          <strong className="text-brand-500">{removingCar && carLine(removingCar)}</strong> stops
+          appearing under this customer.
+        </p>
+        <p className="mt-2">
+          Every ticket that named it still names it. This only takes it off the
+          list of cars you can pick from.
+        </p>
+      </ConfirmModal>
+
+      <ConfirmModal
+        open={removingCustomer}
+        onCancel={() => setRemovingCustomer(false)}
+        onConfirm={async () => {
+          const ok = await send(
+            `/api/pos/customers/${picked}?reason=${encodeURIComponent("Removed from the customer book")}`,
+            { method: "DELETE" },
+          );
+          if (ok) {
+            setRemovingCustomer(false);
+            setPicked(null);
+          }
+        }}
+        busy={busy}
+        title="Remove this customer?"
+        confirmLabel="Yes, remove them"
+        cancelLabel="Keep them"
+        acknowledge="I know their cars go with them"
+        danger
+      >
+        <p>
+          <strong className="text-brand-500">{detail?.customer.name}</strong> and their{" "}
+          {detail?.vehicles.length ?? 0}{" "}
+          {(detail?.vehicles.length ?? 0) === 1 ? "car" : "cars"} stop appearing anywhere
+          they can be looked up.
+        </p>
+        <p className="mt-2">
+          Their tickets are untouched and still carry the name. Nothing about what
+          the shop did for them changes.
+        </p>
+        {(detail?.tickets.some((t) => t.balanceCents > 0) ?? false) && (
+          <p className="mt-2 text-red-700">
+            <strong>They still owe money on at least one ticket.</strong> Removing
+            them here does not clear the debt, it only makes it harder to find.
+          </p>
+        )}
+      </ConfirmModal>
+    </div>
+  );
+}
+
+type AccountData = {
+  account: {
+    chargedCents: number;
+    paidCents: number;
+    balanceCents: number;
+    chargeCount: number;
+    creditApproved: number;
+  } | null;
+  charges: {
+    paymentId: number;
+    saleId: number;
+    saleNo: string;
+    businessDate: string;
+    amountCents: number;
+    isReversal: number;
+    reversedById: number | null;
+    saleVoided: number;
+    what: string | null;
+    reviewedByName: string | null;
+    reviewedAt: string | null;
+  }[];
+  payments: {
+    id: number;
+    amountCents: number;
+    paidAt: string;
+    how: string | null;
+    toAccount: string | null;
+    note: string | null;
+    reversesId: number | null;
+    reversedById: number | null;
+    byName: string;
+  }[];
+};
+
+/**
+ * The house account: what has gone onto the tab and what has come in against it.
+ *
+ * Its own panel below the ticket history rather than mixed into it, because
+ * they answer different questions to different people. The history is "what did
+ * we do for them"; this is "what do they owe us", and only the owner and the
+ * accountant see it at all.
+ *
+ * Payments here are against the TOTAL, never against a ticket. Somebody hands
+ * over $400 across nine open charges and nobody decides which nine-ninths of
+ * which job that settles — forcing an allocation would invent a fact the shop
+ * does not have.
+ */
+function AccountPanel({
+  customerId,
+  name,
+  reload,
+  onError,
+}: {
+  customerId: number;
+  name: string;
+  reload: number;
+  onError: (m: string | null) => void;
+}) {
+  // Stamped after mount: the print date depends on the browser clock, and
+  // rendering it during the server pass would mismatch on hydration.
+  const [printedOn, setPrintedOn] = useState("");
+  useEffect(() => setPrintedOn(new Date().toLocaleDateString()), []);
+  const [data, setData] = useState<AccountData | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+  // Opened on request, and forced open for a print so the statement is whole.
+  const [showPayments, setShowPayments] = useState(false);
+  // Charges that netted themselves out. Off by default, and off on paper
+  // whatever this says — see the button beside the tab heading.
+  const [showCancelled, setShowCancelled] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [paidAt, setPaidAt] = useState("");
+  const [how, setHow] = useState("");
+  const [toAccount, setToAccount] = useState("");
+
+  const load = useCallback(async () => {
+    const res = await fetch(`/api/pos/customers/${customerId}/account`);
+    if (!res.ok) return;
+    setData(await res.json());
+  }, [customerId]);
+
+  useEffect(() => {
+    void load();
+  }, [load, reload]);
+
+  // Today, in the browser's own calendar. Set after mount because the server
+  // has no idea what day it is where the accountant is sitting.
+  useEffect(() => {
+    setPaidAt(new Date().toISOString().slice(0, 10));
+  }, [customerId]);
+
+  async function save() {
+    const cents = parseCents(amount);
+    if (cents === null || cents <= 0) {
+      onError("Enter how much came in");
+      return;
+    }
+    setBusy(true);
+    onError(null);
+    const res = await fetch(`/api/pos/customers/${customerId}/account`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amountCents: cents, paidAt, how, toAccount }),
+    });
+    const d = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) {
+      onError(d.error || "Could not record that");
+      return;
+    }
+    setAmount("");
+    setHow("");
+    setToAccount("");
+    setOpen(false);
+    await load();
+  }
+
+  async function review(paymentId: number) {
+    setBusy(true);
+    onError(null);
+    const res = await fetch(`/api/pos/customers/${customerId}/account`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reviewChargeId: paymentId, note: "This transaction was audited" }),
+    });
+    const d = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) {
+      onError(d.error || "Could not sign that off");
+      return;
+    }
+    await load();
+  }
+
+  /** Take a sign-off back off — the tick is one row away from the wrong charge. */
+  async function unreview(paymentId: number) {
+    setBusy(true);
+    onError(null);
+    const res = await fetch(`/api/pos/customers/${customerId}/account`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ unreviewChargeId: paymentId }),
+    });
+    const d = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) {
+      onError(d.error || "Could not undo that");
+      return;
+    }
+    await load();
+  }
+
+  async function undo(id: number) {
+    setBusy(true);
+    onError(null);
+    const res = await fetch(`/api/pos/customers/${customerId}/account`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reverseId: id, reason: "Entered by mistake" }),
+    });
+    const d = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) {
+      onError(d.error || "Could not undo that");
+      return;
+    }
+    await load();
+  }
+
+  // Nothing has ever gone onto this customer's tab. Drawing an empty account
+  // for every walk-in would make the one panel that matters invisible.
+  if (!data?.account) return null;
+  const a = data.account;
+
+  /**
+   * A charge that is not on the tab: it IS a reversal, one points at it, or the
+   * ticket it came from was voided.
+   *
+   * All three tested, not just the reversal. Fading only the row that undid it
+   * left the original reading as a live charge — which is exactly how a card
+   * sale that had been corrected off the account still looked like money owed.
+   */
+  const cancelled = (c: (typeof data.charges)[number]) =>
+    c.isReversal === 1 || c.reversedById !== null || c.saleVoided === 1;
+  const cancelledCount = data.charges.filter(cancelled).length;
+  const shownCharges = showCancelled
+    ? data.charges
+    : data.charges.filter((c) => !cancelled(c));
+
+  return (
+    <div className="cu-account mt-5">
+      {/* The letterhead, on paper only. A statement handed to a customer or
+          filed with the month's paperwork has to say whose shop it came from
+          and whose account it is — the screen has all of that in the panes
+          around it, and the sheet has nothing. */}
+      <div className="cu-print-head">
+        <ShopLogo size={44} priority />
+        <div>
+          <div style={{ fontWeight: 700, fontSize: "13pt" }}>
+            Casias Muffler and Tire Shop
+          </div>
+          <div style={{ fontSize: "9pt" }}>
+            Account statement · {name} · {printedOn}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-baseline justify-between gap-3 flex-wrap">
+        <div className="text-xs uppercase tracking-wider text-brand-300">House account</div>
+        <div className="flex items-baseline gap-3">
+          <div className="text-sm text-brand-400">
+            {formatCents(a.chargedCents)} charged · {formatCents(a.paidCents)} paid
+          </div>
+          <button
+            type="button"
+            className="text-sm text-brand-400 hover:text-brand-500 underline no-print"
+            onClick={() => window.print()}
+          >
+            Print statement
+          </button>
+        </div>
+      </div>
+
+      <div className="flex items-baseline gap-3 mt-1 flex-wrap">
+        <div
+          className={`text-2xl font-semibold tabular-nums ${
+            a.balanceCents > 0 ? "text-red-700" : "text-green-700"
+          }`}
+        >
+          {a.balanceCents > 0
+            ? `${formatCents(a.balanceCents)} owing`
+            : a.balanceCents < 0
+              ? `${formatCents(-a.balanceCents)} in credit`
+              : "Settled"}
+        </div>
+        {/* The one thing that makes an account a problem rather than a
+            relationship: money on a tab nobody agreed to. */}
+        {a.creditApproved === 0 && (
+          <span className="cu-unapproved">not approved for credit</span>
+        )}
+      </div>
+
+      {!open ? (
+        <div className="flex items-center gap-2 mt-3 no-print">
+          <button
+            type="button"
+            className="btn btn-primary"
+            style={{ height: 36, fontSize: 14 }}
+            onClick={() => setOpen(true)}
+          >
+            Record a payment
+          </button>
+          {/* The money-in list, behind a press. It is the shortest part of this
+              panel on most accounts and the longest on the few that matter, and
+              it is not what the screen is opened for — the balance is. It prints
+              regardless: a statement without the payments on it is half a
+              statement. */}
+          <button
+            type="button"
+            className={showPayments ? "btn btn-primary" : "btn btn-outline"}
+            style={{ height: 36, fontSize: 14 }}
+            aria-pressed={showPayments}
+            onClick={() => setShowPayments((v) => !v)}
+          >
+            {showPayments ? "Hide payments" : "Show payments"}
+            {data.payments.length > 0 && (
+              <span className="text-xs font-normal"> · {data.payments.length}</span>
+            )}
+          </button>
+        </div>
+      ) : (
+        <div className="mt-3 rounded-xl border border-black/10 p-3">
+          <div className="grid gap-2" style={{ gridTemplateColumns: "120px 150px 1fr 1fr" }}>
+            <label className="text-sm">
+              <span className="block text-brand-400 mb-1 text-xs">How much</span>
+              <input
+                className="input w-full text-right tabular-nums"
+                inputMode="decimal"
+                placeholder="0.00"
+                autoFocus
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+            </label>
+            {/* When the money arrived, not when it was typed. A cheque dated the
+                3rd that reaches the desk on the 11th is the 3rd's money. */}
+            <label className="text-sm">
+              <span className="block text-brand-400 mb-1 text-xs">When it was paid</span>
+              <input
+                className="input w-full"
+                type="date"
+                value={paidAt}
+                onChange={(e) => setPaidAt(e.target.value)}
+              />
+            </label>
+            <label className="text-sm">
+              <span className="block text-brand-400 mb-1 text-xs">How</span>
+              <input
+                className="input w-full"
+                placeholder="Cheque 4471 · cash in person · card over the phone"
+                value={how}
+                onChange={(e) => setHow(e.target.value)}
+              />
+            </label>
+            <label className="text-sm">
+              <span className="block text-brand-400 mb-1 text-xs">To what account</span>
+              <input
+                className="input w-full"
+                placeholder="Frost checking · register"
+                value={toAccount}
+                onChange={(e) => setToAccount(e.target.value)}
+              />
+            </label>
+          </div>
+          <div className="flex gap-2 mt-3">
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={busy}
+              onClick={() => void save()}
+            >
+              {busy ? "Working…" : "Record it"}
+            </button>
+            <button type="button" className="btn btn-outline" onClick={() => setOpen(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {data.payments.length > 0 && (
+        <div className={showPayments ? "mt-4" : "mt-4 cu-print-only"}>
+          <div className="text-xs uppercase tracking-wider text-brand-300 mb-1">
+            Money in
+          </div>
+          <table className="w-full text-sm">
+            <tbody>
+              {data.payments.map((p) => (
+                <tr
+                  key={p.id}
+                  className="border-t border-black/5 cu-row"
+                  style={p.reversedById || p.reversesId ? { opacity: 0.55 } : undefined}
+                >
+                  <td className="py-1.5 whitespace-nowrap tabular-nums">
+                    {p.paidAt.slice(0, 10)}
+                  </td>
+                  <td className="py-1.5 pl-4 text-brand-400">
+                    {[p.how, p.toAccount].filter(Boolean).join(" · ") || "—"}
+                    <div className="text-xs text-brand-300">
+                      {p.byName}
+                      {p.note ? ` · ${p.note}` : ""}
+                    </div>
+                  </td>
+                  <td className="py-1.5 pl-4 text-right tabular-nums whitespace-nowrap">
+                    {formatCents(p.amountCents)}
+                  </td>
+                  <td className="py-1.5 pl-3 text-right" style={{ width: 60 }}>
+                    {!p.reversedById && !p.reversesId && (
+                      <button
+                        type="button"
+                        className="text-xs text-brand-300 underline"
+                        disabled={busy}
+                        onClick={() => void undo(p.id)}
+                      >
+                        Void
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="mt-4">
+        <div className="flex items-baseline justify-between gap-3 mb-1">
+          <div className="text-xs uppercase tracking-wider text-brand-300">
+            What went on the tab
+          </div>
+          {/* Charges that came straight back off — a voided ticket, or the
+              commonest one by far, a sale rung to the account and then fixed to
+              the card the customer actually paid with.
+
+              HIDDEN BY DEFAULT, and never printed. On the tab they are a pair
+              that nets to nothing, so a customer handed a statement with a $210
+              charge and a −$210 beside it has been given arithmetic to do
+              before they can read what they owe. On screen they are worth
+              keeping reachable, because "why did that come off" gets asked out
+              loud and the answer is these two rows. */}
+          {cancelledCount > 0 && (
+            <button
+              type="button"
+              className="text-xs text-brand-300 hover:text-brand-500 underline no-print"
+              aria-pressed={showCancelled}
+              onClick={() => setShowCancelled((v) => !v)}
+            >
+              {showCancelled ? "hide" : "show"} {cancelledCount} cancelled
+            </button>
+          )}
+        </div>
+        <table className="w-full text-sm">
+          <tbody>
+            {shownCharges.map((c) => (
+              <tr
+                key={c.paymentId}
+                /* `cu-cancelled` drops the row from the printed statement even
+                   when it is showing on screen. The toggle above is about what
+                   somebody standing at the desk can see; the sheet handed to a
+                   customer states what is on the tab, and a charge that came
+                   straight back off never was. */
+                className={`border-t border-black/5 cu-row align-top${
+                  cancelled(c) ? " cu-cancelled" : ""
+                }`}
+                style={cancelled(c) ? { opacity: 0.5 } : undefined}
+              >
+                <td className="py-1.5 whitespace-nowrap">
+                  <Link
+                    href={`/pos/sale/${c.saleId}/receipt`}
+                    className="hover:underline text-brand-500"
+                  >
+                    {c.saleNo}
+                  </Link>
+                  <div className="text-xs text-brand-300 tabular-nums">{c.businessDate}</div>
+                </td>
+                <td className="py-1.5 pl-4 text-brand-400">
+                  {c.what ?? "—"}
+                  {/* A charge taken back off the tab. It stays on the list
+                      because "why did that come off" is asked out loud. */}
+                  {c.isReversal === 1 && (
+                    <div className="text-xs text-brand-300">taken back off the account</div>
+                  )}
+                  {/* Says so on the charge itself, not only on the row that
+                      undid it. Usually a tender correction: rung to the account,
+                      then fixed to whatever the customer actually paid with. */}
+                  {c.reversedById !== null && c.isReversal === 0 && (
+                    <div className="text-xs text-brand-300">
+                      no longer on the account — settled another way
+                    </div>
+                  )}
+                  {c.reviewedByName && (
+                    <div className="text-xs text-green-700">
+                      audited · {c.reviewedByName}
+                      {c.reviewedAt ? ` · ${c.reviewedAt.slice(0, 10)}` : ""}
+                      {/* Beside the sign-off rather than in the column at the
+                          end, because that column is empty on an audited row —
+                          the tick is what emptied it. Sitting against the words
+                          it undoes, it reads as part of the same fact.
+
+                          On paper the green line stays and the word goes: a
+                          statement is a record of what was decided, not a
+                          screen to press. */}
+                      <button
+                        type="button"
+                        className="ml-2 underline text-brand-300 hover:text-brand-500 no-print"
+                        disabled={busy}
+                        onClick={() => void unreview(c.paymentId)}
+                      >
+                        undo
+                      </button>
+                    </div>
+                  )}
+                </td>
+                <td className="py-1.5 pl-4 text-right tabular-nums whitespace-nowrap">
+                  {formatCents(c.amountCents)}
+                </td>
+                {/* Only offered on the charges that are actually flagged: a real
+                    charge, on a customer nobody approved, that nobody has looked
+                    at yet. Signing it off does not approve the customer — it
+                    records that this one transaction was checked, which is the
+                    answer most of the time. */}
+                <td className="py-1.5 pl-3 text-right no-print" style={{ width: 90 }}>
+                  {a.creditApproved === 0 &&
+                    c.isReversal === 0 &&
+                    !c.reviewedByName && (
+                      <button
+                        type="button"
+                        className="text-xs text-brand-400 hover:text-brand-500 underline"
+                        disabled={busy}
+                        onClick={() => void review(c.paymentId)}
+                      >
+                        Mark audited
+                      </button>
+                    )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/** "Aug 2, 3:40 PM" — enough to judge whether a note has gone stale. */
+function whenWritten(at: string): string {
+  const d = new Date(at);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * The customer's pinned note, built to be the notice board on Main.
+ *
+ * Nothing is drawn when there is no note but the invitation to leave one — a
+ * permanently visible empty box is furniture, and furniture is invisible. The
+ * whole value of the strip is that a glance tells you whether there is
+ * something to know about this person.
+ */
+function CustomerNote({
+  note,
+  by,
+  at,
+  busy,
+  draft,
+  setDraft,
+  onSave,
+}: {
+  note: string | null;
+  by: string | null;
+  at: string | null;
+  busy: boolean;
+  draft: string;
+  setDraft: (v: string) => void;
+  onSave: (text: string) => Promise<boolean>;
+}) {
+  const [editing, setEditing] = useState(false);
+
+  // Closed whenever the panel moves to another customer, or the box would open
+  // on the next person still holding the last one's words.
+  useEffect(() => {
+    setEditing(false);
+  }, [note, by, at]);
+
+  if (editing) {
+    return (
+      <div className="cu-note mt-3">
+        <label className="block text-xs uppercase tracking-wider text-amber-800 mb-2 font-medium">
+          Note about this customer
+        </label>
+        <textarea
+          className="input w-full"
+          rows={3}
+          maxLength={500}
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Coming Friday for the balance. Do not release the truck to the son."
+        />
+        <div className="flex items-center gap-2 mt-3">
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={busy}
+            onClick={async () => {
+              if (await onSave(draft)) setEditing(false);
+            }}
+          >
+            {busy ? "Saving…" : "Save note"}
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => {
+              setDraft(note ?? "");
+              setEditing(false);
+            }}
+          >
+            Cancel
+          </button>
+          {/* Its own button rather than "save an empty box", so taking the note
+              down is a decision somebody makes instead of something that
+              happens by backspacing. */}
+          {note && (
+            <button
+              type="button"
+              className="btn btn-ghost ml-auto text-red-700"
+              disabled={busy}
+              onClick={async () => {
+                setDraft("");
+                if (await onSave("")) setEditing(false);
+              }}
+            >
+              Take it down
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (!note) {
+    return (
+      <div className="mt-3">
+        <button
+          type="button"
+          className="text-sm text-brand-300 hover:text-brand-500 hover:underline"
+          onClick={() => {
+            setDraft("");
+            setEditing(true);
+          }}
+        >
+          + Leave a note about this customer
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="cu-note mt-3 flex items-start gap-3">
+      <span aria-hidden style={{ fontSize: 18, lineHeight: "24px" }}>
+        📌
+      </span>
+      <div className="flex-1 min-w-0">
+        {/* Newlines the writer typed are newlines on the panel. */}
+        <div className="text-amber-900 whitespace-pre-wrap">{note}</div>
+        {by && (
+          <div className="text-xs text-amber-700/80 mt-1">
+            {by}
+            {at ? ` · ${whenWritten(at)}` : ""}
+          </div>
+        )}
+      </div>
+      <button
+        type="button"
+        className="text-sm text-amber-800 hover:underline shrink-0"
+        onClick={() => {
+          setDraft(note);
+          setEditing(true);
+        }}
+      >
+        Edit
+      </button>
+    </div>
+  );
+}
+
+/** The car, opened for correction. Its own component only to keep the panel readable. */
+function CarForm({
+  car,
+  busy,
+  onChange,
+  onSave,
+  onCancel,
+}: {
+  car: Vehicle;
+  busy: boolean;
+  onChange: (v: Vehicle) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  const field = (
+    key: keyof Vehicle,
+    label: string,
+    placeholder?: string,
+  ) => (
+    <label className="text-sm">
+      <span className="block text-brand-400 mb-1 text-xs">{label}</span>
+      <input
+        className="input w-full"
+        placeholder={placeholder}
+        value={(car[key] as string | null) ?? ""}
+        onChange={(e) => onChange({ ...car, [key]: e.target.value })}
+      />
+    </label>
+  );
+
+  return (
+    <div className="rounded-lg border border-black/10 p-3">
+      <div className="grid gap-2" style={{ gridTemplateColumns: "80px 1fr 1fr 90px" }}>
+        {field("year", "Year", "2014")}
+        {field("make", "Make", "Ford")}
+        {field("model", "Model", "F-150")}
+        {field("color", "Colour", "White")}
+      </div>
+      <div className="grid gap-2 mt-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        {field("plate", "Plate", "ABC1234")}
+        {field("tireSize", "Tire size", "265-70-17")}
+      </div>
+      <div className="flex gap-2 mt-3">
+        <button type="button" className="btn btn-primary" disabled={busy} onClick={onSave}>
+          Save
+        </button>
+        <button type="button" className="btn btn-outline" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}

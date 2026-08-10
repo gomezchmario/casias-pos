@@ -23,42 +23,89 @@
  *   blue    waiting on delivery — out of the shop's hands, nothing to chase
  *   green   ready for pickup    — done, go and get them
  *
- * Yellow takes near-black text rather than white. White on yellow is the one
+ * Pale fills with dark text of the same hue, not saturated fills with white.
+ * A screen showing a dozen outstanding tickets at once is a dozen of these in a
+ * column, and at full strength that column shouts loudly enough that no single
+ * row stands out — which is the one job it has. Pastel keeps the hues telling
+ * each other apart while letting the eye rest.
+ *
+ * The text is dark in every case, including yellow. White on yellow is the one
  * combination here that fails outright — it is unreadable on a bright screen on
- * a counter by a window, which is exactly where this thing lives.
+ * a counter by a window, which is exactly where this thing lives — and once the
+ * fills are pale, white fails on all four. Dark-on-pale is the only rule that
+ * holds for the whole set.
  */
 export const WORK_PILLS = [
   {
     value: "waiting",
     label: "Waiting",
     title: "Waiting on us",
-    bg: "#ea580c",
-    fg: "#fff",
-    border: "#ea580c",
+    bg: "#ffedd5",
+    fg: "#9a3412",
+    border: "#fdba74",
   },
   {
     value: "working",
     label: "Working on it",
     title: "Working on it",
-    bg: "#facc15",
-    fg: "#422006",
-    border: "#eab308",
+    bg: "#fef9c3",
+    fg: "#854d0e",
+    border: "#fde047",
   },
   {
     value: "delivery",
     label: "On delivery",
     title: "Waiting on delivery",
-    bg: "#1d4ed8",
-    fg: "#fff",
-    border: "#1d4ed8",
+    bg: "#dbeafe",
+    fg: "#1e40af",
+    border: "#93c5fd",
   },
   {
     value: "ready",
-    label: "Ready",
-    title: "Ready for pickup",
-    bg: "#15803d",
-    fg: "#fff",
-    border: "#15803d",
+    label: "Ready — call them",
+    title: "Ready for pick up — call them",
+    bg: "#dcfce7",
+    fg: "#166534",
+    border: "#86efac",
+  },
+  /*
+   * The two stages of chasing somebody, and the end of it.
+   *
+   * "Ready" used to be the last thing this list could say, which meant a car
+   * finished at ten in the morning looked exactly the same at six in the
+   * evening as it did the moment the work was done — and the board could not
+   * tell the difference between a car nobody has rung about and one whose owner
+   * has been told twice and is coming Friday.
+   *
+   * Orange for no answer, because that is the shop's turn again: a number that
+   * did not pick up yesterday is a number to try today. Blue for waiting,
+   * because it is out of the shop's hands, which is the same thing blue means
+   * on the delivery row above. Grey for picked up, because it is finished and
+   * a colour would keep pulling the eye back to a row with nothing left to do.
+   */
+  {
+    value: "no_answer",
+    label: "Called — no answer",
+    title: "Called — no answer",
+    bg: "#ffedd5",
+    fg: "#9a3412",
+    border: "#fdba74",
+  },
+  {
+    value: "waiting_pickup",
+    label: "Waiting for pickup",
+    title: "Waiting for pickup",
+    bg: "#dbeafe",
+    fg: "#1e40af",
+    border: "#93c5fd",
+  },
+  {
+    value: "picked_up",
+    label: "Picked up",
+    title: "Picked up",
+    bg: "#f1f5f9",
+    fg: "#475569",
+    border: "#cbd5e1",
   },
 ] as const;
 

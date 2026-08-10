@@ -15,6 +15,7 @@ export async function PATCH(
     label?: string;
     amountCents?: number | null;
     description?: string | null;
+    categoryId?: number | null;
     sortOrder?: number;
     active?: boolean;
   };

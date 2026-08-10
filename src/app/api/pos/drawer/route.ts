@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jsonError, requirePos } from "@/lib/api-helpers";
 import { currentBusinessDate } from "@/lib/business-date";
+import { can } from "@/lib/roles";
 import {
   drawerAdjustmentCents,
   drawerMovementsForDay,
@@ -8,7 +9,7 @@ import {
   reverseDrawerMovement,
 } from "@/lib/drawer";
 
-/** Every non-sale cash move for a business day, for the End of Day page. */
+/** Every non-sale cash move for a business day, for the Close-out page. */
 export async function GET(req: NextRequest) {
   const auth = await requirePos("viewDay");
   if (!auth.ok) return auth.response;
@@ -16,7 +17,10 @@ export async function GET(req: NextRequest) {
   const businessDate = req.nextUrl.searchParams.get("date") || currentBusinessDate();
   return NextResponse.json({
     businessDate,
-    movements: drawerMovementsForDay(businessDate),
+    // The owner sees what they hid; nobody else learns it exists.
+    movements: drawerMovementsForDay(businessDate, {
+      includeHidden: can(auth.user.role, "hideDrawerMovement"),
+    }),
     netCents: drawerAdjustmentCents({ businessDate }),
   });
 }
@@ -31,6 +35,7 @@ export async function POST(req: NextRequest) {
     reason?: string;
     note?: string | null;
     reverseId?: number;
+    hidden?: boolean;
   };
   try {
     body = await req.json();
@@ -49,6 +54,9 @@ export async function POST(req: NextRequest) {
     kind: body.kind ?? "withdrawal",
     reason: body.reason ?? "",
     note: body.note ?? null,
+    // Refused inside recordDrawerMovement for anyone but the owner, so this
+    // passing straight through is safe.
+    hidden: body.hidden === true,
   });
   if (!result.ok) return jsonError(result.error);
   return NextResponse.json({ movement: result.movement });

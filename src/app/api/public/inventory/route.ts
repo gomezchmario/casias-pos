@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { inventoryBySection, listBatteries } from "@/lib/products";
+import { inventoryBySection, listBatteries, listMisc } from "@/lib/products";
 import { readInventoryCheck } from "@/lib/inventory-check";
 
 /**
@@ -53,9 +53,16 @@ export async function GET(req: NextRequest) {
     on_hand: b.on_hand,
   }));
 
+  const misc = listMisc({ includeOutOfStock }).map((b) => ({
+    id: b.id,
+    name: b.name,
+    price_cents: b.price_cents,
+    on_hand: b.on_hand,
+  }));
+
   // The count's age rides along for the same reason it is on the register's
   // sheet: a stock number with no idea how old it is invites more trust than it
   // has earned, and this copy is the one most likely to be read by somebody who
   // was not here when it was counted.
-  return NextResponse.json({ sections, batteries, lastCheck: readInventoryCheck() });
+  return NextResponse.json({ sections, batteries, misc, lastCheck: readInventoryCheck() });
 }

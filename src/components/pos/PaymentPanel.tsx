@@ -16,7 +16,7 @@ import type { PaymentMethod } from "@/lib/payments";
  * have known on its own.
  *
  * If the register's order and the terminal's batch ever disagree, they are put
- * right on Entries, against the actual list of the day's card charges. Not
+ * right on Logs, against the actual list of the day's card charges. Not
  * here, mid-sale, from memory.
  */
 
@@ -41,7 +41,23 @@ export function PaymentPanel({
   onError: (msg: string | null) => void;
   onDone: (saleId: number) => void;
 }) {
-  const [methodId, setMethodId] = useState<number>(methods[0]?.id ?? 0);
+  /**
+   * Nothing is chosen until somebody chooses it.
+   *
+   * This used to open on the first method in the list, which is Cash. That is
+   * the right guess most of the time and that is exactly what made it
+   * dangerous: a ticket rung in four taps and closed without the cashier ever
+   * looking at this row books a card sale as cash, and the two errors cancel
+   * out on the total. Nothing is short, nothing fails to balance, and the only
+   * trace is a drawer that comes up over at close by the amount of a card sale
+   * — which reads as a counting mistake and gets recounted rather than found.
+   *
+   * A default that is usually correct is worse here than no default at all,
+   * because being usually correct is what stops anybody checking. `Complete
+   * sale` is already disabled while this is unset, so the cost is one tap that
+   * was always meant to be deliberate.
+   */
+  const [methodId, setMethodId] = useState<number | null>(null);
   const [tip, setTip] = useState("");
   const [splitTip, setSplitTip] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -480,13 +496,19 @@ export function PaymentPanel({
         {busy ? "Working…" : splitting ? "Take both charges" : "Complete sale"}
       </button>
 
+      {/* A real button now, matching the one below it.
+          Splitting a tender and taking a deposit are the same control and were
+          hidden behind the same line of small underlined text, which read as a
+          footnote — so a customer paying half in cash got rung as two tickets,
+          or as one ticket for what they handed over. Both are ordinary here. */}
       {methods.length > 1 && (
         <button
           type="button"
-          className="w-full mt-2 text-xs text-brand-400 underline"
+          className="btn btn-outline w-full mt-2"
+          style={{ height: 44, fontSize: 14 }}
           onClick={startSplit}
         >
-          More than one tender, or only part of it now
+          Split payment, or take only part of it
         </button>
       )}
     </div>

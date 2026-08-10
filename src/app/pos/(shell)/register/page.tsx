@@ -32,8 +32,76 @@ type RegisterData = {
   };
 };
 
+/**
+ * How many, with a way to change it that is not the keyboard.
+ *
+ * The box on its own is right for four, which somebody types. It is wrong for
+ * the far commoner two and three, where a tap beats selecting a digit and
+ * replacing it — and on a touch screen at a counter, selecting a digit inside a
+ * 72px box is a small target reached with a thumb that has tire dressing on it.
+ *
+ * Stacked rather than either side, and the pair is exactly as tall as the box,
+ * so the row keeps one baseline and one height whichever card it sits in. Plus
+ * on top because up is more, which is the only thing about this anybody should
+ * have to work out.
+ *
+ * `tabIndex={-1}` deliberately: tabbing through this row should go price, how
+ * many, Add, the same three stops it has always had. Somebody working the
+ * keyboard is typing the number anyway, and two extra stops between the field
+ * and the button would slow down the path this screen is actually built for.
+ */
+function QtyBox({
+  value,
+  onChange,
+  onBlur,
+  onStep,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onBlur: () => void;
+  onStep: (delta: number) => void;
+}) {
+  return (
+    <div className="qty-box">
+      <input
+        className="input text-center tabular-nums"
+        inputMode="numeric"
+        title="How many"
+        value={value}
+        onChange={(e) => onChange(e.target.value.replace(/[^0-9]/g, ""))}
+        onBlur={onBlur}
+      />
+      <div className="qty-step">
+        <button type="button" onClick={() => onStep(1)} tabIndex={-1} aria-label="One more">
+          +
+        </button>
+        <button type="button" onClick={() => onStep(-1)} tabIndex={-1} aria-label="One fewer">
+          −
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function RegisterPage() {
-  const { can } = usePosAuth();
+  const { can, user } = usePosAuth();
+  /**
+   * Is this the forecourt, rather than the counter?
+   *
+   * A service writer meets the vehicle, writes up the work, and leaves the
+   * ticket for the customer to pay inside — so the ordinary ending of a ticket
+   * for him is the one that is an exception for everybody else. The two buttons
+   * swap weight rather than one of them disappearing: he can still take money
+   * when he is covering the register, it is just not what the screen offers him
+   * first.
+   *
+   * Keyed on the role rather than a setting, because it is a fact about the job
+   * somebody is doing, not a preference. A cashier borrowing his tablet gets
+   * the cashier's register the moment they PIN in.
+   */
+  const writing = user.role === "writer";
+  /** Payment brought forward on a writer's screen. Always on for everyone else. */
+  const [takingPayment, setTakingPayment] = useState(false);
   const [data, setData] = useState<RegisterData | null>(null);
   const [sale, setSale] = useState<Sale | null>(null);
   const [items, setItems] = useState<SaleItem[]>([]);
@@ -73,7 +141,25 @@ export default function RegisterPage() {
   const [picked, setPicked] = useState<FoundProduct | null>(null);
   // How many of the picked item. Only ever shown for stock — a flat is one
   // flat, and a quantity box on it is a box people fat-finger.
-  const [qty, setQty] = useState(1);
+  /**
+   * How many, as TEXT rather than a number.
+   *
+   * It was a number with `Math.max(1, …)` on every keystroke, which meant the
+   * box could never be empty: clearing it put a 1 straight back, so typing 2
+   * over it gave you 12 or 21 depending on where the caret was. The only way to
+   * ring two tires was to notice the field, select the 1, and overtype it —
+   * which nobody did, so tires went out one line at a time or in the wrong
+   * quantity.
+   *
+   * Held as a string so it can legally be empty while somebody is typing, and
+   * read through `qtyNum` at the moment a line is actually posted.
+   */
+  const [qty, setQty] = useState("1");
+  const qtyNum = Math.max(1, parseInt(qty, 10) || 1);
+  /* Steps off `qtyNum` rather than the raw text, so − on an empty box gives 1
+     instead of doing nothing, and it floors at one: zero of something is not a
+     line, it is a line that should not have been added. */
+  const stepQty = (delta: number) => setQty(String(Math.max(1, qtyNum + delta)));
   /**
    * Whether the shelf price on a picked tire may be typed over.
    *
@@ -121,8 +207,34 @@ export default function RegisterPage() {
   // Buying over the counter rather than selling. Set before the ticket exists,
   // because it decides what kind of ticket gets opened.
   const [buying, setBuying] = useState(false);
+  /**
+   * "It's on order" and "they left the car", answered before there is a ticket.
+   *
+   * Both questions get asked while the customer is still standing there and
+   * before anything has been rung, so the two buttons that set them are on
+   * screen from the moment the register loads. What they must NOT do is open a
+   * ticket to have somewhere to put the answer: a mis-tap would leave a numbered
+   * $0 ticket with no lines on it sitting on the day for good, and a ticket
+   * nobody can explain is worse than a flag set a few seconds late.
+   *
+   * So the answer waits here in the browser until the first line is rung, and
+   * rides onto the ticket the moment one exists. Nothing reaches the database
+   * until there is a sale to attach it to.
+   */
+  const [pendingOrder, setPendingOrder] = useState(false);
+  const [pendingVehicle, setPendingVehicle] = useState(false);
   // The ticket just closed, kept only so a receipt can be printed on request.
   const [lastSale, setLastSale] = useState<{ id: number; saleNo: string } | null>(null);
+  /**
+   * The ticket number this register picked up rather than opened.
+   *
+   * Said out loud on screen, because the alternative is somebody walking up to
+   * a register that already has four lines on it and adding a new customer's
+   * flat to the last customer's ticket. The adoption is the right behaviour —
+   * see the effect below — and it is exactly the kind of right behaviour that
+   * has to announce itself.
+   */
+  const [resumed, setResumed] = useState<string | null>(null);
   const amountRef = useRef<HTMLInputElement>(null);
   // The cashback panel has its own amount box. Its own ref too: two inputs
   // sharing one ref means whichever mounted last silently owns the focus, and
@@ -139,6 +251,61 @@ export default function RegisterPage() {
       .then(setData)
       .catch(() => setError("Could not load the register"));
   }, []);
+
+  /**
+   * Pick up a ticket somebody already started instead of opening a second one.
+   *
+   * A draft happens when a ticket is rung and then walked away from — the
+   * customer goes to fetch a card, somebody switches user, the tab gets closed.
+   * Coming back to a blank register and ringing the same job again leaves the
+   * first one behind for good: a numbered ticket with lines on it that nobody
+   * will ever complete, sitting on the day as money the shop appears to be owed.
+   * That is the whole reason the Pending box exists on Main, and this is the
+   * other half of the fix — stop making them.
+   *
+   * TODAY'S ONLY, and of the kind the register is currently in. A draft from
+   * last Tuesday is something to clear up on Main with time to look at it, not
+   * something to silently resume with a customer standing at the counter. And a
+   * cashback ticket is not a sale, so neither may adopt the other.
+   *
+   * Newest first, because if there are somehow two, the one somebody was most
+   * recently working on is the one they meant to come back to.
+   *
+   * Runs once, on load. Not after a sale completes: `reset` clears the ticket
+   * deliberately and re-adopting there would make finishing a sale impossible.
+   */
+  useEffect(() => {
+    if (!data || sale) return;
+    let cancelled = false;
+    void (async () => {
+      const res = await fetch("/api/pos/sales?scope=open");
+      if (!res.ok) return;
+      const d = (await res.json().catch(() => ({}))) as { sales?: Sale[] };
+      const kind = buying ? "purchase" : "sale";
+      const draft = (d.sales ?? []).find(
+        (s) => s.kind === kind && s.business_date === data.businessDate,
+      );
+      if (!draft || cancelled) return;
+
+      // Its lines as well as its header. Adopting the header alone would show an
+      // empty ticket carrying a total, which reads as a bug.
+      const full = await fetch(`/api/pos/sales/${draft.id}`);
+      if (!full.ok || cancelled) return;
+      const detail = (await full.json().catch(() => ({}))) as {
+        sale?: Sale;
+        items?: SaleItem[];
+      };
+      if (!detail.sale || cancelled) return;
+      setSale(detail.sale);
+      setItems(detail.items ?? []);
+      setResumed(detail.sale.sale_no);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Deliberately not keyed on `sale`: this is a once-on-load adoption, and
+    // re-running it every time the ticket changes would fight the register.
+  }, [data, buying]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
    * The "ticket closed" banner takes itself down after a minute.
@@ -208,18 +375,41 @@ export default function RegisterPage() {
         }),
       });
       const d = await res.json().catch(() => ({}));
-      setBusy(false);
       if (!res.ok) {
+        setBusy(false);
         setError(d.error || "Could not add that line");
         return;
       }
-      setSale(d.sale);
+      let landed = d.sale as Sale;
+
+      // Whatever was answered before the ticket existed goes on it now. After
+      // the line rather than before it, so a ticket is never created for the
+      // sake of a flag — the line is what brings it into being, and the flag
+      // follows it in.
+      for (const [want, path, payload] of [
+        [pendingOrder, "fulfillment", { marked: true }],
+        [pendingVehicle, "work-status", { workStatus: "waiting" }],
+      ] as const) {
+        if (!want) continue;
+        const r = await fetch(`/api/pos/sales/${landed.id}/${path}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const rd = await r.json().catch(() => ({}));
+        if (r.ok) landed = rd.sale as Sale;
+      }
+      setPendingOrder(false);
+      setPendingVehicle(false);
+
+      setBusy(false);
+      setSale(landed);
       setItems(d.items);
       setDescription("");
       setAmount("");
       setCategoryId(null);
       setPicked(null);
-      setQty(1);
+      setQty("1");
       // Back to "No mechanic" after every line, including one added by hand.
       //
       // The alternative — leaving the last name selected — is what a register
@@ -238,7 +428,7 @@ export default function RegisterPage() {
       // in the box would leave it belonging to a line that has already gone.
       setOtherName(null);
     },
-    [busy, ensureSale, mechanicId, otherName],
+    [busy, ensureSale, mechanicId, otherName, pendingOrder, pendingVehicle],
   );
 
   /**
@@ -258,6 +448,10 @@ export default function RegisterPage() {
    * An unassigned line is still perfectly legal — plenty of them are genuinely
    * nobody's, and Add posts one deliberately. What is not allowed is the
    * register deciding on its own that a line has no mechanic.
+   *
+   * SERVICES ONLY, despite the name. The tire half of the register no longer
+   * posts anything by itself whatever this says — see `onPickProduct` for why
+   * the quantity box made that impossible to keep.
    */
   // Other counts as an answer. It is a deliberate statement about who did the
   // work, so a line carrying it is as ready to ring itself as one carrying a
@@ -277,16 +471,21 @@ export default function RegisterPage() {
     picked !== null && picked.price_cents > 0 && !priceUnlocked;
 
   /**
-   * A tire came off the search.
+   * A tire came off the search. It LOADS. It never rings.
    *
-   * Priced stock rings straight through -- one tap, which is the only way this
-   * competes with the VBA form. A used size has no price by design (it is set at
-   * the counter from the tire's condition), so that one loads the line and waits
-   * for a number instead of guessing one.
+   * Picking a priced tire used to post it to the ticket immediately, on the
+   * argument that one tap is what makes this quicker than the VBA form it
+   * replaced. That argument was about the wrong tap. Nobody sells one tire:
+   * they sell two, or four, and the quantity box sits beside the search — so
+   * every multiple-tire sale meant the line was already on the ticket at
+   * quantity one before there was any chance to say how many. The way out was
+   * to void the line and ring it again, and what people did instead was ring
+   * four separate lines, or ring one and quietly get the count wrong.
    *
-   * With no fitter chosen, a priced tire loads the same way rather than ringing:
-   * everything is filled in, including the price off the rack, and it waits on
-   * Add. Nothing is retyped — the only thing missing is the name.
+   * So it stages: the name, the shelf price and the category are filled in, the
+   * quantity box is right there, and nothing reaches the ticket until somebody
+   * presses Add. One extra press per tire, in exchange for the quantity being
+   * decided before the line exists rather than after.
    */
   function onPickProduct(p: FoundProduct) {
     const cat =
@@ -295,10 +494,6 @@ export default function RegisterPage() {
         : p.condition === "new"
           ? (data?.tireCategories.new_tire ?? null)
           : null;
-    if (p.price_cents > 0 && readyToAutoAdd) {
-      void addLine(p.name, p.price_cents, cat, p.id, qty);
-      return;
-    }
     setPicked(p);
     setDescription(p.name);
     setCategoryId(cat);
@@ -315,7 +510,7 @@ export default function RegisterPage() {
     setPicked(null);
     setDescription("");
     setCategoryId(null);
-    setQty(1);
+    setQty("1");
   }
 
   function onQuickAmount(cents: number) {
@@ -327,7 +522,7 @@ export default function RegisterPage() {
     // Three clicks when nobody is picked yet: the price lands in the box and
     // the line waits on Add, so the fitter can still be chosen after the fact.
     if (description.trim() && readyToAutoAdd) {
-      void addLine(description.trim(), cents, categoryId, picked?.id ?? null, qty);
+      void addLine(description.trim(), cents, categoryId, picked?.id ?? null, qtyNum);
       return;
     }
     setAmount((cents / 100).toFixed(2));
@@ -336,8 +531,11 @@ export default function RegisterPage() {
 
   function onQuickService(label: string, desc: string, catId: number | null) {
     const cents = parseCents(amount);
+    // `qtyNum`, not 1. This posted a single line whatever the how-many box
+    // said, so setting 4 and tapping MOUNT & B rang one — silently, with the 4
+    // still on screen looking as though it had been taken.
     if (cents !== null && cents >= 0 && readyToAutoAdd) {
-      void addLine(desc || label, cents, catId);
+      void addLine(desc || label, cents, catId, null, qtyNum);
       return;
     }
     setDescription(desc || label);
@@ -355,7 +553,7 @@ export default function RegisterPage() {
       setError("Enter a valid price");
       return;
     }
-    void addLine(description.trim(), cents, categoryId, picked?.id ?? null, qty);
+    void addLine(description.trim(), cents, categoryId, picked?.id ?? null, qtyNum);
   }
 
   async function voidLine(item: SaleItem) {
@@ -384,8 +582,9 @@ export default function RegisterPage() {
    *
    * The ledger already handles the rest — no payment rows means `paid_cents` is
    * zero and `balance_cents` is the full total, which is exactly what a special
-   * order paid in instalments looks like. It shows as owing on Main and can be
-   * settled from the ticket drawer whenever they come back with the money.
+   * order paid in instalments looks like. Nothing collected and something owed
+   * is what puts it in the Pending box on Main, and it is settled from the
+   * ticket drawer whenever the customer reaches the cashier.
    */
   async function leaveUnpaid() {
     if (!sale || busy) return;
@@ -407,6 +606,78 @@ export default function RegisterPage() {
   }
 
   /**
+   * Say the tire is not on the rack.
+   *
+   * THIS HAS TO BE SET BEFORE THE MONEY IS TAKEN. `completeSale` reads the flag
+   * to decide whether to book the tires out, so a ticket marked afterwards has
+   * already had stock come off a rack that never held it. That is why the
+   * control is up beside the total rather than down with the lifecycle in the
+   * drawer -- the drawer is for the ones nobody caught in time.
+   *
+   * The flag is the whole answer to "they paid for it but we still owe them a
+   * tire". Payment and fulfilment are separate facts here: the ticket completes,
+   * the deposit or the full amount is banked, and it stays on the orders board
+   * until somebody says the tire went on the car.
+   */
+  async function markOrder(on: boolean) {
+    if (busy) return;
+    // No ticket yet: remember it and stop. See the note on `pendingOrder`.
+    if (!sale) {
+      setPendingOrder(on);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const res = await fetch(`/api/pos/sales/${sale.id}/fulfillment`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ marked: on }),
+    });
+    const d = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) {
+      setError(d.error || "Could not mark this as an order");
+      return;
+    }
+    setSale(d.sale);
+  }
+
+  /**
+   * Say the customer has left the car.
+   *
+   * The other half of the same question the order flag answers, asked of the
+   * vehicle instead of the tire: what is this shop still holding? A car dropped
+   * off for an oil change at nine is exactly as easy to lose track of as a tire
+   * on order, and until this existed the only way to record it was to open the
+   * ticket again from Main after the sale had already closed.
+   *
+   * 'waiting' rather than anything cleverer, because that is what is true the
+   * moment somebody hands over a key: waiting on us. Whoever picks the job up
+   * moves it along from the board.
+   */
+  async function markVehicle(on: boolean) {
+    if (busy) return;
+    if (!sale) {
+      setPendingVehicle(on);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const res = await fetch(`/api/pos/sales/${sale.id}/work-status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workStatus: on ? "waiting" : null }),
+    });
+    const d = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) {
+      setError(d.error || "Could not set this ticket's status");
+      return;
+    }
+    setSale(d.sale);
+  }
+
+  /**
    * Move between the service register and the tire one.
    *
    * Clears whatever line was half-built, because it belonged to the register
@@ -420,7 +691,7 @@ export default function RegisterPage() {
     setAmount("");
     setCategoryId(null);
     setPicked(null);
-    setQty(1);
+    setQty("1");
     setError(null);
   }
 
@@ -432,10 +703,18 @@ export default function RegisterPage() {
     setLastSale(sale ? { id: finishedSaleId, saleNo: sale.sale_no } : null);
     setSale(null);
     setItems([]);
+    // The ticket that was picked up is finished, so the notice goes with it —
+    // the next one on this screen is a fresh ticket like any other.
+    setResumed(null);
+    // And the payment panel folds away again. A writer who took the money on
+    // one ticket is back outside for the next one.
+    setTakingPayment(false);
     setDescription("");
     setAmount("");
     setCategoryId(null);
     setBuying(false);
+    setPendingOrder(false);
+    setPendingVehicle(false);
     setError(null);
   }
 
@@ -632,10 +911,15 @@ export default function RegisterPage() {
             className="grid gap-2 mb-4"
             style={{ gridTemplateColumns: "1fr 1fr" }}
           >
+            {/* "Inventory", not "Tires". This half sells everything that comes
+                off a shelf and gets counted — new tires, used sizes, batteries
+                and now sensors — and calling it Tires had people ringing the
+                other three through the service box as free text, where they
+                carry no product and move no stock. */}
             {(
               [
                 ["service", "Services"],
-                ["tire", "Tires"],
+                ["tire", "Inventory"],
               ] as const
             ).map(([value, label]) => (
               <button
@@ -686,7 +970,7 @@ export default function RegisterPage() {
               It is now a keypad of its own below both. */}
           <div
             className="grid gap-3"
-            style={{ gridTemplateColumns: "minmax(0,1fr) 72px" }}
+            style={{ gridTemplateColumns: "minmax(0,1fr) 106px" }}
           >
             {picked ? (
               <div className="picked-tire">
@@ -712,12 +996,11 @@ export default function RegisterPage() {
                 actions={tireActions}
               />
             )}
-            <input
-              className="input text-center tabular-nums"
-              inputMode="numeric"
-              title="How many"
+            <QtyBox
               value={qty}
-              onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))}
+              onChange={setQty}
+              onBlur={() => setQty(String(qtyNum))}
+              onStep={stepQty}
             />
           </div>
           {/* A used tire has no price until somebody has looked at it, so this
@@ -732,26 +1015,37 @@ export default function RegisterPage() {
               className="grid gap-3 mt-3"
               style={{ gridTemplateColumns: "130px minmax(0,1fr) auto" }}
             >
-              <input
-                ref={amountRef}
-                className="input text-right tabular-nums"
-                placeholder="0.00"
-                inputMode="decimal"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && submitManual()}
-                readOnly={priceLocked}
-                title={
-                  priceLocked
-                    ? "This is the shelf price. Tick Edit price to change it."
-                    : undefined
-                }
-                style={
-                  priceLocked
-                    ? { background: "rgba(10,37,64,0.04)", cursor: "not-allowed" }
-                    : undefined
-                }
-              />
+              {/* Same money field as the service half. Both halves of this
+                  screen are one screen to whoever is standing at it, and a
+                  dollar sign on one price box and not the other reads as a
+                  fault rather than as a difference. */}
+              <div className="money-field">
+                <span className="money-field-sign">$</span>
+                <input
+                  ref={amountRef}
+                  className="input text-right tabular-nums"
+                  placeholder="0.00"
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  onBlur={() => {
+                    const c = parseCents(amount);
+                    if (c !== null) setAmount((c / 100).toFixed(2));
+                  }}
+                  onKeyDown={(e) => e.key === "Enter" && submitManual()}
+                  readOnly={priceLocked}
+                  title={
+                    priceLocked
+                      ? "This is the shelf price. Tick Edit price to change it."
+                      : undefined
+                  }
+                  style={
+                    priceLocked
+                      ? { background: "rgba(10,37,64,0.04)", cursor: "not-allowed" }
+                      : undefined
+                  }
+                />
+              </div>
               {/* The tire's name used to be repeated here, a hand's width below
                   where it already says which tire is picked, and it was the only
                   thing in the row that could not be acted on. The lock belongs
@@ -822,14 +1116,33 @@ export default function RegisterPage() {
               {picked
                 ? picked.price_cents > 0
                   ? priceUnlocked
-                    ? `Selling off the shelf price of ${formatCents(picked.price_cents)}. This line will be flagged on Entries and the close-out.`
-                    : "Price is off the rack. Pick who fitted it, then Add."
-                  : "Used tires are priced at the counter — enter the price and add."
-                : readyToAutoAdd
-                  ? "Picking a priced tire rings it straight through and takes it off the rack. Used tires and batteries are rung here too."
-                  : "Pick the fitter and a priced tire rings straight through. Used tires and batteries are rung here too."}
+                    ? `Selling off the shelf price of ${formatCents(picked.price_cents)}. This line will be flagged on Logs and the close-out.`
+                    : "Price is off the rack. Set how many, pick who fitted it, then Add."
+                  : "Used tires are priced at the counter — enter the price, set how many, then Add."
+                : "Find the tire, set how many, then Add. Nothing reaches the ticket until you do. Used tires, batteries and sensors are rung here too."}
             </span>
           </p>
+          {/* Here rather than over on the ticket, because this is the half of
+              the register where somebody has just failed to find the tire. The
+              question is asked at the moment it occurs to them, under the box
+              they searched in, instead of across the counter next to the money.
+              Its counterpart lives in the service card for the same reason.
+
+              Offered before there is a ticket, not after: "we'll have to order
+              it" is usually the first thing settled, so waiting for a line to be
+              rung took the offer off the screen for exactly as long as it was
+              wanted. Pressing it opens the ticket. */}
+          {!purchasing && can("manageSpecialOrders") &&
+            !pendingOrder && sale?.is_special_order !== 1 && (
+              <button
+                type="button"
+                className="mt-2 text-xs underline text-amber-800 hover:text-amber-900"
+                onClick={() => void markOrder(true)}
+                disabled={busy}
+              >
+                Not on the rack? Order it in
+              </button>
+            )}
         </div>
         )}
 
@@ -849,18 +1162,40 @@ export default function RegisterPage() {
             onChange={(e) => setDescription(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && amountRef.current?.focus()}
           />
+          {/* Price, how many, Add. The how-many box is the same 72px cell as
+              the one in the tire card and sits in the same place relative to
+              the thing it counts, because it is the same question — four mount
+              and balances is as ordinary as four tires, and until now the only
+              way to ring them was to press the button four times. */}
           <div
             className="grid gap-3"
-            style={{ gridTemplateColumns: "130px minmax(0,1fr)" }}
+            style={{ gridTemplateColumns: "130px 106px minmax(0,1fr)" }}
           >
-            <input
-              ref={amountRef}
-              className="input text-right tabular-nums"
-              placeholder="0.00"
-              inputMode="decimal"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && submitManual()}
+            <div className="money-field">
+              <span className="money-field-sign">$</span>
+              <input
+                ref={amountRef}
+                className="input text-right tabular-nums"
+                placeholder="0.00"
+                inputMode="decimal"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                /* Tidied when you leave it, not while you type: reformatting
+                   mid-keystroke fights the caret and turns "1" into "1.00"
+                   before the 5 arrives. Anything unparseable is left exactly as
+                   typed so the mistake stays visible. */
+                onBlur={() => {
+                  const c = parseCents(amount);
+                  if (c !== null) setAmount((c / 100).toFixed(2));
+                }}
+                onKeyDown={(e) => e.key === "Enter" && submitManual()}
+              />
+            </div>
+            <QtyBox
+              value={qty}
+              onChange={setQty}
+              onBlur={() => setQty(String(qtyNum))}
+              onStep={stepQty}
             />
             <button
               type="button"
@@ -871,6 +1206,25 @@ export default function RegisterPage() {
               Add
             </button>
           </div>
+          {/* The counterpart to "Order it in" over in the tire card. A car gets
+              left for work, not for a tire off the rack, so the question belongs
+              to this half of the register and is asked while the work is being
+              rung.
+
+              Offered before there is a ticket, not after. Somebody hands over a
+              key first and gets told the price second, so waiting for a line to
+              be rung meant the question was not on screen at the moment it was
+              being answered. Pressing it opens the ticket. */}
+          {!purchasing && !pendingVehicle && !sale?.work_status && (
+            <button
+              type="button"
+              className="mt-3 text-xs underline text-amber-800 hover:text-amber-900"
+              onClick={() => void markVehicle(true)}
+              disabled={busy}
+            >
+              Is the client leaving their vehicle?
+            </button>
+          )}
         </div>
         )}
 
@@ -903,14 +1257,19 @@ export default function RegisterPage() {
               background: mechanicLabel === null ? "#fffdf5" : undefined,
             }}
           >
-            <div className="flex items-baseline justify-between mb-2">
+            {/* Wraps rather than squeezes. On a narrow window the sentence on
+                the right used to be crushed against the label with no gap at
+                all -- "MECHANICnobody picked" -- and then broken over two
+                cramped lines. Held at its natural width it drops underneath the
+                label instead, which costs one line and stays readable. */}
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-2">
               <div className="text-xs uppercase tracking-wider text-brand-300">
                 Mechanic
               </div>
               {/* Says the answer in words next to the label, so the state
                   survives being read from across the counter at an angle where
                   which button is filled is not obvious. */}
-              <div className="text-xs">
+              <div className="text-xs shrink-0 max-w-full">
                 {mechanicLabel === null ? (
                   <span style={{ color: "#b45309" }}>
                     nobody picked — the line will wait for Add
@@ -1048,10 +1407,15 @@ export default function RegisterPage() {
               </div>
             )}
 
+            {/* Mode-dependent, because the two halves of the register post
+                differently now. A service still rings itself off a price
+                button; a tire always waits on Add — see `onPickProduct`. */}
             <p className="text-xs text-brand-300 mt-2">
-              {readyToAutoAdd
-                ? "A price now finishes the line and rings it. This clears after every one."
-                : "It belongs to the line, not the ticket, so it is asked again for each one."}
+              {mode === "tire"
+                ? "It belongs to the line, not the ticket, so it is asked again for each one."
+                : readyToAutoAdd
+                  ? "A price now finishes the line and rings it. This clears after every one."
+                  : "It belongs to the line, not the ticket, so it is asked again for each one."}
             </p>
           </div>
         )}
@@ -1124,7 +1488,7 @@ export default function RegisterPage() {
       <div>
         <div className="bg-white rounded-2xl shadow-sm p-4 sticky" style={{ top: 16 }}>
           {/* "TICKET S-2026-000118", not a bare number. Same treatment as the
-              drawer on Entries, and for the same reason: on a screen where
+              drawer on Logs, and for the same reason: on a screen where
               every other string is a service or a tender, the number needs the
               word in front of it to say what kind of thing it is. */}
           {/* Barely any gap under the header on purpose: the details hang off
@@ -1177,6 +1541,18 @@ export default function RegisterPage() {
           {/* The Cashback toggle used to sit here. It moved to the mode
               buttons on the left, where choosing what kind of ticket this is
               belongs — see the note there. */}
+
+          {/* Says the register picked this ticket up rather than opened it.
+              Amber, not red: nothing has gone wrong, but the lines already on
+              screen belong to somebody else's job and adding to them by mistake
+              is the one error this whole behaviour could cause. */}
+          {resumed && sale && (
+            <div className="mb-3 rounded-xl px-3 py-2 text-xs" style={{ background: "#fff7ed", color: "#92400e" }}>
+              Carrying on <strong>{resumed}</strong>, left unfinished on this
+              register. Check the lines below are the ones you meant before
+              adding to it.
+            </div>
+          )}
 
           {(buying || sale?.kind === "purchase") && (
             <div className="mb-3 rounded-xl bg-red-50 px-3 py-2 text-xs text-red-800">
@@ -1231,7 +1607,21 @@ export default function RegisterPage() {
               {liveItems.map((i) => (
                 <div key={i.id} className="py-2 flex items-start gap-2">
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm text-brand-500 truncate">{i.description}</div>
+                    {/* The count goes in FRONT of the description, the same way
+                        the ticket drawer and the receipt write it.
+
+                        Without it two mount-and-balances at $15 read as one
+                        line saying "Mount & balance   $30.00", and the only
+                        way to tell that from a single $30 line is to know what
+                        a mount and balance costs. The customer is told $30
+                        either way, so nothing is caught until the receipt
+                        prints the ×2 that the ticket never showed — by which
+                        point the sale is complete and the fix is an edit with
+                        a reason on it. */}
+                    <div className="text-sm text-brand-500 truncate">
+                      {i.qty > 1 ? `${i.qty}× ` : ""}
+                      {i.description}
+                    </div>
                     {i.mechanic_id && (
                       <div className="text-xs text-brand-300">
                         {data.mechanics.find((m) => m.id === i.mechanic_id)?.name}
@@ -1264,10 +1654,91 @@ export default function RegisterPage() {
           {/* The customer panel used to sit here, under the total. It moved up
               to directly beneath the ticket number — see the note there. */}
 
+          {/* The two things this ticket can still owe after the money is taken:
+              a tire the shop has to fetch, and a car the shop is holding.
+
+              Only the states are drawn here. The two offers that turn them ON
+              live in the entry cards on the left, each in the half of the
+              register it belongs to — see the note on each. What is left is a
+              read-out of what this ticket already owes, which is a fact about
+              the ticket and so belongs on the ticket.
+
+              Above the payment panel and not below it, because the order flag is
+              the last thing that is still true to say before the money moves:
+              once the ticket completes, the flag decides whether the tires came
+              off the racks, and setting it afterwards leaves the count already
+              wrong.
+
+              Coloured to match the drawer and the Outstanding panel, so the
+              places this state is visible read as one thing.
+
+              Drawn from the held answer as well as the saved one, so pressing
+              either offer looks the same whether or not a line has been rung
+              yet. A button that appeared to do nothing until the first line
+              would just get pressed again. */}
+          {!purchasing && (
+            <div className="mt-3 flex flex-col gap-2 empty:mt-0">
+              {can("manageSpecialOrders") && (pendingOrder || sale?.is_special_order === 1) && (
+                <div
+                  className="rounded-xl px-3 py-2.5"
+                  style={{ background: "#fff7ed", border: "1px solid rgba(180,83,9,0.25)" }}
+                >
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-sm font-semibold text-amber-900">
+                      On order — we owe them the tire
+                    </span>
+                    <button
+                      type="button"
+                      className="text-xs underline text-amber-800 hover:text-amber-900"
+                      onClick={() => void markOrder(false)}
+                      disabled={busy}
+                    >
+                      We have it
+                    </button>
+                  </div>
+                  <div className="mt-0.5 text-xs text-amber-800">
+                    Take the money as normal. It stays on the Outstanding panel even
+                    once it is paid.
+                  </div>
+                </div>
+              )}
+              {(pendingVehicle || sale?.work_status) && (
+                <div
+                  className="rounded-xl px-3 py-2.5"
+                  style={{ background: "#fff7ed", border: "1px solid rgba(180,83,9,0.25)" }}
+                >
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-sm font-semibold text-amber-900">
+                      Vehicle is here — waiting on us
+                    </span>
+                    <button
+                      type="button"
+                      className="text-xs underline text-amber-800 hover:text-amber-900"
+                      onClick={() => void markVehicle(false)}
+                      disabled={busy}
+                    >
+                      They took it
+                    </button>
+                  </div>
+                  <div className="mt-0.5 text-xs text-amber-800">
+                    It stays on the Outstanding panel until somebody says it is done,
+                    paid or not.
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {error && <div className="mt-3 text-sm text-red-700">{error}</div>}
 
+          {/* On a writer's screen the money is one click away, not gone.
+              He is outside at the car and the customer pays inside, so a
+              payment form is the wrong first thing to put under his thumb —
+              but he covers the register at lunch, so it cannot be taken off
+              him either. Shown from the start for everybody else. */}
           {sale &&
             liveItems.length > 0 &&
+            (!writing || takingPayment) &&
             (sale.kind === "purchase" ? (
               <PayoutPanel
                 sale={sale}
@@ -1287,25 +1758,72 @@ export default function RegisterPage() {
               />
             ))}
 
-          {/* Work done, money not collected. Deliberately understated and
-              underneath the payment panel: it is a real part of the shop's day
-              — the customer who is coming back Friday with the rest — but it is
-              never the button you want if the money is on the counter, and a
-              second big button beside "Complete sale" is one mis-tap away from
-              a ticket nobody ever chases. */}
+          {/* Work done, money not collected.
+              For a cashier this is the exception — the customer coming back
+              Friday with the rest — so it sits under the payment panel,
+              outlined rather than filled: findable without being the thing a
+              thumb lands on when the money is on the counter. It used to be
+              small underlined text, which is the treatment a footnote gets, and
+              tickets that should have closed owing forty dollars got rung for
+              nothing instead.
+
+              For a WRITER it is the ordinary ending, so it is the solid button
+              and it comes first. Same action, same dialog, same ledger — only
+              the weight on the screen changes with whose job it is. */}
           {sale && liveItems.length > 0 && sale.kind !== "purchase" && (
+            /* Two lines, not one long one.
+               The button says the ACTION and the amount sits under it, because
+               they are answers to different questions — what this does, and how
+               much the customer is about to be told to pay — and running them
+               together made a button too wide to read at a glance on a tablet
+               held one-handed at a car window.
+
+               Red throughout. This app already uses red for the ending that
+               leaves money owed, and it is no less true for being the ordinary
+               ending of a writer's ticket. */
+            /* A gap above it on a writer's screen, where this button follows
+               the total directly rather than a payment panel. Butted straight
+               up against the figure it reads as part of the same block, and the
+               one thing that must not happen at a car window is pressing the
+               ending of a ticket while looking at its total. */
+            <div className={writing ? "mt-3" : undefined}>
+              <button
+                type="button"
+                className={
+                  writing ? "btn btn-danger w-full" : "btn btn-outline-danger w-full mt-2"
+                }
+                style={
+                  writing ? { height: 52, fontSize: 17 } : { height: 44, fontSize: 14 }
+                }
+                onClick={() => setAskUnpaid(true)}
+                disabled={busy}
+              >
+                {writing
+                  ? "Create Ticket"
+                  : `Close it unpaid — customer owes ${formatCents(sale.subtotal_cents)}`}
+              </button>
+              {writing && (
+                <div
+                  className="text-center mt-1 font-semibold tabular-nums"
+                  style={{ color: "#a71d24", fontSize: 14 }}
+                >
+                  {formatCents(sale.subtotal_cents)} to pay at cashier
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* The way to the money, for a writer who is manning the register.
+              Only until it is opened: once the panel is on screen it says
+              everything this button would. */}
+          {writing && !takingPayment && sale && liveItems.length > 0 && (
             <button
               type="button"
-              // Red, because of what it is rather than how dangerous it is:
-              // this is the one button on the screen that ends a ticket with
-              // money still owed, and it should read as a debt being created
-              // even while it stays small enough not to compete with Complete
-              // sale.
-              className="w-full mt-2 text-xs text-red-700 underline hover:text-red-900"
-              onClick={() => setAskUnpaid(true)}
-              disabled={busy}
+              className="btn btn-outline w-full mt-2"
+              style={{ height: 44, fontSize: 14 }}
+              onClick={() => setTakingPayment(true)}
             >
-              Close it unpaid — customer owes {formatCents(sale.subtotal_cents)}
+              Taking the money here instead
             </button>
           )}
 
@@ -1336,7 +1854,7 @@ export default function RegisterPage() {
                   setAmount("");
                   setCategoryId(null);
                   setPicked(null);
-                  setQty(1);
+                  setQty("1");
                   setError(null);
                   setBuying((b) => !b);
                 }}
@@ -1349,22 +1867,36 @@ export default function RegisterPage() {
         </div>
       </div>
 
+      {/* One wording for both roles, because it is one act.
+          It used to read "Close without payment? — Yes, they owe it", which is
+          the voice of a cashier deciding to let somebody leave owing money. That
+          is sometimes what this is, but the ordinary case at this shop is
+          simpler and happens at both ends of the building: the work is written
+          up here and the customer pays at the cashier. Naming it that way makes
+          the dialog true for the writer at the car AND for the cashier who is
+          handing somebody a ticket to settle in a minute.
+
+          What it must NOT lose is the two consequences, which are the whole
+          reason there is a dialog at all: the tires leave the racks now, and the
+          total stops being editable. */}
       <ConfirmModal
         open={askUnpaid}
         onCancel={() => setAskUnpaid(false)}
         onConfirm={() => void leaveUnpaid()}
-        title="Close without payment?"
-        confirmLabel="Yes, they owe it"
+        title="Create the ticket to pay at the cashier?"
+        confirmLabel="Create it"
         cancelLabel="Go back"
         busy={busy}
       >
         <p>
-          The ticket closes for <strong>{sale ? formatCents(sale.subtotal_cents) : ""}</strong>{" "}
-          with nothing paid, and any tires on it come off the racks.
+          The ticket is finished at{" "}
+          <strong>{sale ? formatCents(sale.subtotal_cents) : ""}</strong> with
+          nothing collected — the customer pays at the cashier later. Any tires
+          on it come off the racks now.
         </p>
         <p className="mt-2">
-          It shows as owing on Main until somebody takes the money, and the total
-          is frozen now — a price change later will not move what they owe.
+          It sits in <strong>Pending</strong> on Main until the money is taken,
+          and the total is frozen.
         </p>
       </ConfirmModal>
 

@@ -46,6 +46,7 @@ export async function PATCH(
     active?: boolean;
     specialized?: boolean;
     supplier?: string | null;
+    discounted?: boolean;
   };
   try {
     body = await req.json();
@@ -73,7 +74,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await requirePos("manageProducts");
+  const auth = await requirePos("deleteProduct");
   if (!auth.ok) return auth.response;
 
   const id = parseInt((await params).id, 10);

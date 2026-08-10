@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { TicketDrawer } from "@/components/pos/TicketDrawer";
@@ -21,9 +22,15 @@ import type { PaymentMethod } from "@/lib/payments";
  * row. They interleave by time, because that is the order they happened in and
  * the only order in which a sequence makes sense to read.
  *
- * Voided rows are included and struck through rather than filtered out. This is
- * the screen somebody opens when the drawer is short, and a void is the single
- * most likely explanation — a list that hid them would hide the answer.
+ * VOIDED TICKETS are included and coloured rather than filtered out. This is the
+ * screen somebody opens when the drawer is short, and a void is the single most
+ * likely explanation — a list that hid them would hide the answer.
+ *
+ * Lines struck off a ticket that still stands are the other thing, and they are
+ * hidden until the eye beside the date is pressed. Those are not events; they
+ * are somebody using the register, and at one per correction they outnumbered
+ * the day. The distinction the whole screen turns on is "did this not happen"
+ * versus "was this typed twice".
  *
  * It is also where SEQ gets fixed. The card batch is reconciled against a list
  * of the day's charges, and this is that list; sending someone into a ticket
@@ -31,11 +38,34 @@ import type { PaymentMethod } from "@/lib/payments";
  * memory at close, or not at all.
  */
 
+type Tips = {
+  from: string;
+  to: string;
+  rows: {
+    at: string;
+    businessDate: string;
+    saleId: number;
+    saleNo: string;
+    kind: string;
+    method: string;
+    forName: string | null;
+    takenBy: string | null;
+    tipCents: number;
+    commCents: number;
+    saleVoided: number;
+  }[];
+  tipCents: number;
+  commCents: number;
+  ticketCount: number;
+  byTech: { name: string; tipCents: number; count: number }[];
+};
+
 type Data = {
   businessDate: string;
   /** Today's business date, whatever day is being viewed. */
   today: string;
   entries: DayEntry[];
+  tips: Tips;
   paymentMethods: PaymentMethod[];
   settings: { tipCommPerCents: number; tipCommChargeCents: number };
 };
@@ -79,6 +109,17 @@ export default function EntriesPage() {
   const [openSaleId, setOpenSaleId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * The far end of a range, and whether one is being asked for at all.
+   *
+   * Off by default and behind a button, because one day is what this screen is
+   * for on nearly every visit — it is opened to answer "what did we do today".
+   * A second date box sitting there permanently would be a control that has to
+   * be read and dismissed a hundred times to be used once.
+   */
+  const [ranged, setRanged] = useState(false);
+  const [until, setUntil] = useState("");
+
   const [query, setQuery] = useState("");
   // Lines by default, not everything. The question this screen is opened to
   // answer is almost always "what did we actually do today" — the payments are
@@ -89,6 +130,23 @@ export default function EntriesPage() {
   const [category, setCategory] = useState("all");
   const [method, setMethod] = useState("all");
   const [showVoided, setShowVoided] = useState(true);
+  /**
+   * The lines that were rung and struck off again mid-ticket.
+   *
+   * OFF BY DEFAULT, and that is the change: they used to be half the list on a
+   * busy afternoon. A line typed at the wrong price and corrected ten seconds
+   * later is not an event — it is somebody using the register — and a ledger
+   * that shows both the mistake and the fix for every one of them buries the
+   * rows that are actually about the day.
+   *
+   * A voided TICKET is a different thing entirely and is not affected by this.
+   * That is a whole job that did not happen, it is the commonest explanation for
+   * a short drawer, and it keeps its own checkbox and its own colour.
+   */
+  const [showDead, setShowDead] = useState(false);
+  // The tips panel. Closed on arrival — this page is the ledger first, and a
+  // summary that opens itself pushes the thing people came for down the screen.
+  const [showTips, setShowTips] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
@@ -98,23 +156,26 @@ export default function EntriesPage() {
    * Until they have, this list follows today and keeps following it — not just
    * on the first draw. The tab gets opened once and left open; seeding the box
    * at mount would leave it stuck on yesterday's ledger after the 4am roll,
-   * which is the one time an empty-looking Entries screen is genuinely
+   * which is the one time an empty-looking Logs screen is genuinely
    * alarming rather than merely wrong.
    */
   const pickedADay = useRef(false);
 
   const load = useCallback(async () => {
-    const url = date
-      ? `/api/pos/reports/entries?date=${date}`
-      : "/api/pos/reports/entries";
-    const res = await fetch(url);
+    const params = new URLSearchParams();
+    if (date) params.set("date", date);
+    // Only when a range is actually being asked for AND has a far end. A blank
+    // second box means "still one day", not "everything since the beginning".
+    if (ranged && until) params.set("until", until);
+    const qs = params.toString();
+    const res = await fetch(`/api/pos/reports/entries${qs ? `?${qs}` : ""}`);
     if (!res.ok) return;
     const d: Data = await res.json();
     setData(d);
     // `d.today`, not `d.businessDate` — the latter echoes what was asked for,
     // so it can never report that the day rolled underneath us.
     if (!pickedADay.current && date !== d.today) setDate(d.today);
-  }, [date]);
+  }, [date, ranged, until]);
 
   useEffect(() => {
     void load();
@@ -147,6 +208,16 @@ export default function EntriesPage() {
   const cardView =
     method !== "all" &&
     data?.paymentMethods.find((m) => m.label === method)?.is_card === 1;
+
+  /**
+   * Can this person take a row off the log?
+   *
+   * The server has already decided — a struck row is dropped before the response
+   * is built for anybody else, so `deletedBy` is null on every row they receive
+   * and the column would be empty regardless. This only stops the empty column
+   * being drawn.
+   */
+  const canStrike = can("deleteEntry");
 
   /** Everybody who appears today, so the filter offers only real options. */
   const people = useMemo(() => {
@@ -189,9 +260,44 @@ export default function EntriesPage() {
       // five and two of them share a word.
       if (category !== "all" && e.category !== category) return false;
       if (who !== "all" && (e.who ?? "") !== who) return false;
-      if (!showVoided && e.voided) return false;
+      // Two different kinds of dead, two different switches. The checkbox is
+      // about tickets that were voided; the eye is about lines struck off a
+      // ticket that stands. Reading one flag for both is what made the eye
+      // necessary — the noisy half could not be hidden without hiding the half
+      // somebody opens this screen to find.
+      if (!showVoided && e.saleVoided) return false;
+      // A row the owner has struck off is never hidden FROM THE OWNER by
+      // either switch, and nobody else is ever sent one. It is their own act
+      // and it is how they take it back — a delete that made the row vanish
+      // behind a filter would give no sign it had worked and no way to undo it.
+      if (!showDead && e.voided && !e.saleVoided && !e.deletedBy) return false;
       if (!q) return true;
-      return [e.saleNo, e.what, e.category, e.detail, e.who, e.seq]
+      /*
+        The customer's name and phone are matched but never drawn. Being handed
+        a name over the counter and finding every ticket that belongs to it is
+        the thing this list could not do; showing the name in a column is not,
+        because the ticket number is already there and one click opens the
+        drawer that has it.
+
+        The phone is matched digits-only as well as raw, so "2104213006" finds
+        a number stored as "210-421-3006". Nobody reads a phone number back with
+        the punctuation, and a search that only worked if you guessed the shop's
+        own formatting would be worse than none.
+      */
+      const digits = q.replace(/\D/g, "");
+      if (digits.length >= 3 && e.customerPhone) {
+        if (e.customerPhone.replace(/\D/g, "").includes(digits)) return true;
+      }
+      return [
+        e.saleNo,
+        e.what,
+        e.category,
+        e.detail,
+        e.who,
+        e.seq,
+        e.customerName,
+        e.customerPhone,
+      ]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
@@ -212,7 +318,7 @@ export default function EntriesPage() {
       if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
       return String(av ?? "").localeCompare(String(bv ?? "")) * dir;
     });
-  }, [data, query, kind, who, category, method, showVoided, sortKey, sortDir]);
+  }, [data, query, kind, who, category, method, showVoided, showDead, sortKey, sortDir]);
 
   /**
    * The rows that should print the ticket's note.
@@ -244,6 +350,53 @@ export default function EntriesPage() {
       money: live.filter((r) => r.kind === "money").reduce((s, r) => s + r.amountCents, 0),
     };
   }, [rows]);
+
+  /**
+   * Which shade of red each dead row gets.
+   *
+   * Zebra among the red rows rather than down the whole table, because a run of
+   * four voided rows is the case this exists for: at one flat tint they read as
+   * a single block and the eye stops separating them, which is the opposite of
+   * what a coloured row is for. Rows in between do not reset the alternation —
+   * this counts reds, not positions, so two voids either side of a live row
+   * still differ from each other.
+   */
+  const redTone = useMemo(() => {
+    const tone = new Map<string, 0 | 1>();
+    let n = 0;
+    for (const r of rows) {
+      if (!r.saleVoided && !r.deletedBy) continue;
+      tone.set(r.key, (n++ % 2) as 0 | 1);
+    }
+    return tone;
+  }, [rows]);
+
+  /**
+   * Take a dead row off the log, or put it back.
+   *
+   * No confirm dialog on the way in. Nothing is destroyed and the button is
+   * still there afterwards reading "put back" — a modal guarding an action that
+   * undoes itself in one click is a modal people learn to dismiss unread, which
+   * is how they stop working on the ones that matter.
+   */
+  async function strike(e: DayEntry, restore: boolean) {
+    setError(null);
+    const res = await fetch("/api/pos/reports/entries/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind: e.kind,
+        id: e.kind === "line" ? Number(e.key.slice(5)) : e.paymentId,
+        restore,
+      }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      setError(d.error || "That row could not be changed");
+      return;
+    }
+    await load();
+  }
 
   function sortOn(key: SortKey) {
     if (key === sortKey) {
@@ -292,15 +445,116 @@ export default function EntriesPage() {
     <div className="max-w-7xl mx-auto">
       <div className="flex items-end justify-between mb-5 gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold text-brand-500">Entries</h1>
+          <h1 className="text-2xl font-semibold text-brand-500">Logs</h1>
           <p className="text-brand-400 text-sm">
             Everything that happened, in the order it happened. Voided rows stay
             on the list.
           </p>
+          {/* The other two ledgers, reached from the one people already open.
+              This page is the day; those two are the same records cut the other
+              way — by tire and by customer — and both were previously reachable
+              only from a row that happened to mention them. Put here rather than
+              in the top navigation because that is a row of places you WORK, and
+              these are places you go to answer a question. */}
+          <div className="flex items-center gap-2 mt-3 no-print">
+            {can("viewInventory") && (
+              <Link href="/pos/movements" className="btn btn-outline" style={{ height: 34, fontSize: 13 }}>
+                Tire movements
+              </Link>
+            )}
+            <Link href="/pos/customers" className="btn btn-outline" style={{ height: 34, fontSize: 13 }}>
+              Customers
+            </Link>
+            {/* Tips are already in the list below, scattered among four hundred
+                other rows and impossible to add up by eye. This is the same
+                rows gathered — a view of this page rather than another page,
+                which is why it is a toggle here and not a link. */}
+            <button
+              type="button"
+              className={showTips ? "btn btn-primary" : "btn btn-outline"}
+              style={{ height: 34, fontSize: 13 }}
+              aria-pressed={showTips}
+              onClick={() => setShowTips((v) => !v)}
+            >
+              Tips
+            </button>
+          </div>
         </div>
         {/* Picking a date pins the list to it; nothing snaps it back on its
-            own after that. "Today" is the way home. */}
+            own after that. "Today" is the way home.
+
+            It sits to the LEFT of the picker and is always drawn, greyed out
+            when the list is already showing today. It used to appear only once
+            you had moved off today, which meant the way back was a control that
+            did not exist until you needed it — so nobody knew it was there, and
+            the button materialising under the cursor moved the date box
+            sideways at the same time. */}
         <div className="flex items-center gap-2">
+          {/* The eye, and the only control on this row that is not about which
+              day is being shown.
+
+              It lives here rather than beside "Show voided" below because it is
+              a switch about how much of the ledger you are looking at, which is
+              the same class of thing as the date — and because the row of
+              dropdowns underneath is already five controls long. An icon rather
+              than a labelled checkbox for the same reason: the honest label is
+              two lines of prose, and the tooltip can carry them. */}
+          <button
+            type="button"
+            className={showDead ? "btn btn-primary" : "btn btn-outline"}
+            style={{ height: 38, width: 42, padding: 0 }}
+            aria-pressed={showDead}
+            aria-label={
+              showDead ? "Hide lines struck off mid-ticket" : "Show lines struck off mid-ticket"
+            }
+            title={
+              showDead
+                ? "Hiding lines that were rung and struck off again. Voided tickets are not affected."
+                : "Also show lines that were rung and struck off again mid-ticket"
+            }
+            onClick={() => setShowDead((v) => !v)}
+          >
+            {/* Open when they are showing, struck through when they are not —
+                the icon says what you are currently looking at, not what the
+                button would do. Every other toggle on this screen reads the same
+                way round. */}
+            <svg
+              viewBox="0 0 24 24"
+              width={19}
+              height={19}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.8}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ display: "block", margin: "0 auto" }}
+              aria-hidden="true"
+            >
+              <path d="M1.8 12S5.5 5.2 12 5.2 22.2 12 22.2 12 18.5 18.8 12 18.8 1.8 12 1.8 12Z" />
+              <circle cx="12" cy="12" r="3.1" />
+              {!showDead && <path d="M3.5 20.5 20.5 3.5" />}
+            </svg>
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline"
+            style={{ height: 38, fontSize: 14 }}
+            disabled={!data || date === data.today}
+            title={
+              data && date === data.today
+                ? "Already showing today"
+                : "Back to today"
+            }
+            onClick={() => {
+              if (!data) return;
+              pickedADay.current = false;
+              setRanged(false);
+              setUntil("");
+              setDate(data.today);
+            }}
+          >
+            Today
+          </button>
           <input
             type="date"
             className="input"
@@ -312,26 +566,167 @@ export default function EntriesPage() {
               setDate(next);
             }}
           />
-          {data && date !== data.today && (
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() => {
-                pickedADay.current = false;
-                setDate(data.today);
-              }}
-            >
-              Today
-            </button>
+          {/* The second date, and the switch that asks for it.
+              Shown as a range only once there is a far end to show — an empty
+              second box would leave the list saying it is showing a range while
+              still showing one day. */}
+          {ranged && (
+            <>
+              <span className="text-brand-300 text-sm">to</span>
+              <input
+                type="date"
+                className="input"
+                value={until}
+                min={date}
+                max={data?.today}
+                onChange={(e) => setUntil(e.target.value)}
+              />
+            </>
           )}
+          <button
+            type="button"
+            className="btn btn-outline"
+            style={{ height: 38, fontSize: 13, paddingInline: 10 }}
+            title={ranged ? "Back to a single day" : "Search a range of days"}
+            onClick={() => {
+              if (ranged) {
+                setRanged(false);
+                setUntil("");
+              } else {
+                setRanged(true);
+                // Seeded to the day already on screen, so turning it on shows
+                // the same rows rather than emptying the list until a second
+                // date is chosen.
+                setUntil(date || data?.today || "");
+                pickedADay.current = true;
+              }
+            }}
+            aria-pressed={ranged}
+          >
+            {ranged ? "One day" : "Range"}
+          </button>
         </div>
       </div>
 
+      {/*
+        Tips, gathered.
+
+        Two halves because two questions get asked: "what do I owe each of them"
+        wants the summary, and "which ticket was that on" wants the rows. The
+        rows are the same payments that are already in the ledger below, so
+        nothing here can disagree with it — this is a lens, not a second source.
+      */}
+      {showTips && data && (
+        <div className="bg-white rounded-2xl shadow-sm p-4 mb-4">
+          <div className="flex items-baseline justify-between gap-3 flex-wrap mb-3">
+            <h2 className="text-lg font-semibold text-brand-500">
+              Tips · {data.tips.from}
+              {data.tips.to !== data.tips.from ? ` – ${data.tips.to}` : ""}
+            </h2>
+            <div className="text-sm text-brand-400">
+              {formatCents(data.tips.tipCents)} across {data.tips.ticketCount}{" "}
+              {data.tips.ticketCount === 1 ? "ticket" : "tickets"}
+              {data.tips.commCents > 0 && (
+                <span className="text-brand-300">
+                  {" "}
+                  · {formatCents(data.tips.commCents)} in terminal fees
+                </span>
+              )}
+            </div>
+          </div>
+
+          {data.tips.rows.length === 0 ? (
+            <div className="text-brand-300 py-6 text-center">No tips in this range.</div>
+          ) : (
+            <div className="grid gap-4" style={{ gridTemplateColumns: "220px minmax(0,1fr)" }}>
+              <div>
+                <div className="text-xs uppercase tracking-wider text-brand-300 mb-1">
+                  Who they were for
+                </div>
+                <table className="w-full text-sm">
+                  <tbody>
+                    {data.tips.byTech.map((t) => (
+                      <tr key={t.name} className="border-t border-black/5">
+                        <td className="py-1.5">{t.name}</td>
+                        <td className="py-1.5 pl-3 text-right tabular-nums font-semibold">
+                          {formatCents(t.tipCents)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div>
+                <div className="text-xs uppercase tracking-wider text-brand-300 mb-1">
+                  The tickets
+                </div>
+                <table className="w-full text-sm">
+                  <tbody>
+                    {data.tips.rows.map((r, i) => (
+                      <tr
+                        key={`${r.saleId}-${i}`}
+                        className="border-t border-black/5"
+                        style={{
+                          background: i % 2 === 0 ? "rgba(10,37,64,0.035)" : undefined,
+                          opacity: r.saleVoided ? 0.5 : undefined,
+                        }}
+                      >
+                        <td className="py-1.5 whitespace-nowrap">
+                          <button
+                            type="button"
+                            className="hover:underline text-brand-500"
+                            onClick={() => setOpenSaleId(r.saleId)}
+                            style={
+                              r.saleVoided ? { textDecoration: "line-through" } : undefined
+                            }
+                          >
+                            {r.saleNo}
+                          </button>
+                          <div className="text-xs text-brand-300 tabular-nums">
+                            {shortTime(r.at)}
+                          </div>
+                        </td>
+                        <td className="py-1.5 pl-4 text-brand-400">
+                          {r.forName ?? <span className="text-brand-300">nobody named</span>}
+                          <div className="text-xs text-brand-300">
+                            {r.method}
+                            {/* A tip that came back later is the kind that gets
+                                forgotten, so it says so rather than looking
+                                like it arrived with the sale. */}
+                            {r.kind === "tip_adjustment" && " · added later"}
+                            {r.takenBy ? ` · ${r.takenBy}` : ""}
+                          </div>
+                        </td>
+                        <td className="py-1.5 pl-4 text-right tabular-nums whitespace-nowrap">
+                          {formatCents(r.tipCents)}
+                          {r.commCents > 0 && (
+                            <div className="text-xs text-brand-300">
+                              +{formatCents(r.commCents)} fee
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* The ledger and everything that narrows it, put away while the tips
+          panel is up. They answer a different question, and leaving four
+          hundred rows under a summary means scrolling past the answer to reach
+          nothing. */}
+      {!showTips && (
+        <>
       <div className="bg-white rounded-2xl shadow-sm p-3 mb-4 flex gap-3 items-center flex-wrap">
         <input
           className="input"
           style={{ minWidth: 220 }}
-          placeholder="Ticket, service, tender, SEQ…"
+          placeholder="Ticket, customer, phone, service, tender, SEQ…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -416,6 +811,8 @@ export default function EntriesPage() {
             </option>
           ))}
         </select>
+        {/* Voided TICKETS — whole jobs that did not happen. Not the same switch
+            as the eye above, which is about lines struck off a live ticket. */}
         <label className="flex items-center gap-2 text-sm text-brand-400">
           <input
             type="checkbox"
@@ -425,6 +822,14 @@ export default function EntriesPage() {
           Show voided
         </label>
         <div className="ml-auto text-sm text-brand-400">
+          {/* Says the span when it is more than a day, because every figure on
+              this line is a sum over it — and "3,140.00 rung" means two very
+              different things across one day and across a fortnight. */}
+          {ranged && until && date && until !== date && (
+            <span className="text-brand-300">
+              {date} → {until} ·{" "}
+            </span>
+          )}
           {rows.length} {rows.length === 1 ? "entry" : "entries"} ·{" "}
           <span className="tabular-nums">{formatCents(totals.lines)}</span> rung ·{" "}
           <span className="tabular-nums">{formatCents(totals.money)}</span> collected
@@ -452,6 +857,9 @@ export default function EntriesPage() {
               <Th k="amountCents" right>
                 Amount
               </Th>
+              {/* Unlabelled. The column holds one word on a handful of rows and
+                  a heading over it would read as a thing every row has. */}
+              {canStrike && <th />}
             </tr>
           </thead>
           <tbody>
@@ -459,7 +867,28 @@ export default function EntriesPage() {
               <tr
                 key={e.key}
                 className="border-t border-black/5"
-                style={e.voided ? { opacity: 0.5 } : undefined}
+                /* Pastel red for the two kinds of row that are on the list but
+                   not part of the day: a voided ticket, and a row the owner has
+                   struck off. Colour rather than only a strike-through, because
+                   a strike-through is a property of the text and the eye reads
+                   it word by word — on a table this dense the difference between
+                   "this ticket happened" and "this ticket did not" has to be
+                   legible from a foot away.
+
+                   Kept at 0.5 opacity as well, which is what stops the red from
+                   shouting: the row recedes AND is unmistakably marked. */
+                style={
+                  e.saleVoided || e.deletedBy
+                    ? {
+                        opacity: 0.62,
+                        background: redTone.get(e.key)
+                          ? "rgba(216,68,76,0.10)"
+                          : "rgba(216,68,76,0.06)",
+                      }
+                    : e.voided
+                      ? { opacity: 0.5 }
+                      : undefined
+                }
               >
                 <td className="px-3 py-2 tabular-nums text-brand-300 whitespace-nowrap">
                   {shortTime(e.at)}
@@ -543,6 +972,17 @@ export default function EntriesPage() {
                 <td className="px-3 py-2 text-brand-400">
                   <div className="flex items-center gap-2 flex-wrap">
                     {e.detail && <span>{e.detail}</span>}
+                    {/* The one thing that tells a struck row apart from a
+                        voided one. They are the same colour on purpose — both
+                        are outside the day — and without this the owner would
+                        have no way to know which of the two they were looking
+                        at, on the only screen where both appear. */}
+                    {e.deletedBy && (
+                      <Badge tone="danger">
+                        deleted · {e.deletedBy}
+                        {e.deletedAt ? ` · ${e.deletedAt.slice(0, 10)}` : ""}
+                      </Badge>
+                    )}
                     {/* The ticket's note, in the same words the ticket shows —
                         this is the column for whatever did not fit a column,
                         and a note is exactly that. */}
@@ -573,20 +1013,100 @@ export default function EntriesPage() {
                 >
                   {formatCents(e.amountCents)}
                 </td>
+                {/* The owner's column, and only theirs. Offered on dead rows
+                    alone: a live row is refused by the server anyway, and a
+                    button that is always there and usually errors teaches people
+                    to expect it to fail. */}
+                {canStrike && (
+                  <td className="px-2 py-2 text-right" style={{ width: 76 }}>
+                    {e.deletedBy ? (
+                      <button
+                        type="button"
+                        className="text-xs text-brand-400 hover:text-brand-500 underline"
+                        title="Put this row back on the log"
+                        onClick={() => void strike(e, true)}
+                      >
+                        put back
+                      </button>
+                    ) : (
+                      e.strikeable && (
+                        <button
+                          type="button"
+                          className="text-xs text-brand-300 hover:text-red-700 underline"
+                          title="Take this row off the log. It moves no money — everyone else stops seeing it, you still do."
+                          onClick={() => void strike(e, false)}
+                        >
+                          delete
+                        </button>
+                      )
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={cardView ? 8 : 7} className="px-4 py-10 text-center text-brand-300">
-                  {data.entries.length === 0
-                    ? "Nothing happened on this day."
-                    : "Nothing matches those filters."}
+                <td colSpan={(cardView ? 8 : 7) + (canStrike ? 1 : 0)} className="px-4 py-10 text-center text-brand-300">
+                  {data.entries.length === 0 ? (
+                    "Nothing happened on this day."
+                  ) : query.trim() ? (
+                    /*
+                      The one thing somebody searching a name needs told.
+
+                      This list only holds the days on screen, so a search runs
+                      over those days and no others — which means looking for a
+                      customer while the picker sits on today finds nothing at
+                      all, and reads exactly like "that customer does not
+                      exist". It is the failure this screen will produce most
+                      often now that names are searchable, and it is invisible
+                      unless it is said out loud, here, at the moment it
+                      happens.
+                    */
+                    <>
+                      <div className="text-brand-400">
+                        Nothing matching “{query.trim()}”{" "}
+                        {ranged && until && until !== date
+                          ? `between ${date} and ${until}`
+                          : `on ${date}`}
+                        .
+                      </div>
+                      {/* Boxed and sized up on purpose. An empty table is the
+                          most believable thing on this screen — it looks like
+                          an answer — and the one sentence that says it is not
+                          an answer has to be impossible to have missed. */}
+                      <div
+                        className="mx-auto mt-4 max-w-xl rounded-xl px-5 py-4 text-left"
+                        style={{
+                          background: "#fff7ed",
+                          border: "2px solid rgba(180,83,9,0.45)",
+                          color: "#92400e",
+                        }}
+                      >
+                        <div className="font-semibold text-base mb-1">
+                          This only searched{" "}
+                          {ranged && until && until !== date
+                            ? "the dates on screen"
+                            : "one day"}
+                          .
+                        </div>
+                        <div className="text-base leading-snug">
+                          A customer&apos;s older tickets will not show until you
+                          widen the dates — use <strong>Range</strong> at the top
+                          of the page.
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    "Nothing matches those filters."
+                  )}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+        </>
+      )}
 
       {openSaleId !== null && (
         <TicketDrawer

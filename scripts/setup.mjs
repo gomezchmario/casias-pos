@@ -75,9 +75,38 @@ function runMigrations(db) {
   for (const file of files) {
     if (applied.has(file)) continue;
     const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), "utf-8");
+
+    /*
+      A migration that rebuilds a table says so on its first line.
+
+      SQLite cannot widen a CHECK in place, so changing one means building the
+      new table, copying, dropping the old and renaming — and the DROP trips
+      every foreign key pointing at it. Seventeen tables reference `employees`.
+      So the constraint is switched off for the rebuild and checked once at the
+      end by `foreign_key_check` instead of row by row on the way through.
+
+      This mirrors the runner in `src/lib/migrations.ts`, which has always
+      handled it. This copy did not, which meant a role migration applied
+      cleanly through one path and failed with "FOREIGN KEY constraint failed"
+      through the other — the same file, the same database, two answers.
+
+      The check is not optional. A rebuild that silently orphaned the payments
+      ledger is the worst outcome available here, which is why this is a marker
+      on the file rather than a pragma somebody can leave switched off.
+    */
+    const rebuildsTables = /^--\s*@foreign-keys-off\b/m.test(sql);
+    if (rebuildsTables) db.pragma("foreign_keys = OFF");
+
     db.exec("BEGIN");
     try {
       db.exec(sql);
+      if (rebuildsTables) {
+        const orphans = db.pragma("foreign_key_check");
+        if (orphans.length > 0)
+          throw new Error(
+            `${file} left ${orphans.length} orphaned row(s) behind — rolled back.`,
+          );
+      }
       db.prepare(
         "INSERT INTO _migrations (filename, applied_at) VALUES (?, ?)",
       ).run(file, nowLocalIso());
@@ -87,6 +116,8 @@ function runMigrations(db) {
     } catch (e) {
       db.exec("ROLLBACK");
       throw e;
+    } finally {
+      if (rebuildsTables) db.pragma("foreign_keys = ON");
     }
   }
   if (count === 0) console.log("  ✓ All migrations already applied");

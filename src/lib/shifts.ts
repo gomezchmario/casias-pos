@@ -220,9 +220,14 @@ export function closeShift(
  * query with no logic in it.
  */
 function drawerAdjustFor(where: string, param: unknown): number {
+  // `hidden = 0` here for the same reason it is in `drawerAdjustmentCents`, and
+  // the two must never drift apart: they are the same figure computed in two
+  // modules, and a hidden movement that reached one and not the other would put
+  // two different expectations on one screen.
   const row = getDb()
     .prepare(
-      `SELECT COALESCE(SUM(amount_cents), 0) AS n FROM drawer_movements WHERE ${where}`,
+      `SELECT COALESCE(SUM(amount_cents), 0) AS n
+         FROM drawer_movements WHERE ${where} AND hidden = 0`,
     )
     .get(param) as { n: number };
   return row.n;
@@ -341,6 +346,38 @@ export type SwapHint = {
   }[];
 };
 
+/**
+ * The drawer, read with the tips in mind.
+ *
+ * Tips are earned on a ticket and handed over in cash, and not always at the
+ * end of the night — a technician leaving at noon gets theirs at noon. The
+ * drawer is then legitimately short by that money, and until now the count said
+ * so in the same voice it uses for a genuine shortage. Somebody comparing a
+ * drawer to a number every evening learns fast that it is always a bit under,
+ * and a count nobody believes is a count nobody reads.
+ *
+ * So the arithmetic is done both ways and both are shown. Short by EXACTLY the
+ * tips is not a discrepancy at all; short by anything else is still the
+ * cashier's to explain, and the second figure only says how much of it the tips
+ * account for.
+ *
+ * Every tip counts toward this, not only those left on cash tickets. A tip on a
+ * card is money the shop was paid by the terminal and hands to the technician
+ * out of the till, so it leaves the drawer exactly like a cash one does.
+ */
+export type TipReconciliation = {
+  /** Every tip in scope, whatever tender the customer paid on. */
+  cents: number;
+  /** Was there a cash count to compare against at all? */
+  cashCounted: boolean;
+  /** The cash drawer's variance as counted — negative is short. */
+  cashVarianceCents: number;
+  /** What that variance becomes once the tips are treated as paid out. */
+  cashVarianceIfTipsPaidCents: number;
+  /** Short by exactly the tips: nothing to explain. */
+  balancedByTips: boolean;
+};
+
 export type Reconciliation = {
   methods: MethodVariance[];
   totalExpectedCents: number;
@@ -348,6 +385,7 @@ export type Reconciliation = {
   totalVarianceCents: number;
   anyCounted: boolean;
   hints: SwapHint[];
+  tips: TipReconciliation;
 };
 
 function reconcileFrom(
@@ -366,6 +404,13 @@ function reconcileFrom(
   });
 
   const active = methods.filter((m) => m.counted);
+
+  // Only the drawer, because only the drawer pays a tip out. A card tip is
+  // money the terminal already banked; what leaves the building is cash.
+  const cash = methods.find((m) => m.kind === "cash");
+  const tipCents = methods.reduce((s, m) => s + m.tipCents, 0);
+  const cashVariance = cash?.counted ? cash.varianceCents : 0;
+
   return {
     methods,
     totalExpectedCents: active.reduce((s, m) => s + m.expectedCents, 0),
@@ -373,6 +418,16 @@ function reconcileFrom(
     totalVarianceCents: active.reduce((s, m) => s + m.varianceCents, 0),
     anyCounted: active.length > 0,
     hints: swapHints(methods, paymentScope),
+    tips: {
+      cents: tipCents,
+      cashCounted: cash?.counted ?? false,
+      cashVarianceCents: cashVariance,
+      // Adding, not subtracting: the drawer is SHORT by what was handed out, so
+      // putting the tips back is what the till would have held otherwise.
+      cashVarianceIfTipsPaidCents: cashVariance + tipCents,
+      balancedByTips:
+        (cash?.counted ?? false) && tipCents > 0 && cashVariance === -tipCents,
+    },
   };
 }
 
@@ -496,4 +551,46 @@ export function byCashier(scope:
        ORDER BY collectedCents DESC`,
     )
     .all(param) as CashierTotal[];
+}
+
+/**
+ * Make the cash line read as though it balanced, for the sheet the floor sees.
+ *
+ * The owner takes money out and marks it hidden — see `026_drawer_hidden.sql`.
+ * That leaves the drawer light against an expectation that does not know about
+ * it, and the floor would otherwise read a shortfall they cannot explain and
+ * did not cause.
+ *
+ * What this does NOT do is add the hidden amount back into the expectation, and
+ * the difference matters. Adding it back would make an honest count balance and
+ * a genuine surplus visible again — and a visible surplus is the exact thing
+ * somebody pockets. Forcing the DIFFERENCE to zero hides both: a drawer $20
+ * over and a drawer $20 short read identically to whoever is counting, so
+ * there is never anything on screen that looks like spare money.
+ *
+ * Cash only. Every other tender is unaffected, because nothing was taken out of
+ * a card terminal.
+ *
+ * The counted figure is never touched. What the cashier typed is what is stored
+ * and what the owner reads; only the comparison is suppressed, and only on a day
+ * the owner has deliberately put into this state.
+ */
+export function maskCashVariance(r: Reconciliation): Reconciliation {
+  const methods = r.methods.map((m) =>
+    m.isCard === 0 && m.code === "cash" && m.counted
+      ? { ...m, expectedCents: m.countedCents ?? 0, varianceCents: 0 }
+      : m,
+  );
+  const totalExpectedCents = methods.reduce((s, m) => s + m.expectedCents, 0);
+  const totalVarianceCents = methods.reduce((s, m) => s + m.varianceCents, 0);
+  return {
+    ...r,
+    methods,
+    totalExpectedCents,
+    totalVarianceCents,
+    // A mix-up hint is built from the very variances that have just been
+    // masked, so leaving them in would point at a discrepancy the sheet no
+    // longer shows.
+    hints: r.hints.filter((h) => h.overCode !== "cash" && h.shortCode !== "cash"),
+  };
 }

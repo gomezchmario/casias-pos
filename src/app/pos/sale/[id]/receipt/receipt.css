@@ -49,11 +49,90 @@
   }
 }
 
+/* A letterhead: who it is from on the left, what it is on the right.
+   `align-items: flex-start` so the ticket number sits on the top line rather
+   than floating in the middle of a two-line address. */
 .receipt-head {
-  text-align: center;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10mm;
+  text-align: left;
   border-bottom: 2px solid #0a2540;
   padding-bottom: 10px;
-  margin-bottom: 14px;
+  /* Room to breathe before the ticket starts. Butted up against the first
+     line, the letterhead read as the first row of the table rather than as
+     the top of a document. */
+  margin-bottom: 8mm;
+}
+
+.receipt-ident {
+  display: flex;
+  align-items: center;
+  gap: 4mm;
+  min-width: 0;
+}
+
+.receipt-ref {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* The badge, to the left of the shop's name and details.
+   Sized in mm rather than px because this element only exists to be printed —
+   30mm is a little over an inch, which is the size at which the wordmark inside
+   the badge is still legible on paper rather than a navy smudge.
+
+   `print-color-adjust: exact` for the same reason the close-out's banding needs
+   it: browsers drop background and image colour on print by default to save
+   ink, and a logo that came out as an empty circle on half the shop's printers
+   would be worse than no logo. */
+.receipt-logo {
+  display: block;
+  width: 30mm;
+  height: auto;
+  flex-shrink: 0;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* The ticket number, typewritten and in red.
+   Monospace because this is the one string on the page that gets read back
+   character by character down a phone, and a proportional font is where a 1
+   becomes an l and a run of zeros becomes uncountable. Red because it is the
+   only thing on a receipt anybody is ever asked to find again, and on a sheet
+   that is otherwise navy and black it is the one colour worth spending.
+
+   `print-color-adjust` here too — a red that silently prints black would take
+   the whole point of it away and nobody would know until they were squinting
+   at a filed copy. */
+.receipt-no {
+  font-family: "Courier New", Courier, ui-monospace, monospace;
+  font-size: 13pt;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #a71d24;
+  white-space: nowrap;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* The PO, under the ticket number and set the same way.
+   A size down, because between the two references the shop's own number is the
+   one that finds this ticket in this system; the PO finds it in the customer's
+   paperwork, which is a question asked less often. Same typewriter face and the
+   same red so the pair read as one block of reference rather than as a number
+   and an afterthought. */
+.receipt-po {
+  font-family: "Courier New", Courier, ui-monospace, monospace;
+  font-size: 11pt;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #a71d24;
+  white-space: nowrap;
+  margin-top: 1px;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
 .receipt-shop {
@@ -80,14 +159,13 @@
   margin-top: 2px;
 }
 
-/* A gap between the shop's details and the ticket's, so the header reads as two
-   things rather than one run-on block. */
-.receipt-addr + .receipt-meta {
-  margin-top: 8px;
-}
+/* The gap that used to sit between the shop's details and the ticket's is gone
+   with the stack that needed it: they are two columns now, and a column of its
+   own separates them better than any margin did. */
 
 .receipt-void {
   margin-top: 8px;
+  display: inline-block;
   font-weight: 700;
   letter-spacing: 4px;
   border: 2px solid #b00;
@@ -104,14 +182,42 @@
 
 /* Customer and vehicle side by side. Two columns rather than a stack because
    they are answers to two different questions and reading them as one block is
-   how "Silver" ends up looking like part of somebody's address. */
+   how "Silver" ends up looking like part of somebody's address.
+
+   Its rule matches the letterhead's above it exactly — same 2px, same navy.
+   They are the two rules that divide the top of the sheet into who it is from,
+   who it is for, and what was done; drawn at different weights and colours they
+   read as one deliberate line and one accident. */
 .receipt-parties {
   display: flex;
   gap: 12mm;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 2px solid #0a2540;
   padding-bottom: 10px;
   margin-bottom: 12px;
   font-size: 11pt;
+}
+
+/* With a note under it, the parties block hands its heavy rule down to the note
+   and keeps a light one — see `.receipt-note`. */
+.receipt-parties-open {
+  border-bottom: 1px solid #ddd;
+  margin-bottom: 0;
+  padding-bottom: 8px;
+}
+
+/* The ticket's note, sitting between the two rules.
+   Set as prose rather than as another labelled field: it is a sentence somebody
+   wrote about this job, and giving it a heading would make it look like a form
+   that had been filled in. The navy rule underneath is the one that used to
+   close the parties block, moved down so the customer, the vehicle and the note
+   read as one band. */
+.receipt-note {
+  border-bottom: 2px solid #0a2540;
+  padding: 8px 0 10px;
+  margin-bottom: 12px;
+  font-size: 11pt;
+  color: #333;
+  white-space: pre-wrap;
 }
 
 .receipt-party {
@@ -155,8 +261,24 @@
 
 .receipt-items td {
   vertical-align: top;
-  padding: 5px 0;
+  padding: 5px 8px;
   border-bottom: 1px solid #eee;
+}
+
+/* Banded in a pale blue off the shop's own navy.
+   A ticket can run to a dozen lines of description on the left and money on the
+   right, read across a wide sheet — which is exactly where an amount gets read
+   against the row above it. The band carries the eye across; it also keeps the
+   "Worked by" note visibly attached to the line it belongs to, since the two
+   share one stripe.
+
+   Pale enough to sit under black text without fighting it, and
+   `print-color-adjust: exact` because a band the printer drops is no band at
+   all — and on paper is precisely where this one earns its keep. */
+.receipt-items tbody tr:nth-child(even) td {
+  background: #eef3f9;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
 .receipt-items .qty {
@@ -166,6 +288,17 @@
 
 .receipt-items .desc {
   word-break: break-word;
+}
+
+/* Who did this line, tucked under it.
+   Indented and small so it reads as a note about the line above rather than a
+   second line item — at the same size and margin it would look like something
+   else the customer was charged for. */
+.receipt-worked-by {
+  font-size: 9pt;
+  color: #666;
+  padding-left: 6mm;
+  margin-top: 1px;
 }
 
 /* Totals sit in a right-hand column the way an invoice does, rather than
@@ -198,6 +331,40 @@
   font-size: 10pt;
 }
 
+/* Money still owed, in the same red the ticket number wears and boxed like the
+   disclaimer. Every other row in this table is a record of what happened; this
+   one is a claim about what has not happened yet, and it is the figure both
+   sides will be quoting at each other in a fortnight.
+
+   The fill runs the width of the totals column rather than hugging the text,
+   because a tinted strip is what the eye catches on a page of black figures —
+   a coloured word is not. Padding goes on the cells, since a `tr` cannot take
+   it.
+
+   Square corners, not by choice: the table is `border-collapse: collapse` so
+   the browser ignores a radius on a cell, and separating the borders to get one
+   would change every rule in the totals block to buy rounded corners on one
+   row.
+
+   `print-color-adjust` throughout: a highlight the printer drops is not a
+   highlight, and this is the line that most needs to survive onto paper. */
+.receipt-totals .balance-due td {
+  background: #fff1f2;
+  color: #a71d24;
+  border-top: 2px solid #a71d24;
+  padding: 6px 0;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.receipt-totals .balance-due td:first-child {
+  padding-left: 4mm;
+}
+
+.receipt-totals .balance-due td:last-child {
+  padding-right: 4mm;
+}
+
 /* `margin-top: auto` is what makes this sit at the foot of the page on a short
    ticket instead of directly under the totals. On a long one it simply follows
    the items, and the page grows to a second sheet as it must. */
@@ -206,11 +373,30 @@
   padding-top: 14mm;
 }
 
+/* Boxed, the same amber as the warnings elsewhere in this app.
+   The size is right as it is — this is small print and small print is what it
+   should look like — but as loose text under a total it read as a footer, the
+   part of a document everyone has learned to skip. It is the paragraph the
+   customer is signing directly underneath, so it has to look like something
+   rather than like the bottom of the page.
+
+   `print-color-adjust` because a highlight the printer drops is not a
+   highlight, and this one exists to survive onto paper. */
 .receipt-disclaimer {
   font-size: 8.5pt;
   line-height: 1.45;
-  color: #444;
-  margin-bottom: 12mm;
+  color: #92400e;
+  background: #fff7ed;
+  border: 1.5pt solid rgba(180, 83, 9, 0.45);
+  border-radius: 3pt;
+  padding: 3mm 4mm;
+  /* The gap under it is the room somebody signs in. The block is anchored to
+     the foot of the page, so widening this lifts the box rather than pushing
+     the rule down — which is what leaves a hand space to write between the
+     small print it is agreeing to and the line it is signing on. */
+  margin-bottom: 16mm;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
 .receipt-sign-lines {

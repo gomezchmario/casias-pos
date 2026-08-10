@@ -21,6 +21,129 @@
    gone negative, which is a fault, and being down to the last two of something
    is just Tuesday. The panel at the top is the loud version. Its own uppercase
    rule because only the name span inherits one. */
+/* Banding on the tire rows.
+   A size group runs to a dozen rows of four narrow columns read across — name,
+   price, count — and unbanded that is where a count gets read against the row
+   above it.
+
+   Blue rather than a neutral grey, and strong enough to see at a glance: this
+   is a screen read standing up, at arm's length, on a counter. The tint is the
+   brand navy so it reads as part of the page rather than as a table someone
+   shaded in, and it stays well clear of the green and red the two states use —
+   which are solid fills and win over it outright. */
+.inv-row:nth-child(even) {
+  background: rgba(31, 63, 100, 0.11);
+}
+
+/* Priced under cost on purpose. Green, because nothing is wrong: somebody
+   decided this and the sheet is agreeing with them. Beats the band. */
+.inv-row-discount,
+.inv-row-discount:nth-child(even) {
+  background: #ecfdf5;
+}
+
+/* No price at all, and on the rack. Red, because this one IS wrong and the
+   moment it surfaces on its own is at the counter with a customer waiting. */
+.inv-row-warn,
+.inv-row-warn:nth-child(even) {
+  background: #fef2f2;
+}
+
+@media print {
+  /* The bands survive, the states do not.
+     A pale tint prints as a smudge on a mono laser, and this sheet is walked
+     around the racks being counted -- what matters on paper is that the eye
+     holds the row, which the band already does. Discount and Warning are
+     decisions made sitting down, off the screen.
+
+     Banded on the ODD rows, which is the opposite of the screen and deliberate.
+     The used-tire tables further down the same sheet have always banded odd —
+     they are plain `.inv-table` rows and never carried these classes — so the
+     printout had the big list striped one way and the small ones the other, and
+     an eye running down two hundred rows of counts notices that. One sheet, one
+     rhythm. The screen keeps its own, because nothing is next to it there. */
+  .inv-row:nth-child(odd) {
+    background: #f3f3f3 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .inv-row-discount,
+  .inv-row-discount:nth-child(odd),
+  .inv-row-warn,
+  .inv-row-warn:nth-child(odd) {
+    background: #f3f3f3 !important;
+  }
+  .inv-row:nth-child(even) {
+    background: transparent !important;
+  }
+
+  /* The Discount pill survives onto paper, without its fill.
+     A pale green box prints as a grey smudge on a mono laser, so it keeps the
+     border and the word and loses the colour — the word is the part that
+     matters when somebody is standing at the racks quoting off this sheet and
+     needs to know the price is a clearance one rather than a typo. */
+  .inv-pill-discount {
+    background: none !important;
+    color: #111 !important;
+    border-color: #111 !important;
+    font-size: 0.55rem;
+  }
+}
+
+.inv-pill-discount {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid #6ee7b7;
+  border-radius: 999px;
+  background: #d1fae5;
+  color: #065f46;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.inv-pill-warn {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid #fca5a5;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+/* Sold more than the racks had.
+   Red where "low" is amber, and unlike "low" it PRINTS: low stock is a decision
+   taken later off the sheet, whereas this is an instruction to the person
+   holding it — this is the row to count first, and it is the row whose number
+   the rest of the sheet cannot be trusted against. */
+.inv-pill-owed {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid #dc2626;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #7f1d1d;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  text-transform: uppercase;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
 .inv-pill-low {
   display: inline-block;
   margin-left: 0.4rem;
@@ -156,6 +279,20 @@
 
   .inv-c-qty {
     width: 26pt;
+  }
+
+  /* The letterhead: badge left, shop and day right.
+     `display: flex` has to be stated here rather than as a class on the div,
+     because `.print-only` sets `display: block` in this same stylesheet and
+     would win on paper — which is the only place this element exists. Same
+     shape as the close-out's, so the two sheets filed together look like they
+     came from the same shop. */
+  .inv-sheet-head {
+    display: flex;
+    align-items: center;
+    gap: 4mm;
+    border-bottom: 1px solid #111;
+    padding-bottom: 2.5mm;
   }
 
   /* Alternating bands. The row is wide and the count sits far from the tire

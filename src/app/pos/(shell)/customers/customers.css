@@ -1,0 +1,180 @@
+/* Banded, starting on the first row.
+   This table is read across — a ticket number on the left, a long list of tires
+   in the middle, a total on the right — and that run is exactly where a row
+   gets read against the one above it. Coloured from the first row rather than
+   the second so the banding is obvious immediately, instead of something you
+   only notice three rows down.
+
+   Navy rather than a neutral grey, so it reads as part of the page. */
+.cu-row:nth-child(odd) {
+  background: rgba(10, 37, 64, 0.035);
+}
+
+/* The note the counter leaves for the counter.
+   Amber and boxed, matching the pinned note on a ticket, because it is the same
+   kind of thing said about a different subject — and somebody who has learned
+   what the amber box on a ticket means should not have to learn it twice. */
+.cu-note {
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  border-radius: 12px;
+  padding: 0.6rem 0.75rem;
+}
+
+/* A customer carrying a note, in the list.
+   A dot rather than the text: the list is a column of names read quickly, and a
+   sentence in it would push the names about. It says only "there is something
+   to read here", which is the whole job of a marker beside a name. */
+.cu-note-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #d97706;
+  margin-right: 0.4rem;
+  vertical-align: middle;
+}
+
+/* The house account, set apart from the ticket history above it.
+   A ruled block rather than another card: it is a different subject on the same
+   person, and a second white box inside a white box reads as a rendering fault
+   rather than as a section. */
+.cu-account {
+  border-top: 2px solid rgba(10, 37, 64, 0.12);
+  padding-top: 0.9rem;
+}
+
+/* Running a tab nobody agreed to. Red, because unlike everything else on this
+   panel it is not a fact about the customer — it is a fact about the shop. */
+.cu-unapproved {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid #dc2626;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #7f1d1d;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+/* The letterhead exists only on paper. */
+.cu-print-head {
+  display: none;
+}
+
+@media print {
+  /* The shell, undone — the same rule the close-out needs, and for the same
+     reason: the POS wrapper is a full-height flex column, and a flex container
+     that has to fragment across printed pages paginates badly. Undoing the
+     background without undoing the `display` leaves a shell that no longer
+     looks like one and still lays out like one. */
+  html,
+  body,
+  body > div,
+  main {
+    background: #fff !important;
+    display: block !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  header,
+  nav {
+    display: none !important;
+  }
+
+  /* Only the statement prints. The search column, the tickboxes, the cars, the
+     ticket history and every control are the tools used to reach it — none of
+     them is part of the thing being handed to a customer or filed. */
+  .cu-hide-on-print {
+    display: none !important;
+  }
+
+  .cu-print-head {
+    display: flex;
+    align-items: center;
+    gap: 4mm;
+    border-bottom: 1px solid #111;
+    padding-bottom: 2.5mm;
+    margin-bottom: 4mm;
+  }
+
+  .cu-account {
+    border-top: none;
+    padding-top: 0;
+  }
+
+  /* The zebra survives, because the statement is a column of dates and figures
+     read across — exactly where a row gets read against the one above it.
+     `print-color-adjust` is not optional: without it Chrome drops the fill
+     unless whoever prints has "Background graphics" ticked. */
+  .cu-row:nth-child(odd) {
+    background: #ededed;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .cu-unapproved {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  @page {
+    size: letter;
+    margin: 16mm;
+  }
+}
+
+@media print {
+  /* One rule instead of a class on every block: inside the detail pane, keep
+     the account statement and drop everything else. The name, the cars and the
+     ticket history are the screen's context — the statement carries its own in
+     the letterhead, and a customer handed this does not need the list of every
+     job they have ever had done. */
+  .cu-detail > *:not(.cu-account) {
+    display: none !important;
+  }
+
+  .cu-detail {
+    box-shadow: none !important;
+    border-radius: 0;
+    padding: 0 !important;
+  }
+
+  /* The two panes collapse to one; the left is gone. */
+  .cu-detail,
+  .cu-detail * {
+    break-inside: auto;
+  }
+}
+
+/* Hidden on screen, present on paper. The payments list is behind a button
+   because the balance is what the panel is opened for — but a statement that
+   left them out would be half a statement. */
+.cu-print-only {
+  display: none;
+}
+
+@media print {
+  .cu-print-only {
+    display: block;
+  }
+}
+
+@media print {
+  /* A charge that came back off the tab, and the row that took it off. Kept
+     reachable on screen — "why did that come off" is asked out loud — and never
+     put on paper. A statement listing a $210 charge and a −$210 beside it hands
+     the customer arithmetic to do before they can read what they owe, and the
+     two of them together say exactly nothing about the balance underneath.
+
+     `!important` because the toggle governs the screen and must not be able to
+     reach the sheet: whichever way it is left, the printed statement is the
+     same document. */
+  .cu-cancelled {
+    display: none !important;
+  }
+}

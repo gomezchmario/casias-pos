@@ -365,16 +365,29 @@ export default function KioskPage() {
       {/* Admin link (small, bottom corner). The register is reached by PIN
           above, not from here, so there's no unauthenticated door to it.
 
-          Inventory sits beside it and is the one exception, on purpose: it is
-          read-only, it holds no cost, no P-code and no supplier, and everything
-          on it is visible to anyone who walks up to the rack and asks. Behind a
-          PIN it would go unused — "do we have a 215 55 17" is asked twenty
-          times a day, usually by somebody with their hands full, and the
-          answer they would actually use is the one they can get without
-          stopping. */}
+          The two read-only boards sit beside it and are the exceptions, on
+          purpose. Inventory holds no cost, no P-code and no supplier, and
+          everything on it is visible to anyone who walks up to the rack and
+          asks. The leaderboard holds no income dollars and shows tips as
+          shares. Behind a PIN both would go unused — "do we have a 215 55 17"
+          is asked twenty times a day, usually by somebody with their hands
+          full, and the answer they would actually use is the one they can get
+          without stopping. The leaderboard has it worse still: it is meant to
+          live fullscreen on a monitor nobody is standing at. */}
       <div className="fixed bottom-4 right-4 flex gap-4 text-xs">
+        <a href="/leaderboard" className="text-white/40 hover:text-white/80 transition-colors">
+          Leaderboard →
+        </a>
         <a href="/inventory" className="text-white/40 hover:text-white/80 transition-colors">
           Inventory →
+        </a>
+        {/* The manual, and it belongs on this screen more than on any other.
+            This is where somebody stands who has no register sign-in and no
+            admin password — a technician, on his fourth day, wondering what
+            happens if he presses the wrong button. The page it opens is public
+            for exactly that reason. */}
+        <a href="/help" className="text-white/40 hover:text-white/80 transition-colors">
+          Help →
         </a>
         <a href="/admin" className="text-white/40 hover:text-white/80 transition-colors">
           Admin →

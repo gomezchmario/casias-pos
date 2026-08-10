@@ -34,7 +34,7 @@ export type TechPeriod = {
   incomeCents: number;
 };
 
-export type TechDayTips = {
+export type TechTips = {
   employeeId: number;
   name: string;
   tipCents: number;
@@ -44,6 +44,15 @@ export type RecentLine = {
   saleId: number;
   saleNo: string;
   description: string;
+  /**
+   * How many, because the description does not say.
+   *
+   * A line reading "FLAT $45.00" and a line reading "3× FLAT $45.00" are two
+   * very different afternoons, and without this the dashboard drew the first
+   * one for both — the only clue being a total that looked wrong to anybody who
+   * knew the price. The ticket drawer and the receipt have always shown it.
+   */
+  qty: number;
   techName: string | null;
   at: string;
   totalCents: number;
@@ -219,40 +228,128 @@ export function periodRange(
  * Lines with no technician are dropped rather than bucketed under "Unassigned".
  * This is a leaderboard -- a row nobody can be credited or held to is noise on
  * it. The day's totals elsewhere still count that money.
+ *
+ * ONE LINE CAN PAY TWO PEOPLE. An ordered tire is sold by whoever was at the
+ * counter and fitted, days later, by whoever was free -- see
+ * migrations/018_mount_credit.sql -- so the query works over a union of credits
+ * rather than straight over the lines:
+ *
+ *   the seller  keeps the line minus the fitting, and keeps the TIRE COUNT
+ *               whole, because they sold the tires whoever bolted them on;
+ *   the fitter   takes the fitting, counted as service work, because mounting
+ *               and balancing is exactly that and a technician who spent
+ *               Thursday doing it should not read as idle.
+ *
+ * The two halves always sum to `line_total_cents`, so the shop's income is the
+ * same number it was before any of this existed -- nothing is created here,
+ * only moved. The clamp is what guarantees it: on a line worth less than the
+ * fitting rate the credit is the whole line and the seller keeps nothing,
+ * rather than the seller going negative to pay a fitter more than the customer
+ * paid.
  */
 export function techPeriod(start: string, end: string): TechPeriod[] {
   return getDb()
     .prepare(
-      `SELECT i.mechanic_id                        AS employeeId,
-              e.name                               AS name,
-              COALESCE(SUM(CASE WHEN c.code = 'new_tire'  THEN i.qty END), 0) AS newTires,
-              COALESCE(SUM(CASE WHEN c.code = 'used_tire' THEN i.qty END), 0) AS usedTires,
-              COALESCE(SUM(CASE WHEN c.code IS NULL
-                                  OR c.code NOT IN ('new_tire', 'used_tire')
-                                THEN 1 END), 0)    AS otherCount,
-              COALESCE(SUM(CASE WHEN c.code IS NULL
-                                  OR c.code NOT IN ('new_tire', 'used_tire')
-                                THEN i.line_total_cents END), 0) AS otherIncomeCents,
-              COUNT(DISTINCT i.sale_id)            AS ticketCount,
-              COALESCE(SUM(i.line_total_cents), 0) AS incomeCents
-         FROM sale_items i
-         JOIN sales s     ON s.id = i.sale_id
-         JOIN employees e ON e.id = i.mechanic_id
-    LEFT JOIN service_categories c ON c.id = i.category_id
-        WHERE s.business_date BETWEEN ? AND ?
-          AND s.deleted = 0
-          AND s.status = 'completed'
-          AND s.kind = 'sale'
-          AND i.voided = 0
-          AND i.mechanic_id IS NOT NULL
-     GROUP BY i.mechanic_id
+      `WITH line AS (
+         SELECT i.sale_id,
+                i.qty,
+                i.mechanic_id,
+                i.mount_mechanic_id,
+                i.line_total_cents,
+                CASE WHEN i.mount_mechanic_id IS NULL THEN 0
+                     ELSE MIN(i.mount_unit_cents * i.qty, i.line_total_cents)
+                END AS mountCents,
+                c.code AS cat
+           FROM sale_items i
+           JOIN sales s ON s.id = i.sale_id
+      LEFT JOIN service_categories c ON c.id = i.category_id
+          WHERE s.business_date BETWEEN ? AND ?
+            AND s.deleted = 0
+            AND s.status = 'completed'
+            AND s.kind = 'sale'
+            AND i.voided = 0
+       ),
+       credit AS (
+         SELECT mechanic_id AS employeeId,
+                sale_id,
+                CASE WHEN cat = 'new_tire'  THEN qty ELSE 0 END AS newTires,
+                CASE WHEN cat = 'used_tire' THEN qty ELSE 0 END AS usedTires,
+                CASE WHEN cat IS NULL OR cat NOT IN ('new_tire', 'used_tire')
+                     THEN 1 ELSE 0 END AS otherCount,
+                CASE WHEN cat IS NULL OR cat NOT IN ('new_tire', 'used_tire')
+                     THEN line_total_cents - mountCents ELSE 0 END AS otherIncomeCents,
+                line_total_cents - mountCents AS incomeCents
+           FROM line
+          WHERE mechanic_id IS NOT NULL
+          UNION ALL
+         SELECT mount_mechanic_id, sale_id, 0, 0, 1, mountCents, mountCents
+           FROM line
+          WHERE mount_mechanic_id IS NOT NULL AND mountCents > 0
+       )
+       SELECT r.employeeId                          AS employeeId,
+              e.name                                AS name,
+              COALESCE(SUM(r.newTires), 0)          AS newTires,
+              COALESCE(SUM(r.usedTires), 0)         AS usedTires,
+              COALESCE(SUM(r.otherCount), 0)        AS otherCount,
+              COALESCE(SUM(r.otherIncomeCents), 0)  AS otherIncomeCents,
+              COUNT(DISTINCT r.sale_id)             AS ticketCount,
+              COALESCE(SUM(r.incomeCents), 0)       AS incomeCents
+         FROM credit r
+         JOIN employees e ON e.id = r.employeeId
+     GROUP BY r.employeeId
      ORDER BY incomeCents DESC`,
     )
     .all(start, end) as TechPeriod[];
 }
 
 /**
- * Tips earned per technician on one business day.
+ * The last day before `businessDate` that each technician was credited with
+ * anything, keyed by employee.
+ *
+ * THE DAY BOARD'S COMPARISON, and the reason it is not simply yesterday.
+ * Technicians are not all in every day. Measured against the calendar day
+ * before, anyone who was off reads as having collapsed to nothing — a column of
+ * red −100%s that says only "he was not here on Tuesday", printed beside the
+ * names of the people who were. That is not a comparison, it is an accusation
+ * with a rota behind it.
+ *
+ * So each person is measured against their own last shift. "Better or worse
+ * than the last time you did this job" is the question somebody on the floor
+ * can actually answer, which is the only kind of number worth putting on a
+ * board they read on their way out.
+ *
+ * Credited BY EITHER ROUTE — the line's own technician or the fitter on a
+ * mounted tire — so a day spent bolting on somebody else's sale counts as a day
+ * at work. It has to: `techPeriod` pays those two halves separately, and a
+ * prior day chosen by one rule and scored by the other would compare a
+ * technician against a day they are not credited for.
+ */
+export function lastWorkedDayByTech(businessDate: string): Map<number, string> {
+  const rows = getDb()
+    .prepare(
+      `SELECT employeeId, MAX(business_date) AS day
+         FROM (
+              SELECT i.mechanic_id AS employeeId, s.business_date
+                FROM sale_items i JOIN sales s ON s.id = i.sale_id
+               WHERE s.business_date < ? AND s.deleted = 0
+                 AND s.status = 'completed' AND s.kind = 'sale'
+                 AND i.voided = 0 AND i.mechanic_id IS NOT NULL
+              UNION ALL
+              SELECT i.mount_mechanic_id, s.business_date
+                FROM sale_items i JOIN sales s ON s.id = i.sale_id
+               WHERE s.business_date < ? AND s.deleted = 0
+                 AND s.status = 'completed' AND s.kind = 'sale'
+                 AND i.voided = 0 AND i.mount_mechanic_id IS NOT NULL
+                 AND i.mount_unit_cents > 0
+              )
+        GROUP BY employeeId`,
+    )
+    .all(businessDate, businessDate) as { employeeId: number; day: string }[];
+  return new Map(rows.map((r) => [r.employeeId, r.day]));
+}
+
+/**
+ * Tips earned per technician over a range of business days.
  *
  * The technician's share, not the customer's charge: `tip_cents` is what was
  * left for them and `comm_cents` -- the shop's cut for the tax on it -- is
@@ -263,7 +360,7 @@ export function techPeriod(start: string, end: string): TechPeriod[] {
  * of what they undo, so a voided ticket's tip cancels itself out here with no
  * special case. Rows that net to zero are dropped for that reason.
  */
-export function dayTipsByTech(businessDate: string): TechDayTips[] {
+export function tipsByTech(start: string, end: string): TechTips[] {
   return getDb()
     .prepare(
       `SELECT p.mechanic_id            AS employeeId,
@@ -271,13 +368,13 @@ export function dayTipsByTech(businessDate: string): TechDayTips[] {
               COALESCE(SUM(p.tip_cents), 0) AS tipCents
          FROM payments p
          JOIN employees e ON e.id = p.mechanic_id
-        WHERE p.business_date = ?
+        WHERE p.business_date BETWEEN ? AND ?
           AND p.mechanic_id IS NOT NULL
      GROUP BY p.mechanic_id
        HAVING tipCents <> 0
      ORDER BY tipCents DESC`,
     )
-    .all(businessDate) as TechDayTips[];
+    .all(start, end) as TechTips[];
 }
 
 /**
@@ -294,6 +391,7 @@ export function recentLines(businessDate: string, limit = 200): RecentLine[] {
       `SELECT s.id                          AS saleId,
               s.sale_no                     AS saleNo,
               i.description                 AS description,
+              i.qty                         AS qty,
               e.name                        AS techName,
               COALESCE(s.completed_at, s.opened_at) AS at,
               i.line_total_cents            AS totalCents,
@@ -320,6 +418,112 @@ export function recentLines(businessDate: string, limit = 200): RecentLine[] {
     });
 }
 
+export type RecentTicket = {
+  saleNo: string;
+  businessDate: string;
+  at: string;
+  totalCents: number;
+  /** What was rung, as one line — "2× 205/55R16, MOUNT & B". */
+  what: string;
+  /** Whose hands were on it, distinct. Empty when nobody was named. */
+  techs: string;
+  /**
+   * Who bolted the tires on, when that is NOT who sold them. Empty otherwise.
+   *
+   * Only the difference is reported, which is the whole value of it. On the
+   * overwhelming majority of tickets the fitter and the seller are the same
+   * person and saying so twice is noise; the board is for spotting the ticket
+   * that is not like the others, and this is one of the ways a ticket differs.
+   */
+  fitters: string;
+  /** Tips on this ticket, off the payment ledger. Zero on most of them. */
+  tipCents: number;
+  voided: boolean;
+};
+
+/**
+ * The last tickets rung, newest first — one row per ticket, not per line.
+ *
+ * The floor's own check on the register. A technician who fitted four tires
+ * wants to see a ticket for four tires at the price they quoted, against their
+ * name; that is a question about the whole ticket, and the line-by-line strip on
+ * the dashboard answers a different one. Rung as $8 instead of $80, or against
+ * the wrong person, is the kind of mistake that is obvious to the man who did
+ * the work and invisible in a month-end report.
+ *
+ * Scoped to one business day, which is what makes it checkable. The man reading
+ * it is looking for the ticket he just watched being rung, and yesterday's work
+ * pushing this morning's off the bottom of a twelve-row list is exactly the
+ * failure that matters. It costs an empty board for the first hour of a day, and
+ * that is the right trade: an empty board is true.
+ *
+ * Voided tickets stay, struck through by the caller. They are most of the point:
+ * the thing being looked for is the ticket that went wrong, and a list that
+ * quietly drops the corrections is a list that cannot show a correction was
+ * made.
+ *
+ * Open tickets are left out. A ticket somebody is still building is not yet a
+ * claim about anything, and putting a half-rung total on a wall invites an
+ * argument about a number that was never meant to be read.
+ */
+export function recentTickets(businessDate: string, limit = 12): RecentTicket[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT s.sale_no       AS saleNo,
+              s.business_date AS businessDate,
+              COALESCE(s.completed_at, s.opened_at) AS at,
+              s.total_cents   AS totalCents,
+              CASE WHEN s.status = 'voided' THEN 1 ELSE 0 END AS voided,
+              COALESCE((SELECT GROUP_CONCAT(
+                          CASE WHEN i.qty > 1 THEN i.qty || '× ' || i.description
+                               ELSE i.description END, ', ')
+                          FROM sale_items i
+                         WHERE i.sale_id = s.id AND i.voided = 0), '') AS what,
+              (SELECT GROUP_CONCAT(DISTINCT COALESCE(e.name, i.mechanic_name))
+                 FROM sale_items i
+            LEFT JOIN employees e ON e.id = i.mechanic_id
+                WHERE i.sale_id = s.id AND i.voided = 0) AS techs,
+              -- Only where the fitter is someone OTHER than the seller. On most
+              -- tickets they are the same person, and naming them twice would
+              -- bury the handful where the work was actually split.
+              (SELECT GROUP_CONCAT(DISTINCT f.name)
+                 FROM sale_items i
+                 JOIN employees f ON f.id = i.mount_mechanic_id
+                WHERE i.sale_id = s.id AND i.voided = 0
+                  AND i.mount_mechanic_id IS NOT NULL
+                  AND (i.mechanic_id IS NULL OR i.mount_mechanic_id <> i.mechanic_id)) AS fitters,
+              -- Off the ledger, not off the sale header: a tip added the day
+              -- after still belongs to the ticket it was left on, and the header
+              -- is a cache that a late adjustment has to catch up with.
+              COALESCE((SELECT SUM(p.tip_cents) FROM payments p
+                         WHERE p.sale_id = s.id), 0) AS tipCents
+         FROM sales s
+        WHERE s.deleted = 0
+          AND s.kind = 'sale'
+          AND s.status <> 'open'
+          AND s.business_date = ?
+     ORDER BY s.id DESC
+        LIMIT ?`,
+    )
+    .all(businessDate, limit) as (Omit<
+    RecentTicket,
+    "techs" | "fitters" | "voided"
+  > & {
+    techs: string | null;
+    fitters: string | null;
+    voided: number;
+  })[];
+
+  // GROUP_CONCAT's separator is a bare comma and cannot be given one while it
+  // is also being asked for DISTINCT, so the space goes on here.
+  return rows.map((r) => ({
+    ...r,
+    techs: (r.techs ?? "").split(",").filter(Boolean).join(", "),
+    fitters: (r.fitters ?? "").split(",").filter(Boolean).join(", "),
+    voided: !!r.voided,
+  }));
+}
+
 export type TechScore = TechPeriod & {
   /** Share of the shop's income this period, 0-100. */
   incomePct: number;
@@ -333,9 +537,46 @@ export type TechScore = TechPeriod & {
    *  that means nothing. */
   improvementPct: number | null;
   tipCentsToday: number;
+  /**
+   * Tips over the whole period, as opposed to `tipCentsToday`.
+   *
+   * Both, because the two answer different questions and the board asks both at
+   * once. "What am I taking home tonight" is today's and belongs beside the
+   * weekly table whatever period is selected; "who earns the tips around here"
+   * is the period's, and a podium headed "employee of the month" ranked on one
+   * afternoon's tips would be a lie told in large type on a wall.
+   */
+  tipCents: number;
+  /**
+   * Tips over the SAME span of the period before — last week's tips beside this
+   * week's, last month's beside this month's.
+   *
+   * The tips column was the one figure on the board with nothing to read it
+   * against. Every other column has its counterpart three cells to the left, so
+   * "is this a good week" is answered by looking sideways; tips sat on their
+   * own and could only be judged against whatever somebody remembered.
+   *
+   * On the day board it is the technician's own last shift, exactly like
+   * `prior` — see `lastWorkedDayByTech`.
+   */
+  priorTipCents: number;
+  /** Share of everything the shop was tipped this period, 0-100. What the tip
+   *  figure becomes when the dollars are being withheld — it keeps the order
+   *  and the proportions and drops the amount. */
+  tipPct: number;
   /** Last week over the SAME span of days as this week so far, not the whole
    *  of it. See `comparableRange`. */
   prior: { newTires: number; usedTires: number; otherCount: number; incomeCents: number };
+  /**
+   * The day the `prior` figures came from, when it is this technician's own —
+   * the day board and nowhere else. Null on week and month, where everybody is
+   * measured against the same span and the range on the board says which.
+   *
+   * Null on the day board too for someone who has never worked before today,
+   * whose `prior` is therefore zero and whose improvement is null. That is the
+   * honest answer: there is nothing to compare a first shift to.
+   */
+  priorDate: string | null;
 };
 
 export type Standings = {
@@ -344,10 +585,23 @@ export type Standings = {
   range: { start: string; end: string; days: number };
   /** The same number of days of the period before. See `periodRange`. */
   priorRange: { start: string; end: string };
+  /**
+   * The prior figures are each technician's OWN last shift rather than one
+   * shared span — true on the day board only. When it is set, `priorRange` is
+   * merely the earliest and latest of those days and must not be printed as
+   * though everybody was measured over it.
+   */
+  priorPerTech: boolean;
   totalIncomeCents: number;
   /** All technicians' non-tire revenue, the denominator for a share of the
    *  service work as opposed to a share of everything. */
   totalOtherIncomeCents: number;
+  /** Everything the shop was tipped this period — the denominator behind
+   *  `tipPct`, and the figure the weekly table foots its tip column with. */
+  totalTipCents: number;
+  /** The same over the period before, so the foot of the tip column can be read
+   *  the way every row above it is. */
+  totalPriorTipCents: number;
   techs: TechScore[];
 };
 
@@ -374,28 +628,72 @@ export function standings(
   // happened, and including it would be harmless only until someone back-dates
   // a ticket.
   const current = techPeriod(r.start, businessDate);
-  const prior = new Map(techPeriod(r.priorStart, r.priorEnd).map((t) => [t.employeeId, t]));
-  const tips = new Map(dayTipsByTech(businessDate).map((t) => [t.employeeId, t.tipCents]));
+
+  /**
+   * What each technician is measured against.
+   *
+   * One shared span on the week and month boards. On the day board it is per
+   * person — their own last shift, not yesterday — so it is assembled a day at
+   * a time. See `lastWorkedDayByTech` for why.
+   *
+   * Gathered by DISTINCT DAY rather than per technician: a shop of six people
+   * who all worked Saturday is one query, not six.
+   */
+  const priorPerTech = period === "day";
+  const lastWorked = priorPerTech ? lastWorkedDayByTech(businessDate) : new Map<number, string>();
+  const prior = new Map<number, TechPeriod>();
+  // Tips over the same prior span, gathered the same way and at the same time,
+  // so the two halves of a row can never be measured over different days.
+  const priorTips = new Map<number, number>();
+  if (priorPerTech) {
+    const byDay = new Map<string, Map<number, TechPeriod>>();
+    const tipsByDay = new Map<string, Map<number, number>>();
+    for (const day of new Set(lastWorked.values())) {
+      byDay.set(day, new Map(techPeriod(day, day).map((t) => [t.employeeId, t])));
+      tipsByDay.set(day, new Map(tipsByTech(day, day).map((t) => [t.employeeId, t.tipCents])));
+    }
+    for (const [employeeId, day] of lastWorked) {
+      const t = byDay.get(day)?.get(employeeId);
+      if (t) prior.set(employeeId, t);
+      priorTips.set(employeeId, tipsByDay.get(day)?.get(employeeId) ?? 0);
+    }
+  } else {
+    for (const t of techPeriod(r.priorStart, r.priorEnd)) prior.set(t.employeeId, t);
+    for (const t of tipsByTech(r.priorStart, r.priorEnd)) priorTips.set(t.employeeId, t.tipCents);
+  }
+
+  // On the day board these two are the same query; asking twice for it would be
+  // wasteful rather than wrong, so it is skipped.
+  const periodTips = tipsByTech(r.start, businessDate);
+  const todayTips = r.start === businessDate ? periodTips : tipsByTech(businessDate, businessDate);
+  const tips = new Map(periodTips.map((t) => [t.employeeId, t.tipCents]));
+  const tipsToday = new Map(todayTips.map((t) => [t.employeeId, t.tipCents]));
 
   const totalIncomeCents = current.reduce((s, t) => s + t.incomeCents, 0);
   const totalOtherIncomeCents = current.reduce((s, t) => s + t.otherIncomeCents, 0);
+  const totalTipCents = periodTips.reduce((s, t) => s + t.tipCents, 0);
 
   const byId = new Map<number, TechPeriod>();
   for (const t of current) byId.set(t.employeeId, t);
-  for (const [id, p] of prior) {
-    if (!byId.has(id)) {
-      byId.set(id, {
-        employeeId: id,
-        name: p.name,
-        newTires: 0,
-        usedTires: 0,
-        otherCount: 0,
-        otherIncomeCents: 0,
-        ticketCount: 0,
-        incomeCents: 0,
-      });
-    }
-  }
+  const blank = (employeeId: number, name: string) => {
+    if (byId.has(employeeId)) return;
+    byId.set(employeeId, {
+      employeeId,
+      name,
+      newTires: 0,
+      usedTires: 0,
+      otherCount: 0,
+      otherIncomeCents: 0,
+      ticketCount: 0,
+      incomeCents: 0,
+    });
+  };
+  for (const [id, p] of prior) blank(id, p.name);
+  // Somebody tipped but credited with no line still belongs on the board — a
+  // tip is proof they worked, and dropping them would leave their money in
+  // `totalTipCents` with nobody to attribute it to, so the shares would quietly
+  // stop adding to a hundred.
+  for (const t of [...periodTips, ...todayTips]) blank(t.employeeId, t.name);
 
   const techs = [...byId.values()].map((t): TechScore => {
     const p = prior.get(t.employeeId);
@@ -407,18 +705,45 @@ export function standings(
         totalOtherIncomeCents > 0 ? (t.otherIncomeCents / totalOtherIncomeCents) * 100 : 0,
       improvementPct:
         priorIncome > 0 ? ((t.incomeCents - priorIncome) / priorIncome) * 100 : null,
-      tipCentsToday: tips.get(t.employeeId) ?? 0,
+      tipCentsToday: tipsToday.get(t.employeeId) ?? 0,
+      tipCents: tips.get(t.employeeId) ?? 0,
+      priorTipCents: priorTips.get(t.employeeId) ?? 0,
+      tipPct: totalTipCents > 0 ? ((tips.get(t.employeeId) ?? 0) / totalTipCents) * 100 : 0,
       prior: {
         newTires: p?.newTires ?? 0,
         usedTires: p?.usedTires ?? 0,
         otherCount: p?.otherCount ?? 0,
         incomeCents: priorIncome,
       },
+      // Only reported when it was actually used to fetch a figure. A date on a
+      // row whose prior is zero would read as "he worked and sold nothing".
+      priorDate: (p && lastWorked.get(t.employeeId)) || null,
     };
   });
 
   techs.sort((a, b) => b.incomeCents - a.incomeCents);
-  return { period, range: r, priorRange: { start: r.priorStart, end: r.priorEnd }, totalIncomeCents, totalOtherIncomeCents, techs };
+
+  // On the day board this is the span the individual days fall in, not a span
+  // anybody was measured over — see `priorPerTech`.
+  const usedDays = [...prior.keys()].map((id) => lastWorked.get(id)!).filter(Boolean).sort();
+  return {
+    period,
+    range: r,
+    priorRange: priorPerTech
+      ? {
+          start: usedDays[0] ?? r.priorStart,
+          end: usedDays[usedDays.length - 1] ?? r.priorEnd,
+        }
+      : { start: r.priorStart, end: r.priorEnd },
+    priorPerTech,
+    totalIncomeCents,
+    totalOtherIncomeCents,
+    totalTipCents,
+    // Footed off the same map the rows read, so the shop line and the column
+    // above it cannot tell different stories.
+    totalPriorTipCents: [...byId.keys()].reduce((n, id) => n + (priorTips.get(id) ?? 0), 0),
+    techs,
+  };
 }
 
 /**

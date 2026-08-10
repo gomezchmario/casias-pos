@@ -36,6 +36,14 @@ export type Product = {
   specialized: number;
   /** Who we normally buy this from. Per-delivery supplier lives on the lot. */
   supplier: string | null;
+  /**
+   * Priced under cost on purpose, and not a mistake to be reviewed.
+   *
+   * Silences the below-cost warning and marks the row on the inventory sheet
+   * instead. On a tire that is NOT under cost it just shows the mark, which is
+   * the same switch doing the other half of its job. See 020_discount_flag.sql.
+   */
+  discounted: number;
   active: number;
   deleted: number;
 };
@@ -117,6 +125,17 @@ export type SizeGroup = {
   newTires: ProductWithStock[];
   usedCount: number;
   usedProductId: number | null;
+  /**
+   * The used row itself, not just its id.
+   *
+   * The id alone was enough while the used line only offered "Add", and stopped
+   * being enough the moment it needed Count and Remove: those open the same
+   * sheets every other row opens, and a sheet wants the product. Carrying the
+   * id and then looking the product up somewhere else would mean the screen
+   * holding a number that stands for a row it cannot see — which is how a size
+   * keyed wrong ends up on the board with nothing on it that can be pressed.
+   */
+  usedProduct: ProductWithStock | null;
   total: number;
 };
 
@@ -145,11 +164,19 @@ export function inventoryBySize(opts: { includeOutOfStock?: boolean } = {}): Siz
     const size = t.tire_size ?? "(no size)";
     let g = bySize.get(size);
     if (!g) {
-      g = { size, newTires: [], usedCount: 0, usedProductId: null, total: 0 };
+      g = {
+        size,
+        newTires: [],
+        usedCount: 0,
+        usedProductId: null,
+        usedProduct: null,
+        total: 0,
+      };
       bySize.set(size, g);
     }
     if (t.condition === "used") {
       g.usedProductId = t.id;
+      g.usedProduct = t;
       g.usedCount = t.on_hand;
     } else {
       g.newTires.push(t);
@@ -157,7 +184,21 @@ export function inventoryBySize(opts: { includeOutOfStock?: boolean } = {}): Siz
   }
 
   for (const g of bySize.values()) {
+    /* Only exact zeroes are hidden, so an oversold row survives the filter and
+       is always on the sheet — which is the behaviour the sort below depends on. */
     if (!opts.includeOutOfStock) g.newTires = g.newTires.filter((t) => t.on_hand !== 0);
+
+    /* Oversold to the top of its own size, deepest first.
+       The panel at the head of the page lists these too, but a list at the top
+       and a row in the middle are two different jobs — the panel says WHICH,
+       and this puts the row where somebody counting that size will meet it
+       first rather than three lines down among the healthy ones. */
+    g.newTires.sort(
+      (a, b) =>
+        Number(a.on_hand >= 0) - Number(b.on_hand >= 0) ||
+        (a.on_hand < 0 ? a.on_hand - b.on_hand : 0),
+    );
+
     g.total = g.newTires.reduce((s, t) => s + t.on_hand, 0) + Math.max(0, g.usedCount);
   }
 
@@ -233,7 +274,17 @@ export function inventoryBySection(opts: { includeOutOfStock?: boolean } = {}): 
  * because "we are out of small batteries" is a thing someone reordering needs
  * to see.
  */
-export function listBatteries(
+/**
+ * One shelf of stocked parts, by category.
+ *
+ * Batteries were the first and Miscellaneous is the second, and they want
+ * identical treatment: a heading of their own on the sheet, counts off the
+ * ledger like everything else, and zero-stock rows dropped unless somebody is
+ * reordering. Written once rather than twice because the second copy is where
+ * the two quietly stop agreeing about what an empty shelf looks like.
+ */
+function listShelf(
+  categoryCode: string,
   opts: { includeOutOfStock?: boolean } = {},
 ): ProductWithStock[] {
   const rows = withStock(
@@ -241,12 +292,28 @@ export function listBatteries(
       .prepare(
         `SELECT p.* FROM products p
            JOIN service_categories c ON c.id = p.category_id
-          WHERE c.code = 'battery' AND p.deleted = 0 AND p.active = 1
+          WHERE c.code = ? AND p.deleted = 0 AND p.active = 1
           ORDER BY p.price_cents DESC`,
       )
-      .all() as Product[],
+      .all(categoryCode) as Product[],
   );
   return opts.includeOutOfStock ? rows : rows.filter((b) => b.on_hand !== 0);
+}
+
+export function listBatteries(
+  opts: { includeOutOfStock?: boolean } = {},
+): ProductWithStock[] {
+  return listShelf("battery", opts);
+}
+
+/**
+ * Everything that is neither a tire nor a battery — TPMS sensors, and whatever
+ * joins them. Same shelf treatment; see `listShelf`.
+ */
+export function listMisc(
+  opts: { includeOutOfStock?: boolean } = {},
+): ProductWithStock[] {
+  return listShelf("misc", opts);
 }
 
 // ---------------------------------------------------------------------------
@@ -498,6 +565,7 @@ export function updateProduct(
     tireSize?: string | null;
     specialized?: boolean;
     supplier?: string | null;
+    discounted?: boolean;
   },
 ): Result {
   if (!can(user.role, "manageProducts"))
@@ -540,6 +608,8 @@ export function updateProduct(
       args.specialized === undefined ? product.specialized : args.specialized ? 1 : 0,
     supplier:
       args.supplier === undefined ? product.supplier : args.supplier?.trim() || null,
+    discounted:
+      args.discounted === undefined ? product.discounted : args.discounted ? 1 : 0,
   };
 
   if (!Number.isInteger(next.price_cents) || next.price_cents < 0)
@@ -552,7 +622,8 @@ export function updateProduct(
       .prepare(
         `UPDATE products SET name = ?, brand = ?, model = ?, ply = ?, tire_size = ?,
                              price_cents = ?, default_cost_cents = ?, reorder_point = ?,
-                             active = ?, specialized = ?, supplier = ?, updated_at = ?
+                             active = ?, specialized = ?, supplier = ?, discounted = ?,
+                             updated_at = ?
           WHERE id = ?`,
       )
       .run(
@@ -567,6 +638,7 @@ export function updateProduct(
         next.active,
         next.specialized,
         next.supplier,
+        next.discounted,
         nowLocalIso(),
         id,
       );
@@ -589,8 +661,8 @@ export function updateProduct(
  * a sale from last March must still be able to say what was sold.
  */
 export function deleteProduct(user: PosUser, id: number, reason: string): Result {
-  if (!can(user.role, "manageProducts"))
-    return { ok: false, error: "Only a manager can remove products" };
+  if (!can(user.role, "deleteProduct"))
+    return { ok: false, error: "Only the owner can remove a product" };
   const product = getProduct(id);
   if (!product) return { ok: false, error: "Product not found" };
   if (!reason.trim()) return { ok: false, error: "A reason is required" };
@@ -712,6 +784,25 @@ export function listUnmetDemand(
  * point each one sits would file the empties in among sizes the shop still has,
  * which is the one thing this order exists to prevent.
  */
+/**
+ * Everything the ledger says the shop has less than none of, deepest first.
+ *
+ * Separate from `listLowStock` because that one only looks at products with a
+ * reorder point set, and most do not have one. A tire at minus two with no
+ * reorder point was therefore invisible everywhere except as a red number on
+ * its own row — which is a warning only for whoever happens to scroll past it.
+ *
+ * Below zero is never merely low. It means tires left on cars that the racks
+ * did not have: either the count is wrong, or stock came in and was never
+ * received, or something walked. All three want looking at today, and none of
+ * them is answered by ordering more.
+ */
+export function listNegativeStock(): ProductWithStock[] {
+  return withStock(listProducts().filter((p) => p.track_inventory))
+    .filter((p) => p.on_hand < 0)
+    .sort((a, b) => a.on_hand - b.on_hand || a.name.localeCompare(b.name));
+}
+
 export function listLowStock(): ProductWithStock[] {
   const products = listProducts().filter((p) => p.track_inventory && p.reorder_point > 0);
   return withStock(products)

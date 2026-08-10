@@ -1,0 +1,521 @@
+/* The staff manual. Read on screen at the counter, and printed for the wall or
+   the drawer — so it is styled once and the print rules only take away the
+   things paper has no use for. */
+
+/* The page under it. This route has no POS shell around it — see the note in
+   page.tsx about why it is public — so the field it sits on is its own. */
+.manual-page {
+  background: #f4f6fa;
+}
+
+.manual {
+  color: #14181d;
+  font-size: 15px;
+  line-height: 1.62;
+}
+
+.manual p {
+  margin: 0 0 9px;
+  max-width: 58em;
+}
+
+.manual h2 {
+  font-size: 22px;
+  font-weight: 600;
+  color: #0a2540;
+  margin: 34px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid #0a2540;
+}
+
+.manual-num {
+  font-size: 14px;
+  font-weight: 700;
+  color: #a8760a;
+  margin-right: 10px;
+}
+
+.manual h3 {
+  font-size: 16px;
+  font-weight: 650;
+  color: #0a2540;
+  margin: 22px 0 6px;
+}
+
+/* --- the name of a control, exactly as it is printed on the button ---------
+   Bordered rather than merely bold: on a screen full of prose the eye needs to
+   know this is a THING to go and find, not a word being emphasised. */
+.manual-chip {
+  display: inline-block;
+  border: 1px solid #0a2540;
+  border-radius: 3px;
+  padding: 0 5px;
+  margin: 0 1px;
+  font-size: 0.92em;
+  font-weight: 650;
+  color: #0a2540;
+  background: #eef2f6;
+  white-space: nowrap;
+}
+
+/* --- numbered steps ------------------------------------------------------- */
+.manual-steps {
+  list-style: none;
+  counter-reset: step;
+  padding: 0;
+  margin: 12px 0 18px;
+}
+
+.manual-steps > li {
+  counter-increment: step;
+  position: relative;
+  padding: 0 0 12px 38px;
+}
+
+.manual-steps > li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 1px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #0a2540;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.manual-list {
+  margin: 8px 0 16px;
+  padding-left: 22px;
+  list-style: disc;
+}
+
+.manual-list li {
+  margin-bottom: 6px;
+}
+
+/* --- callouts ------------------------------------------------------------- */
+.manual-note,
+.manual-warn {
+  padding: 14px 18px;
+  margin: 16px 0 20px;
+  border-radius: 10px;
+}
+
+.manual-note {
+  background: #f4f7f9;
+  border-left: 3px solid #0a2540;
+}
+
+.manual-warn {
+  background: #fdf6e6;
+  border-left: 3px solid #a8760a;
+}
+
+.manual-callout-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: #0a2540;
+}
+
+.manual-warn .manual-callout-title {
+  color: #8a6008;
+}
+
+.manual-note p:last-child,
+.manual-warn p:last-child {
+  margin-bottom: 0;
+}
+
+/* --- contents ------------------------------------------------------------- */
+.manual-toc {
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin: 0 0 24px;
+}
+
+.manual-toc ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: toc;
+  columns: 2;
+  column-gap: 28px;
+}
+
+.manual-toc li {
+  counter-increment: toc;
+  padding: 3px 0;
+  break-inside: avoid;
+}
+
+.manual-toc li::before {
+  content: counter(toc, decimal-leading-zero) "  ";
+  color: #a8760a;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.manual-toc a {
+  color: #1f3f64;
+  text-decoration: none;
+}
+
+.manual-toc a:hover {
+  text-decoration: underline;
+}
+
+/* --- specimens: a piece of the real interface, in the paragraph ------------
+   The slab is what says "this is the screen, not this page". Without it a
+   rebuilt button looks like a button you are supposed to press, and somebody
+   will press it. */
+.manual-specimen {
+  background: #eef1f5;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 16px;
+  margin: 14px 0 6px;
+  display: flex;
+  justify-content: center;
+}
+
+.manual-specimen-inner {
+  width: 100%;
+}
+
+/* The button grid, mirrored from register.css.
+   Copied rather than imported: pulling in the register's stylesheet would bring
+   its ticket panel, its search box and its breakpoints along with it, and this
+   page needs exactly one rule out of that file. Three columns rather than the
+   register's four because a specimen is 380px wide, which is the width at which
+   the real screen also drops to three. */
+.manual-specimen .keypad {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.manual-specimen .keypad > .btn {
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+  line-height: 1.15;
+}
+
+/* Nothing in a specimen is clickable, and it must not pretend to be. */
+.manual-specimen .btn,
+.manual-specimen [class*="btn"] {
+  cursor: default;
+  pointer-events: none;
+}
+
+.manual-specimen-caption {
+  font-size: 13px;
+  color: #4f6e8e;
+  text-align: center;
+  margin: 0 0 16px;
+}
+
+/* A dialog, drawn as one rather than opened as one. */
+.manual-modal {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(10, 37, 64, 0.28);
+  padding: 18px 20px;
+}
+
+.manual-specimen-missing {
+  border: 1px dashed #b45309;
+  color: #92400e;
+  background: #fffbeb;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin: 12px 0;
+}
+
+/* --- figures: a photograph of the screen, with numbers on it --------------
+   The numbers sit ON the picture and again beside the explanation, because
+   the two halves are useless apart: a legend with no markers is a list of
+   sentences about nothing, and markers with no legend are decoration. */
+.manual-figure {
+  margin: 18px 0 24px;
+}
+
+.manual-figure-shot {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 10px;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.manual-figure-shot img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+/* Centred on the point rather than hanging off it, so a marker can be put on
+   a button rather than beside it and still not cover the label. */
+.manual-pin {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #a8760a;
+  color: #fff;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.manual-legend {
+  list-style: none;
+  counter-reset: pin;
+  padding: 0;
+  margin: 12px 0 0;
+}
+
+.manual-legend li {
+  counter-increment: pin;
+  position: relative;
+  padding: 0 0 7px 32px;
+  font-size: 14px;
+}
+
+.manual-legend li::before {
+  content: counter(pin);
+  position: absolute;
+  left: 0;
+  top: 1px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #a8760a;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* --- tables --------------------------------------------------------------- */
+.manual-table-wrap {
+  overflow-x: auto;
+  margin: 12px 0 20px;
+}
+
+.manual-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.manual-table th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #4f6e8e;
+  font-weight: 700;
+  border-bottom: 2px solid #0a2540;
+  padding: 0 10px 6px 0;
+  white-space: nowrap;
+}
+
+.manual-table td {
+  padding: 7px 10px 7px 0;
+  border-bottom: 1px solid #e2e7ec;
+  vertical-align: top;
+}
+
+.manual-table td:last-child,
+.manual-table th:last-child {
+  padding-right: 0;
+}
+
+.manual-table tbody tr:nth-child(even) td {
+  background: #fafbfc;
+}
+
+.manual-yes {
+  color: #14532d;
+  font-weight: 700;
+}
+
+.manual-no {
+  color: #7f1d1d;
+}
+
+.manual-sheet-head,
+.manual-foot {
+  display: none;
+}
+
+/* ========================================================================== */
+@media print {
+  /* Same undoing of the POS shell as the close-out does — see eod.css. The
+     wrapper is a full-height flex column on a grey field, which is right for a
+     screen and wrong for every part of a printed page. */
+  html,
+  body,
+  body > div,
+  main {
+    background: #fff !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  header,
+  nav,
+  .no-print {
+    display: none !important;
+  }
+
+  .manual {
+    max-width: none;
+    width: 100%;
+    font-size: 10.5pt;
+    line-height: 1.55;
+  }
+
+  .manual-sheet-head {
+    display: block;
+    border-bottom: 3px solid #0a2540;
+    padding-bottom: 4mm;
+    margin-bottom: 6mm;
+  }
+
+  .manual-sheet-title {
+    font-size: 22pt;
+    font-weight: 700;
+    color: #0a2540;
+  }
+
+  .manual-sheet-sub {
+    font-size: 11pt;
+    color: #4e5b68;
+  }
+
+  /* One topic per sheet. It costs paper and buys the only thing that makes a
+     manual usable at a counter: being able to say "page seven" to somebody and
+     have them find it. */
+  .manual-section {
+    break-before: page;
+  }
+
+  .manual h2 {
+    break-after: avoid;
+    margin-top: 0;
+  }
+
+  .manual h3,
+  .manual-callout-title {
+    break-after: avoid;
+  }
+
+  .manual-steps > li,
+  .manual-note,
+  .manual-warn,
+  .manual-table-wrap,
+  .manual-figure,
+  .manual-specimen {
+    break-inside: avoid;
+  }
+
+  /* On paper a specimen keeps its fill — the slab is what separates a picture
+     of a control from an instruction, and without it the two run together. */
+  .manual-specimen {
+    background: #f2f4f7 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .manual-specimen .btn,
+  .manual-specimen [style*="background"] {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .manual-modal {
+    box-shadow: none;
+    border: 1px solid #999;
+  }
+
+  /* A figure split across a page break is a picture on one sheet and its
+     numbers on another, which is worse than no picture. Held together, and
+     kept small enough that it can be. */
+  .manual-figure-shot img {
+    max-height: 105mm;
+    width: auto;
+  }
+
+  .manual-pin {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Paper has no scrollbar; a table that overflows here is a table with a
+     column cut off it. */
+  .manual-table-wrap {
+    overflow: visible !important;
+  }
+
+  .manual-toc {
+    border: none;
+    padding: 0;
+    break-after: page;
+  }
+
+  .manual-toc a {
+    color: #14181d;
+  }
+
+  .manual-chip {
+    background: none;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .manual-note,
+  .manual-warn {
+    background: none;
+    border: 1px solid #111;
+    border-left-width: 3px;
+    border-radius: 0;
+  }
+
+  .manual-foot {
+    display: block;
+    margin-top: 8mm;
+    padding-top: 3mm;
+    border-top: 1px solid #ccc;
+    font-size: 8.5pt;
+    color: #4e5b68;
+  }
+
+  @page {
+    size: letter;
+    margin: 16mm;
+  }
+}

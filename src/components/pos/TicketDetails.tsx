@@ -28,6 +28,7 @@ type Match = {
   id: number;
   name: string;
   phone: string | null;
+  creditApproved: boolean;
   vehicles: {
     id: number;
     year: string | null;
@@ -56,7 +57,12 @@ const EMPTY: Fields = {
 
 /** What the ticket already knows, when it is being opened on an existing one. */
 export type KnownDetails = {
-  customer: { id: number; name: string; phone: string | null } | null;
+  customer: {
+    id: number;
+    name: string;
+    phone: string | null;
+    creditApproved: boolean;
+  } | null;
   vehicle: {
     id: number;
     year: string | null;
@@ -138,6 +144,18 @@ export function TicketDetails({
   );
   const [matches, setMatches] = useState<Match[]>([]);
   const [showMatches, setShowMatches] = useState(false);
+
+  /**
+   * Whether the shop has agreed to carry the customer now on this ticket.
+   *
+   * Held beside `customerId` and set from the same two places, because it is a
+   * fact about that identified person — not about the name in the box. Somebody
+   * typing a name by hand has not been approved for anything, and the badge must
+   * not appear until a real record has been picked or loaded.
+   */
+  const [creditApproved, setCreditApproved] = useState(
+    known?.customer?.creditApproved ?? false,
+  );
   const [saved, setSaved] = useState(false);
   const lastSent = useRef<string>("");
 
@@ -217,6 +235,10 @@ export function TicketDetails({
     // The ids come back so the next save updates these rows instead of hunting
     // for them again.
     if (d.customer?.id) setCustomerId(d.customer.id);
+    // Also from the save, not only from the picker: a regular is just as often
+    // matched by typing their phone number as by choosing them off the list,
+    // and the badge has to appear either way.
+    if (d.customer) setCreditApproved(d.customer.credit_approved === 1);
     if (d.vehicle?.id) setVehicleId(d.vehicle.id);
     if (d.sale) onSaved(d.sale);
     setSaved(true);
@@ -232,6 +254,7 @@ export function TicketDetails({
   function choose(m: Match) {
     const v = m.vehicles[0];
     setCustomerId(m.id);
+    setCreditApproved(m.creditApproved);
     setVehicleId(v?.id ?? null);
     set({
       name: m.name,
@@ -348,6 +371,25 @@ export function TicketDetails({
           </button>
         )}
       </div>
+
+      {/*
+        Said where the decision gets acted on.
+
+        A cashier deciding whether to put a ticket on the house account has, up
+        to now, had to remember whether this person is good for it — or ask, or
+        guess. The flag lives on the customer, so the moment one is picked or
+        loaded onto the ticket, the answer is on screen beside their name.
+
+        Green and a star, matching the book. It is only ever shown for an
+        identified customer: a name typed by hand belongs to nobody yet, and a
+        badge that appeared while somebody was still typing would be approving
+        whoever they happened to be halfway through spelling.
+      */}
+      {customerId !== null && creditApproved && (
+        <div className="td-approved-row">
+          <div className="td-approved">★ Store credit approved</div>
+        </div>
+      )}
 
       <div className="relative flex flex-col gap-2">
         {field("name", "Name")}

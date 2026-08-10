@@ -39,7 +39,13 @@ export function OrderedTire({
   initialSize?: string;
 }) {
   const [size, setSize] = useState("");
+  // Two fields, not one. This box used to ask for "Brand & model" together and
+  // post the answer as the brand, which is how a tire arrived in the catalogue
+  // branded "tRANS EAGLE 16PLY" with no model at all -- a one-off row that sorts
+  // and groups nowhere near the eight TRANSEAGLE rows it belongs with. The
+  // columns were always there; only this form was folding them together.
   const [brand, setBrand] = useState("");
+  const [model, setModel] = useState("");
   const [price, setPrice] = useState("");
   const [cost, setCost] = useState("");
   const [supplier, setSupplier] = useState("");
@@ -56,6 +62,7 @@ export function OrderedTire({
     // of small insult that gets a tool written off in a week.
     setSize(initialSize);
     setBrand("");
+    setModel("");
     setPrice("");
     setCost("");
     setSupplier("");
@@ -79,6 +86,7 @@ export function OrderedTire({
         condition: "new",
         tireSize: size.trim(),
         brand: brand.trim() || null,
+        model: model.trim() || null,
         priceCents,
         defaultCostCents: showCosts ? (costCents ?? 0) : 0,
         supplier: supplier.trim() || null,
@@ -141,16 +149,32 @@ export function OrderedTire({
             onChange={(e) => setSize(e.target.value)}
           />
         </label>
+        {/* Brand alone. The placeholder is one word on purpose — it is the
+            example somebody copies the shape of, and "Landsail LS588" in this
+            box is exactly what taught the counter to type the whole name here. */}
         <label className="text-sm text-brand-400">
-          Brand &amp; model
+          Brand
           <input
             className="input mt-1 w-full"
-            placeholder="Landsail LS588"
+            placeholder="Landsail"
             value={brand}
             onChange={(e) => setBrand(e.target.value)}
           />
         </label>
       </div>
+
+      {/* Full width, below the pair, because a model is the long one — "ST
+          RADIAL II (10 PL)" does not fit in half a row, and a field that
+          visibly truncates what you typed is a field people stop filling in. */}
+      <label className="text-sm text-brand-400 block mt-3">
+        Model <span className="text-brand-300">(and ply, if it matters)</span>
+        <input
+          className="input mt-1 w-full"
+          placeholder="LS588, or ST RADIAL II (10 PL)"
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+        />
+      </label>
 
       <div className="grid grid-cols-2 gap-3 mt-3">
         <label className="text-sm text-brand-400">

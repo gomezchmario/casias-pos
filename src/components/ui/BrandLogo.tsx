@@ -1,4 +1,4 @@
-import { TireMark } from "./TireMark";
+import { ShopLogo } from "./ShopLogo";
 
 type Props = {
   size?: "sm" | "md" | "lg";
@@ -15,7 +15,7 @@ export function BrandLogo({ size = "md", variant = "light" }: Props) {
 
   return (
     <div className="flex items-center gap-3">
-      <TireMark size={tireSize} />
+      <ShopLogo size={tireSize} priority />
       <div className="flex flex-col leading-tight">
         <span
           className={`${titleSize} ${titleColor} font-semibold tracking-tight`}

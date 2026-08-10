@@ -159,6 +159,42 @@ html, body {
   box-shadow: 0 1px 0 rgba(255,255,255,0.15) inset, 0 2px 8px rgba(167,29,36,0.3);
 }
 
+/* Outlined, for the ways a ticket ends other than paid in full.
+
+   White-filled rather than tinted so they never compete with the solid Complete
+   sale above them, but bordered and full height so they read as buttons. They
+   were both small underlined text, which is the treatment a footnote gets --
+   fine for something nobody needs, wrong for a split payment or a customer who
+   is paying Friday. Both are ordinary afternoons in this shop. */
+.btn-outline {
+  background: #fff;
+  color: #0a2540;
+  border-color: rgba(10, 37, 64, 0.22);
+}
+.btn-outline:not(:disabled):hover {
+  background: rgba(10, 37, 64, 0.05);
+  border-color: rgba(10, 37, 64, 0.38);
+}
+.btn-outline:not(:disabled):active {
+  transform: translateY(1px);
+}
+/* Red for what it is, not for how dangerous it is: this is the one control that
+   ends a ticket with money still owed, and it should read as a debt being
+   created. Outlined rather than filled for the same reason it is not beside
+   Complete sale -- it should be findable, not the first thing a thumb lands on. */
+.btn-outline-danger {
+  background: #fff;
+  color: #a71d24;
+  border-color: rgba(167, 29, 36, 0.32);
+}
+.btn-outline-danger:not(:disabled):hover {
+  background: rgba(167, 29, 36, 0.06);
+  border-color: rgba(167, 29, 36, 0.55);
+}
+.btn-outline-danger:not(:disabled):active {
+  transform: translateY(1px);
+}
+
 /* Input */
 .input {
   font-family: var(--font-sans);
@@ -202,4 +238,82 @@ html, body {
 @media print {
   .no-print { display: none !important; }
   body { background: #fff; }
+}
+
+/* The shop has agreed to carry this customer.
+   Green, because it is a permission rather than a warning — every other badge
+   in this app is amber or red and means "look out", and this one means "yes,
+   go ahead". The star is what ties it to the star beside the name in the
+   customer book, so the two read as one fact in two places. */
+.td-approved,
+.cu-approved {
+  display: inline-block;
+  border: 1px solid #16a34a;
+  background: #f0fdf4;
+  color: #14532d;
+  border-radius: 8px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.cu-approved-on {
+  color: #14532d;
+  font-weight: 600;
+}
+
+/* Centred, with air either side. It is an answer to a question the cashier
+   has not asked out loud yet, so it wants to read as a statement about the
+   whole ticket rather than as a label attached to the field under it. */
+.td-approved-row {
+  display: flex;
+  justify-content: center;
+  margin: 0.75rem 0;
+}
+
+/* Ahead of the name, in the list and on the panel. */
+.cu-star {
+  color: #d97706;
+  margin-right: 0.3rem;
+}
+
+/* The order-fulfilment stock question. */
+.osc-line {
+  border: 1px solid rgba(10, 37, 64, 0.12);
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+/* The evidence, set apart from the question it answers. Indented and quiet:
+   it is there to be read if the counter is unsure, not to compete with the
+   tick they are being asked for. */
+.osc-log {
+  margin-top: 0.5rem;
+  padding-left: 1.6rem;
+  border-left: 2px solid rgba(10, 37, 64, 0.08);
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.osc-move {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  padding: 0.1rem 0;
+}
+
+/* A receipt with no ticket behind it — the shape of one somebody typed in when
+   the delivery arrived, which is the whole reason this dialog exists. */
+.osc-manual {
+  border: 1px solid #d97706;
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 999px;
+  padding: 0 0.35rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  white-space: nowrap;
 }

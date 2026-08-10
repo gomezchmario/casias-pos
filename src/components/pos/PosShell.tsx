@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { LockScreen } from "@/components/pos/LockScreen";
-import { TireMark } from "@/components/ui/TireMark";
+import { ShopLogo } from "@/components/ui/ShopLogo";
 import { ROLE_LABELS, type Capability, type PosRole } from "@/lib/roles";
 
 export type PosUser = { employeeId: number; name: string; role: PosRole };
@@ -30,16 +30,22 @@ const NAV: {
   { href: "/pos", label: "Main", capability: "viewDay" },
   { href: "/pos/register", label: "New sale", capability: "ringSale" },
   // Sits next to Main because it is the other half of the same question: Main
-  // says how the day is going, Entries says what the day actually did. The
-  // ticket list used to hang off the bottom of Main and made it too long to
-  // read; this is where it went.
-  { href: "/pos/entries", label: "Entries", capability: "viewDay" },
-  // Orders is deliberately NOT a tab. The board at /pos/orders still exists and
-  // still works — the lifecycle, the drawer control, the API — but it is not on
-  // the header until the shop has decided it wants it. A tab nobody asked for is
-  // a tab that gets clicked once.
+  // says how the day is going, Logs says what the day actually did. The ticket
+  // list used to hang off the bottom of Main and made it too long to read;
+  // this is where it went.
+  //
+  // The route stays /pos/entries. Renaming the tab is a label change; renaming
+  // the URL would break every link anybody has bookmarked or written down for
+  // the sake of matching a word on a button.
+  { href: "/pos/entries", label: "Logs", capability: "viewLog" },
+  // Orders is deliberately NOT a tab, and the green and blue sheet does not get
+  // a screen of its own. A tire the shop has promised somebody is a thing the
+  // shop still owes — exactly like a balance — so it belongs in the Outstanding
+  // panel on Main beside the balances, not on a separate board somebody has to
+  // remember to go and look at. A list nobody visits is how the sheet lost track
+  // of them in the first place.
   { href: "/pos/inventory", label: "Inventory", capability: "viewInventory" },
-  { href: "/pos/eod", label: "End of day", capability: "closeShift" },
+  { href: "/pos/eod", label: "Close-out", capability: "closeShift" },
   // Just the gear. The other tabs are places to do the day's work and are
   // named for the work; this one is setup, is opened rarely, and does not earn
   // a word next to them. It sits last so the eye reaches it only after the
@@ -232,7 +238,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
             color: "#f5f7fa",
           }}
         >
-          <TireMark size={28} />
+          <ShopLogo size={30} />
           <nav className="flex gap-1 flex-1">
             {NAV.filter((n) => auth.can(n.capability)).map((n) => {
               const active =

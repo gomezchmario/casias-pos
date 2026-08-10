@@ -34,6 +34,7 @@ export type AuditAction =
   | "sale.po_update"
   | "sale.delete"
   | "sale.fulfillment_change"
+  | "sale.work_status_change"
   | "sale_item.create"
   | "sale_item.update"
   | "sale_item.void"
@@ -42,6 +43,7 @@ export type AuditAction =
   | "payment.refund"
   | "payment.purchase_payout"
   | "payment.reversal"
+  | "payment.correct"
   | "payment.comm_override"
   | "payment.seq_update"
   | "shift.open"
@@ -65,6 +67,15 @@ export type AuditAction =
   | "customer.create"
   | "customer.update"
   | "customer.delete"
+  // Money against a house account, which is not a payment against a ticket and
+  // must not be searched for as one.
+  | "account.payment"
+  | "account.reversal"
+  // A dead row taken off the day's log, and put back. Deliberately NOT
+  // `entry.delete` — that one belongs to the time clock and means a shift was
+  // removed, and a log searched for "who deleted an entry" must not return both.
+  | "pos_entry.strike"
+  | "pos_entry.restore"
   | "vehicle.create"
   | "vehicle.update"
   | "vehicle.delete"

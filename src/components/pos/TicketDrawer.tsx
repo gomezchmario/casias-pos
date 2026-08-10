@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { usePosAuth } from "@/components/pos/PosShell";
 import {
@@ -12,8 +12,8 @@ import {
 import { PaymentPanel } from "@/components/pos/PaymentPanel";
 import { PayoutPanel } from "@/components/pos/PayoutPanel";
 import { TicketDetails, type KnownDetails } from "@/components/pos/TicketDetails";
-import { FULFILLMENT_LABELS, FULFILLMENT_STAGES } from "@/lib/fulfillment";
-import type { FulfillmentStatus, Sale, SaleItem } from "@/lib/sales";
+import { TicketStatusPicker } from "@/components/pos/TicketStatusPicker";
+import type { Sale, SaleItem } from "@/lib/sales";
 import type { Payment, PaymentMethod, TipSplit } from "@/lib/payments";
 
 type Mechanic = { id: number; name: string };
@@ -32,6 +32,9 @@ type Detail = {
   mechanics: TicketMechanic[];
   /** The whole floor — who a line can be moved to. */
   roster: Mechanic[];
+  /** The lines that are tires, and so the only ones somebody can be credited
+   *  for fitting. Resolved server-side; see the route. */
+  tireItemIds: number[];
 };
 
 export function TicketDrawer({
@@ -96,9 +99,9 @@ export function TicketDrawer({
         <span className="flex items-baseline gap-2 text-brand-500">
           <span className="text-xl font-bold tracking-wide">TICKET</span>
           {/* Amber while money is still owed on it, matching how the same
-              number reads on Entries — so opening a ticket confirms what the
+              number reads on Logs — so opening a ticket confirms what the
               list already said instead of quietly changing its mind about it.
-              Owed, not "open": see the note beside the same colour on Entries. */}
+              Owed, not "open": see the note beside the same colour on Logs. */}
           <span
             className="text-xl font-semibold tabular-nums"
             style={
@@ -159,6 +162,30 @@ export function TicketDrawer({
             </span>
           </div>
 
+          {/* The sticky note that used to live on the monitor.
+              Same yellow and same pin as the board on Main, because it is the
+              same kind of message — one person telling the next what they need
+              to know — only about this ticket instead of about the day.
+
+              NOT the details note further down. That one describes the job and
+              prints on the customer's receipt; this never leaves the building.
+              Anybody who can ring a ticket can write it: a sticky note only a
+              manager may write goes straight back onto the monitor. */}
+          <PinnedNote
+            note={detail.sale.pinned_note}
+            by={detail.sale.pinned_note_by}
+            at={detail.sale.pinned_note_at}
+            canWrite={can("ringSale")}
+            busy={busy}
+            onSave={(note) =>
+              send(`/api/pos/sales/${saleId}/note`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ note }),
+              })
+            }
+          />
+
           {/* Reassignable on a live ticket by anyone who can ring one. A void
               has no credit left to move, so there it is read-only. */}
           <Lines
@@ -166,6 +193,12 @@ export function TicketDrawer({
             mechanics={detail.roster}
             editable={detail.sale.status !== "voided" && can("ringSale")}
             busy={busy}
+            /* Fitting credit is offered only where the two jobs actually come
+               apart: a tire the shop had to order, sold one day and mounted
+               another. Walk-in work is fitted by whoever sold it. */
+            fittable={
+              detail.sale.fulfillment_status !== "none" ? detail.tireItemIds : []
+            }
             onReassign={(itemId, mechanicId, mechanicName) =>
               void send(`/api/pos/sales/${saleId}/items/${itemId}/mechanic`, {
                 method: "PATCH",
@@ -173,8 +206,44 @@ export function TicketDrawer({
                 body: JSON.stringify({ mechanicId, mechanicName }),
               })
             }
+            onFitted={(itemId, mechanicId) =>
+              void send(`/api/pos/sales/${saleId}/items/${itemId}/mount`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ mechanicId }),
+              })
+            }
+            /* Re-pricing is a manager's, and only on a ticket that is finished
+               and not voided. On an open one the register is the place to fix a
+               price — it is right there and the ticket has not been counted yet.
+               `updateItem` enforces this too; this only decides what is drawn. */
+            repriceable={
+              detail.sale.status === "completed" && can("editCompletedSale")
+            }
+            onReprice={(itemId, qty, unitPriceCents) =>
+              send(`/api/pos/sales/${saleId}/items/${itemId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ qty, unitPriceCents }),
+              })
+            }
           />
-          <Money sale={detail.sale} payments={detail.payments} methods={methods} />
+          <Money
+            sale={detail.sale}
+            payments={detail.payments}
+            methods={methods}
+            // Manager and up. The library enforces this too — this only decides
+            // whether the control is drawn.
+            canCorrect={can("correctPayment")}
+            busy={busy}
+            onCorrect={(paymentId, patch) =>
+              send(`/api/pos/payments/${paymentId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(patch),
+              })
+            }
+          />
 
           {error && <div className="text-sm text-red-700">{error}</div>}
 
@@ -292,32 +361,41 @@ export function TicketDrawer({
             />
           )}
 
-          {/* Ordering a tire in is decided AFTER the line is rung, not before:
+          {/* What is happening with this ticket, on every ticket.
+
+              Ordering a tire in is decided AFTER the line is rung, not before:
               the size goes on the ticket, the rack gets checked, and only then
-              does it turn out there are two of that size and they want four.
-              So the control is here on the ticket rather than a choice made
-              when it was opened. */}
-          {can("manageSpecialOrders") &&
+              does it turn out there are two of that size and they want four. So
+              the control is here on the ticket rather than a choice made when it
+              was opened. The same is true of the car — a customer decides to
+              leave it while the ticket is already up on the screen.
+
+              Offered whatever is on the ticket. It used to appear only where a
+              line pointed at the price list, on the theory that a flat repair
+              has no business having a lifecycle. That was true of tires and
+              wrong about the shop: a customer leaves the car for an oil change
+              just as readily, and a ticket with nothing rung on it yet is
+              exactly the one somebody dropped a key off for. */}
+          {(can("ringSale") || can("manageSpecialOrders")) &&
             detail.sale.status !== "voided" &&
             detail.sale.kind !== "purchase" && (
-              <SpecialOrderPanel
+              <TicketStatusPanel
                 sale={detail.sale}
-                busy={busy}
+                canSet={can("ringSale")}
+                canOrder={can("manageSpecialOrders")}
                 canReverse={can("reverseSpecialOrder")}
-                onSend={(body) =>
-                  send(`/api/pos/sales/${saleId}/fulfillment`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(body),
-                  })
-                }
+                onChanged={() => {
+                  void load();
+                  onChanged();
+                }}
+                onError={setError}
               />
             )}
 
           {/* SEQ is not edited here any more. It lives on the payment, not the
               ticket — a split tender has two swipes and two sequence numbers,
               which one field on the header cannot hold, and nothing ever read
-              the header's copy anyway. The place to fix one is Entries, where
+              the header's copy anyway. The place to fix one is Logs, where
               the whole day's charges are listed against the batch being
               reconciled. */}
 
@@ -383,18 +461,33 @@ function Lines({
   mechanics,
   editable,
   busy,
+  fittable,
   onReassign,
+  onFitted,
+  repriceable,
+  onReprice,
 }: {
   items: SaleItem[];
   mechanics: Mechanic[];
   editable: boolean;
   busy: boolean;
+  /** Line ids that may name a fitter — tires on an ordered ticket. Empty on
+   *  everything else, which is the overwhelming majority of tickets. */
+  fittable: number[];
   onReassign: (
     itemId: number,
     mechanicId: number | null,
     mechanicName: string | null,
   ) => void;
+  onFitted: (itemId: number, mechanicId: number | null) => void;
+  /** Manager and up, on a completed ticket — see `updateItem`. */
+  repriceable: boolean;
+  onReprice: (itemId: number, qty: number, unitPriceCents: number) => Promise<boolean>;
 }) {
+  /** Which line is being re-priced, and what is typed into it. */
+  const [pricing, setPricing] = useState<number | null>(null);
+  const [qty, setQty] = useState("1");
+  const [price, setPrice] = useState("");
   /**
    * What this line says about who did it, in words.
    *
@@ -413,7 +506,8 @@ function Lines({
     <table className="w-full text-sm">
       <tbody>
         {items.map((i) => (
-          <tr key={i.id} className="border-t border-black/5">
+          <Fragment key={i.id}>
+          <tr className="border-t border-black/5">
             <td className={`py-1.5 ${i.voided ? "line-through text-brand-300" : ""}`}>
               {i.qty > 1 ? `${i.qty}× ` : ""}
               {i.description}
@@ -474,10 +568,180 @@ function Lines({
                 <span className="text-xs text-brand-300">{labelOf(i) ?? "—"}</span>
               )}
             </td>
-            <td className="py-1.5 text-right tabular-nums">
+            {/* The money, and the way to fix it.
+                A completed ticket's total is frozen on purpose — payments were
+                taken against it — but "frozen" cannot mean "wrong forever". A
+                tire rung at 290 that was really 250 has to be correctable, and
+                the honest way is to change the LINE: the subtotal is the sum of
+                the lines, so re-pricing one keeps that true where an override
+                of the total would quietly break it.
+
+                The edit re-freezes the ticket and writes a before/after audit
+                row, and every one of them is named on the close-out. */}
+            <td className="py-1.5 text-right tabular-nums whitespace-nowrap">
               {formatCents(i.line_total_cents)}
+              {repriceable && !i.voided && pricing !== i.id && (
+                <button
+                  type="button"
+                  className="ml-2 text-xs text-brand-300 underline decoration-brand-300/40 underline-offset-2 hover:text-brand-500 hover:decoration-current transition-colors"
+                  title="Fix a price that was rung wrong"
+                  onClick={() => {
+                    setPricing(i.id);
+                    setQty(String(i.qty));
+                    setPrice((i.unit_price_cents / 100).toFixed(2));
+                  }}
+                >
+                  fix
+                </button>
+              )}
             </td>
           </tr>
+
+          {pricing === i.id && (
+            <tr>
+              <td colSpan={3} className="pb-2">
+                <div className="p-2 rounded-lg bg-white border border-black/10">
+                  <p className="text-xs text-brand-400 mb-2">
+                    Re-prices this line and re-freezes the ticket.{" "}
+                    {/* Said before it happens, because the number it moves is
+                        one the day has already counted. */}
+                    The change is listed on tonight&apos;s close-out with your
+                    name on it.
+                  </p>
+                  <div className="flex items-center gap-2 mb-2">
+                    <input
+                      className="input tabular-nums"
+                      style={{ height: 34, fontSize: 13, width: 56 }}
+                      inputMode="numeric"
+                      title="How many"
+                      value={qty}
+                      onChange={(e) => setQty(e.target.value)}
+                    />
+                    <span className="text-xs text-brand-300">×</span>
+                    <input
+                      className="input tabular-nums"
+                      style={{ height: 34, fontSize: 13, width: 96 }}
+                      inputMode="decimal"
+                      placeholder="0.00"
+                      title="Price each"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                    />
+                    <span className="text-xs text-brand-400">
+                      ={" "}
+                      {formatCents(
+                        Math.max(0, parseInt(qty, 10) || 0) * (parseCents(price) ?? 0),
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      style={{ height: 34, fontSize: 13, flex: 1 }}
+                      onClick={() => setPricing(null)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      style={{ height: 34, fontSize: 13, flex: 1 }}
+                      disabled={
+                        busy ||
+                        !Number.isInteger(parseInt(qty, 10)) ||
+                        parseInt(qty, 10) < 1 ||
+                        parseCents(price) === null ||
+                        (parseInt(qty, 10) === i.qty &&
+                          parseCents(price) === i.unit_price_cents)
+                      }
+                      onClick={async () => {
+                        const cents = parseCents(price);
+                        const n = parseInt(qty, 10);
+                        if (cents === null || !Number.isInteger(n)) return;
+                        if (await onReprice(i.id, n, cents)) setPricing(null);
+                      }}
+                    >
+                      {busy ? "Working…" : "Change the price"}
+                    </button>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          )}
+          {/*
+            Who bolted them on, when that is not who sold them.
+
+            A sub-row rather than a third control on the line above, because the
+            line above answers "what was rung and for how much" and this answers
+            something else entirely — and because on the tickets that do NOT
+            have it, which is nearly all of them, it costs nothing at all.
+
+            Read-only lines show it only when somebody is named. An empty
+            "Fitted by —" under every tire on a voided ticket would be four
+            lines of nothing.
+          */}
+          {fittable.includes(i.id) && !i.voided && (editable || i.mount_mechanic_id !== null) && (
+            <tr>
+              <td colSpan={3} className="pb-1.5">
+                <div className="flex items-center gap-2 pl-2 text-xs text-brand-300">
+                  <span>Fitted by</span>
+                  {editable ? (
+                    <select
+                      className="input py-1 text-xs"
+                      style={{ width: 150 }}
+                      title="Who mounted and balanced these, if it was not whoever sold them"
+                      disabled={busy}
+                      value={i.mount_mechanic_id ?? ""}
+                      onChange={(e) =>
+                        onFitted(
+                          i.id,
+                          e.target.value === "" ? null : Number(e.target.value),
+                        )
+                      }
+                    >
+                      <option value="">Whoever sold it</option>
+                      {/* Same reason as the seller select above: somebody who
+                          has left still holds the credit on old tickets, and
+                          dropping their name would let the next touch of this
+                          row quietly write it back to nobody. */}
+                      {i.mount_mechanic_id !== null &&
+                        !mechanics.some((m) => m.id === i.mount_mechanic_id) && (
+                          <option value={i.mount_mechanic_id}>
+                            {nameOf(i.mount_mechanic_id)}
+                          </option>
+                        )}
+                      {/* The seller is not on this list. Crediting somebody for
+                          fitting a tire they sold moves money from them to
+                          themselves and books them a service they did not
+                          separately do — the server refuses it, and offering it
+                          here would only be a way to find that out. */}
+                      {mechanics
+                        .filter((m) => m.id !== i.mechanic_id)
+                        .map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name}
+                          </option>
+                        ))}
+                    </select>
+                  ) : (
+                    <span>{nameOf(i.mount_mechanic_id)}</span>
+                  )}
+                  {/* What it is worth, said out loud. This is the only place
+                      anybody finds out that naming a fitter moves real money
+                      off the seller, and a control that quietly reassigns $140
+                      without saying so is one people set by accident. */}
+                  {i.mount_mechanic_id !== null && (
+                    <span>
+                      {formatCents(Math.min(i.mount_unit_cents * i.qty, i.line_total_cents))}{" "}
+                      of this line goes to them
+                    </span>
+                  )}
+                </div>
+              </td>
+            </tr>
+          )}
+          </Fragment>
         ))}
       </tbody>
     </table>
@@ -488,41 +752,217 @@ function Money({
   sale,
   payments,
   methods,
+  canCorrect,
+  onCorrect,
+  busy,
 }: {
   sale: Sale;
   payments: Payment[];
   methods: PaymentMethod[];
+  /** Manager and up — see `correctPayment`. */
+  canCorrect: boolean;
+  onCorrect: (
+    paymentId: number,
+    patch: { methodId?: number; amountCents?: number; reason: string },
+  ) => Promise<boolean>;
+  busy: boolean;
 }) {
   const label = (id: number) => methods.find((m) => m.id === id)?.label ?? "Payment";
+  const [editing, setEditing] = useState<number | null>(null);
+  const [methodId, setMethodId] = useState<number>(0);
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+
+  // Already undone by something, so there is nothing left to re-tender — the
+  // money on it has been taken back out and the replacement is its own row.
+  const reversed = new Set(
+    payments.map((p) => p.reverses_payment_id).filter((id): id is number => id != null),
+  );
+
+  // Only a plain payment nobody has already reversed. A refund or a tip
+  // adjustment says something specific about money that moved, and correcting
+  // one would be answering a question nobody asked.
+  const fixable = canCorrect
+    ? payments.filter(
+        (p) => p.kind === "payment" && !reversed.has(p.id) && sale.status !== "voided",
+      )
+    : [];
+
   return (
-    <div className="rounded-xl bg-black/[0.03] p-3 text-sm">
-      <Row label="Subtotal" value={formatCents(sale.subtotal_cents)} />
-      {/* Broken out here, unlike on the customer's receipt: this is the shop's
-          own screen, and the person looking at it is the one who needs to know
-          what was kept back. */}
-      {sale.tip_cents !== 0 && <Row label="Tip" value={formatCents(sale.tip_cents)} />}
-      {sale.comm_cents !== 0 && (
-        <Row label="Terminal tax" value={formatCents(sale.comm_cents)} />
-      )}
-      <Row label="Total" value={formatCents(sale.total_cents)} strong />
-      <div className="mt-2 pt-2 border-t border-black/10">
-        {payments.map((p) => (
-          <Row
-            key={p.id}
-            /* No SEQ on this line. It is the card batch's business, it means
-               nothing without the batch beside you, and it is read and fixed
-               in one place: the card charges on Entries. */
-            label={`${label(p.method_id)}${p.kind !== "payment" ? ` · ${p.kind.replace("_", " ")}` : ""}`}
-            value={formatCents(p.amount_cents)}
-            muted
-          />
-        ))}
-        {payments.length === 0 && (
-          <div className="text-brand-300">Nothing collected on this ticket.</div>
+    /* One element, not a fragment. The drawer stacks its sections with a
+       `gap-5`, so returning the box and the links as two children put twenty
+       pixels of the drawer's own spacing between them — on top of any margin
+       here — and no amount of adjusting the margin could close it. Wrapped,
+       they are one section and the spacing between them is this file's to
+       decide. */
+    <div>
+      <div className="rounded-xl bg-black/[0.03] p-3 text-sm">
+        <Row label="Subtotal" value={formatCents(sale.subtotal_cents)} />
+        {/* Broken out here, unlike on the customer's receipt: this is the shop's
+            own screen, and the person looking at it is the one who needs to know
+            what was kept back. */}
+        {sale.tip_cents !== 0 && <Row label="Tip" value={formatCents(sale.tip_cents)} />}
+        {sale.comm_cents !== 0 && (
+          <Row label="Terminal tax" value={formatCents(sale.comm_cents)} />
+        )}
+        <Row label="Total" value={formatCents(sale.total_cents)} strong />
+        <div className="mt-2 pt-2 border-t border-black/10">
+          {payments.map((p) => (
+            <Row
+              key={p.id}
+              /* No SEQ on this line. It is the card batch's business, it means
+                 nothing without the batch beside you, and it is read and fixed
+                 in one place: the card charges on Logs. */
+              label={`${label(p.method_id)}${p.kind !== "payment" ? ` · ${p.kind.replace("_", " ")}` : ""}`}
+              value={formatCents(p.amount_cents)}
+              muted
+            />
+          ))}
+          {payments.length === 0 && (
+            <div className="text-brand-300">Nothing collected on this ticket.</div>
+          )}
+        </div>
+        {sale.balance_cents !== 0 && (
+          <Row label="Balance due" value={formatCents(sale.balance_cents)} strong />
         )}
       </div>
-      {sale.balance_cents !== 0 && (
-        <Row label="Balance due" value={formatCents(sale.balance_cents)} strong />
+
+      {/* Outside the grey box, under it.
+          Inside, it sat on the payment row itself and read as part of the
+          figures — a control mixed in with a column of amounts, on the one
+          panel where every other thing is a number to be trusted. Out here it
+          is plainly a thing you do to the ticket rather than something the
+          ticket says. */}
+      {/* A column, not a row. These were inline, so a ticket paid on two
+          tenders ran both links together into one unbroken sentence —
+          "Wrong tender on the Credit Card?Wrong tender on the Cash?" — which
+          reads as gibberish and gives neither a click target you can aim at.
+          One per line, each only as wide as its own words. */}
+      {fixable.length > 0 && (
+        <div className="mb-1 flex flex-col items-start gap-1.5">
+          {fixable.map((p) => (
+            <Fragment key={p.id}>
+              {editing !== p.id && (
+                <button
+                  type="button"
+                  className="w-fit text-left text-xs text-brand-300 underline decoration-brand-300/40 underline-offset-2 hover:text-brand-500 hover:decoration-current transition-colors"
+                  title="The customer paid, but this row says the wrong thing about it"
+                  onClick={() => {
+                    setEditing(p.id);
+                    // Seeded with what is already there, so a correction to one
+                    // of the two does not quietly change the other.
+                    setMethodId(p.method_id);
+                    setAmount((p.amount_cents / 100).toFixed(2));
+                    setReason("");
+                  }}
+                >
+                  {/* Named only when there is more than one to choose between.
+                      On the ordinary single-payment ticket the tender is the
+                      line directly above, and repeating it here would be the
+                      same word twice. */}
+                  {fixable.length > 1
+                    ? `Wrong tender or amount on the ${label(p.method_id)}?`
+                    : "Wrong tender or amount?"}
+                </button>
+              )}
+
+              {/* Stretched, unlike the links above it. The column aligns its
+                  children to the start so each link is only as wide as its own
+                  text; the form is a form and wants the whole panel. */}
+              {editing === p.id && (
+                <div className="w-full self-stretch p-2 rounded-lg bg-white border border-black/10">
+                  {/* Says what it will do before it does it. This writes two
+                      ledger rows rather than editing one, and somebody who
+                      expects a quiet correction should not find that out from
+                      the day's tender report. */}
+                  <p className="text-xs text-brand-400 mb-2">
+                    Puts the {formatCents(p.amount_cents)} back off{" "}
+                    {label(p.method_id)} and takes it again as this. Both rows
+                    stay on {p.business_date}, so the day does not move — only
+                    what this payment says. The customer&apos;s receipt shows
+                    the corrected line, not the working.
+                  </p>
+                  <div className="flex gap-2 mb-2">
+                    <select
+                      className="input flex-1"
+                      style={{ height: 34, fontSize: 13, paddingBlock: 0 }}
+                      value={methodId}
+                      onChange={(e) => setMethodId(Number(e.target.value))}
+                    >
+                      {/* Its own tender included, and selected. Correcting only
+                          the amount is as ordinary as correcting only the
+                          tender, and a list that excluded the current one would
+                          force a tender change on somebody who only mis-typed a
+                          figure. */}
+                      {methods
+                        .filter((m) => m.active || m.id === p.method_id)
+                        .map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.label}
+                          </option>
+                        ))}
+                    </select>
+                    <input
+                      className="input tabular-nums"
+                      style={{ height: 34, fontSize: 13, width: 96 }}
+                      inputMode="decimal"
+                      placeholder="0.00"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                    />
+                  </div>
+                  <input
+                    className="input w-full mb-2"
+                    style={{ height: 34, fontSize: 13 }}
+                    placeholder="Why — e.g. rung to account, customer swiped"
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      style={{ height: 34, fontSize: 13, flex: 1 }}
+                      onClick={() => setEditing(null)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      style={{ height: 34, fontSize: 13, flex: 1 }}
+                      disabled={
+                        busy ||
+                        !methodId ||
+                        !reason.trim() ||
+                        // Nothing typed, nothing changed, or a figure that is
+                        // not a figure — all three leave nothing to send.
+                        parseCents(amount) === null ||
+                        (parseCents(amount) ?? 0) <= 0 ||
+                        (methodId === p.method_id && parseCents(amount) === p.amount_cents)
+                      }
+                      onClick={async () => {
+                        const cents = parseCents(amount);
+                        if (cents === null) return;
+                        // Only what actually differs. Sending a field that has
+                        // not moved would have the library reverse and re-take
+                        // a payment to say exactly what it already said.
+                        const ok = await onCorrect(p.id, {
+                          methodId: methodId === p.method_id ? undefined : methodId,
+                          amountCents: cents === p.amount_cents ? undefined : cents,
+                          reason: reason.trim(),
+                        });
+                        if (ok) setEditing(null);
+                      }}
+                    >
+                      {busy ? "Working…" : "Change it"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </Fragment>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -649,7 +1089,7 @@ function TipAdjustment({
             the row is written. Asking the cashier for it here only ever meant
             asking them to retype something the register already knew. If the
             slips were keyed in out of order, they get straightened out on
-            Entries, which is the one screen where the batch is in front of
+            Logs, which is the one screen where the batch is in front of
             somebody and the one place SEQ is edited. */}
         <button
           type="button"
@@ -862,94 +1302,248 @@ function VoidTicket({
 }
 
 /**
- * Whether this ticket is a tire the shop has promised to get, and how far along
- * that promise is.
+ * What is happening with this ticket, in one control.
  *
- * Deliberately small and near the bottom of the drawer. Most tickets are not
- * special orders and never will be — a $15 flat repair rung in eight seconds
- * should not have a lifecycle staring at it — so when the answer is no, this is
- * one quiet button and nothing else.
+ * There were two of these, in two places. The stage of an order lived here as a
+ * row of buttons — next stage, un-mark, cancel — and where the car was lived on
+ * the Outstanding panel as a dropdown, and neither screen could set the other's.
+ * A cashier who wanted to say "they left the car AND we have to order the tire"
+ * had to know which of the two facts each screen owned.
  *
- * Once it IS an order, the next stage is offered here as well as on the board,
- * because the moment the customer is standing at the counter collecting the
- * tire is the moment the ticket is open on screen, and sending somebody to
- * another tab to say so is how a board stops being true.
+ * Now it is one control holding both lists — a ticket can say the car is
+ * waiting AND the tire is on its way, because that is routinely true — and the
+ * panel it sits in is the only thing that changes: amber and headed
+ * "Outstanding order" when the shop owes somebody a tire, quiet and headed
+ * "Status" when it does not.
  */
-function SpecialOrderPanel({
+function TicketStatusPanel({
   sale,
-  busy,
+  canSet,
+  canOrder,
   canReverse,
-  onSend,
+  onChanged,
+  onError,
 }: {
   sale: Sale;
-  busy: boolean;
+  canSet: boolean;
+  canOrder: boolean;
   canReverse: boolean;
-  onSend: (body: { marked?: boolean; status?: FulfillmentStatus }) => Promise<boolean>;
+  onChanged: () => void;
+  onError: (msg: string) => void;
 }) {
-  const status = sale.fulfillment_status;
+  const isOrder = sale.fulfillment_status !== "none";
+  const [open, setOpen] = useState(false);
 
-  /**
-   * A ticket that is not an order shows nothing at all.
-   *
-   * The "Ordering this in" button that used to sit here is gone, along with the
-   * Orders tab it fed. Nearly every ticket in this shop is a flat repair, and a
-   * control offering to give one a multi-stage lifecycle was on screen a
-   * thousand times for every time it was wanted.
-   *
-   * The rest of this panel stays. Any ticket already part-way through — a tire
-   * on order with a deposit against it — keeps its status and its buttons, so
-   * nothing already promised to a customer gets stranded with no way to
-   * advance or cancel it. Nothing new can enter that state from here.
-   */
-  if (status === "none") return null;
+  /* Most tickets never answer either of these. A car is dropped off, four tires
+     go on, it is paid for and it leaves, and nothing about it is outstanding at
+     any point. Left permanently expanded, the panel put a heading, a sentence,
+     a two-way switch and a dropdown above the Pay button on every one of them —
+     four controls' worth of screen asking a question the ticket does not have.
 
-  const i = (FULFILLMENT_STAGES as readonly string[]).indexOf(status);
-  const next =
-    i >= 0 && i < FULFILLMENT_STAGES.length - 1 ? FULFILLMENT_STAGES[i + 1] : null;
+     So it starts as a button, and only for the tickets that have said nothing.
+     The moment either side has an answer the ticket IS outstanding in some way,
+     the button has done its job, and the panel stands open for good — nobody
+     should have to click to find out where a car is once somebody has said. */
+  if (!open && !isOrder && !sale.work_status) {
+    return (
+      /* Grey, full width, matching Details directly below it. Both are "the
+         other thing on this screen" next to Pay, and they should read as a pair
+         rather than as two different kinds of control. */
+      <button
+        type="button"
+        className="btn w-full"
+        style={{ background: "#4b5563", color: "#fff" }}
+        onClick={() => setOpen(true)}
+      >
+        Outstanding order
+      </button>
+    );
+  }
 
   return (
     <div
-      className="rounded-xl px-3 py-2.5 flex items-center gap-3 flex-wrap"
-      style={{ background: "#fff7ed", border: "1px solid rgba(180,83,9,0.25)" }}
+      className="rounded-xl px-3 py-2.5"
+      style={{
+        background: isOrder ? "#fff7ed" : "#f8fafc",
+        border: `1px solid ${isOrder ? "rgba(180,83,9,0.25)" : "rgba(15,23,42,0.10)"}`,
+      }}
     >
-      <div className="flex-1 min-w-[10rem]">
-        <div className="text-xs uppercase tracking-wider text-amber-800">
-          Special order
+      {/* Heading above the controls rather than beside them. Side by side the
+          picker got whatever was left of the row, which was narrow enough to
+          break "Outstanding order" and "Cancel the order" over two lines each. */}
+      <div className="mb-2">
+        <div
+          className="text-xs uppercase tracking-wider"
+          style={{ color: isOrder ? "#92400e" : "#64748b" }}
+        >
+          {isOrder ? "Outstanding order" : "Status"}
         </div>
-        <div className="font-semibold text-amber-900">{FULFILLMENT_LABELS[status]}</div>
+        {/* The one sentence somebody needs at the counter, and only when it
+            applies. A tire on order is NOT off the rack yet, and the person
+            about to promise it to a second customer is the person looking at
+            this panel. */}
+        <div className="text-xs mt-0.5" style={{ color: isOrder ? "#b45309" : "#94a3b8" }}>
+          {isOrder
+            ? "Nothing comes off the racks until it is fitted."
+            : "Where the car is, or a tire the shop still owes."}
+        </div>
       </div>
-      {next && (
+      <TicketStatusPicker
+        saleId={sale.id}
+        workStatus={sale.work_status}
+        fulfillmentStatus={sale.fulfillment_status}
+        canSet={canSet}
+        canOrder={canOrder}
+        canReverse={canReverse}
+        size="full"
+        onChanged={onChanged}
+        onError={onError}
+      />
+    </div>
+  );
+}
+
+/** "Aug 7, 10:40 PM" — enough to judge whether a note has gone stale. */
+function noteWhen(at: string): string {
+  const d = new Date(at);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * A note pinned to one ticket, in the same yellow as the counter's notice board.
+ *
+ * Nothing at all when there is no note and nobody may write one; a quiet link
+ * when there is none and somebody may. A permanently visible empty box is
+ * furniture, and furniture stops being read — the value of this strip is that
+ * opening a ticket tells you at a glance whether there is something to know
+ * about it.
+ *
+ * The name and the time are the accountability here rather than a permission.
+ * Everybody can write, and everybody can see who did.
+ */
+function PinnedNote({
+  note,
+  by,
+  at,
+  canWrite,
+  busy,
+  onSave,
+}: {
+  note: string | null;
+  by: string | null;
+  at: string | null;
+  canWrite: boolean;
+  busy: boolean;
+  onSave: (note: string | null) => Promise<boolean>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  if (editing) {
+    return (
+      <div
+        className="rounded-xl p-3"
+        style={{ background: "#fffbeb", border: "1px solid #fcd34d" }}
+      >
+        <textarea
+          className="input w-full"
+          rows={3}
+          autoFocus
+          maxLength={500}
+          placeholder="Anything the next person on the counter needs to know…"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+        />
+        <div className="flex gap-2 mt-2">
+          <button
+            type="button"
+            className="btn btn-outline"
+            style={{ height: 34, fontSize: 13, flex: 1 }}
+            onClick={() => setEditing(false)}
+          >
+            Cancel
+          </button>
+          {/* Clearing is saving nothing, not a separate delete. The note is gone
+              when there is nothing to say, which is how a whiteboard behaves. */}
+          {note && (
+            <button
+              type="button"
+              className="btn btn-outline-danger"
+              style={{ height: 34, fontSize: 13, flex: 1 }}
+              disabled={busy}
+              onClick={async () => {
+                if (await onSave(null)) setEditing(false);
+              }}
+            >
+              Take it down
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn btn-primary"
+            style={{ height: 34, fontSize: 13, flex: 1 }}
+            disabled={busy || !draft.trim()}
+            onClick={async () => {
+              if (await onSave(draft.trim())) setEditing(false);
+            }}
+          >
+            {busy ? "Saving…" : "Pin it"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!note) {
+    if (!canWrite) return null;
+    return (
+      <button
+        type="button"
+        className="text-xs text-brand-300 underline decoration-brand-300/40 underline-offset-2 hover:text-brand-500 hover:decoration-current transition-colors w-fit"
+        onClick={() => {
+          setDraft("");
+          setEditing(true);
+        }}
+      >
+        Pin a note to this ticket
+      </button>
+    );
+  }
+
+  return (
+    <div
+      className="rounded-xl p-3 flex items-start gap-3"
+      style={{ background: "#fffbeb", border: "1px solid #fcd34d" }}
+    >
+      <span aria-hidden style={{ fontSize: 16, lineHeight: "22px" }}>
+        📌
+      </span>
+      <div className="flex-1 min-w-0">
+        {/* Newlines somebody typed are newlines on the note. */}
+        <div className="text-amber-900 whitespace-pre-wrap text-sm">{note}</div>
+        {by && (
+          <div className="text-xs text-amber-700/80 mt-1">
+            {by}
+            {at ? ` · ${noteWhen(at)}` : ""}
+          </div>
+        )}
+      </div>
+      {canWrite && (
         <button
           type="button"
-          className="btn btn-primary text-sm"
-          disabled={busy}
-          onClick={() => void onSend({ status: next })}
+          className="text-sm text-amber-800 hover:underline shrink-0"
+          onClick={() => {
+            setDraft(note);
+            setEditing(true);
+          }}
         >
-          {FULFILLMENT_LABELS[next]}
-        </button>
-      )}
-      {/* Un-marking is offered only while nothing has been ordered yet — after
-          that the way out is Cancel, on the board, which leaves a trail and is
-          a manager's to pull. A deposit stranded on a ticket that has quietly
-          stopped appearing on any list is the failure this prevents. */}
-      {status === "pending" && (
-        <button
-          type="button"
-          className="btn btn-ghost text-sm"
-          disabled={busy}
-          onClick={() => void onSend({ marked: false })}
-        >
-          Not an order
-        </button>
-      )}
-      {canReverse && status !== "cancelled" && status !== "pending" && (
-        <button
-          type="button"
-          className="btn btn-ghost text-sm"
-          disabled={busy}
-          onClick={() => void onSend({ status: "cancelled" })}
-        >
-          Cancel order
+          Edit
         </button>
       )}
     </div>

@@ -49,3 +49,21 @@ npm-debug.log*
 # misc
 .DS_Store
 Thumbs.db
+
+# Local scratch copies of the permissions file.
+*.bak
+
+# docs/ holds the four generated manuals, and those DO ship — a shop that needs
+# to reprint the staff guide should not have to run a build to get it. What also
+# lands in there is scratch: rendered close-outs from checking a print layout,
+# and screenshots taken to verify a screen. Seven megabytes of that is not
+# documentation, so the directory is excluded and the manuals are named back in.
+docs/*
+!docs/Manual-del-Reloj.html
+!docs/Manual-del-Reloj.pdf
+!docs/Manual-del-Sistema.html
+!docs/Manual-del-Sistema.pdf
+!docs/Shop-System-Manual.html
+!docs/Shop-System-Manual.pdf
+!docs/Time-Clock-Manual.html
+!docs/Time-Clock-Manual.pdf

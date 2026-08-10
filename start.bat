@@ -27,6 +27,7 @@ if not exist ".next\BUILD_ID" (
   if errorlevel 1 (echo Build failed. & pause & exit /b 1)
 )
 
-start "TimeClock Server" /min cmd /c "npm start"
+REM Hidden rather than minimised -- see scripts\run-hidden.vbs for why.
+wscript "scripts\run-hidden.vbs"
 timeout /t 4 /nobreak >nul
 start https://localhost:3000

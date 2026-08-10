@@ -3,6 +3,7 @@ import { jsonError, requirePos } from "@/lib/api-helpers";
 import {
   createQuickButton,
   listAllQuickButtons,
+  listServiceCategories,
   type QuickButtonKind,
 } from "@/lib/quick-buttons";
 
@@ -10,7 +11,13 @@ export async function GET() {
   const auth = await requirePos("manageQuickButtons");
   if (!auth.ok) return auth.response;
 
-  return NextResponse.json({ buttons: listAllQuickButtons() });
+  // The categories ride along with the buttons rather than sitting behind their
+  // own request: the editor cannot draw a row without them, so fetching them
+  // separately only buys a screen that renders once with the dropdowns empty.
+  return NextResponse.json({
+    buttons: listAllQuickButtons(),
+    categories: listServiceCategories(),
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -22,6 +29,7 @@ export async function POST(req: NextRequest) {
     kind?: QuickButtonKind;
     amountCents?: number | null;
     description?: string | null;
+    categoryId?: number | null;
     sortOrder?: number;
   };
   try {
@@ -38,6 +46,7 @@ export async function POST(req: NextRequest) {
     kind: body.kind,
     amountCents: body.amountCents ?? null,
     description: body.description ?? null,
+    categoryId: body.categoryId ?? null,
     sortOrder: body.sortOrder,
   });
   if (!result.ok) return jsonError(result.error);

@@ -6,6 +6,9 @@ import { nowLocalIso } from "./time";
 import { getSetting } from "./settings";
 import { diffRows, logActorAudit, type Actor } from "./audit";
 import { applySaleMovements } from "./inventory";
+// No runtime cycle despite fulfilment naming this file back: it only takes a
+// type from here, and types erase.
+import { stockHasMoved } from "./fulfillment";
 import { can } from "./roles";
 import type { PosUser } from "./pos-session";
 
@@ -21,6 +24,11 @@ export type FulfillmentStatus =
   | "pending"
   | "ordered"
   | "arrived"
+  | "no_answer"
+  | "waiting_pickup"
+  // Retired from the board, kept in the type and in the database's CHECK so the
+  // handful of tickets that reached it before it was dropped still load. See
+  // `FULFILLMENT_STAGES`.
   | "installed"
   | "delivered"
   | "cancelled";
@@ -49,7 +57,23 @@ export type FulfillmentStatus =
  * migration on a table holding every sale the shop has ever made. Old rows
  * carrying a word since removed still read fine; they just render as raw text.
  */
-export const WORK_STATUSES = ["waiting", "working", "delivery", "ready"] as const;
+/**
+ * Where the car is, as values. The words and colours live in `work-status.ts`,
+ * which the browser can import; this is what the server will accept.
+ *
+ * Kept in the same order as `WORK_PILLS` on purpose — the two lists have to
+ * agree, and the cheapest way to notice they have stopped agreeing is for them
+ * to read the same way down the page.
+ */
+export const WORK_STATUSES = [
+  "waiting",
+  "working",
+  "delivery",
+  "ready",
+  "no_answer",
+  "waiting_pickup",
+  "picked_up",
+] as const;
 export type WorkStatus = (typeof WORK_STATUSES)[number];
 
 export type Sale = {
@@ -63,6 +87,9 @@ export type Sale = {
   fulfillment_status: FulfillmentStatus;
   /** Where the car is, right now. NULL until somebody says. See 014. */
   work_status: WorkStatus | null;
+  /** When it was dropped off, and when it left. Both NULL if it never was. 017. */
+  vehicle_in_at: string | null;
+  vehicle_out_at: string | null;
   is_special_order: number;
   cashier_id: number;
   customer_id: number | null;
@@ -70,6 +97,17 @@ export type Sale = {
   seq: string | null;
   po: string | null;
   notes: string | null;
+  /**
+   * The note the counter leaves itself on this ticket — see 023_ticket_note.sql.
+   *
+   * NOT `notes`, which is part of the ticket's details and describes the job.
+   * This is a message to whoever is on the counter next: "back after 5",
+   * "called twice", "do not release until the torque is checked". It never
+   * reaches the customer's receipt.
+   */
+  pinned_note: string | null;
+  pinned_note_by: string | null;
+  pinned_note_at: string | null;
   subtotal_cents: number;
   /** Taken off the goods, held POSITIVE and subtracted. See 009_discounts.sql
    *  for why this is a header column rather than a negative line. */
@@ -115,6 +153,16 @@ export type SaleItem = {
    * price was typed over at the counter.
    */
   list_price_cents: number | null;
+  /**
+   * Who fitted the tire, when that is not the person who sold it. See
+   * migrations/018_mount_credit.sql — the leaderboard moves
+   * `mount_unit_cents * qty` from the seller to this name, the customer is
+   * charged nothing extra, and NULL means the line behaves as it always did.
+   */
+  mount_mechanic_id: number | null;
+  /** What one tire's fitting was worth when the name was put on. Frozen, so a
+   *  later change to the shop's rate cannot restate a week already paid. */
+  mount_unit_cents: number;
   voided: number;
   voided_by: number | null;
   voided_at: string | null;
@@ -582,6 +630,100 @@ export function reassignMechanic(
   });
 }
 
+/**
+ * Name the technician who FITTED an ordered tire, when that is not the one who
+ * sold it.
+ *
+ * A special order is the job that reliably splits in two: the counter takes the
+ * order on Monday and gets the credit for the tire, the tire lands on Thursday,
+ * and whoever is free that afternoon does the mounting and balancing. The
+ * leaderboard used to show the seller the whole price and the fitter nothing.
+ *
+ * This moves `mount_credit_cents` a tire off the seller and onto the fitter,
+ * and that is ALL it does. `line_total_cents` is untouched, so the subtotal,
+ * the frozen total, every payment and the day's takings are identical either
+ * way -- the customer was never charged extra for this, and neither is the
+ * shop's income restated. That is what makes it safe on a paid ticket, and it
+ * is the same argument as `reassignMechanic`: who gets the credit is a
+ * different kind of fact from what somebody was charged.
+ *
+ * Three things are refused rather than allowed to mean something surprising:
+ *
+ *   Not an order. The control is offered only on tickets the shop had to order
+ *   a tire for, because that is the case where the two jobs genuinely happen on
+ *   different days by different people. On a walk-in the person who sold it
+ *   fitted it, and a second name there would mostly be a mis-click.
+ *
+ *   Not a tire line. $35 of fitting credit against a $20 flat repair would take
+ *   more off the seller than the line is worth, and the clamp that stops that
+ *   going negative would then quietly credit the fitter less than the rate.
+ *
+ *   Not the seller. Crediting somebody for fitting a tire they sold nets to
+ *   zero money and still books them a service they did not separately do.
+ *
+ * The rate is copied onto the line, not read at report time. See the migration:
+ * raising the shop's rate must not restate a week that has already been paid.
+ */
+export function setMountMechanic(
+  user: PosUser,
+  itemId: number,
+  mechanicId: number | null,
+): Result {
+  const db = getDb();
+  const item = db.prepare("SELECT * FROM sale_items WHERE id = ?").get(itemId) as
+    | SaleItem
+    | undefined;
+  if (!item) return { ok: false, error: "Line not found" };
+  if (item.voided) return { ok: false, error: "That line is voided" };
+
+  const sale = getSale(item.sale_id);
+  if (!sale) return { ok: false, error: "Sale not found" };
+  if (sale.status === "voided") return { ok: false, error: "This ticket is voided" };
+
+  if (mechanicId !== null) {
+    if (sale.fulfillment_status === "none")
+      return { ok: false, error: "Only an ordered tire is fitted by somebody else" };
+    if (mechanicId === item.mechanic_id)
+      return { ok: false, error: "They already have this line" };
+
+    const cat = db
+      .prepare("SELECT code FROM service_categories WHERE id = ?")
+      .get(item.category_id ?? -1) as { code: string } | undefined;
+    if (cat?.code !== "new_tire" && cat?.code !== "used_tire")
+      return { ok: false, error: "Only a tire line can be fitted" };
+
+    const who = db
+      .prepare("SELECT id FROM employees WHERE id = ? AND active = 1")
+      .get(mechanicId) as { id: number } | undefined;
+    if (!who) return { ok: false, error: "That employee is not on the books" };
+  }
+
+  // Cleared back to nobody, the rate goes with it. Leaving a stale rate on a
+  // line with no name would be invisible until somebody re-credited it months
+  // later and silently got the OLD rate instead of today's.
+  const unitCents = mechanicId === null ? 0 : Number(getSetting("mount_credit_cents"));
+  if (item.mount_mechanic_id === mechanicId && item.mount_unit_cents === unitCents)
+    return { ok: true as const };
+
+  return inTx(() => {
+    db.prepare(
+      "UPDATE sale_items SET mount_mechanic_id = ?, mount_unit_cents = ?, updated_at = ? WHERE id = ?",
+    ).run(mechanicId, unitCents, nowLocalIso(), itemId);
+    logActorAudit(actorOf(user), {
+      action: "sale_item.update",
+      targetType: "sale",
+      targetId: item.sale_id,
+      details: { item_id: itemId, sale_status: sale.status, mount: true },
+      before: {
+        mount_mechanic_id: item.mount_mechanic_id,
+        mount_unit_cents: item.mount_unit_cents,
+      },
+      after: { mount_mechanic_id: mechanicId, mount_unit_cents: unitCents },
+    });
+    return { ok: true as const };
+  });
+}
+
 export function voidItem(user: PosUser, itemId: number, reason: string): Result {
   const db = getDb();
   const item = db.prepare("SELECT * FROM sale_items WHERE id = ?").get(itemId) as
@@ -606,7 +748,17 @@ export function voidItem(user: PosUser, itemId: number, reason: string): Result 
       action: "sale_item.void",
       targetType: "sale",
       targetId: item.sale_id,
-      details: { item_id: itemId, description: item.description, reason: reason.trim() },
+      // `sale_status` alongside the rest, matching `updateItem`. Striking a line
+      // off a ticket that has already completed moves a figure the day has
+      // counted, and the close-out lists those -- it can only do that if the row
+      // says which kind of void this was. Without it every void looked like a
+      // cashier tidying up an open ticket at the register.
+      details: {
+        item_id: itemId,
+        description: item.description,
+        reason: reason.trim(),
+        sale_status: sale.status,
+      },
     });
     return { ok: true as const };
   });
@@ -650,7 +802,11 @@ export function completeSale(user: PosUser, saleId: number): Result<{ sale: Sale
 
       // Buying stock over the counter puts tires IN; that is booked by the
       // purchase flow against a real lot with a real cost, not here.
-      if (sale.kind !== "purchase") {
+      //
+      // And a special order takes nothing out yet: the ticket completes when the
+      // deposit is taken, which is days before the tire is here to take. The
+      // decrement waits for the fulfilment board to say it was fitted.
+      if (sale.kind !== "purchase" && stockHasMoved(sale.fulfillment_status)) {
         const stock = applySaleMovements(user, saleId);
         // A Result is not enough to undo the UPDATE above — better-sqlite3 only
         // rolls back on a throw. Thrown here, caught below, reported as normal.
@@ -809,12 +965,18 @@ export function updatePo(user: PosUser, saleId: number, po: string | null): Resu
 /**
  * Say where the car is.
  *
- * Not audited with a before/after diff like the money is, and that is on
- * purpose: this is a note somebody moves three times an hour while a car is on
- * the lift, and a full audit row per move would bury the log that exists to
- * answer questions about money under a pile of shrugs. It is written straight
- * onto the ticket, it is not part of any total, and the worst case of it being
- * wrong is somebody walks out to the lot to look.
+ * Logged under its own action rather than sharing one with the money, and that
+ * distinction is the whole point. This is a note somebody moves three times an
+ * hour while a car is on the lift, so it is much the noisiest thing written to
+ * `audit_log` — dropped into `sale.update` alongside price corrections and
+ * voids it would bury the log that exists to answer questions about money under
+ * a pile of shrugs. Under a name of its own it can be left out of that view
+ * with a WHERE, and still be there when the question is "who said this car was
+ * ready at four o'clock".
+ *
+ * The early no-op return matters more than it looks: a screen that re-sends the
+ * status it is already showing would otherwise write a row saying nothing
+ * changed, several times a minute.
  */
 export function setWorkStatus(
   user: PosUser,
@@ -830,10 +992,53 @@ export function setWorkStatus(
     return { ok: false, error: "That is not one of the work statuses" };
   if (status === sale.work_status) return { ok: true };
 
-  getDb()
-    .prepare("UPDATE sales SET work_status = ?, updated_at = ? WHERE id = ?")
-    .run(status, nowLocalIso(), saleId);
-  return { ok: true };
+  return inTx(() => {
+    const now = nowLocalIso();
+
+    /**
+     * The stamps come off this one control rather than a pair of date boxes
+     * somebody has to remember to fill in. Saying the car is here IS the
+     * drop-off, and clearing the status IS handing the keys back — asking a
+     * second time, in a field, would get answered on the busy days by nobody.
+     *
+     * A returning car overwrites both. The question the shop asks is "how long
+     * have we had it", present tense, about the visit happening now; a stamp
+     * kept from a visit three weeks ago would answer a question nobody asked and
+     * make the current one unanswerable.
+     */
+    const arriving = sale.work_status === null && status !== null;
+    const leaving = sale.work_status !== null && status === null;
+
+    getDb()
+      .prepare(
+        `UPDATE sales
+            SET work_status = ?,
+                vehicle_in_at  = CASE WHEN ? THEN ? ELSE vehicle_in_at END,
+                vehicle_out_at = CASE WHEN ? THEN ?
+                                      WHEN ? THEN NULL
+                                      ELSE vehicle_out_at END,
+                updated_at = ?
+          WHERE id = ?`,
+      )
+      .run(
+        status,
+        arriving ? 1 : 0, now,
+        leaving ? 1 : 0, now,
+        arriving ? 1 : 0,
+        now,
+        saleId,
+      );
+
+    logActorAudit(actorOf(user), {
+      action: "sale.work_status_change",
+      targetType: "sale",
+      targetId: saleId,
+      details: { sale_no: sale.sale_no },
+      before: { work_status: sale.work_status },
+      after: { work_status: status },
+    });
+    return { ok: true as const };
+  });
 }
 
 export function updateSaleMeta(
@@ -943,4 +1148,64 @@ export function integrityCheck(businessDate?: string): {
       });
   }
   return issues;
+}
+
+/**
+ * The note the counter pins to a ticket for whoever is on it next.
+ *
+ * NOT the details note. `notes` describes the job and prints on the customer's
+ * receipt; this is a message between staff — "back after five", "called twice",
+ * "do not release until Hector checks the torque" — and never leaves the
+ * building. Keeping them apart is the whole point: one column serving both
+ * audiences means the note that prints on paperwork and the note that says
+ * "ring him again" become the same string, and people write neither honestly.
+ *
+ * ANYBODY WHO CAN RING A TICKET CAN WRITE ONE, deliberately. It is the sticky
+ * note that used to live on the monitor, and a sticky note nobody but a manager
+ * may write is a sticky note that goes back on the monitor. The name and the
+ * time ride along instead, which is the accountability that actually works
+ * here — everyone can write, everyone can see who did.
+ *
+ * Blank clears it. There is no separate delete: the note is gone when there is
+ * nothing to say, which is how a whiteboard behaves and what anybody expects of
+ * one.
+ */
+export function setPinnedNote(
+  user: PosUser,
+  saleId: number,
+  text: string | null,
+): Result<{ sale: Sale }> {
+  if (!can(user.role, "ringSale"))
+    return { ok: false, error: "You cannot change tickets" };
+
+  const sale = getSale(saleId);
+  if (!sale) return { ok: false, error: "Sale not found" };
+
+  const next = text?.trim() || null;
+  if (next === (sale.pinned_note ?? null)) return { ok: true as const, sale };
+  if (next && next.length > 500)
+    return { ok: false, error: "That note is too long for a ticket" };
+
+  return inTx(() => {
+    const now = nowLocalIso();
+    getDb()
+      .prepare(
+        `UPDATE sales
+            SET pinned_note = ?, pinned_note_by = ?, pinned_note_at = ?, updated_at = ?
+          WHERE id = ?`,
+      )
+      // The author is cleared with the text. A name left behind on an empty
+      // note would put somebody's name against a message that is not there.
+      .run(next, next ? user.name : null, next ? now : null, now, saleId);
+
+    logActorAudit(actorOf(user), {
+      action: "sale.update",
+      targetType: "sale",
+      targetId: saleId,
+      details: { sale_no: sale.sale_no, change: "pinned_note" },
+      before: { pinned_note: sale.pinned_note },
+      after: { pinned_note: next },
+    });
+    return { ok: true as const, sale: getSale(saleId)! };
+  });
 }

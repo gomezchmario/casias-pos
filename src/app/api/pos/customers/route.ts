@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
     id: c.id,
     name: c.name,
     phone: c.phone,
+    creditApproved: c.credit_approved === 1,
     vehicles: listVehicles(c.id).map((v) => ({
       id: v.id,
       year: v.year,

@@ -97,3 +97,39 @@ export function looksSpecialized(rawOrSize: string | null): boolean {
 
 /** Heading for the eighteen-wheeler and specialty block, always sorted last. */
 export const SPECIALTY_SECTION = "18-wheeler & specialty";
+
+/**
+ * Does a stored size answer what somebody typed into a search box?
+ *
+ * Three ways, because there are three ways people type a size and all of them
+ * are reasonable:
+ *
+ *   "185-70-14"  the shop's own shape, straight substring
+ *   "1857014"    off the keypad with no separators — normalised first
+ *   "18570"      half of it, which is how a search box is actually used
+ *
+ * The third is the one plain `includes` can never do: the query has no
+ * separators and the stored size has two, so no amount of substring matching
+ * brings them together. Both sides are reduced to their digits and compared
+ * there.
+ *
+ * Digits only when the query IS only digits. "185 kenda" must not have its
+ * space thrown away and become a size search, and a brand with a number in it
+ * is still a brand.
+ */
+export function sizeMatches(size: string, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+
+  const s = size.toLowerCase();
+  if (s.includes(q)) return true;
+
+  const normalised = normalizeTireSize(query).toLowerCase();
+  if (normalised && s.includes(normalised)) return true;
+
+  const digits = q.replace(/[^0-9.]/g, "");
+  if (digits.length >= 3 && /^[0-9.\s/-]+$/.test(q)) {
+    return s.replace(/[^0-9.]/g, "").includes(digits);
+  }
+  return false;
+}

@@ -113,3 +113,100 @@
   border-color: rgba(10, 37, 64, 0.35);
   color: #0a2540;
 }
+
+/*
+  A price box that looks like money.
+
+  The dollar sign is drawn into the field rather than put in the placeholder,
+  because a placeholder disappears the moment somebody types — which is exactly
+  when they most want confirmation that the 20 they just entered is twenty
+  dollars and not twenty cents. It sits inside the padding so the digits stay
+  right-aligned against the edge, where a column of prices is read from.
+*/
+.money-field {
+  position: relative;
+}
+
+.money-field-sign {
+  position: absolute;
+  left: 0.6rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.95rem;
+  color: var(--color-brand-300, #4f6e8e);
+  pointer-events: none;
+}
+
+/* Room for the sign, so a four-figure price never runs underneath it. */
+.money-field > .input {
+  padding-left: 1.5rem;
+  width: 100%;
+}
+
+/* How many, and the two taps that change it.
+
+   A flex row rather than another grid cell, so the stepper can be told to
+   stretch: the price box beside it has no fixed height either, and the whole
+   row is sized by whatever the inputs' padding comes to. Hard-coding a height
+   here would be right until somebody changed `.input`. */
+.qty-box {
+  display: flex;
+  gap: 4px;
+}
+
+.qty-box > .input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Two rows of equal height that together match the box. `align-self: stretch`
+   is what ties them to it — the buttons have no content tall enough to reach
+   on their own. */
+.qty-step {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
+  width: 28px;
+  align-self: stretch;
+}
+
+/* The same navy as Add, beside it.
+   These are the second and third controls on a row whose third is `btn-primary`,
+   and three buttons in two different treatments read as two different kinds of
+   thing. They are the same kind of thing: press it, the ticket changes.
+
+   The gradient and the inset highlight are copied rather than shared because
+   `.btn` carries a padding and a min-height sized for a thumb on a full-width
+   button, which is the one thing these must not have -- the pair has to come to
+   exactly the height of the box beside it and nothing else. */
+.qty-step > button {
+  border: none;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #1f3f64 0%, #0a2540 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.15) inset,
+    0 2px 8px rgba(10, 37, 64, 0.25);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  /* Optically centred, not mathematically.
+     `+` and `−` are drawn around the maths axis, which sits above the middle of
+     the em box, so a glyph centred by the box hangs low. Every other row on
+     this screen is read as a line of baselines and this is the one control
+     whose content is a symbol rather than a word, which is exactly where a
+     pixel of droop shows. */
+  padding-bottom: 2px;
+  transition: background 140ms var(--ease-fluent);
+}
+
+.qty-step > button:hover {
+  background: linear-gradient(180deg, #25496f 0%, #0d2a48 100%);
+}
+
+/* Presses like Add does, so the whole row answers the same way. */
+.qty-step > button:active {
+  transform: translateY(1px);
+}
