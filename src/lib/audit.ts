@@ -22,6 +22,11 @@ export type AuditAction =
   | "system.auto_close"
   // POS
   | "employee.pos_role_change"
+  // One capability handed to one person, over and above their role — see
+  // grants.ts. Its own pair of actions because "who gave Patricia the reports"
+  // is a question somebody will ask, and a role change is a different event.
+  | "employee.capability_grant"
+  | "employee.capability_revoke"
   | "pos.login"
   | "pos.login_failed"
   | "pos.logout"

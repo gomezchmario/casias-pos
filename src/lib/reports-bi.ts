@@ -561,6 +561,127 @@ export function reorderList(asOf: string): ReorderRow[] {
     .all(asOf) as ReorderRow[];
 }
 
+export type RestockRow = {
+  productId: number;
+  name: string;
+  size: string | null;
+  brand: string | null;
+  onHand: number;
+  /** Units sold over `overDays` — the evidence it is worth stocking. */
+  sold90: number;
+  /**
+   * How many days that figure actually covers.
+   *
+   * Ninety at most, and fewer while the shop is young. It is on the row rather
+   * than assumed because it is what makes the rate readable: four tires in
+   * ninety days and four tires in seven are the same count and completely
+   * different businesses.
+   */
+  overDays: number;
+  /** What the shop currently reorders at. Zero means no standing level at all. */
+  reorderPoint: number;
+  /** What it probably should be: roughly a fortnight of sales at this rate. */
+  suggested: number;
+  /**
+   * Days of stock left at the rate it has been going. Null when there is none
+   * on the rack — which is not "infinite days", it is the worst case there is.
+   */
+  daysOfCover: number | null;
+};
+
+/**
+ * What to keep in stock — the mirror image of the dead-stock list.
+ *
+ * THE GAP THIS FILLS, and it is a real one: the reorder list can only warn about
+ * products that already have a reorder point set. A size nobody ever set one on
+ * is invisible to it no matter how fast it sells, right up until a customer asks
+ * for it and it is not there. The dead-stock report finds money standing still;
+ * nothing found money about to run out.
+ *
+ * So this starts from what is SELLING rather than from what is flagged, and asks
+ * whether the shop has arranged to keep having it. Two ways to fail that: no
+ * standing level at all, or one set lower than the tire actually moves.
+ *
+ * The suggestion is a fortnight of sales at the observed rate, and it is offered
+ * as a starting figure rather than an answer — the right number is a fortnight
+ * only if the truck comes in a fortnight, and this cannot know that. It is a
+ * long way better than the zero that is there now.
+ *
+ * Ninety days rather than the report's own window, deliberately. This is a
+ * question about a rate, and a rate measured over the seven days somebody
+ * happened to select is noise. It is the one figure on the page that does not
+ * follow the window, and the panel says so.
+ *
+ * THE RATE IS DIVIDED BY THE DAYS THE SHOP HAS ACTUALLY TRADED, not by ninety.
+ * Dividing a young shop's sales by ninety understates every rate by the margin
+ * it has not been open — on this shop's first week it turned four tires sold in
+ * seven days into "reorder at 1", which is advice that would empty the racks.
+ * The observed span is capped at ninety and reported on the row.
+ */
+export function restockAdvice(asOf: string, minSold = 2): RestockRow[] {
+  // How much history there actually is, capped at the ninety days asked for.
+  const first = getDb()
+    .prepare(
+      `SELECT MIN(business_date) AS d FROM sales
+        WHERE deleted = 0 AND status = 'completed' AND kind = 'sale'
+          AND business_date >= date(?, '-90 days')`,
+    )
+    .get(asOf) as { d: string | null };
+  const overDays = first.d
+    ? Math.max(
+        1,
+        Math.round(
+          (Date.parse(`${asOf}T00:00:00Z`) - Date.parse(`${first.d}T00:00:00Z`)) / 86_400_000,
+        ) + 1,
+      )
+    : 90;
+
+  return (
+    getDb()
+      .prepare(
+        `SELECT p.id AS productId, p.name, p.tire_size AS size, p.brand,
+                COALESCE(oh.qty, 0)        AS onHand,
+                COALESCE(recent.units, 0)  AS sold90,
+                p.reorder_point            AS reorderPoint
+           FROM products p
+      LEFT JOIN (SELECT product_id, SUM(qty_delta) AS qty
+                   FROM inventory_movements GROUP BY product_id) oh ON oh.product_id = p.id
+      LEFT JOIN (SELECT i.product_id, SUM(i.qty) AS units
+                   FROM sale_items i JOIN sales s ON s.id = i.sale_id
+                  WHERE ${SALE} AND i.voided = 0
+                    AND s.business_date >= date(?, '-90 days')
+               GROUP BY i.product_id) recent ON recent.product_id = p.id
+          WHERE p.deleted = 0 AND p.active = 1 AND p.track_inventory = 1
+            AND COALESCE(recent.units, 0) >= ?`,
+      )
+      .all(asOf, minSold) as Omit<RestockRow, "suggested" | "daysOfCover" | "overDays">[]
+  )
+    .map((r) => {
+      const perDay = r.sold90 / overDays;
+      return {
+        ...r,
+        overDays,
+        // A fortnight of sales at the observed rate. A starting figure rather
+        // than an answer: the right number is a fortnight only if the truck
+        // comes in a fortnight, and nothing here knows that.
+        suggested: Math.max(1, Math.ceil(perDay * 14)),
+        daysOfCover: r.onHand > 0 && perDay > 0 ? Math.round(r.onHand / perDay) : null,
+      };
+    })
+    // Only where the shop has not already arranged to keep it: no standing
+    // level, or one below what the tire actually moves. A size with an adequate
+    // reorder point is already handled and belongs on the other list, not this
+    // one — repeating it here would make both lists longer and neither clearer.
+    .filter((r) => r.reorderPoint < r.suggested)
+    // Emptiest first among the fast movers: nothing on the rack outranks two
+    // weeks of cover however well the second one sells.
+    .sort((a, b) => {
+      const cover = (x: RestockRow) => (x.daysOfCover === null ? -1 : x.daysOfCover);
+      if (cover(a) !== cover(b)) return cover(a) - cover(b);
+      return b.sold90 - a.sold90;
+    });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // The people who owe the shop
 // ─────────────────────────────────────────────────────────────────────────────
@@ -810,13 +931,29 @@ export function controlStats(from: string, to: string): ControlStats {
     )
     .get(from, to) as { n: number };
 
+  /**
+   * Stock sold that the racks said was gone, AND THAT NOBODY HAS LOOKED AT.
+   *
+   * `reviewed_at IS NULL` is the whole difference between a panel worth opening
+   * and one that is ignored by March. An oversell is a flag, not a verdict — a
+   * manager clears it by counting the size and signing it off — and the rest of
+   * the app has always read them that way (`listOversells`). Counting them
+   * regardless meant every oversell ever recorded kept shouting after it had
+   * been dealt with, which is exactly the growing-list failure the account
+   * sign-off was built to avoid.
+   */
   const oversells = db
     .prepare(
       `SELECT COUNT(*) AS n FROM inventory_movements
-        WHERE oversold = 1 AND business_date BETWEEN ? AND ?`,
+        WHERE oversold = 1 AND reviewed_at IS NULL
+          AND business_date BETWEEN ? AND ?`,
     )
     .get(from, to) as { n: number };
 
+  // `rc.deleted = 0`, which was missing. A removed register log is removed
+  // everywhere or it is not removed at all — this is the forgotten-WHERE bug
+  // the append-only ledgers exist to make impossible, and it is possible here
+  // precisely because a register check is an entity rather than a ledger row.
   const checks = db
     .prepare(
       `SELECT COUNT(*) AS count,
@@ -825,7 +962,8 @@ export function controlStats(from: string, to: string): ControlStats {
                       (SELECT MIN(cc.counted_cents - cc.expected_cents)
                          FROM register_check_counts cc WHERE cc.check_id = rc.id) AS worst
                  FROM register_checks rc
-                WHERE rc.business_date BETWEEN ? AND ?
+                WHERE rc.deleted = 0
+                  AND rc.business_date BETWEEN ? AND ?
                   AND EXISTS (SELECT 1 FROM register_check_counts cc
                                WHERE cc.check_id = rc.id
                                  AND cc.counted_cents <> cc.expected_cents))`,

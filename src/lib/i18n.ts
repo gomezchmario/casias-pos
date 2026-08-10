@@ -519,6 +519,28 @@ const ES: Record<string, string> = {
   "Your account can't see the management reports.":
     "Su cuenta no puede ver los reportes gerenciales.",
 
+// ── Extra permissions ──────────────────────────────────────────────────
+  "Extra permissions": "Permisos extra",
+  "One permission, given to one person, without moving them to another role. Their role is unchanged and everything else about it stays exactly as it was.":
+    "Un permiso, dado a una sola persona, sin cambiarla de puesto. Su puesto queda igual y todo lo demás sigue exactamente como estaba.",
+  "nothing extra": "nada extra",
+  "Give one": "Dar uno",
+  "Pick a permission…": "Escoja un permiso…",
+  "Take it back": "Quitarlo",
+
+// ── Worth keeping in stock ─────────────────────────────────────────────
+  "Worth keeping in stock": "Vale la pena tener siempre",
+  "Selling steadily, with no standing level set — or one set too low.":
+    "Se venden seguido y no tienen punto de reorden — o lo tienen muy bajo.",
+  "Everything that sells has a reorder point that fits it.":
+    "Todo lo que se vende ya tiene un punto de reorden adecuado.",
+  "Days of cover": "Días que alcanza",
+  Suggest: "Sugerido",
+  "none left": "no queda",
+  d: "d",
+  "The suggestion is about a fortnight of sales at the rate above — a starting figure, not an answer. A fortnight is right only if the truck comes in a fortnight, which this cannot know. Set it on the tire in Inventory and it starts appearing in To order.":
+    "El sugerido es más o menos lo que se vende en dos semanas al ritmo de arriba — un punto de partida, no una respuesta. Dos semanas sirve solo si el camión llega en dos semanas, y eso el sistema no lo sabe. Póngalo en la llanta desde Inventario y empezará a salir en Por pedir.",
+
   // ── Things that go wrong ───────────────────────────────────────────────
   "That did not save": "Eso no se guardó",
   "Could not load": "No se pudo cargar",

@@ -3,6 +3,16 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { usePosAuth } from "@/components/pos/PosShell";
+import { useLang } from "@/components/pos/LangToggle";
+import {
+  CAPABILITIES,
+  CAPABILITY_INFO,
+  ROLE_LABELS,
+  can,
+  roleAtLeast,
+  type Capability,
+  type PosRole,
+} from "@/lib/roles";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import {
   ALARM_ALERT_DAYS,
@@ -153,6 +163,7 @@ export default function SettingsPage() {
 
       {canShop && <LockCard onError={setError} />}
       {canShop && <TireStudyCard onError={setError} />}
+      {can("managePermissions") && <ExtraPermissionsCard onError={setError} />}
       {canShop && <InventoryAlarmCard onError={setError} />}
 
       {canButtons && !buttons && <div className="text-brand-300">Loading…</div>}
@@ -693,3 +704,158 @@ function Row({
     </div>
   );
 }
+
+/**
+ * Permissions handed to one person, over and above their role.
+ *
+ * HERE RATHER THAN ON THE ADMIN PERMISSIONS SCREEN, which is where the role
+ * matrix lives and where somebody thinking about who-can-do-what naturally
+ * looks. The reason is attribution: that screen is behind the admin PASSWORD,
+ * whose session knows an admin username and not an employee, and a grant has to
+ * be signed by a person on the staff list. Here the owner is PIN-authenticated
+ * as themselves, so the audit row names them.
+ *
+ * Only capabilities the person's role does not already carry are offered, and
+ * anything their role is denied by name is refused with the reason — see
+ * `grants.ts`. A list that offered every permission to everybody would be a
+ * list where the useful entries are lost among forty that change nothing.
+ */
+function ExtraPermissionsCard({ onError }: { onError: (m: string | null) => void }) {
+  const { t: tr } = useLang();
+  const [rows, setRows] = useState<
+    { id: number; name: string; posRole: PosRole; active: number; grants: Capability[] }[] | null
+  >(null);
+  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    const res = await fetch("/api/pos/permissions");
+    if (!res.ok) return;
+    setRows((await res.json()).employees);
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function set(employeeId: number, capability: Capability, grant: boolean) {
+    setBusy(true);
+    onError(null);
+    const res = await fetch("/api/pos/permissions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ employeeId, capability, grant }),
+    });
+    const d = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) {
+      onError(d.error || "That did not save");
+      return;
+    }
+    await load();
+  }
+
+  if (!rows) return null;
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-4 mb-6">
+      <div className="text-xs uppercase tracking-wider text-brand-300 mb-1">
+        {tr("Extra permissions")}
+      </div>
+      <p className="text-sm text-brand-400 mb-3">
+        {tr(
+          "One permission, given to one person, without moving them to another role. Their role is unchanged and everything else about it stays exactly as it was.",
+        )}
+      </p>
+
+      <table className="w-full text-sm">
+        <tbody>
+          {rows
+            .filter((e) => e.active === 1)
+            .map((e) => {
+              // What they could still be given: not already theirs by rank, and
+              // not denied to their role by name. Computed here so the list a
+              // person sees matches the list the server will accept.
+              const offerable = (Object.keys(CAPABILITY_INFO) as Capability[]).filter(
+                (c) => !can(e.posRole, c) && !DENIED_BY_NAME(e.posRole, c),
+              );
+              return (
+                <tr key={e.id} className="border-t border-black/5 align-top">
+                  <td className="py-2">
+                    <div className="font-medium text-brand-500">{e.name}</div>
+                    <div className="text-xs text-brand-300">{ROLE_LABELS[e.posRole]}</div>
+                  </td>
+                  <td className="py-2 pl-4 w-full">
+                    {e.grants.length === 0 ? (
+                      <span className="text-brand-300 text-xs">{tr("nothing extra")}</span>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {e.grants.map((c) => (
+                          <span key={c} className="pos-grant">
+                            {CAPABILITY_INFO[c]?.label ?? c}
+                            <button
+                              type="button"
+                              aria-label={tr("Take it back")}
+                              disabled={busy}
+                              onClick={() => void set(e.id, c, false)}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {open === e.id && (
+                      <select
+                        className="input mt-2"
+                        style={{ maxWidth: 420 }}
+                        defaultValue=""
+                        disabled={busy}
+                        onChange={(ev) => {
+                          if (ev.target.value) {
+                            void set(e.id, ev.target.value as Capability, true);
+                            setOpen(null);
+                          }
+                        }}
+                      >
+                        <option value="">{tr("Pick a permission…")}</option>
+                        {offerable
+                          .filter((c) => !e.grants.includes(c))
+                          .map((c) => (
+                            <option key={c} value={c}>
+                              {CAPABILITY_INFO[c].label}
+                            </option>
+                          ))}
+                      </select>
+                    )}
+                  </td>
+                  <td className="py-2 pl-3 text-right whitespace-nowrap">
+                    <button
+                      type="button"
+                      className="text-xs text-brand-400 hover:text-brand-500 underline"
+                      disabled={busy || offerable.length === 0}
+                      onClick={() => setOpen(open === e.id ? null : e.id)}
+                    >
+                      {open === e.id ? tr("Cancel") : tr("Give one")}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/**
+ * Denied to the role by name rather than merely out of reach by rank.
+ *
+ * The same test `grants.ts` makes on the server, and it has to be made here as
+ * well or the dropdown offers permissions the server will refuse. `can` applies
+ * the denial list before rank, so a role that clears the minimum and is still
+ * refused has been refused deliberately.
+ */
+const DENIED_BY_NAME = (role: PosRole, capability: Capability) =>
+  roleAtLeast(role, CAPABILITIES[capability]) && !can(role, capability);

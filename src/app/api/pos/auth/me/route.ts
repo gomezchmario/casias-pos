@@ -1,14 +1,18 @@
 import { NextResponse } from "next/server";
 import { getPosUser, posIdleSeconds } from "@/lib/pos-session";
-import { CAPABILITIES, can, type Capability } from "@/lib/roles";
+import { CAPABILITIES, type Capability } from "@/lib/roles";
+import { userCan } from "@/lib/grants";
 import { tireDemandEnabled } from "@/lib/tire-demand";
 
 export async function GET() {
   const user = await getPosUser();
   if (!user) return NextResponse.json({ user: null }, { status: 401 });
 
+  // `userCan`, not `can`. The second knows about roles and cannot see a
+  // capability granted to one person — so a grant would work on the server and
+  // the tab it unlocks would never appear, which reads as the grant not working.
   const capabilities = Object.fromEntries(
-    (Object.keys(CAPABILITIES) as Capability[]).map((c) => [c, can(user.role, c)]),
+    (Object.keys(CAPABILITIES) as Capability[]).map((c) => [c, userCan(user, c)]),
   );
   // The lock threshold ships with the identity so the shell never has to guess
   // it or hardcode a second copy. It is a shop setting, and an owner who

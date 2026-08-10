@@ -504,3 +504,29 @@ html, body {
     display: none !important;
   }
 }
+
+/* A permission somebody has been given by name, on the owner's settings screen.
+   A chip rather than a table row: they are few, they are read as a set ("what
+   does Patricia have beyond her role"), and each carries its own way off. */
+.pos-grant {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 200, 61, 0.22);
+  color: #7a5a05;
+  border-radius: 999px;
+  padding: 3px 6px 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pos-grant button {
+  font-size: 14px;
+  line-height: 1;
+  color: rgba(122, 90, 5, 0.55);
+  padding: 0 3px;
+}
+
+.pos-grant button:hover {
+  color: #7a5a05;
+}

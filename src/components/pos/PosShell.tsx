@@ -52,11 +52,13 @@ const NAV: {
   // remember to go and look at. A list nobody visits is how the sheet lost track
   // of them in the first place.
   { href: "/pos/inventory", label: "Inventory", capability: "viewInventory" },
-  { href: "/pos/eod", label: "Close-out", capability: "closeShift" },
-  // Last of the worded tabs, and deliberately after the close-out. The others
-  // are places the day's work happens; this is the one you open when the work
-  // is done and the question is how the business is doing.
+  // Reports before the close-out, and the order is about how often each is
+  // opened rather than about when in the day they are used. Reports is a
+  // reading somebody comes to the machine for; the close-out is the last thing
+  // done before locking up, at which point it is being looked for deliberately
+  // and its position on the row does not matter.
   { href: "/pos/reports", label: "Reports", capability: "viewBusinessReports" },
+  { href: "/pos/eod", label: "Close-out", capability: "closeShift" },
   // Just the gear. The other tabs are places to do the day's work and are
   // named for the work; this one is setup, is opened rarely, and does not earn
   // a word next to them. It sits last so the eye reaches it only after the

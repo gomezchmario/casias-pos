@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getSession } from "./session";
 import { autoCloseStaleShifts } from "./auto-close";
 import { getPosUser, type PosUser } from "./pos-session";
-import { can, type Capability } from "./roles";
+import { type Capability } from "./roles";
+import { userCan } from "./grants";
 import type { Actor } from "./audit";
 
 export type ApiAdmin = { adminId: number; username: string };
@@ -32,7 +33,10 @@ export async function requirePos(
   if (!user) {
     return { ok: false, response: jsonError("Not signed in", 401) };
   }
-  if (!can(user.role, capability)) {
+  // `userCan`, not `can`: the second knows about roles and cannot see a
+  // capability granted to one person. Every gate in the app comes through here,
+  // so this one line is what makes a personal grant real.
+  if (!userCan(user, capability)) {
     return { ok: false, response: jsonError("You don't have permission to do that", 403) };
   }
   return {

@@ -185,11 +185,23 @@ export const CAPABILITIES = {
   // it away should be the one who answers for it not being there.
   deleteEntry: "owner",
   // The management reports: margin, stock value, what each customer spends, who
-  // gives the discounts. Its own capability rather than `viewReports`, which a
-  // manager needs to run a shift — this is the shape of the BUSINESS rather
-  // than the state of the day, and it is the one screen where every figure an
-  // owner would rather not leave on a counter appears together.
+  // gives the discounts.
+  //
+  // Owner by rank, and HANDED OUT ONE PERSON AT A TIME to anybody else — see
+  // `grants.ts`. It was briefly manager-wide, and that was the wrong instrument:
+  // "the bookkeeper should see this" and "every manager should see this" are
+  // different sentences, and a rank can only say the second. Granting it by name
+  // says the first without also handing over voids, refunds and receiving.
+  //
+  // It keeps its own capability rather than folding into `viewReports` so the
+  // two can part company without a hunt: this is the shape of the BUSINESS,
+  // that one is the state of the day.
   viewBusinessReports: "owner",
+  // Handing one capability to one person by name — see `grants.ts`. Its own
+  // capability rather than sharing with whatever changes somebody's ROLE:
+  // moving a person between jobs is running a shop, and deciding that one named
+  // cashier may read what the shop makes is not the same act at all.
+  managePermissions: "owner",
   // The day screen is the register's home page, so a cashier has to be able to
   // open it. `viewReports` stays manager-only for the figures a cashier has no
   // business seeing — what the shop paid out for stock, above all.
@@ -397,6 +409,10 @@ export const CAPABILITY_INFO: Record<
   },
   viewBusinessReports: {
     label: "See the management reports",
+    group: "Money and reports",
+  },
+  managePermissions: {
+    label: "Hand a single permission to one person",
     group: "Money and reports",
   },
 

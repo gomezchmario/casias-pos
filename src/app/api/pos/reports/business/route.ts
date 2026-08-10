@@ -14,6 +14,7 @@ import {
   purchaseSummary,
   receivablesAging,
   reorderList,
+  restockAdvice,
   revenueTrend,
   stockValue,
   tenderMix,
@@ -102,6 +103,9 @@ export async function GET(req: NextRequest) {
     stock: stockValue(),
     dead: deadStock(to, 45).slice(0, 15),
     reorder: reorderList(to).slice(0, 20),
+    // Deliberately not windowed — it measures a rate, and a rate taken over the
+    // seven days somebody happened to pick is noise. See .
+    restock: restockAdvice(to).slice(0, 15),
     aging: receivablesAging(to),
     customers: customerStats(from, to),
     control: controlStats(from, to),

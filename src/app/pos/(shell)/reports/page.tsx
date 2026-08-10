@@ -27,6 +27,7 @@ import type {
   ProductRow,
   PurchaseSummary,
   ReorderRow,
+  RestockRow,
   StockValueRow,
   TenderRow,
   TrendPoint,
@@ -82,6 +83,7 @@ type Data = {
   stock: { totalUnits: number; totalCostCents: number; byBrand: StockValueRow[]; byRim: StockValueRow[] };
   dead: DeadStockRow[];
   reorder: ReorderRow[];
+  restock: RestockRow[];
   aging: AgingBucket[];
   customers: CustomerStats;
   control: ControlStats;
@@ -719,6 +721,90 @@ export default function ReportsPage() {
                 ))}
               </tbody>
             </table>
+          )}
+        </Panel>
+
+        {/* The mirror of the dead-stock list, and the gap it fills is real.
+            "To order" above can only warn about tires that already have a
+            reorder point set — a size nobody ever set one on is invisible to it
+            however fast it sells, right up until a customer asks and it is not
+            there. This starts from what is SELLING and asks whether the shop has
+            arranged to keep having it. */}
+        <Panel
+          title={tr("Worth keeping in stock")}
+          note={tr("Selling steadily, with no standing level set — or one set too low.")}
+        >
+          {data.restock.length === 0 ? (
+            <div className="rp-empty">
+              {tr("Everything that sells has a reorder point that fits it.")}
+            </div>
+          ) : (
+            <>
+              <table className="rp-table">
+                <thead>
+                  <tr>
+                    <th>{tr("Tire")}</th>
+                    <th className="r">{tr("On hand")}</th>
+                    <th className="r">{tr("Sold")}</th>
+                    <th className="r">{tr("Days of cover")}</th>
+                    <th className="r">{tr("Reorder at")}</th>
+                    <th className="r">{tr("Suggest")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.restock.map((r) => (
+                    <tr key={r.productId}>
+                      <td>{r.name}</td>
+                      <td
+                        className="r n"
+                        style={{
+                          color: r.onHand <= 0 ? "#b91c1c" : undefined,
+                          fontWeight: r.onHand <= 0 ? 600 : undefined,
+                        }}
+                      >
+                        {r.onHand}
+                      </td>
+                      <td className="r n">
+                        {r.sold90}
+                        <span style={{ color: "rgba(10,37,64,0.4)" }}>
+                          {" "}
+                          / {r.overDays}
+                          {tr("d")}
+                        </span>
+                      </td>
+                      {/* Nothing on the rack is not "infinite days of cover", it
+                          is the worst case there is — so it says so in words
+                          rather than leaving a dash to be read as fine. */}
+                      <td
+                        className="r n"
+                        style={{
+                          color:
+                            r.daysOfCover === null
+                              ? "#b91c1c"
+                              : r.daysOfCover < 14
+                                ? "#b45309"
+                                : undefined,
+                          fontWeight: r.daysOfCover === null ? 600 : undefined,
+                        }}
+                      >
+                        {r.daysOfCover === null ? tr("none left") : `${r.daysOfCover}`}
+                      </td>
+                      <td className="r n" style={{ color: "rgba(10,37,64,0.4)" }}>
+                        {r.reorderPoint || "—"}
+                      </td>
+                      <td className="r n" style={{ fontWeight: 600, color: "#15803d" }}>
+                        {r.suggested}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="rp-note" style={{ marginTop: 10, marginBottom: 0 }}>
+                {tr(
+                  "The suggestion is about a fortnight of sales at the rate above — a starting figure, not an answer. A fortnight is right only if the truck comes in a fortnight, which this cannot know. Set it on the tire in Inventory and it starts appearing in To order.",
+                )}
+              </p>
+            </>
           )}
         </Panel>
       </Section>
