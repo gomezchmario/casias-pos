@@ -5,7 +5,7 @@ import { TicketDrawer } from "@/components/pos/TicketDrawer";
 import { usePosAuth } from "@/components/pos/PosShell";
 import { formatCents } from "@/lib/money";
 import { FULFILLMENT_LABELS, FULFILLMENT_STAGES, OURS } from "@/lib/fulfillment";
-import type { SpecialOrder } from "@/lib/special-orders";
+import type { OrderMove, SpecialOrder } from "@/lib/special-orders";
 import type { FulfillmentStatus } from "@/lib/sales";
 import type { PaymentMethod } from "@/lib/payments";
 import { useLang } from "@/components/pos/LangToggle";
@@ -31,7 +31,18 @@ import { useLang } from "@/components/pos/LangToggle";
  * with half of it unpaid.
  */
 
-type Data = { orders: SpecialOrder[] };
+type Data = { orders: SpecialOrder[]; history: Record<string, OrderMove[]> };
+
+/**
+ * Which of the two screens this is.
+ *
+ * The board is the counter: who is waiting on us, now. The log is the same
+ * records as history — everything ever taken, in a window, with how each one
+ * got where it is. They are different questions asked by different people at
+ * different desks, and one screen trying to be both was the board getting
+ * steadily less readable.
+ */
+type View = "board" | "log";
 
 const TONE: Record<string, { bg: string; fg: string; border: string }> = {
   // Amber for "somebody here has a job to do", the same amber this app uses
@@ -41,10 +52,27 @@ const TONE: Record<string, { bg: string; fg: string; border: string }> = {
   done: { bg: "#ffffff", fg: "rgba(10,37,64,0.35)", border: "rgba(0,0,0,0.06)" },
 };
 
+/** The two ends of the line: nothing more will happen to these on its own. */
+const CLOSED: FulfillmentStatus[] = ["delivered", "cancelled"];
+
 function toneFor(o: SpecialOrder): keyof typeof TONE {
   if (OURS.includes(o.status)) return "ours";
-  if (o.status === "delivered" || o.status === "cancelled") return "done";
+  if (CLOSED.includes(o.status)) return "done";
   return "waiting";
+}
+
+/** "3:40 PM" — enough beside a date to place an event in an afternoon. */
+function clock(at: string): string {
+  const d = new Date(at);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+/** "Aug 6" — a date short enough to sit in a run of them. */
+function shortDay(at: string): string {
+  const d = new Date(at);
+  if (Number.isNaN(d.getTime())) return at.slice(0, 10);
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
 /** "today", "yesterday", "6 days" — the shape a person says out loud. */
@@ -65,11 +93,26 @@ export default function OrdersPage() {
   const [busy, setBusy] = useState<number | null>(null);
   const [showDone, setShowDone] = useState(false);
 
+  const [view, setView] = useState<View>("board");
+  /** Empty means every order ever taken — see `listOrderLog`. */
+  const [from, setFrom] = useState("");
+  const [until, setUntil] = useState("");
+  const [status, setStatus] = useState<"all" | "open" | "closed" | FulfillmentStatus>("all");
+  const [query, setQuery] = useState("");
+  /** Which rows have their history unfolded. */
+  const [openHistory, setOpenHistory] = useState<Set<number>>(new Set());
+
   const load = useCallback(async () => {
-    const res = await fetch("/api/pos/orders");
+    const sp = new URLSearchParams();
+    if (view === "log") {
+      sp.set("view", "log");
+      if (from) sp.set("from", from);
+      if (until) sp.set("to", until);
+    }
+    const res = await fetch(`/api/pos/orders?${sp}`);
     if (!res.ok) return;
     setData(await res.json());
-  }, []);
+  }, [view, from, until]);
 
   useEffect(() => {
     void load();
@@ -106,12 +149,40 @@ export default function OrdersPage() {
 
   const orders = useMemo(() => {
     if (!data) return [];
-    if (showDone) return data.orders;
-    return data.orders.filter(
-      (o) =>
-        !((o.status === "delivered" || o.status === "cancelled") && o.balanceCents === 0),
-    );
-  }, [data, showDone]);
+    let list = data.orders;
+
+    // The board's own tidy-up: finished and paid drops off unless asked for.
+    // The log never hides anything — hiding history is the one thing a log
+    // must not do — so this only applies to the board.
+    if (view === "board" && !showDone) {
+      list = list.filter(
+        (o) =>
+          !((o.status === "delivered" || o.status === "cancelled") && o.balanceCents === 0),
+      );
+    }
+
+    if (status === "open") list = list.filter((o) => !CLOSED.includes(o.status));
+    else if (status === "closed") list = list.filter((o) => CLOSED.includes(o.status));
+    else if (status !== "all") list = list.filter((o) => o.status === status);
+
+    const q = query.trim().toLowerCase();
+    if (q) {
+      const digits = q.replace(/\D/g, "");
+      list = list.filter((o) => {
+        if (o.saleNo.toLowerCase().includes(q)) return true;
+        if (o.what.toLowerCase().includes(q)) return true;
+        if (o.customerName?.toLowerCase().includes(q)) return true;
+        if (o.vehicle?.toLowerCase().includes(q)) return true;
+        if (o.notes?.toLowerCase().includes(q)) return true;
+        // Digits-only as well as raw, so 2104213006 finds 210-421-3006.
+        // Nobody reads a phone number back with the punctuation.
+        if (digits.length >= 3 && o.customerPhone?.replace(/\D/g, "").includes(digits))
+          return true;
+        return false;
+      });
+    }
+    return list;
+  }, [data, showDone, view, status, query]);
 
   const waitingOnUs = useMemo(
     () => (data?.orders ?? []).filter((o) => OURS.includes(o.status)).length,
@@ -137,12 +208,112 @@ export default function OrdersPage() {
             top.
           </p>
         </div>
-        <label className="flex items-center gap-2 text-sm text-brand-400">
-          <input
-            type="checkbox"
-            checked={showDone}
-            onChange={(e) => setShowDone(e.target.checked)}
-          />{tr("Show finished")}</label>
+        {/* The switch between the two readings. A pair of buttons rather than a
+            dropdown because there are exactly two and which one you are on
+            changes what every control beneath it means — that has to be legible
+            without opening anything. */}
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-lg overflow-hidden" style={{ border: "1px solid rgba(10,37,64,0.15)" }}>
+            {(["board", "log"] as View[]).map((v) => (
+              <button
+                key={v}
+                type="button"
+                className="px-3 py-1.5 text-sm font-medium"
+                aria-pressed={view === v}
+                style={
+                  view === v
+                    ? { background: "#0a2540", color: "#fff" }
+                    : { color: "rgba(10,37,64,0.6)" }
+                }
+                onClick={() => setView(v)}
+              >
+                {v === "board" ? tr("The board") : tr("All orders")}
+              </button>
+            ))}
+          </div>
+          {view === "board" && (
+            <label className="flex items-center gap-2 text-sm text-brand-400">
+              <input
+                type="checkbox"
+                checked={showDone}
+                onChange={(e) => setShowDone(e.target.checked)}
+              />{tr("Show finished")}</label>
+          )}
+        </div>
+      </div>
+
+      {/* Everything that narrows the list. On the board it is a search and a
+          status; on the log it also takes a window, because the log's whole
+          job is answering questions about a period that is over.
+
+          Blank dates mean every order the shop has ever taken, which is the
+          right default for a log — a window that started somewhere by itself
+          would answer a narrower question than the one being asked, with
+          nothing on screen to say so. */}
+      <div className="bg-white rounded-2xl shadow-sm p-3 mb-4 flex gap-3 items-center flex-wrap">
+        <input
+          className="input"
+          style={{ minWidth: 240 }}
+          placeholder={tr("Ticket, customer, phone, tire, note…")}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <select
+          className="input"
+          value={status}
+          onChange={(e) => setStatus(e.target.value as typeof status)}
+          aria-label={tr("Stage")}
+        >
+          <option value="all">{tr("Any stage")}</option>
+          <option value="open">{tr("Still going")}</option>
+          <option value="closed">{tr("Finished or cancelled")}</option>
+          {(FULFILLMENT_STAGES as readonly FulfillmentStatus[]).map((s) => (
+            <option key={s} value={s}>
+              {FULFILLMENT_LABELS[s]}
+            </option>
+          ))}
+          <option value="cancelled">{FULFILLMENT_LABELS.cancelled}</option>
+        </select>
+
+        {view === "log" && (
+          <>
+            <span className="text-sm text-brand-300">{tr("Taken between")}</span>
+            <input
+              type="date"
+              className="input"
+              value={from}
+              max={until || undefined}
+              onChange={(e) => setFrom(e.target.value)}
+              aria-label={tr("From")}
+            />
+            <span className="text-brand-300 text-sm">{tr("and")}</span>
+            <input
+              type="date"
+              className="input"
+              value={until}
+              min={from || undefined}
+              onChange={(e) => setUntil(e.target.value)}
+              aria-label={tr("To")}
+            />
+            <button
+              type="button"
+              className="btn btn-outline"
+              style={{ height: 34, fontSize: 13 }}
+              disabled={!from && !until}
+              onClick={() => {
+                setFrom("");
+                setUntil("");
+              }}
+            >{tr("All time")}</button>
+          </>
+        )}
+
+        <div className="ml-auto text-sm text-brand-400">
+          {orders.length} {orders.length === 1 ? tr("order") : tr("orders")}
+          {view === "log" && !from && !until && (
+            <span className="text-brand-300"> · {tr("all time")}</span>
+          )}
+        </div>
       </div>
 
       {/* Two numbers, and only two. How many jobs are ours, and how much of the
@@ -253,6 +424,41 @@ export default function OrdersPage() {
                     onMove={(s) => void move(o.saleId, s)}
                   />
                 )}
+
+                {/* The order's own history, folded away.
+                    Only on the log, and only when there is one: the board is
+                    about what to do next and this is about what already
+                    happened, and a chevron on every row of the counter's screen
+                    would be one more thing to read past with a customer
+                    waiting. */}
+                {view === "log" && (
+                  <div style={{ flexBasis: "100%" }}>
+                    <button
+                      type="button"
+                      className="text-xs text-brand-300 hover:text-brand-500 underline"
+                      aria-expanded={openHistory.has(o.saleId)}
+                      onClick={() =>
+                        setOpenHistory((s) => {
+                          const next = new Set(s);
+                          if (next.has(o.saleId)) next.delete(o.saleId);
+                          else next.add(o.saleId);
+                          return next;
+                        })
+                      }
+                    >
+                      {openHistory.has(o.saleId) ? tr("Hide the history") : tr("How it got here")}
+                      {(data.history[String(o.saleId)]?.length ?? 0) > 0 &&
+                        ` · ${data.history[String(o.saleId)].length}`}
+                    </button>
+
+                    {openHistory.has(o.saleId) && (
+                      <OrderHistory
+                        moves={data.history[String(o.saleId)] ?? []}
+                        openedAt={o.openedAt}
+                      />
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -336,6 +542,89 @@ function StageControl({
           <option value="cancelled">{FULFILLMENT_LABELS.cancelled}</option>
         )}
       </select>
+    </div>
+  );
+}
+
+/**
+ * One order's life, in the order it happened.
+ *
+ * Read out of the audit log rather than kept in a table of its own — see
+ * `orderHistory`. What it answers is the set of questions the board never
+ * could: when did this actually arrive, who rang them, and how long did it sit
+ * at each stage while somebody's customer waited.
+ *
+ * The days-in-stage figure is the one worth having. A customer complaining
+ * about a fortnight's wait is usually complaining about one stage of it, and
+ * until this existed there was no way to say which — or to know whether the
+ * supplier was slow or the phone call was late.
+ *
+ * Oldest first, unlike every other list in this app. This one is a story rather
+ * than a feed: it is read from the beginning, and newest-first would make the
+ * reader assemble the sequence backwards in their head.
+ */
+function OrderHistory({ moves, openedAt }: { moves: OrderMove[]; openedAt: string }) {
+  const { t: tr } = useLang();
+
+  if (moves.length === 0)
+    return (
+      <div className="mt-2 text-xs text-brand-300">
+        {tr("It has not moved since it was rung.")}
+      </div>
+    );
+
+  return (
+    <div className="mt-2 rounded-xl bg-black/[0.03] p-3">
+      <div className="text-xs uppercase tracking-wider text-brand-300 mb-1.5">
+        {tr("How it got here")}
+      </div>
+      <table className="w-full text-sm">
+        <tbody>
+          <tr className="text-brand-300">
+            <td className="py-1 whitespace-nowrap tabular-nums" style={{ width: 96 }}>
+              {shortDay(openedAt)}
+            </td>
+            <td className="py-1 pl-3 tabular-nums" style={{ width: 72 }}>
+              {clock(openedAt)}
+            </td>
+            <td className="py-1 pl-3" colSpan={2}>
+              {tr("Ticket rung")}
+            </td>
+          </tr>
+          {moves.map((m, i) => (
+            <tr key={i} className="border-t border-black/5">
+              <td className="py-1 whitespace-nowrap tabular-nums text-brand-300">
+                {shortDay(m.at)}
+              </td>
+              <td className="py-1 pl-3 tabular-nums text-brand-300">{clock(m.at)}</td>
+              <td className="py-1 pl-3 text-brand-500">
+                {FULFILLMENT_LABELS[m.to]}
+                {/* Named only when it went backwards. Forward moves are the
+                    sequence doing what it does and saying "from X to Y" on
+                    every one of them turns a short story into a wall. */}
+                {m.from &&
+                  (FULFILLMENT_STAGES as readonly string[]).indexOf(m.to) <
+                    (FULFILLMENT_STAGES as readonly string[]).indexOf(m.from) && (
+                    <span className="text-xs" style={{ color: "#b45309" }}>
+                      {" "}
+                      · {tr("back from")} {FULFILLMENT_LABELS[m.from]}
+                    </span>
+                  )}
+                {m.daysInPrevious !== null && m.daysInPrevious > 0 && (
+                  <span className="text-xs text-brand-300">
+                    {" "}
+                    · {tr("after")} {m.daysInPrevious}{" "}
+                    {m.daysInPrevious === 1 ? tr("day") : tr("days")}
+                  </span>
+                )}
+              </td>
+              <td className="py-1 pl-3 text-right text-xs text-brand-300 whitespace-nowrap">
+                {m.byName ?? "—"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

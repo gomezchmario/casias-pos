@@ -453,3 +453,184 @@ export function orderStockPreview(saleId: number): OrderStockLine[] {
     ).map((m) => ({ ...m, looksManual: m.reason === "receive" && m.saleNo === null })),
   }));
 }
+
+/**
+ * Every state an order has been in, and when it moved.
+ *
+ * READ OUT OF `audit_log` RATHER THAN FROM A HISTORY TABLE OF ITS OWN, and that
+ * is a deliberate choice rather than a shortcut. Every move an order makes is
+ * already written there — before, after, who, and the minute — inside the same
+ * transaction as the change itself. A second table recording the same events
+ * would be a second thing to keep in step, and the first time somebody added a
+ * path that moved an order without remembering to write to it, the history
+ * would quietly start lying while the audit log stayed correct.
+ *
+ * The board itself only ever knew the CURRENT state and when it was last
+ * touched, which answers "how long has this sat" and cannot answer "how long
+ * did it sit at the supplier", "who rang them", or "when did this actually
+ * arrive". Those are the questions asked a week later, and they were
+ * unanswerable.
+ */
+export type OrderMove = {
+  saleId: number;
+  at: string;
+  from: FulfillmentStatus | null;
+  to: FulfillmentStatus;
+  byName: string | null;
+  byRole: string | null;
+  /** Days this order sat in `from` before this move. Null on the first one. */
+  daysInPrevious: number | null;
+};
+
+export function orderHistory(saleIds: number[]): Map<number, OrderMove[]> {
+  const out = new Map<number, OrderMove[]>();
+  if (saleIds.length === 0) return out;
+
+  // Chunked, because SQLite caps a statement's variables and a shop with a
+  // year of orders on screen would sail past it. 400 is well inside the limit
+  // and makes the loop a formality on any real list.
+  const db = getDb();
+  const rows: {
+    saleId: number;
+    at: string;
+    before_json: string | null;
+    after_json: string | null;
+    employee_name: string | null;
+    employee_role: string | null;
+  }[] = [];
+
+  for (let i = 0; i < saleIds.length; i += 400) {
+    const chunk = saleIds.slice(i, i + 400);
+    rows.push(
+      ...(db
+        .prepare(
+          `SELECT CAST(target_id AS INTEGER) AS saleId, timestamp AS at,
+                  before_json, after_json, employee_name, employee_role
+             FROM audit_log
+            WHERE action = 'sale.fulfillment_change'
+              AND target_type = 'sale'
+              AND CAST(target_id AS INTEGER) IN (${chunk.map(() => "?").join(",")})
+         ORDER BY id`,
+        )
+        .all(...chunk) as typeof rows),
+    );
+  }
+
+  const parse = (j: string | null): FulfillmentStatus | null => {
+    if (!j) return null;
+    try {
+      return (JSON.parse(j) as { fulfillment_status?: FulfillmentStatus })
+        .fulfillment_status ?? null;
+    } catch {
+      return null;
+    }
+  };
+
+  for (const r of rows) {
+    const to = parse(r.after_json);
+    if (!to) continue;
+    const list = out.get(r.saleId) ?? [];
+    const prev = list[list.length - 1];
+    list.push({
+      saleId: r.saleId,
+      at: r.at,
+      from: parse(r.before_json),
+      to,
+      byName: r.employee_name,
+      byRole: r.employee_role,
+      // Measured against the previous MOVE rather than against the ticket's
+      // own date, so the figure answers "how long did it sit like that" — the
+      // question somebody asks when a customer complains about the wait.
+      daysInPrevious: prev ? daysSince(prev.at) - daysSince(r.at) : null,
+    });
+    out.set(r.saleId, list);
+  }
+  return out;
+}
+
+/**
+ * Orders as a LOG rather than as a board.
+ *
+ * `listSpecialOrders` answers "who is waiting on us right now" and is shaped
+ * entirely around that: finished orders drop off after a fortnight, and the
+ * sort is by whose turn it is rather than by time. Both of those are right for
+ * a counter and wrong for the question this answers, which is "what happened to
+ * the orders we took in March".
+ *
+ * So this one hides nothing, sorts newest first, and takes a window. It is a
+ * second reading of the same rows, not a second source for them.
+ */
+export function listOrderLog(args?: {
+  /** Business-date window, inclusive. Omitted means every order ever taken. */
+  from?: string;
+  to?: string;
+}): SpecialOrder[] {
+  const where: string[] = [
+    "s.deleted = 0",
+    "s.is_special_order = 1",
+    "s.fulfillment_status <> 'none'",
+  ];
+  const params: string[] = [];
+  if (args?.from) {
+    where.push("s.business_date >= ?");
+    params.push(args.from);
+  }
+  if (args?.to) {
+    where.push("s.business_date <= ?");
+    params.push(args.to);
+  }
+
+  const rows = getDb()
+    .prepare(
+      `SELECT s.id                 AS saleId,
+              s.sale_no            AS saleNo,
+              s.business_date      AS businessDate,
+              s.opened_at          AS openedAt,
+              s.status             AS saleStatus,
+              s.fulfillment_status AS status,
+              s.fulfillment_at     AS fulfillmentAt,
+              c.name               AS customerName,
+              c.phone              AS customerPhone,
+              v.year               AS year,
+              v.make               AS make,
+              v.model              AS model,
+              v.plate              AS plate,
+              s.notes              AS notes,
+              s.total_cents        AS totalCents,
+              s.paid_cents         AS paidCents,
+              s.balance_cents      AS balanceCents,
+              (SELECT GROUP_CONCAT(
+                        CASE WHEN i.qty > 1 THEN i.qty || '× ' || i.description
+                             ELSE i.description END, ', ')
+                 FROM sale_items i
+                WHERE i.sale_id = s.id AND i.voided = 0) AS what
+         FROM sales s
+    LEFT JOIN customers c ON c.id = s.customer_id
+    LEFT JOIN vehicles  v ON v.id = s.vehicle_id
+        WHERE ${where.join(" AND ")}
+     ORDER BY s.business_date DESC, s.id DESC`,
+    )
+    .all(...params) as Row[];
+
+  return rows.map((r): SpecialOrder => {
+    const statusAt = r.fulfillmentAt ?? r.openedAt;
+    return {
+      saleId: r.saleId,
+      saleNo: r.saleNo,
+      businessDate: r.businessDate,
+      openedAt: r.openedAt,
+      saleStatus: r.saleStatus,
+      status: r.status,
+      statusAt,
+      daysWaiting: daysSince(statusAt),
+      customerName: r.customerName,
+      customerPhone: r.customerPhone,
+      vehicle: [r.year, r.make, r.model].filter(Boolean).join(" ") || r.plate || null,
+      what: r.what ?? "",
+      notes: r.notes,
+      totalCents: r.totalCents,
+      paidCents: r.paidCents,
+      balanceCents: r.balanceCents,
+    };
+  });
+}
