@@ -1117,19 +1117,20 @@ th.r, td.r { text-align: right; padding-right: 0; padding-left: 3mm; }
    copied, and they are copied rather than imported because the report has to
    build whether or not .next exists. */
 .rp-bars { display: flex; align-items: flex-end; gap: 2px; }
-.rp-bar-col { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; }
+.rp-bar-col { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
 /* The peak and final bars carry a money label wider than their own column.
    The margins let it spill evenly onto both empty neighbours instead of
    shearing off to the right. */
 .rp-bar-val { font-size: 6pt; text-align: center; color: #4a5b71; height: 3mm; white-space: nowrap; margin: 0 -100%; }
-.rp-bar { border-radius: 1px 1px 0 0; }
+/* A bar needs its width said out loud. Inside a column flex it would stretch
+   anyway, but PairedBars lays two of these in a ROW inside .rp-pair, and a
+   width-less div in a row flex collapses to zero — the weekday chart rendered
+   as a legend floating over nothing. Mirrors the app's own rule. */
+.rp-bar { width: 100%; max-width: 8mm; border-radius: 1px 1px 0 0; }
 .rp-bar-lab { font-size: 5.5pt; text-align: center; color: #66768c; margin-top: 1mm; }
 .rp-bar-sub { font-size: 5pt; text-align: center; color: #b45309; }
-.rp-pair { display: flex; align-items: flex-end; gap: 3px; }
-.rp-pair-col { flex: 1; min-width: 0; }
-.rp-pair-bars { display: flex; align-items: flex-end; gap: 1px; justify-content: center; }
-.rp-pair-bars > div { flex: 1; border-radius: 1px 1px 0 0; }
-.rp-pair-lab { font-size: 5.5pt; text-align: center; color: #66768c; margin-top: 1mm; }
+.rp-pair { display: flex; align-items: flex-end; justify-content: center; gap: 1px; width: 100%; height: 100%; }
+.rp-pair .rp-bar { max-width: 3.5mm; }
 .rp-ranked { display: flex; flex-direction: column; gap: 1.2mm; }
 .rp-rank-row { display: flex; align-items: center; gap: 2mm; font-size: 8.5pt; }
 .rp-rank-lab { width: 26mm; flex: none; color: #4a5b71; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
