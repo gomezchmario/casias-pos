@@ -574,6 +574,182 @@
   vertical-align: 1px;
 }
 
+/* ── Lines, for rolling figures ───────────────────────────────────────── */
+
+.rp-line-wrap {
+  min-width: 0;
+}
+
+.rp-line {
+  width: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.rp-line-axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: rgba(10, 37, 64, 0.55);
+  margin-top: 4px;
+}
+
+/* ── The bridge ───────────────────────────────────────────────────────── */
+
+.rp-bridge {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.rp-bridge-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: 100%;
+}
+
+.rp-bridge-val {
+  font-size: 10.5px;
+  text-align: center;
+  color: rgba(10, 37, 64, 0.72);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 3px;
+  white-space: nowrap;
+}
+
+.rp-bridge-track {
+  position: relative;
+  width: 100%;
+}
+
+.rp-bridge-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-radius: 3px;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.rp-bridge-lab {
+  font-size: 10px;
+  text-align: center;
+  color: rgba(10, 37, 64, 0.6);
+  margin-top: 5px;
+  line-height: 1.25;
+}
+
+/* ── What is worth worrying about ─────────────────────────────────────── */
+
+.rp-concerns {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rp-concern {
+  border-radius: 10px;
+  padding: 12px 14px;
+  border-left: 4px solid;
+  background: #fff;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Three levels, and the quiet one earns its place. A page that only ever
+   shows problems teaches people that opening it is bad news, so the checks
+   that came back clean are shown too — knowing the cash share has NOT moved
+   is worth as much as knowing it has. */
+.rp-concern.serious {
+  border-color: #b91c1c;
+  background: rgba(185, 28, 28, 0.045);
+}
+
+.rp-concern.watch {
+  border-color: #b45309;
+  background: rgba(180, 83, 9, 0.05);
+}
+
+.rp-concern.steady {
+  border-color: rgba(21, 128, 61, 0.55);
+  background: rgba(21, 128, 61, 0.04);
+}
+
+.rp-concern-head {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin-bottom: 5px;
+  flex-wrap: wrap;
+}
+
+.rp-concern-tag {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: #fff;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.rp-concern.serious .rp-concern-tag {
+  background: #b91c1c;
+}
+
+.rp-concern.watch .rp-concern-tag {
+  background: #b45309;
+}
+
+.rp-concern.steady .rp-concern-tag {
+  background: #15803d;
+}
+
+.rp-concern-title {
+  font-size: 14px;
+  font-weight: 650;
+  color: #0a2540;
+}
+
+.rp-concern-find {
+  font-size: 12.5px;
+  color: rgba(10, 37, 64, 0.82);
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+}
+
+.rp-concern-mean {
+  font-size: 12.5px;
+  color: rgba(10, 37, 64, 0.66);
+  line-height: 1.6;
+  margin-top: 5px;
+}
+
+/* ── The card on Reports that leads here ──────────────────────────────── */
+
+.rp-jump {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(10, 37, 64, 0.035);
+  border: 1px solid rgba(10, 37, 64, 0.07);
+  text-decoration: none;
+  color: inherit;
+}
+
+.rp-jump:hover {
+  background: rgba(10, 37, 64, 0.06);
+}
+
 /* ── The button under a list that only shows its first ten ────────────── */
 
 .rp-more {

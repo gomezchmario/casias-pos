@@ -476,6 +476,198 @@ function Row({
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * One or two series as lines.
+ *
+ * THE EXCEPTION TO THIS FILE'S OWN RULE that bars beat lines. Bars are right
+ * when each one is a total for a period — a line between Tuesday and Wednesday
+ * implies values in between and there are none. But a rolling average is not a
+ * total for a period; it is a reading that exists at every point, and drawing
+ * it as separate columns hides exactly the thing it was computed to show, which
+ * is whether it is turning.
+ *
+ * So this is used for rolling figures and rates, and BarChart for everything
+ * that is a sum.
+ */
+export function LineChart({
+  series,
+  labels,
+  format,
+  height = 130,
+  emptyLabel = "Nothing to draw yet.",
+}: {
+  series: { name: string; values: (number | null)[]; color?: string }[];
+  labels: string[];
+  format: (n: number) => string;
+  height?: number;
+  emptyLabel?: string;
+}) {
+  const all = series.flatMap((s) => s.values).filter((v): v is number => v !== null);
+  if (all.length === 0) return <Empty label={emptyLabel} />;
+
+  const max = Math.max(...all, 1);
+  // Floored at zero rather than at the minimum. A line chart zoomed to its own
+  // range turns a 3% wobble into a cliff, which is the commonest way a chart
+  // lies without anybody meaning it to.
+  const W = 100;
+  const at = (i: number) => (labels.length <= 1 ? 0 : (i / (labels.length - 1)) * W);
+  const y = (v: number) => height - (v / max) * height;
+
+  return (
+    <div className="rp-line-wrap">
+      <svg
+        viewBox={`0 0 ${W} ${height}`}
+        preserveAspectRatio="none"
+        className="rp-line"
+        style={{ height }}
+        role="img"
+      >
+        {[0.25, 0.5, 0.75].map((g) => (
+          <line
+            key={g}
+            x1={0}
+            x2={W}
+            y1={height * g}
+            y2={height * g}
+            stroke="rgba(10,37,64,0.08)"
+            strokeWidth={0.5}
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
+        {series.map((s, si) => {
+          // Broken into runs so a month with no record leaves a GAP rather than
+          // a straight line drawn across it. A line joined over a hole asserts
+          // a value that was never recorded.
+          const runs: string[] = [];
+          let cur: string[] = [];
+          s.values.forEach((v, i) => {
+            if (v === null) {
+              if (cur.length) runs.push(cur.join(" "));
+              cur = [];
+              return;
+            }
+            cur.push(`${cur.length ? "L" : "M"}${at(i).toFixed(2)},${y(v).toFixed(2)}`);
+          });
+          if (cur.length) runs.push(cur.join(" "));
+          return runs.map((d, ri) => (
+            <path
+              key={`${si}-${ri}`}
+              d={d}
+              fill="none"
+              stroke={s.color ?? SERIES[si % SERIES.length]}
+              strokeWidth={2}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          ));
+        })}
+      </svg>
+      {/* The scale, said once. No y-axis: nobody reads one at a glance, and
+          the top of the chart plus both ends of the span is what a person
+          actually needs to read a shape. */}
+      <div className="rp-line-axis">
+        <span>{labels[0]}</span>
+        <span>{format(max)}</span>
+        <span>{labels.at(-1)}</span>
+      </div>
+      {series.length > 1 && (
+        <div className="rp-legend">
+          {series.map((s, i) => (
+            <span key={s.name}>
+              <i style={{ background: s.color ?? SERIES[i % SERIES.length] }} />
+              {s.name}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * How a figure got from one value to another, one cause at a time.
+ *
+ * A BRIDGE, and it is the only honest way to draw a decomposition. Two bars
+ * labelled "then" and "now" show that something changed; this shows what
+ * changed it, with each step's height being that cause's share of the whole
+ * move. Because the steps are built to sum exactly to the difference, there is
+ * no residual bar labelled "other" for somebody to argue about.
+ */
+export function Bridge({
+  start,
+  steps,
+  end,
+  endLabel = "Now",
+  format,
+  height = 120,
+}: {
+  start: { label: string; value: number };
+  steps: { label: string; delta: number }[];
+  /**
+   * The true finishing figure, when the caller has one.
+   *
+   * Each step is rounded to the cent on its way in, so adding them up lands a
+   * few cents from where the real total sits — and the same figure appearing as
+   * $3,368.49 here and $3,368.72 in the tile above it is exactly the kind of
+   * discrepancy that makes somebody stop trusting a financial page. The steps
+   * still show what they show; only the last column is pinned to the truth.
+   */
+  end?: number;
+  endLabel?: string;
+  format: (n: number) => string;
+  height?: number;
+}) {
+  const points: { label: string; base: number; size: number; delta: number | null; value: number }[] =
+    [];
+  let running = start.value;
+  points.push({ label: start.label, base: 0, size: start.value, delta: null, value: start.value });
+  for (const s of steps) {
+    const from = running;
+    running += s.delta;
+    points.push({
+      label: s.label,
+      base: Math.min(from, running),
+      size: Math.abs(s.delta),
+      delta: s.delta,
+      value: running,
+    });
+  }
+  const finish = end ?? running;
+  points.push({ label: endLabel, base: 0, size: finish, delta: null, value: finish });
+
+  const max = Math.max(...points.map((p) => p.base + p.size), 1);
+
+  return (
+    <div className="rp-bridge" style={{ height: height + 46 }}>
+      {points.map((p, i) => (
+        <div key={p.label + i} className="rp-bridge-col" title={`${p.label} · ${format(p.value)}`}>
+          <div className="rp-bridge-val">
+            {p.delta === null ? format(p.value) : `${p.delta > 0 ? "+" : "−"}${format(Math.abs(p.delta))}`}
+          </div>
+          <div className="rp-bridge-track" style={{ height }}>
+            <div
+              className="rp-bridge-bar"
+              style={{
+                height: `${Math.max(1.5, (p.size / max) * 100)}%`,
+                bottom: `${(p.base / max) * 100}%`,
+                background:
+                  p.delta === null ? NAVY : p.delta >= 0 ? GREEN : RED,
+                opacity: p.delta === null ? 1 : 0.85,
+              }}
+            />
+          </div>
+          <div className="rp-bridge-lab">{p.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
  * A year of shape, small enough to sit in a table cell.
  *
  * WITHOUT THIS, EVERY FIGURE BESIDE A NAME IS AMBIGUOUS. A technician who

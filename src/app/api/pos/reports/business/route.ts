@@ -21,7 +21,6 @@ import {
   revenueTrend,
   stockValue,
   tenderMix,
-  trends,
   weekdayProfile,
   type Grain,
 } from "@/lib/reports-bi";
@@ -166,10 +165,5 @@ export async function GET(req: NextRequest) {
      */
     employees: employeePerformance(from, to),
     sparks: employeeSparks(to),
-    /**
-     * Not windowed, and the section says so. A direction taken over whichever
-     * fortnight somebody selected is not a direction — see `trends`.
-     */
-    trends: trends(today),
   });
 }

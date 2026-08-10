@@ -536,6 +536,110 @@ const ES: Record<string, string> = {
   November: "Noviembre",
   December: "Diciembre",
 
+
+// ── The trends page ────────────────────────────────────────────────────
+// The page's own furniture is translated. The findings under "Worth knowing"
+// are composed on the server with the shop's figures inside them, so they
+// cannot be keyed on an English string and stay in English — the same
+// fallback every untranslated string in this file uses. Their headings are
+// here, because those come from a fixed list.
+  "Everything on record — no date range. A direction measured over a fortnight is not a direction.":
+    "Todo lo registrado — sin rango de fechas. Una tendencia medida sobre una quincena no es una tendencia.",
+  "Back to Reports": "Volver a Reportes",
+  "trading days": "días trabajados",
+  "finished months on record": "meses completos registrados",
+  "Working it out…": "Sacando cuentas…",
+  "Could not load the trends": "No se pudieron cargar las tendencias",
+  "Those months are left out of every comparison rather than counted as zero, which would read as a collapse that never happened.":
+    "Esos meses quedan fuera de toda comparación en vez de contarse como cero, lo cual se leería como una caída que nunca pasó.",
+
+  "Worth knowing": "Lo que hay que saber",
+  "Worked out from the charts below every time this page is opened, not written down once. Each one says what it means and what it does not.":
+    "Calculado de las gráficas de abajo cada vez que se abre la página, no escrito una sola vez. Cada punto dice qué significa y qué no.",
+  "Nothing stands out. There is not enough history yet for most of these checks.":
+    "Nada resalta. Todavía no hay suficiente historial para la mayoría de estas revisiones.",
+  Serious: "Grave",
+  Watch: "Ojo",
+  Steady: "Estable",
+
+  "Where it stands": "Cómo estamos",
+  "The last twelve finished months against the twelve before them":
+    "Los últimos doce meses completos contra los doce anteriores",
+  "months both years have records for": "meses que ambos años tienen registrados",
+  "technicians on an average day": "técnicos en un día normal",
+
+  "Why it moved": "Por qué se movió",
+  "Takings a day is tickets a day multiplied by the average ticket, so a change in it splits exactly between the two. There is no third cause and no remainder.":
+    "La venta por día es tickets por día por el ticket promedio, así que un cambio se reparte exactamente entre los dos. No hay una tercera causa ni sobra nada.",
+  "From a year ago to now, one cause at a time": "De hace un año a hoy, una causa a la vez",
+  "Green adds, red takes away. The two steps sum to the whole change.":
+    "Verde suma, rojo resta. Los dos pasos suman el cambio completo.",
+  "Number of tickets": "Cuántos tickets",
+  "Size of each ticket": "De a cómo cada ticket",
+  Now: "Hoy",
+  "Tickets for every day open": "Tickets por cada día abierto",
+
+  "Whether there were tires to sell": "Si había llantas que vender",
+  "What was on the racks was never written down before the register existed, so these three stand in for it. The last one is the control: if customers had stopped affording tires it would fall as they traded down. If the tires were not there, it does not move at all.":
+    "Lo que había en los racks nunca se anotó antes de que existiera la caja, así que estas tres lo sustituyen. La última es el control: si a los clientes ya no les alcanzara, bajaría porque comprarían más barato. Si las llantas no estaban, no se mueve nada.",
+  "Different sizes sold in the month": "Medidas distintas vendidas en el mes",
+  "The range actually on offer. It narrows before the volume does.":
+    "El surtido que de verdad hay. Se angosta antes de que caiga el volumen.",
+  "Tickets that carried a tire": "Tickets que llevaron llanta",
+  "How often somebody who walked in left with one.": "Qué tan seguido alguien que entró se fue con una.",
+  Sizes: "Medidas",
+  "Share of tickets": "Parte de los tickets",
+  "Tires out of the door, for every day open": "Llantas que salieron, por cada día abierto",
+  "Tires a day": "Llantas por día",
+  "What one tire sold for": "De a cómo se vendió una llanta",
+  "The control. A flat line here rules out customers trading down.":
+    "El control. Una línea plana aquí descarta que los clientes estén comprando más barato.",
+  "Average tire": "Llanta promedio",
+  "What the shop sells, for every day open": "Qué vende el taller, por cada día abierto",
+  "Three lines rather than shares, so a line that falls is seen falling rather than seen as another line growing.":
+    "Tres líneas en vez de partes, para que una línea que baja se vea bajando y no como que otra creció.",
+
+  "The crew, against the work": "El equipo, contra el trabajo",
+  "Counted as technicians credited with work that day — the time clock has too little in it to measure hours, so everything here is per technician-day and never per hour.":
+    "Contado como técnicos con trabajo acreditado ese día — el reloj tiene muy poco para medir horas, así que todo aquí es por técnico-día y nunca por hora.",
+  "Technicians on the floor, on an average day": "Técnicos en el piso, en un día normal",
+  "What one technician gets through in a day": "Lo que saca un técnico en un día",
+  "Tickets against money. When tickets climb and money does not, the work got smaller rather than the person faster.":
+    "Tickets contra dinero. Cuando suben los tickets y el dinero no, el trabajo se hizo más chico, no la persona más rápida.",
+  "Money brought in per technician-day": "Dinero que entra por técnico-día",
+  "Per technician-day": "Por técnico-día",
+
+  "The long run": "El largo plazo",
+  "Per trading day throughout, so a short February and a week shut in July do not read as bad months.":
+    "Por día trabajado en todo, para que un febrero corto o una semana cerrado en julio no se lean como meses malos.",
+  "The last bar is the month we are standing in and is not finished.":
+    "La última barra es el mes en el que estamos y no está completo.",
+  "The same figure with the seasons taken out": "La misma cifra sin la temporada",
+  "Each point is the twelve months up to it, so every point holds one of every month. When this line moves, the business moved — not the calendar.":
+    "Cada punto son los doce meses hasta ahí, así que cada punto trae uno de cada mes. Cuando esta línea se mueve, se movió el negocio — no el calendario.",
+  "Twelve months to here": "Doce meses hasta aquí",
+
+  "The shop's year, and its week": "El año del taller, y su semana",
+  "Which months and which days the shop actually earns in, over everything on record.":
+    "En qué meses y en qué días de verdad gana el taller, sobre todo lo registrado.",
+  "Every month, averaged": "Cada mes, promediado",
+  "Per trading day, over every year on record.": "Por día trabajado, sobre cada año registrado.",
+  "The week, then and now": "La semana, antes y ahora",
+  "A best day that stops standing out is what a ceiling looks like.":
+    "Un mejor día que deja de destacar es como se ve un tope.",
+  Then: "Antes",
+
+  "How it is paid": "Cómo se paga",
+  "Shares of what was collected, quarter by quarter. This is the figure that would move first if cash stopped being rung up, which is why it is worth a glance even when it is dull.":
+    "Partes de lo cobrado, trimestre por trimestre. Esta es la cifra que se movería primero si el efectivo dejara de capturarse, por eso vale una mirada aunque esté aburrida.",
+
+  "Kept on its own page, because it is the one question a date range cannot answer.":
+    "En su propia página, porque es la única pregunta que un rango de fechas no puede contestar.",
+  "Trends, and what is worth worrying about": "Tendencias, y qué hay que estar viendo",
+  "Everything on record, per trading day: the long run with the seasons taken out, what is driving the change, whether there were tires to sell, the crew against the work — and the conclusions worked out for you at the top.":
+    "Todo lo registrado, por día trabajado: el largo plazo sin la temporada, qué está moviendo el cambio, si había llantas que vender, el equipo contra el trabajo — y las conclusiones ya sacadas hasta arriba.",
+  Open: "Abrir",
+
   "The racks": "Los racks",
   "Stock on hand": "Existencia",
   "units, at cost": "unidades, a costo",

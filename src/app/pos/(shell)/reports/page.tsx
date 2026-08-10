@@ -13,7 +13,6 @@ import {
   PairedBars,
   RankedBars,
   Spark,
-  StackedBars,
   Stat,
   changePct,
 } from "@/components/pos/Charts";
@@ -35,7 +34,6 @@ import type {
   StockValueRow,
   TenderRow,
   TrendPoint,
-  TrendsData,
   WeekdayRow,
 } from "@/lib/reports-bi";
 import "./reports.css";
@@ -56,19 +54,21 @@ import "./reports.css";
  *   When         — the hours and days the shop actually earns in
  *   Who          — the technicians, over the same window as everything else
  *   Performance  — the same people measured rather than listed
- *   Trends       — which way the whole thing is heading
+ *   Which way    — a door to Trends, which takes no window and says why
  *   The racks    — cash standing still, and cash about to run out
  *   Owed         — what is out there, by how old it is
  *   Customers    — who comes back, and who spends
  *   Missed       — what walked out of the door unsold
  *   Control      — the handful of things worth a second look
  *
- * EVERY FIGURE COVERS THE WINDOW AT THE TOP, WITH ONE MARKED EXCEPTION. That
- * promise is the reason this page can be trusted, and it is why the technician
- * board here is built from the window rather than borrowed from the close-out's
- * calendar week. Trends is the exception and says so in its own heading: a
- * direction measured over whichever fortnight somebody selected is not a
- * direction, so that section always covers the last two years.
+ * EVERY FIGURE ON THIS PAGE COVERS THE WINDOW AT THE TOP, with no exceptions.
+ * That promise is the reason the page can be trusted at a glance, and it is why
+ * the technician board here is built from the window rather than borrowed from
+ * the close-out's calendar week. It is also why Trends is a separate page and
+ * not a section: a direction measured over whichever fortnight somebody
+ * selected is not a direction, so it takes no window at all — and a panel here
+ * that quietly ignored the dates above it would be the one thing on the page
+ * that could not be trusted at a glance.
  *
  * WHERE A NUMBER CANNOT BE HONEST IT SAYS SO. Margin is computed only over
  * lines that carry a cost — a flat repair has none and never should — and the
@@ -119,21 +119,9 @@ type Data = {
     priorTradingDays: number;
   };
   sparks: { months: string[]; byEmployee: Record<number, number[]> };
-  trends: TrendsData;
 };
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
-/** "2026-08" as "Aug 26" — short enough for a bar label, unambiguous across years. */
-function monthLabel(bucket: string): string {
-  const [y, m] = bucket.split("-");
-  return `${MONTH_NAMES[Number(m) - 1]?.slice(0, 3) ?? bucket} ${y.slice(2)}`;
-}
-
 /** A window somebody would actually ask for, as a button. */
 const PRESETS: { key: string; label: string; days: number }[] = [
   { key: "7", label: "Last 7 days", days: 7 },
@@ -273,7 +261,6 @@ export default function ReportsPage() {
   if (!data) return <div className="text-brand-300">{tr("Adding it up…")}</div>;
 
   const h = data.headline;
-  const t = data.trends;
 
   // The crew, summarised. The MIDDLE of the day rates rather than the average
   // of them: one technician back for a single busy Saturday drags a mean a long
@@ -878,116 +865,29 @@ export default function ReportsPage() {
         )}
       </Section>
 
-      {/* ── 6 · TRENDS ──────────────────────────────────────────────────── */}
+      {/* ── 6 · WHICH WAY IT IS GOING ───────────────────────────────────── */}
+      {/* A door rather than a section. Trends obeys a different rule from
+          everything else here — it takes no window at all — and a panel on
+          this page that quietly ignored the dates at the top was the one
+          thing on it that could not be trusted at a glance. */}
       <Section
         id="trends"
         title={tr("Which way it is going")}
-        note={tr("The only section that ignores the window at the top. A direction taken over whichever fortnight you selected is not a direction — this one always covers the last two years.")}
+        note={tr("Kept on its own page, because it is the one question a date range cannot answer.")}
       >
-        {/* Said before any of the figures, because it changes how all of them
-            should be read. */}
-        {data.trends.gapMonths.length > 0 && (
-          <div className="rp-warn">
-            {tr("No records at all for")}{" "}
-            {data.trends.gapMonths.map(monthLabel).join(", ")}.{" "}
-            {tr("Those months are left out of every comparison below rather than counted as zero, which would read as a collapse that never happened.")}
+        <Link href="/pos/reports/trends" className="rp-jump rp-no-print">
+          <div>
+            <div style={{ fontWeight: 650, fontSize: 15, marginBottom: 2 }}>
+              {tr("Trends, and what is worth worrying about")}
+            </div>
+            <div className="text-sm text-brand-400" style={{ maxWidth: "62ch" }}>
+              {tr("Everything on record, per trading day: the long run with the seasons taken out, what is driving the change, whether there were tires to sell, the crew against the work — and the conclusions worked out for you at the top.")}
+            </div>
           </div>
-        )}
-
-        <div className="rp-stats">
-          <Stat
-            label={tr("Takings a day")}
-            value={formatCents(t.summary.perDayNowCents)}
-            deltaPct={
-              t.summary.growthPct === null ? undefined : t.summary.growthPct
-            }
-            deltaLabel={`${tr("on a year ago")} · ${t.summary.comparedMonths} ${tr("months compared")}`}
-          />
-          <Stat
-            label={tr("Last 12 months")}
-            value={formatCents(t.summary.last12Cents)}
-            sub={`${t.summary.ticketsLast12.toLocaleString()} ${tr("tickets")}`}
-          />
-          <Stat
-            label={tr("Average ticket")}
-            value={formatCents(t.summary.avgTicketLast12)}
-            deltaPct={changePct(t.summary.avgTicketLast12, t.summary.avgTicketPrev12) ?? undefined}
-            deltaLabel={tr("on the 12 months before")}
-          />
-          <Stat
-            label={tr("Best month")}
-            value={t.summary.bestMonth ? monthLabel(t.summary.bestMonth.bucket) : "—"}
-            sub={
-              t.summary.bestMonth
-                ? `${formatCents(t.summary.bestMonth.perDayCents)} ${tr("a day")}`
-                : undefined
-            }
-          />
-        </div>
-
-        <Panel
-          title={tr("Takings for every day open, month by month")}
-          note={tr("Per trading day rather than per month, so a short February and a week shut in July do not read as bad months.")}
-        >
-          <BarChart
-            data={t.months.map((m) => ({
-              label: monthLabel(m.bucket),
-              value: m.perDayCents,
-              sub: m.tradingDays === 0 ? tr("no records") : undefined,
-            }))}
-            format={formatCents}
-            height={150}
-          />
-        </Panel>
-
-        <div className="rp-two">
-          <Panel
-            title={tr("This year against last")}
-            note={tr("Each month beside the same month a year earlier.")}
-          >
-            <PairedBars
-              data={t.yoy.map((y) => ({
-                label: monthLabel(y.bucket),
-                a: y.beforeCents,
-                b: y.nowCents,
-              }))}
-              labels={[tr("A year ago"), tr("This year")]}
-              format={formatCents}
-            />
-          </Panel>
-          <Panel
-            title={tr("The shop's year")}
-            note={tr("Every January averaged, every February averaged, and so on, over everything on record.")}
-          >
-            <RankedBars
-              data={t.seasonality.map((s) => ({
-                label: tr(MONTH_NAMES[s.month - 1] ?? String(s.month)),
-                value: s.perDayCents,
-                note: ` · ${s.years} ${s.years === 1 ? tr("year") : tr("years")}`,
-              }))}
-              format={formatCents}
-            />
-          </Panel>
-        </div>
-
-        <Panel
-          title={tr("What the shop sells, quarter by quarter")}
-          note={tr("Each column is one quarter's takings as shares. Watch for a band getting thicker across the page — that is the business changing shape.")}
-        >
-          <StackedBars
-            columns={t.mix.map((q) => ({
-              label: q.bucket.replace("-", " "),
-              parts: q.parts.map((p) => ({ label: tr(p.label), value: p.cents })),
-            }))}
-            format={formatCents}
-          />
-        </Panel>
-
-        <p className="rp-note">
-          {tr("The shop has")} {t.summary.monthsOfHistory}{" "}
-          {tr("months on record. The busiest single day was")}{" "}
-          {t.summary.bestDay ? `${t.summary.bestDay.date} · ${formatCents(t.summary.bestDay.cents)}` : "—"}.
-        </p>
+          <span className="btn btn-primary" style={{ height: 34, fontSize: 13, whiteSpace: "nowrap" }}>
+            {tr("Open")} →
+          </span>
+        </Link>
       </Section>
 
       {/* ── 7 · THE RACKS ───────────────────────────────────────────────── */}
