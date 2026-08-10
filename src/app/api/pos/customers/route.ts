@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePos } from "@/lib/api-helpers";
-import { listVehicles, searchCustomers } from "@/lib/customers";
+import { jsonError, requirePos } from "@/lib/api-helpers";
+import { createCustomer, listVehicles, searchCustomers } from "@/lib/customers";
 
 /**
  * Look somebody up from the counter.
@@ -36,4 +36,42 @@ export async function GET(req: NextRequest) {
   }));
 
   return NextResponse.json({ customers });
+}
+
+/**
+ * Add a person to the book directly — no ticket involved.
+ *
+ * `manageCustomers`, not `ringSale`: ringing a ticket and deciding the book
+ * gains a row are different acts, and the second belongs to whoever keeps the
+ * book — the accountant by name, managers by rank. The duplicate-phone refusal
+ * lives in `createCustomer`, where it also protects any future caller.
+ */
+export async function POST(req: NextRequest) {
+  const auth = await requirePos("manageCustomers");
+  if (!auth.ok) return auth.response;
+
+  let body: { name?: string; phone?: string | null; notes?: string | null };
+  try {
+    body = await req.json();
+  } catch {
+    return jsonError("Invalid JSON");
+  }
+  if (!body.name?.trim()) return jsonError("A customer needs a name");
+
+  const made = createCustomer(auth.user, {
+    name: body.name,
+    phone: body.phone ?? null,
+    notes: body.notes ?? null,
+  });
+  if (!made.ok) return jsonError(made.error);
+
+  return NextResponse.json({
+    ok: true,
+    customer: {
+      id: made.customer.id,
+      customerNo: made.customer.customer_no,
+      name: made.customer.name,
+      phone: made.customer.phone,
+    },
+  });
 }

@@ -640,6 +640,14 @@ const ES: Record<string, string> = {
     "Todo lo registrado, por día trabajado: el largo plazo sin la temporada, qué está moviendo el cambio, si había llantas que vender, el equipo contra el trabajo — y las conclusiones ya sacadas hasta arriba.",
   Open: "Abrir",
 
+  Phone: "Teléfono",
+  "New customer": "Cliente nuevo",
+  "Who they are": "Quiénes son",
+  "Add them": "Agregarlo",
+  "Straight into the book, no ticket involved — for an account being set up before its first invoice. A name is enough; the phone and the cars can come later.":
+    "Directo al libro, sin ticket de por medio — para una cuenta que se abre antes de su primera factura. Con el nombre basta; el teléfono y los carros pueden venir después.",
+  "optional — “Fleet: Gomez Landscaping”": "opcional — “Flotilla: Gomez Landscaping”",
+
   "The racks": "Los racks",
   "Stock on hand": "Existencia",
   "units, at cost": "unidades, a costo",

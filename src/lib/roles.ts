@@ -99,6 +99,13 @@ const GRANTED: Partial<Record<PosRole, readonly Capability[]>> = {
     // House accounts. Owner and accountant, nobody else — not even a manager,
     // who runs the floor and has no part in what a customer owes over a month.
     "manageCreditAccounts",
+    // The reading half of the books: the tires-by-month sheet, the cost columns
+    // on the stock ledger, the demand study. `viewReports` exists to keep what
+    // the shop PAYS off the counter — and the person keeping the house accounts
+    // is not the counter, she is who those figures are kept FOR. Without this
+    // she could read every line of the day in Logs and not the month sheet
+    // printed from the same rows.
+    "viewReports",
   ],
 };
 

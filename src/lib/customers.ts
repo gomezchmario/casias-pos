@@ -422,6 +422,76 @@ export function updateCustomer(
 }
 
 /**
+ * Put a person in the book directly, with no ticket involved.
+ *
+ * The header of this file says the capture path deliberately has no create
+ * surface, and that stays true — at the COUNTER. This is the other moment: the
+ * accountant setting up a fleet account before its first invoice, or entering
+ * somebody who phoned about opening a tab. Making her ring a fake ticket to
+ * mint the record was the actual workaround in use, which is how test tickets
+ * happen.
+ *
+ * The duplicate guard is the reason this refuses where `attachToSale` merges.
+ * At the register a matching phone number means the regular is standing there
+ * again, and merging is right. Here, somebody deliberately typing a full number
+ * that is already in the book almost certainly hasn't found the existing row —
+ * so the error NAMES it instead of minting a second record. Two records for one
+ * person is the exact failure `deleteCustomer` exists to clean up after; better
+ * to not make it. A shared family phone is still enterable: leave the number
+ * off and add it after, which is deliberate friction in the rare case rather
+ * than silent duplication in the common one.
+ */
+export function createCustomer(
+  user: PosUser,
+  args: { name: string; phone?: string | null; notes?: string | null },
+): Result<{ customer: Customer }> {
+  if (!can(user.role, "manageCustomers"))
+    return { ok: false, error: "Your account can't add to the customer book" };
+
+  const name = properName(args.name.trim());
+  if (!name) return { ok: false, error: "A customer needs a name" };
+  const phone = clean(args.phone ?? null);
+  const notes = clean(args.notes ?? null);
+
+  const digits = phoneDigits(phone);
+  if (digits.length >= 7) {
+    const existing = getDb()
+      .prepare(
+        `SELECT name FROM customers
+          WHERE deleted = 0
+            AND replace(replace(replace(replace(phone,'(',''),')',''),'-',''),' ','') LIKE ?
+          ORDER BY updated_at DESC LIMIT 1`,
+      )
+      .get(`%${digits}`) as { name: string } | undefined;
+    if (existing)
+      return {
+        ok: false,
+        error: `That number is already in the book under "${existing.name}" — find them in the list instead of adding them twice`,
+      };
+  }
+
+  return inTx(() => {
+    const customerNo = nextCustomerNo();
+    const now = nowLocalIso();
+    const id = Number(
+      getDb()
+        .prepare(
+          `INSERT INTO customers (customer_no, name, phone, notes, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .run(customerNo, name, phone, notes, now, now).lastInsertRowid,
+    );
+    logActorAudit(actorOf(user), {
+      action: "customer.create",
+      targetType: "customer",
+      targetId: id,
+      details: { customer_no: customerNo, name, phone },
+    });
+    return { ok: true as const, customer: getCustomer(id)! };
+  });
+}
+
+/**
  * Take a person out of the book.
  *
  * Soft, and their tickets are deliberately left alone: every sale keeps its

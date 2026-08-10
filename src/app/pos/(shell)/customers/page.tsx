@@ -100,6 +100,17 @@ export default function CustomersPage() {
   // first and only becomes a form when somebody asks it to.
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ name: "", phone: "", notes: "" });
+  /**
+   * The book's own way in, for the person whose job is the book.
+   *
+   * Customers have always been minted from a ticket — the right shape at the
+   * counter, and no shape at all for the accountant setting up a fleet account
+   * before its first invoice. Her actual workaround was ringing a test ticket
+   * to get a record to exist, which is how test tickets end up in the day's
+   * takings.
+   */
+  const [adding, setAdding] = useState(false);
+  const [addForm, setAddForm] = useState({ name: "", phone: "", notes: "" });
   const [note, setNote] = useState("");
   const [editCar, setEditCar] = useState<Vehicle | null>(null);
   const [removingCar, setRemovingCar] = useState<Vehicle | null>(null);
@@ -173,6 +184,35 @@ export default function CustomersPage() {
       body: JSON.stringify(body),
     });
 
+  /** Not through `send` — on success the new person becomes the selection. */
+  async function addCustomer() {
+    if (busy || !addForm.name.trim()) return;
+    setBusy(true);
+    setError(null);
+    const res = await fetch("/api/pos/customers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: addForm.name,
+        phone: addForm.phone.trim() || null,
+        notes: addForm.notes.trim() || null,
+      }),
+    });
+    const d = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) {
+      // The duplicate-phone refusal lands here, naming who already has the
+      // number — worth keeping on screen next to the form rather than the
+      // page's banner, but the banner is where errors live on this page.
+      setError(d.error || "That did not save");
+      return;
+    }
+    setAdding(false);
+    setAddForm({ name: "", phone: "", notes: "" });
+    await load();
+    setPicked(d.customer.id);
+  }
+
   if (!can("viewLog"))
     return <div className="text-brand-400">Your account can&apos;t see the customer list.</div>;
 
@@ -187,6 +227,20 @@ export default function CustomersPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Whoever may correct the book may add to it — the accountant by
+              name, managers by rank. Readers of the book don't get the button:
+              minting people is how duplicates happen, and the fewer hands the
+              better. */}
+          {can("manageCustomers") && (
+            <button
+              type="button"
+              className={adding ? "btn btn-primary" : "btn btn-outline"}
+              aria-expanded={adding}
+              onClick={() => setAdding((v) => !v)}
+            >
+              {tr("New customer")}
+            </button>
+          )}
           {/* Only for the people who handle account money. Everybody else can
               read this book — that is what `viewLog` above allows — and nobody
               else has any business with a month's worth of what is owed. */}
@@ -201,6 +255,65 @@ export default function CustomersPage() {
 
       {error && (
         <div className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>
+      )}
+
+      {adding && (
+        <div className="bg-white rounded-2xl shadow-sm p-4 mb-4 cu-hide-on-print">
+          <div className="text-xs uppercase tracking-wider text-brand-300 mb-2">
+            {tr("New customer")}
+          </div>
+          <p className="text-sm text-brand-400 mb-3" style={{ maxWidth: "70ch" }}>
+            {tr("Straight into the book, no ticket involved — for an account being set up before its first invoice. A name is enough; the phone and the cars can come later.")}
+          </p>
+          <div className="flex items-end gap-2 flex-wrap">
+            <label className="text-sm text-brand-400">
+              {tr("Name")}
+              <input
+                className="input block mt-1"
+                style={{ width: 220 }}
+                autoFocus
+                value={addForm.name}
+                onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void addCustomer();
+                }}
+              />
+            </label>
+            <label className="text-sm text-brand-400">
+              {tr("Phone")}
+              <input
+                className="input block mt-1"
+                style={{ width: 160 }}
+                inputMode="tel"
+                value={addForm.phone}
+                onChange={(e) => setAddForm((f) => ({ ...f, phone: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void addCustomer();
+                }}
+              />
+            </label>
+            <label className="text-sm text-brand-400" style={{ flex: "1 1 220px" }}>
+              {tr("Who they are")}
+              <input
+                className="input block mt-1 w-full"
+                placeholder={tr("optional — “Fleet: Gomez Landscaping”")}
+                value={addForm.notes}
+                onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void addCustomer();
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={busy || !addForm.name.trim()}
+              onClick={() => void addCustomer()}
+            >
+              {tr("Add them")}
+            </button>
+          </div>
+        </div>
       )}
 
       <div className="grid gap-4" style={{ gridTemplateColumns: "minmax(0,360px) minmax(0,1fr)" }}>
