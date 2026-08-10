@@ -7,6 +7,7 @@ import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { ShopLogo } from "@/components/ui/ShopLogo";
 import { formatCents, parseCents } from "@/lib/money";
 import "./customers.css";
+import { useLang } from "@/components/pos/LangToggle";
 
 /**
  * The customer book.
@@ -83,6 +84,7 @@ const carLine = (v: Vehicle) =>
   [v.year, v.make, v.model, v.color].filter(Boolean).join(" ") || "Vehicle";
 
 export default function CustomersPage() {
+  const { t: tr } = useLang();
   const { can } = usePosAuth();
   const [q, setQ] = useState("");
   const [owing, setOwing] = useState(false);
@@ -178,7 +180,7 @@ export default function CustomersPage() {
     <div className="max-w-6xl mx-auto">
       <div className="flex items-start justify-between gap-4 flex-wrap mb-4 cu-hide-on-print">
         <div>
-          <h1 className="text-2xl font-semibold text-brand-500">Customers</h1>
+          <h1 className="text-2xl font-semibold text-brand-500">{tr("Customers")}</h1>
           <p className="text-brand-400 text-sm">
             Everyone the shop has taken a name from. Click one to see their cars
             and everything they have had done.
@@ -189,9 +191,7 @@ export default function CustomersPage() {
               read this book — that is what `viewLog` above allows — and nobody
               else has any business with a month's worth of what is owed. */}
           {can("manageCreditAccounts") && (
-            <Link href="/pos/customers/month" className="btn btn-outline">
-              Accounts this month
-            </Link>
+            <Link href="/pos/customers/month" className="btn btn-outline">{tr("Accounts this month")}</Link>
           )}
           <Link href="/pos/entries" className="btn btn-outline">
             ← Logs
@@ -207,7 +207,7 @@ export default function CustomersPage() {
         <div className="bg-white rounded-2xl shadow-sm p-3 cu-hide-on-print">
           <input
             className="input w-full mb-2"
-            placeholder="Name, phone or customer number…"
+            placeholder={tr("Name, phone or customer number…")}
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
@@ -216,17 +216,13 @@ export default function CustomersPage() {
               useful list on the page. */}
           <div className="flex items-center gap-4 mb-3 text-sm text-brand-400">
             <label className="flex items-center gap-1.5 cursor-pointer">
-              <input type="checkbox" checked={owing} onChange={(e) => setOwing(e.target.checked)} />
-              Owes money
-            </label>
+              <input type="checkbox" checked={owing} onChange={(e) => setOwing(e.target.checked)} />{tr("Owes money")}</label>
             <label className="flex items-center gap-1.5 cursor-pointer">
               <input
                 type="checkbox"
                 checked={credit}
                 onChange={(e) => setCredit(e.target.checked)}
-              />
-              Credit account
-            </label>
+              />{tr("Credit account")}</label>
             {/* The accountant's shortest useful list: people running a tab that
                 nobody ever approved. Implies the box above it — a customer with
                 no account activity is not approved either, and listing all of
@@ -238,15 +234,13 @@ export default function CustomersPage() {
                   checked={notApproved}
                   onChange={(e) => setNotApproved(e.target.checked)}
                 />
-                <span className={notApproved ? "text-red-700 font-semibold" : undefined}>
-                  Not approved
-                </span>
+                <span className={notApproved ? "text-red-700 font-semibold" : undefined}>{tr("Not approved")}</span>
               </label>
             )}
           </div>
           <div className="overflow-y-auto" style={{ maxHeight: 620 }}>
             {rows === null ? (
-              <div className="text-brand-300 p-2">Loading…</div>
+              <div className="text-brand-300 p-2">{tr("Loading…")}</div>
             ) : rows.length === 0 ? (
               <div className="text-brand-300 p-2">
                 {owing || credit || notApproved
@@ -366,18 +360,14 @@ export default function CustomersPage() {
                       type="button"
                       className="text-brand-400 hover:text-brand-500 underline"
                       onClick={() => setEditing(true)}
-                    >
-                      Edit
-                    </button>
+                    >{tr("Edit")}</button>
                   )}
                   {can("deleteCustomer") && (
                     <button
                       type="button"
                       className="text-red-600 hover:text-red-800 underline"
                       onClick={() => setRemovingCustomer(true)}
-                    >
-                      Remove
-                    </button>
+                    >{tr("Remove")}</button>
                   )}
                 </div>
               </div>
@@ -386,7 +376,7 @@ export default function CustomersPage() {
                 <div className="mt-3 rounded-xl border border-black/10 p-3">
                   <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
                     <label className="text-sm">
-                      <span className="block text-brand-400 mb-1">Name</span>
+                      <span className="block text-brand-400 mb-1">{tr("Name")}</span>
                       <input
                         className="input w-full"
                         value={form.name}
@@ -420,9 +410,7 @@ export default function CustomersPage() {
                       onClick={async () => {
                         if (await patchCustomer(form)) setEditing(false);
                       }}
-                    >
-                      Save
-                    </button>
+                    >{tr("Save")}</button>
                     <button
                       type="button"
                       className="btn btn-outline"
@@ -434,9 +422,7 @@ export default function CustomersPage() {
                           notes: detail.customer.notes ?? "",
                         });
                       }}
-                    >
-                      Cancel
-                    </button>
+                    >{tr("Cancel")}</button>
                   </div>
                 </div>
               )}
@@ -505,16 +491,12 @@ export default function CustomersPage() {
                                 type="button"
                                 className="text-xs text-brand-400 hover:text-brand-500 underline"
                                 onClick={() => setEditCar(v)}
-                              >
-                                Edit
-                              </button>
+                              >{tr("Edit")}</button>
                               <button
                                 type="button"
                                 className="text-xs text-red-600 hover:text-red-800 underline"
                                 onClick={() => setRemovingCar(v)}
-                              >
-                                Remove
-                              </button>
+                              >{tr("Remove")}</button>
                             </span>
                           )}
                         </div>
@@ -719,6 +701,7 @@ function AccountPanel({
   reload: number;
   onError: (m: string | null) => void;
 }) {
+  const { t: tr } = useLang();
   // Stamped after mount: the print date depends on the browser clock, and
   // rendering it during the server pass would mismatch on hydration.
   const [printedOn, setPrintedOn] = useState("");
@@ -869,7 +852,7 @@ function AccountPanel({
       </div>
 
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
-        <div className="text-xs uppercase tracking-wider text-brand-300">House account</div>
+        <div className="text-xs uppercase tracking-wider text-brand-300">{tr("House account")}</div>
         <div className="flex items-baseline gap-3">
           <div className="text-sm text-brand-400">
             {formatCents(a.chargedCents)} charged · {formatCents(a.paidCents)} paid
@@ -878,9 +861,7 @@ function AccountPanel({
             type="button"
             className="text-sm text-brand-400 hover:text-brand-500 underline no-print"
             onClick={() => window.print()}
-          >
-            Print statement
-          </button>
+          >{tr("Print statement")}</button>
         </div>
       </div>
 
@@ -910,9 +891,7 @@ function AccountPanel({
             className="btn btn-primary"
             style={{ height: 36, fontSize: 14 }}
             onClick={() => setOpen(true)}
-          >
-            Record a payment
-          </button>
+          >{tr("Record a payment")}</button>
           {/* The money-in list, behind a press. It is the shortest part of this
               panel on most accounts and the longest on the few that matter, and
               it is not what the screen is opened for — the balance is. It prints
@@ -935,7 +914,7 @@ function AccountPanel({
         <div className="mt-3 rounded-xl border border-black/10 p-3">
           <div className="grid gap-2" style={{ gridTemplateColumns: "120px 150px 1fr 1fr" }}>
             <label className="text-sm">
-              <span className="block text-brand-400 mb-1 text-xs">How much</span>
+              <span className="block text-brand-400 mb-1 text-xs">{tr("How much")}</span>
               <input
                 className="input w-full text-right tabular-nums"
                 inputMode="decimal"
@@ -984,18 +963,14 @@ function AccountPanel({
             >
               {busy ? "Working…" : "Record it"}
             </button>
-            <button type="button" className="btn btn-outline" onClick={() => setOpen(false)}>
-              Cancel
-            </button>
+            <button type="button" className="btn btn-outline" onClick={() => setOpen(false)}>{tr("Cancel")}</button>
           </div>
         </div>
       )}
 
       {data.payments.length > 0 && (
         <div className={showPayments ? "mt-4" : "mt-4 cu-print-only"}>
-          <div className="text-xs uppercase tracking-wider text-brand-300 mb-1">
-            Money in
-          </div>
+          <div className="text-xs uppercase tracking-wider text-brand-300 mb-1">{tr("Money in")}</div>
           <table className="w-full text-sm">
             <tbody>
               {data.payments.map((p) => (
@@ -1024,9 +999,7 @@ function AccountPanel({
                         className="text-xs text-brand-300 underline"
                         disabled={busy}
                         onClick={() => void undo(p.id)}
-                      >
-                        Void
-                      </button>
+                      >{tr("Void")}</button>
                     )}
                   </td>
                 </tr>
@@ -1038,9 +1011,7 @@ function AccountPanel({
 
       <div className="mt-4">
         <div className="flex items-baseline justify-between gap-3 mb-1">
-          <div className="text-xs uppercase tracking-wider text-brand-300">
-            What went on the tab
-          </div>
+          <div className="text-xs uppercase tracking-wider text-brand-300">{tr("What went on the tab")}</div>
           {/* Charges that came straight back off — a voided ticket, or the
               commonest one by far, a sale rung to the account and then fixed to
               the card the customer actually paid with.
@@ -1192,6 +1163,7 @@ function CustomerNote({
   setDraft: (v: string) => void;
   onSave: (text: string) => Promise<boolean>;
 }) {
+  const { t: tr } = useLang();
   const [editing, setEditing] = useState(false);
 
   // Closed whenever the panel moves to another customer, or the box would open
@@ -1233,9 +1205,7 @@ function CustomerNote({
               setDraft(note ?? "");
               setEditing(false);
             }}
-          >
-            Cancel
-          </button>
+          >{tr("Cancel")}</button>
           {/* Its own button rather than "save an empty box", so taking the note
               down is a decision somebody makes instead of something that
               happens by backspacing. */}
@@ -1248,9 +1218,7 @@ function CustomerNote({
                 setDraft("");
                 if (await onSave("")) setEditing(false);
               }}
-            >
-              Take it down
-            </button>
+            >{tr("Take it down")}</button>
           )}
         </div>
       </div>
@@ -1296,9 +1264,7 @@ function CustomerNote({
           setDraft(note);
           setEditing(true);
         }}
-      >
-        Edit
-      </button>
+      >{tr("Edit")}</button>
     </div>
   );
 }
@@ -1317,6 +1283,7 @@ function CarForm({
   onSave: () => void;
   onCancel: () => void;
 }) {
+  const { t: tr } = useLang();
   const field = (
     key: keyof Vehicle,
     label: string,
@@ -1346,12 +1313,8 @@ function CarForm({
         {field("tireSize", "Tire size", "265-70-17")}
       </div>
       <div className="flex gap-2 mt-3">
-        <button type="button" className="btn btn-primary" disabled={busy} onClick={onSave}>
-          Save
-        </button>
-        <button type="button" className="btn btn-outline" onClick={onCancel}>
-          Cancel
-        </button>
+        <button type="button" className="btn btn-primary" disabled={busy} onClick={onSave}>{tr("Save")}</button>
+        <button type="button" className="btn btn-outline" onClick={onCancel}>{tr("Cancel")}</button>
       </div>
     </div>
   );

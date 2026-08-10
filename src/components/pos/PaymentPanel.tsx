@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { computeTipCommission, formatCents, parseCents } from "@/lib/money";
 import type { Sale } from "@/lib/sales";
 import type { PaymentMethod } from "@/lib/payments";
+import { useLang } from "@/components/pos/LangToggle";
 
 /*
  * NOTHING HERE TOUCHES SEQ, AND THAT IS THE DESIGN.
@@ -41,6 +42,7 @@ export function PaymentPanel({
   onError: (msg: string | null) => void;
   onDone: (saleId: number) => void;
 }) {
+  const { t: tr } = useLang();
   /**
    * Nothing is chosen until somebody chooses it.
    *
@@ -241,16 +243,12 @@ export function PaymentPanel({
     return (
       <div className="mt-4 pt-4 border-t border-black/10">
         <div className="flex items-center justify-between mb-2">
-          <div className="text-xs uppercase tracking-wider text-brand-300">
-            Split it, or take part of it
-          </div>
+          <div className="text-xs uppercase tracking-wider text-brand-300">{tr("Split it, or take part of it")}</div>
           <button
             type="button"
             className="text-xs text-brand-400 underline"
             onClick={() => setSplitTender(false)}
-          >
-            Cancel split
-          </button>
+          >{tr("Cancel split")}</button>
         </div>
 
         <div className="flex flex-col gap-2 mb-3">
@@ -305,9 +303,7 @@ export function PaymentPanel({
             onClick={() =>
               setLines((ls) => [...ls, { methodId: methods[0]?.id ?? 0, amount: "" }])
             }
-          >
-            Add another tender
-          </button>
+          >{tr("Add another tender")}</button>
           {/* One tap to dump the rest on the current line — the common last
               step, and it removes the mental arithmetic. */}
           {remainingCents > 0 && (
@@ -323,14 +319,12 @@ export function PaymentPanel({
                   ).toFixed(2),
                 })
               }
-            >
-              Rest on last line
-            </button>
+            >{tr("Rest on last line")}</button>
           )}
         </div>
 
         <div className="flex justify-between text-sm text-brand-400 mt-2">
-          <span>Ticket</span>
+          <span>{tr("Ticket")}</span>
           <span className="tabular-nums">{formatCents(sale.subtotal_cents)}</span>
         </div>
         {/*
@@ -406,9 +400,7 @@ export function PaymentPanel({
       {method?.allows_tip === 1 && (
         <>
           <div className="flex gap-2 mb-2">
-            <label className="text-xs text-brand-400 flex-1">
-              Tip
-              <input
+            <label className="text-xs text-brand-400 flex-1">{tr("Tip")}<input
                 className="input mt-1 w-full text-right tabular-nums"
                 inputMode="decimal"
                 placeholder="0.00"
@@ -416,9 +408,7 @@ export function PaymentPanel({
                 onChange={(e) => setTip(e.target.value)}
               />
             </label>
-            <div className="text-xs text-brand-400 flex-1">
-              Terminal tax
-              <div className="input mt-1 w-full text-right tabular-nums bg-black/5">
+            <div className="text-xs text-brand-400 flex-1">{tr("Terminal tax")}<div className="input mt-1 w-full text-right tabular-nums bg-black/5">
                 {formatCents(commCents)}
               </div>
             </div>
@@ -432,16 +422,14 @@ export function PaymentPanel({
             guess -- but it says so, so it is a choice and not an oversight.
           */}
           {tipCents > 0 && mechanics.length > 1 && (
-            <label className="text-xs text-brand-400 block mb-2">
-              Tip goes to
-              <select
+            <label className="text-xs text-brand-400 block mb-2">{tr("Tip goes to")}<select
                 className="input mt-1 w-full"
                 value={tipMechanicId}
                 onChange={(e) =>
                   setTipMechanicId(e.target.value === "" ? "" : Number(e.target.value))
                 }
               >
-                <option value="">Nobody in particular</option>
+                <option value="">{tr("Nobody in particular")}</option>
                 {mechanics.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.name}
@@ -467,9 +455,7 @@ export function PaymentPanel({
                 type="checkbox"
                 checked={splitTip}
                 onChange={(e) => setSplitTip(e.target.checked)}
-              />
-              Run the tip as a second charge on the card
-            </label>
+              />{tr("Run the tip as a second charge on the card")}</label>
           )}
         </>
       )}
@@ -480,7 +466,7 @@ export function PaymentPanel({
       </div>
       {splitting && (
         <div className="flex justify-between text-lg font-semibold text-brand-500 mb-1">
-          <span>Charge 2</span>
+          <span>{tr("Charge 2")}</span>
           <span className="tabular-nums">{formatCents(secondChargeCents)}</span>
         </div>
       )}
@@ -507,9 +493,7 @@ export function PaymentPanel({
           className="btn btn-outline w-full mt-2"
           style={{ height: 44, fontSize: 14 }}
           onClick={startSplit}
-        >
-          Split payment, or take only part of it
-        </button>
+        >{tr("Split payment, or take only part of it")}</button>
       )}
     </div>
   );

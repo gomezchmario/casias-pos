@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { parseCents } from "@/lib/money";
 import type { FoundProduct } from "@/components/pos/ProductSearch";
+import { useLang } from "@/components/pos/LangToggle";
 
 /**
  * A tire the shop is selling but does not have.
@@ -38,6 +39,7 @@ export function OrderedTire({
   /** The size already typed into the search that opened this. */
   initialSize?: string;
 }) {
+  const { t: tr } = useLang();
   const [size, setSize] = useState("");
   // Two fields, not one. This box used to ask for "Brand & model" together and
   // post the answer as the brand, which is how a tire arrived in the catalogue
@@ -118,9 +120,7 @@ export function OrderedTire({
       width={460}
       footer={
         <>
-          <button type="button" className="btn btn-ghost" onClick={onClose}>
-            Cancel
-          </button>
+          <button type="button" className="btn btn-ghost" onClick={onClose}>{tr("Cancel")}</button>
           <button
             type="button"
             className="btn btn-primary"
@@ -139,8 +139,7 @@ export function OrderedTire({
       </p>
 
       <div className="grid grid-cols-2 gap-3">
-        <label className="text-sm text-brand-400">
-          Size <span className="text-brand-300">(required)</span>
+        <label className="text-sm text-brand-400">{tr("Size")}<span className="text-brand-300">(required)</span>
           <input
             className="input mt-1 w-full"
             autoFocus
@@ -152,9 +151,7 @@ export function OrderedTire({
         {/* Brand alone. The placeholder is one word on purpose — it is the
             example somebody copies the shape of, and "Landsail LS588" in this
             box is exactly what taught the counter to type the whole name here. */}
-        <label className="text-sm text-brand-400">
-          Brand
-          <input
+        <label className="text-sm text-brand-400">{tr("Brand")}<input
             className="input mt-1 w-full"
             placeholder="Landsail"
             value={brand}
@@ -166,8 +163,7 @@ export function OrderedTire({
       {/* Full width, below the pair, because a model is the long one — "ST
           RADIAL II (10 PL)" does not fit in half a row, and a field that
           visibly truncates what you typed is a field people stop filling in. */}
-      <label className="text-sm text-brand-400 block mt-3">
-        Model <span className="text-brand-300">(and ply, if it matters)</span>
+      <label className="text-sm text-brand-400 block mt-3">{tr("Model")}<span className="text-brand-300">(and ply, if it matters)</span>
         <input
           className="input mt-1 w-full"
           placeholder="LS588, or ST RADIAL II (10 PL)"
@@ -177,8 +173,7 @@ export function OrderedTire({
       </label>
 
       <div className="grid grid-cols-2 gap-3 mt-3">
-        <label className="text-sm text-brand-400">
-          Price <span className="text-brand-300">(tax included)</span>
+        <label className="text-sm text-brand-400">{tr("Price")}<span className="text-brand-300">(tax included)</span>
           <input
             className="input mt-1 w-full tabular-nums"
             inputMode="decimal"
@@ -189,8 +184,7 @@ export function OrderedTire({
           />
         </label>
         {showCosts && (
-          <label className="text-sm text-brand-400">
-            Cost <span className="text-brand-300">(what we pay)</span>
+          <label className="text-sm text-brand-400">{tr("Cost")}<span className="text-brand-300">(what we pay)</span>
             <input
               className="input mt-1 w-full tabular-nums"
               inputMode="decimal"
@@ -203,8 +197,7 @@ export function OrderedTire({
       </div>
 
       {showCosts && (
-        <label className="text-sm text-brand-400 block mt-3">
-          Supplier <span className="text-brand-300">(who to call)</span>
+        <label className="text-sm text-brand-400 block mt-3">{tr("Supplier")}<span className="text-brand-300">(who to call)</span>
           <input
             className="input mt-1 w-full"
             placeholder="Optional"

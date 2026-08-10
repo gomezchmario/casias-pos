@@ -1,5 +1,7 @@
 "use client";
 
+import { useLang } from "@/components/pos/LangToggle";
+
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Keypad } from "@/components/kiosk/Keypad";
@@ -28,6 +30,7 @@ import { TireMark } from "@/components/ui/TireMark";
  * would make coming back from lunch a two-screen job.
  */
 export function LockScreen({ onUnlocked }: { onUnlocked: () => void }) {
+  const { t } = useLang();
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -94,9 +97,9 @@ export function LockScreen({ onUnlocked }: { onUnlocked: () => void }) {
     >
       <TireMark size={44} />
       <div className="text-center">
-        <div className="text-lg font-semibold">Register locked</div>
+        <div className="text-lg font-semibold">{t("Register locked")}</div>
         <p className="text-sm text-white/55 mt-1">
-          Enter your PIN to pick up where the counter left off.
+          {t("Enter your PIN to pick up where the counter left off.")}
         </p>
       </div>
 
@@ -106,7 +109,7 @@ export function LockScreen({ onUnlocked }: { onUnlocked: () => void }) {
           {error ? (
             <span style={{ color: "#ff8f95" }}>{error}</span>
           ) : busy ? (
-            <span className="text-white/50">Checking…</span>
+            <span className="text-white/50">{t("Checking…")}</span>
           ) : null}
         </div>
         <div className="mt-2">

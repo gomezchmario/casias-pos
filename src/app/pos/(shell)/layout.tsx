@@ -1,3 +1,4 @@
+import { LangProvider } from "@/components/pos/LangToggle";
 import { PosShell } from "@/components/pos/PosShell";
 
 // `default` names /pos itself and stands in for any POS screen added later that
@@ -12,6 +13,15 @@ export const metadata = {
   title: { default: "Register", template: "%s · Casias Tire Shop" },
 };
 
+/**
+ * The language provider sits ABOVE the shell, not inside it, so the shell's own
+ * header can call `useLang()`. It holds a preference and nothing else — see
+ * `src/lib/i18n.ts` — and every screen below it gets `t()` for free.
+ */
 export default function PosLayout({ children }: { children: React.ReactNode }) {
-  return <PosShell>{children}</PosShell>;
+  return (
+    <LangProvider>
+      <PosShell>{children}</PosShell>
+    </LangProvider>
+  );
 }

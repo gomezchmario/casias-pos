@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { useLang } from "@/components/pos/LangToggle";
 
 /**
  * The one question the data cannot answer, asked before an order is fulfilled.
@@ -73,6 +74,7 @@ export function OrderStockConfirm({
   /** The sale items the counter says are already on the rack. */
   onConfirm: (alreadyStockedItemIds: number[]) => void;
 }) {
+  const { t: tr } = useLang();
   const [lines, setLines] = useState<Line[] | null>(null);
   const [stocked, setStocked] = useState<Set<number>>(new Set());
   const [sure, setSure] = useState(false);
@@ -122,9 +124,7 @@ export function OrderStockConfirm({
             <button type="button" className="btn btn-primary" onClick={() => onConfirm([])}>
               Fulfil it
             </button>
-            <button type="button" className="btn btn-outline" onClick={onCancel}>
-              Cancel
-            </button>
+            <button type="button" className="btn btn-outline" onClick={onCancel}>{tr("Cancel")}</button>
           </div>
         </>
       ) : (
@@ -215,12 +215,8 @@ export function OrderStockConfirm({
               className="btn btn-primary"
               disabled={!sure}
               onClick={() => onConfirm([...stocked])}
-            >
-              Fulfil the order
-            </button>
-            <button type="button" className="btn btn-outline" onClick={onCancel}>
-              Cancel
-            </button>
+            >{tr("Fulfil the order")}</button>
+            <button type="button" className="btn btn-outline" onClick={onCancel}>{tr("Cancel")}</button>
           </div>
         </>
       )}

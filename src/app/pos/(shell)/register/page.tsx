@@ -18,6 +18,7 @@ import type { Sale, SaleItem } from "@/lib/sales";
 import type { PaymentMethod } from "@/lib/payments";
 import type { QuickButton } from "@/lib/quick-buttons";
 import "./register.css";
+import { useLang } from "@/components/pos/LangToggle";
 
 type RegisterData = {
   quickButtons: QuickButton[];
@@ -61,21 +62,22 @@ function QtyBox({
   onBlur: () => void;
   onStep: (delta: number) => void;
 }) {
+  const { t: tr } = useLang();
   return (
     <div className="qty-box">
       <input
         className="input text-center tabular-nums"
         inputMode="numeric"
-        title="How many"
+        title={tr("How many")}
         value={value}
         onChange={(e) => onChange(e.target.value.replace(/[^0-9]/g, ""))}
         onBlur={onBlur}
       />
       <div className="qty-step">
-        <button type="button" onClick={() => onStep(1)} tabIndex={-1} aria-label="One more">
+        <button type="button" onClick={() => onStep(1)} tabIndex={-1} aria-label={tr("One more")}>
           +
         </button>
-        <button type="button" onClick={() => onStep(-1)} tabIndex={-1} aria-label="One fewer">
+        <button type="button" onClick={() => onStep(-1)} tabIndex={-1} aria-label={tr("One fewer")}>
           −
         </button>
       </div>
@@ -84,6 +86,7 @@ function QtyBox({
 }
 
 export default function RegisterPage() {
+  const { t: tr } = useLang();
   const { can, user } = usePosAuth();
   /**
    * Is this the forecourt, rather than the counter?
@@ -810,7 +813,7 @@ export default function RegisterPage() {
   );
 
   if (!data) {
-    return <div className="text-brand-300">Loading register…</div>;
+    return <div className="text-brand-300">{tr("Loading register…")}</div>;
   }
   if (!can("ringSale")) {
     return <div className="text-brand-400">Your account can&apos;t ring sales.</div>;
@@ -857,22 +860,18 @@ export default function RegisterPage() {
             <div className="text-lg font-semibold text-green-900">
               {lastSale.saleNo} done
             </div>
-            <div className="text-sm text-green-800/70">
-              Paid and closed. This notice clears itself in a minute.
-            </div>
+            <div className="text-sm text-green-800/70">{tr("Paid and closed. This notice clears itself in a minute.")}</div>
           </div>
           <a
             href={`/pos/sale/${lastSale.id}/receipt`}
             target="_blank"
             rel="noreferrer"
             className="ml-auto shrink-0 rounded-xl bg-green-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-green-800"
-          >
-            Print a receipt
-          </a>
+          >{tr("Print a receipt")}</a>
           <button
             type="button"
-            aria-label="Close this notice"
-            title="Close this notice"
+            aria-label={tr("Close this notice")}
+            title={tr("Close this notice")}
             className="shrink-0 rounded-lg px-2 py-1 text-lg leading-none text-green-900/50 hover:bg-green-600/10 hover:text-green-900"
             onClick={() => setLastSale(null)}
           >
@@ -885,9 +884,7 @@ export default function RegisterPage() {
       <div>
         {purchasing && (
           <div className="bg-white rounded-2xl shadow-sm p-4 text-sm text-brand-400">
-            <div className="text-xs uppercase tracking-wider text-brand-300 mb-2">
-              Cashback
-            </div>
+            <div className="text-xs uppercase tracking-wider text-brand-300 mb-2">{tr("Cashback")}</div>
             <p>
               The shop is buying, so the selling controls are put away. Type what
               you are buying and what you are paying for it on the right, add as
@@ -953,15 +950,13 @@ export default function RegisterPage() {
         <div className="bg-white rounded-2xl shadow-sm p-4 mb-4">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-3">
-              <div className="text-xs uppercase tracking-wider text-brand-300">From stock</div>
+              <div className="text-xs uppercase tracking-wider text-brand-300">{tr("From stock")}</div>
               <label className="flex items-center gap-1.5 text-xs text-brand-400 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={onlyInStock}
                   onChange={(e) => setOnlyInStock(e.target.checked)}
-                />
-                Only show current stock
-              </label>
+                />{tr("Only show current stock")}</label>
             </div>
           </div>
           {/* The mechanic used to be a third column here and a dropdown down in
@@ -984,14 +979,12 @@ export default function RegisterPage() {
                   type="button"
                   className="picked-tire-clear"
                   onClick={clearPicked}
-                >
-                  Clear
-                </button>
+                >{tr("Clear")}</button>
               </div>
             ) : (
               <ProductSearch
                 onPick={onPickProduct}
-                placeholder="Size, brand or name…"
+                placeholder={tr("Size, brand or name…")}
                 filter={stockFilter}
                 actions={tireActions}
               />
@@ -1091,18 +1084,14 @@ export default function RegisterPage() {
                   </span>
                 </label>
               ) : (
-                <div className="self-center text-xs text-brand-300">
-                  Priced at the counter
-                </div>
+                <div className="self-center text-xs text-brand-300">{tr("Priced at the counter")}</div>
               )}
               <button
                 type="button"
                 className="btn btn-primary"
                 onClick={submitManual}
                 disabled={busy}
-              >
-                Add
-              </button>
+              >{tr("Add")}</button>
             </div>
           )}
           {/* Amber once the price is open, because at that point the sentence
@@ -1202,9 +1191,7 @@ export default function RegisterPage() {
               className="btn btn-primary"
               onClick={submitManual}
               disabled={busy}
-            >
-              Add
-            </button>
+            >{tr("Add")}</button>
           </div>
           {/* The counterpart to "Order it in" over in the tire card. A car gets
               left for work, not for a tire off the rack, so the question belongs
@@ -1263,9 +1250,7 @@ export default function RegisterPage() {
                 cramped lines. Held at its natural width it drops underneath the
                 label instead, which costs one line and stays readable. */}
             <div className="flex flex-wrap items-baseline justify-between gap-x-3 mb-2">
-              <div className="text-xs uppercase tracking-wider text-brand-300">
-                Mechanic
-              </div>
+              <div className="text-xs uppercase tracking-wider text-brand-300">{tr("Mechanic")}</div>
               {/* Says the answer in words next to the label, so the state
                   survives being read from across the counter at an angle where
                   which button is filled is not obvious. */}
@@ -1348,10 +1333,8 @@ export default function RegisterPage() {
                   setOtherName(otherName === null ? "" : null);
                 }}
                 disabled={busy}
-                title="Somebody who is not on the floor list"
-              >
-                Other
-              </button>
+                title={tr("Somebody who is not on the floor list")}
+              >{tr("Other")}</button>
               {/* Deliberately last and deliberately unlike the others: it is
                   not a person, and unlike Other it is not a claim either. It
                   says nobody did this. Dashed and grey so the eye skips it
@@ -1372,10 +1355,8 @@ export default function RegisterPage() {
                   setOtherName(null);
                 }}
                 disabled={busy}
-                title="Ring this line against nobody"
-              >
-                No mechanic
-              </button>
+                title={tr("Ring this line against nobody")}
+              >{tr("No mechanic")}</button>
             </div>
 
             {/* Open only while Other is chosen, and optional even then. Nothing
@@ -1438,7 +1419,7 @@ export default function RegisterPage() {
             put a $20 button one slip of the thumb from a $60 tire. */}
         {!purchasing && mode === "service" && (
         <div className="bg-white rounded-2xl shadow-sm p-4 mb-4">
-          <div className="text-xs uppercase tracking-wider text-brand-300 mb-2">Price</div>
+          <div className="text-xs uppercase tracking-wider text-brand-300 mb-2">{tr("Price")}</div>
           <div className="keypad">
             {amountButtons.map((b) => (
               <button
@@ -1458,7 +1439,7 @@ export default function RegisterPage() {
 
         {!purchasing && mode === "service" && (
         <div className="bg-white rounded-2xl shadow-sm p-4">
-          <div className="text-xs uppercase tracking-wider text-brand-300 mb-2">Service</div>
+          <div className="text-xs uppercase tracking-wider text-brand-300 mb-2">{tr("Service")}</div>
           <div className="keypad">
             {serviceButtons.map((b) => (
               <button
@@ -1547,8 +1528,7 @@ export default function RegisterPage() {
               screen belong to somebody else's job and adding to them by mistake
               is the one error this whole behaviour could cause. */}
           {resumed && sale && (
-            <div className="mb-3 rounded-xl px-3 py-2 text-xs" style={{ background: "#fff7ed", color: "#92400e" }}>
-              Carrying on <strong>{resumed}</strong>, left unfinished on this
+            <div className="mb-3 rounded-xl px-3 py-2 text-xs" style={{ background: "#fff7ed", color: "#92400e" }}>{tr("Carrying on")}<strong>{resumed}</strong>, left unfinished on this
               register. Check the lines below are the ones you meant before
               adding to it.
             </div>
@@ -1598,9 +1578,7 @@ export default function RegisterPage() {
 
           {liveItems.length === 0 ? (
             purchasing ? null : (
-              <div className="text-sm text-brand-300 py-8 text-center">
-                Tap a service, then a price.
-              </div>
+              <div className="text-sm text-brand-300 py-8 text-center">{tr("Tap a service, then a price.")}</div>
             )
           ) : (
             <div className="flex flex-col divide-y divide-black/5">
@@ -1646,7 +1624,7 @@ export default function RegisterPage() {
 
           {sale && (
             <div className="mt-3 pt-3 border-t border-black/10 flex justify-between text-lg font-semibold text-brand-500">
-              <span>Total</span>
+              <span>{tr("Total")}</span>
               <span className="tabular-nums">{formatCents(sale.subtotal_cents)}</span>
             </div>
           )}
@@ -1684,9 +1662,7 @@ export default function RegisterPage() {
                   style={{ background: "#fff7ed", border: "1px solid rgba(180,83,9,0.25)" }}
                 >
                   <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-sm font-semibold text-amber-900">
-                      On order — we owe them the tire
-                    </span>
+                    <span className="text-sm font-semibold text-amber-900">{tr("On order — we owe them the tire")}</span>
                     <button
                       type="button"
                       className="text-xs underline text-amber-800 hover:text-amber-900"
@@ -1708,17 +1684,13 @@ export default function RegisterPage() {
                   style={{ background: "#fff7ed", border: "1px solid rgba(180,83,9,0.25)" }}
                 >
                   <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-sm font-semibold text-amber-900">
-                      Vehicle is here — waiting on us
-                    </span>
+                    <span className="text-sm font-semibold text-amber-900">{tr("Vehicle is here — waiting on us")}</span>
                     <button
                       type="button"
                       className="text-xs underline text-amber-800 hover:text-amber-900"
                       onClick={() => void markVehicle(false)}
                       disabled={busy}
-                    >
-                      They took it
-                    </button>
+                    >{tr("They took it")}</button>
                   </div>
                   <div className="mt-0.5 text-xs text-amber-800">
                     It stays on the Outstanding panel until somebody says it is done,
@@ -1822,9 +1794,7 @@ export default function RegisterPage() {
               className="btn btn-outline w-full mt-2"
               style={{ height: 44, fontSize: 14 }}
               onClick={() => setTakingPayment(true)}
-            >
-              Taking the money here instead
-            </button>
+            >{tr("Taking the money here instead")}</button>
           )}
 
           {/* Cashback, at the very foot of the ticket and centred.
@@ -1883,7 +1853,7 @@ export default function RegisterPage() {
         open={askUnpaid}
         onCancel={() => setAskUnpaid(false)}
         onConfirm={() => void leaveUnpaid()}
-        title="Create the ticket to pay at the cashier?"
+        title={tr("Create the ticket to pay at the cashier?")}
         confirmLabel="Create it"
         cancelLabel="Go back"
         busy={busy}
@@ -1895,7 +1865,7 @@ export default function RegisterPage() {
           on it come off the racks now.
         </p>
         <p className="mt-2">
-          It sits in <strong>Pending</strong> on Main until the money is taken,
+          It sits in <strong>{tr("Pending")}</strong> on Main until the money is taken,
           and the total is frozen.
         </p>
       </ConfirmModal>

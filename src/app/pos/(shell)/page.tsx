@@ -15,6 +15,7 @@ import type {
 } from "@/lib/pos-reports";
 import type { RecentLine, Standings, TechScore } from "@/lib/leaderboard";
 import type { PaymentMethod } from "@/lib/payments";
+import { useLang } from "@/components/pos/LangToggle";
 
 type DayData = {
   /** Today's business date, whatever day is being viewed. */
@@ -87,6 +88,7 @@ function shortTime(at: string): string {
 }
 
 export default function DayPage() {
+  const { t: tr } = useLang();
   const { can } = usePosAuth();
   const [date, setDate] = useState("");
   const [data, setData] = useState<DayData | null>(null);
@@ -169,7 +171,7 @@ export default function DayPage() {
     };
   }, [load]);
 
-  if (!data) return <div className="text-brand-300">Loading…</div>;
+  if (!data) return <div className="text-brand-300">{tr("Loading…")}</div>;
   const t = data.totals;
   const lb = data.leaderboard;
 
@@ -323,18 +325,14 @@ export default function DayPage() {
                 pickedADay.current = false;
                 setDate(data.today);
               }}
-            >
-              Today
-            </button>
+            >{tr("Today")}</button>
           )}
           {can("ringSale") && (
             <Link
               href="/pos/register"
               className="btn btn-primary"
               style={{ height: 44, fontSize: 16, paddingInline: 20 }}
-            >
-              New sale
-            </Link>
+            >{tr("New sale")}</Link>
           )}
         </div>
       </div>
@@ -489,10 +487,8 @@ export default function DayPage() {
                               border: "1px solid rgba(153,27,27,0.35)",
                               color: "#991b1b",
                             }}
-                            title="Rung but never completed — finish the ticket"
-                          >
-                            Draft
-                          </span>
+                            title={tr("Rung but never completed — finish the ticket")}
+                          >{tr("Draft")}</span>
                         )}
                       </td>
                       <td className="py-1.5 text-red-900/80">
@@ -501,7 +497,7 @@ export default function DayPage() {
                         )}
                         {o.customerPhone && ` · ${o.customerPhone}`}
                         {o.notes && (
-                          <div className="italic text-red-900/60" title="Note on this ticket">
+                          <div className="italic text-red-900/60" title={tr("Note on this ticket")}>
                             {o.notes}
                           </div>
                         )}
@@ -667,7 +663,7 @@ export default function DayPage() {
                         to remember which one shows notes. On a debt it is
                         usually the reason the debt exists. */}
                     {o.notes && (
-                      <div className="italic text-amber-900/60" title="Note on this ticket">
+                      <div className="italic text-amber-900/60" title={tr("Note on this ticket")}>
                         {o.notes}
                       </div>
                     )}
@@ -753,18 +749,18 @@ export default function DayPage() {
           below the whole weekly table, which on a laptop meant scrolling past
           every number in the shop to reach the only one that had changed in the
           last minute. The summaries can wait; they are read once a day. */}
-      <Card title="Last transactions" className="mb-6">
+      <Card title={tr("Last transactions")} className="mb-6">
         {/* Fixed height on purpose: a busy Saturday runs to two hundred lines and
             this is a dashboard, not the ledger. The full list lives on Logs. */}
         <div className="overflow-y-auto mt-2" style={{ maxHeight: 340 }}>
           <table className="w-full text-sm">
             <thead className="sticky top-0" style={{ background: "#fff" }}>
               <tr className="text-left text-brand-300 uppercase text-xs tracking-wider">
-                <th className="py-2 font-medium">Line</th>
-                <th className="py-2 font-medium">Tech</th>
-                <th className="py-2 font-medium">Time</th>
-                <th className="py-2 font-medium text-right">Total</th>
-                <th className="py-2 font-medium pl-4">Service</th>
+                <th className="py-2 font-medium">{tr("Line")}</th>
+                <th className="py-2 font-medium">{tr("Tech")}</th>
+                <th className="py-2 font-medium">{tr("Time")}</th>
+                <th className="py-2 font-medium text-right">{tr("Total")}</th>
+                <th className="py-2 font-medium pl-4">{tr("Service")}</th>
               </tr>
             </thead>
             <tbody>
@@ -807,9 +803,7 @@ export default function DayPage() {
               })}
               {recentLines.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-brand-300">
-                    Nothing rung on this day.
-                  </td>
+                  <td colSpan={5} className="py-8 text-center text-brand-300">{tr("Nothing rung on this day.")}</td>
                 </tr>
               )}
             </tbody>
@@ -851,15 +845,18 @@ export default function DayPage() {
           one of those — it is the thing you reach for at the moment the working
           screen stopped making sense, which is this moment, at the bottom of
           the page you were already on. */}
+      {/* Help first, the ledger second, and the order is the arrow's doing.
+          "…line by line →" ends in an arrow pointing right, at whatever comes
+          next — so with Help beside it the arrow appeared to point AT Help,
+          which is not where it goes. Last on the line, it points off the end of
+          the page, which is what an arrow like that means. */}
       <div className="flex items-center justify-center gap-6 flex-wrap mb-6 text-sm">
+        <Link href="/help" className="text-brand-400 underline hover:text-brand-500">{tr("Help")}</Link>
         <Link
           href="/pos/entries"
           className="text-brand-400 underline hover:text-brand-500"
         >
           Every entry of this day, line by line →
-        </Link>
-        <Link href="/help" className="text-brand-400 underline hover:text-brand-500">
-          Help
         </Link>
       </div>
 

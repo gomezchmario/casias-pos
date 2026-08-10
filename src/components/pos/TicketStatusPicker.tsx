@@ -6,6 +6,7 @@ import { OrderStockConfirm } from "@/components/pos/OrderStockConfirm";
 import { FULFILLMENT_LABELS, FULFILLMENT_STAGES, ORDER_PILLS } from "@/lib/fulfillment";
 import type { FulfillmentStatus } from "@/lib/sales";
 import { WORK_PILLS, workStatusTitle } from "@/lib/work-status";
+import { useLang } from "@/components/pos/LangToggle";
 
 /**
  * What is happening with this ticket, out of two lists.
@@ -102,6 +103,7 @@ export function TicketStatusPicker({
   onChanged: () => void;
   onError?: (msg: string) => void;
 }) {
+  const { t: tr } = useLang();
   const [busy, setBusy] = useState(false);
   /**
    * The stage this ticket is being moved to, held while the stock question is
@@ -413,9 +415,7 @@ export function TicketStatusPicker({
                 title="The customer has the tire and the car can go. This is the last stage, and it is what takes the tires off the racks."
                 className="flex-1 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-45"
                 style={{ background: "#dcfce7", color: "#166534", border: "1px solid #86efac" }}
-              >
-                Fulfil the order
-              </button>
+              >{tr("Fulfil the order")}</button>
             )}
             {fulfillmentStatus !== "cancelled" && (
               <button
@@ -484,8 +484,8 @@ export function TicketStatusPicker({
         <option value="" disabled>
           Set status…
         </option>
-        <optgroup label="Vehicle">{workOptions}</optgroup>
-        <optgroup label="Outstanding order">{orderOptions}</optgroup>
+        <optgroup label={tr("Vehicle")}>{workOptions}</optgroup>
+        <optgroup label={tr("Outstanding order")}>{orderOptions}</optgroup>
       </select>
     </span>
   );

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { LockScreen } from "@/components/pos/LockScreen";
+import { LangToggle, useLang } from "@/components/pos/LangToggle";
 import { TireDemandButton } from "@/components/pos/TireDemandButton";
 import { ShopLogo } from "@/components/ui/ShopLogo";
 import { ROLE_LABELS, type Capability, type PosRole } from "@/lib/roles";
@@ -11,7 +12,12 @@ import { ROLE_LABELS, type Capability, type PosRole } from "@/lib/roles";
 export type PosUser = { employeeId: number; name: string; role: PosRole };
 type Capabilities = Record<Capability, boolean>;
 
-type PosAuth = { user: PosUser; can: (c: Capability) => boolean };
+type PosAuth = {
+  user: PosUser;
+  can: (c: Capability) => boolean;
+  /** Whether the shop is running the lost-sale study — see `tire-demand.ts`. */
+  tireDemand: boolean;
+};
 
 const PosAuthContext = createContext<PosAuth | null>(null);
 
@@ -86,6 +92,7 @@ const FALLBACK_IDLE_SECONDS = 900;
 const ACTIVITY_EVENTS = ["pointerdown", "keydown", "wheel", "touchstart"] as const;
 
 export function PosShell({ children }: { children: React.ReactNode }) {
+  const { t } = useLang();
   const pathname = usePathname();
   const router = useRouter();
   const [auth, setAuth] = useState<PosAuth | null>(null);
@@ -118,6 +125,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
           user: PosUser;
           capabilities: Capabilities;
           idleSeconds?: number;
+          tireDemandEnabled?: boolean;
         } = await res.json();
         if (typeof d.idleSeconds === "number" && d.idleSeconds > 0) {
           idleMsRef.current = d.idleSeconds * 1000;
@@ -125,6 +133,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
         const next: PosAuth = {
           user: d.user,
           can: (c) => d.capabilities[c] === true,
+          tireDemand: d.tireDemandEnabled === true,
         };
         lockedRef.current = false;
         setLocked(false);
@@ -256,7 +265,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                   title={n.title}
                   aria-label={n.title}
                 >
-                  {n.label}
+                  {t(n.label)}
                 </Link>
               );
             })}
@@ -264,7 +273,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
           <div className="text-right leading-tight">
             <div className="text-sm font-semibold">{auth.user.name}</div>
             <div className="text-xs text-accent-500 uppercase tracking-wider">
-              {ROLE_LABELS[auth.user.role]}
+              {t(ROLE_LABELS[auth.user.role])}
             </div>
           </div>
           {/* Deliberately loud, and deliberately NOT a sign-out. Somebody
@@ -278,6 +287,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
               and it does it without needing anyone to remember the courtesy of
               pressing it first. Walk away, it locks itself; the next person
               types their PIN and it is theirs. */}
+          <LangToggle />
           <Link
             href="/"
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold whitespace-nowrap"
@@ -288,7 +298,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
             }}
           >
             <span style={{ fontSize: "1.1rem" }}>🕒</span>
-            Time Clock
+            {t("Time Clock")}
           </Link>
         </header>
 
@@ -298,7 +308,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
       {/* Outside `main` on purpose: it floats over every screen of the register
           and belongs to none of them. It draws nothing at all unless the shop
           has the study switched on. */}
-      <TireDemandButton />
+      <TireDemandButton enabled={auth.tireDemand} />
 
       {locked && <LockScreen onUnlocked={() => void unlock()} />}
     </PosAuthContext.Provider>

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePosAuth } from "@/components/pos/PosShell";
+import { useLang } from "@/components/pos/LangToggle";
 
 /**
  * The lost-sale button: a customer asked for a size, the shop did not have it,
@@ -38,9 +39,9 @@ import { usePosAuth } from "@/components/pos/PosShell";
 
 const QUICK = [1, 2, 4];
 
-export function TireDemandButton() {
+export function TireDemandButton({ enabled }: { enabled: boolean }) {
+  const { t: tr } = useLang();
   const { can } = usePosAuth();
-  const [enabled, setEnabled] = useState(false);
   const [open, setOpen] = useState(false);
   const [size, setSize] = useState("");
   const [qty, setQty] = useState(1);
@@ -50,18 +51,6 @@ export function TireDemandButton() {
   /** The last one written, echoed back. See `saved`. */
   const [saved, setSaved] = useState<string | null>(null);
   const sizeRef = useRef<HTMLInputElement | null>(null);
-
-  // Asked once per mount. The switch changes about twice a year; polling it
-  // would be a request every few seconds for an answer that is almost never
-  // different, on the machine that has to stay quick.
-  useEffect(() => {
-    void (async () => {
-      const res = await fetch("/api/pos/tire-demand?from=9999-01-01&to=9999-01-01");
-      if (!res.ok) return;
-      const d = await res.json();
-      setEnabled(d.enabled === true);
-    })();
-  }, []);
 
   useEffect(() => {
     if (open) sizeRef.current?.focus();
@@ -106,7 +95,7 @@ export function TireDemandButton() {
       <button
         type="button"
         className="td-fab"
-        title="A customer asked for a size we did not have"
+        title={tr("A customer asked for a size we did not have")}
         aria-label="Record a tire we did not have"
         onClick={() => {
           setSaved(null);
@@ -136,7 +125,7 @@ export function TireDemandButton() {
     <div className="td-panel" role="dialog" aria-label="Tire we did not have">
       <div className="td-head">
         <span>Didn&apos;t have it</span>
-        <button type="button" className="td-x" aria-label="Close" onClick={() => setOpen(false)}>
+        <button type="button" className="td-x" aria-label={tr("Close")} onClick={() => setOpen(false)}>
           ×
         </button>
       </div>
@@ -160,7 +149,7 @@ export function TireDemandButton() {
       />
 
       <div className="td-qty">
-        <span>How many</span>
+        <span>{tr("How many")}</span>
         {QUICK.map((n) => (
           <button
             key={n}
@@ -196,7 +185,7 @@ export function TireDemandButton() {
         onKeyDown={(e) => {
           if (e.key === "Enter") void save();
         }}
-        aria-label="Note"
+        aria-label={tr("Note")}
       />
 
       {error && <div className="td-err">{error}</div>}
@@ -210,9 +199,7 @@ export function TireDemandButton() {
         <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void save()}>
           {busy ? "Saving…" : "Write it down"}
         </button>
-        <button type="button" className="btn btn-outline" onClick={() => setOpen(false)}>
-          Done
-        </button>
+        <button type="button" className="btn btn-outline" onClick={() => setOpen(false)}>{tr("Done")}</button>
       </div>
     </div>
   );

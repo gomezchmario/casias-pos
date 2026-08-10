@@ -6,6 +6,7 @@ import { usePosAuth } from "@/components/pos/PosShell";
 import { ShopLogo } from "@/components/ui/ShopLogo";
 import type { DemandReport } from "@/lib/tire-demand";
 import "./demand.css";
+import { useLang } from "@/components/pos/LangToggle";
 
 /**
  * The tire study: what the shop was asked for and could not sell.
@@ -50,6 +51,7 @@ function recentMonths(from: string): string[] {
 }
 
 export default function TireDemandPage() {
+  const { t: tr } = useLang();
   const { can } = usePosAuth();
   /** Empty means everything, which is the default — see the route. */
   const [month, setMonth] = useState("");
@@ -114,9 +116,7 @@ export default function TireDemandPage() {
             className="btn btn-primary"
             disabled={!data}
             onClick={() => window.print()}
-          >
-            Print
-          </button>
+          >{tr("Print")}</button>
           <Link href="/pos/settings" className="btn btn-outline">
             ← Settings
           </Link>
@@ -154,17 +154,15 @@ export default function TireDemandPage() {
       ) : (
         <>
           <div className="bg-white rounded-2xl shadow-sm p-4 mb-4 tdr-block">
-            <div className="text-xs uppercase tracking-wider text-brand-300 mb-2">
-              Most asked for
-            </div>
+            <div className="text-xs uppercase tracking-wider text-brand-300 mb-2">{tr("Most asked for")}</div>
             <table className="w-full text-sm tdr-table">
               <thead>
                 <tr className="text-brand-300 text-xs uppercase tracking-wider">
-                  <th className="text-left py-2 font-medium">Size</th>
-                  <th className="text-right py-2 font-medium pl-4">Tires wanted</th>
-                  <th className="text-right py-2 font-medium pl-4">Customers</th>
-                  <th className="text-right py-2 font-medium pl-4">On hand now</th>
-                  <th className="text-right py-2 font-medium pl-4">Last asked</th>
+                  <th className="text-left py-2 font-medium">{tr("Size")}</th>
+                  <th className="text-right py-2 font-medium pl-4">{tr("Tires wanted")}</th>
+                  <th className="text-right py-2 font-medium pl-4">{tr("Customers")}</th>
+                  <th className="text-right py-2 font-medium pl-4">{tr("On hand now")}</th>
+                  <th className="text-right py-2 font-medium pl-4">{tr("Last asked")}</th>
                 </tr>
               </thead>
               <tbody>

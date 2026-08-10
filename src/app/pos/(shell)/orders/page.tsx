@@ -8,6 +8,7 @@ import { FULFILLMENT_LABELS, FULFILLMENT_STAGES, OURS } from "@/lib/fulfillment"
 import type { SpecialOrder } from "@/lib/special-orders";
 import type { FulfillmentStatus } from "@/lib/sales";
 import type { PaymentMethod } from "@/lib/payments";
+import { useLang } from "@/components/pos/LangToggle";
 
 /**
  * The green and blue sheet.
@@ -54,6 +55,7 @@ function waited(days: number): string {
 }
 
 export default function OrdersPage() {
+  const { t: tr } = useLang();
   const { can } = usePosAuth();
   const [data, setData] = useState<Data | null>(null);
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
@@ -123,13 +125,13 @@ export default function OrdersPage() {
     [data],
   );
 
-  if (!data) return <div className="text-brand-300">Loading…</div>;
+  if (!data) return <div className="text-brand-300">{tr("Loading…")}</div>;
 
   return (
     <div className="max-w-6xl mx-auto">
       <div className="flex items-end justify-between mb-5 gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold text-brand-500">Orders</h1>
+          <h1 className="text-2xl font-semibold text-brand-500">{tr("Orders")}</h1>
           <p className="text-brand-400 text-sm">
             Tires ordered in for somebody. The ones we are holding up are at the
             top.
@@ -140,9 +142,7 @@ export default function OrdersPage() {
             type="checkbox"
             checked={showDone}
             onChange={(e) => setShowDone(e.target.checked)}
-          />
-          Show finished
-        </label>
+          />{tr("Show finished")}</label>
       </div>
 
       {/* Two numbers, and only two. How many jobs are ours, and how much of the
@@ -166,9 +166,7 @@ export default function OrdersPage() {
           </div>
         </div>
         <div className="rounded-2xl px-4 py-3 shadow-sm bg-white">
-          <div className="text-xs uppercase tracking-wider text-brand-400">
-            Still owed on orders
-          </div>
+          <div className="text-xs uppercase tracking-wider text-brand-400">{tr("Still owed on orders")}</div>
           <div className="text-2xl font-semibold tabular-nums text-brand-500">
             {formatCents(owed)}
           </div>
@@ -182,9 +180,7 @@ export default function OrdersPage() {
       )}
 
       {orders.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-sm px-4 py-12 text-center text-brand-300">
-          Nothing on order.
-        </div>
+        <div className="bg-white rounded-2xl shadow-sm px-4 py-12 text-center text-brand-300">{tr("Nothing on order.")}</div>
       ) : (
         <div className="flex flex-col gap-2">
           {orders.map((o) => {
@@ -301,6 +297,7 @@ function StageControl({
   canReverse: boolean;
   onMove: (s: FulfillmentStatus) => void;
 }) {
+  const { t: tr } = useLang();
   const i = (FULFILLMENT_STAGES as readonly string[]).indexOf(status);
   const next = i >= 0 && i < FULFILLMENT_STAGES.length - 1 ? FULFILLMENT_STAGES[i + 1] : null;
 
@@ -324,7 +321,7 @@ function StageControl({
         className="input"
         value=""
         disabled={busy}
-        title="Move this order somewhere else"
+        title={tr("Move this order somewhere else")}
         onChange={(e) => {
           if (e.target.value) onMove(e.target.value as FulfillmentStatus);
         }}

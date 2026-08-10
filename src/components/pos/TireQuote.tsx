@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { formatCents, parseCents } from "@/lib/money";
 import { quoteTire } from "@/lib/tire-quote";
+import { useLang } from "@/components/pos/LangToggle";
 
 export type QuoteDefaults = {
   marginBp: number;
@@ -64,6 +65,7 @@ export function TireQuote({
    */
   discreet?: boolean;
 }) {
+  const { t: tr } = useLang();
   const [cost, setCost] = useState("");
   const [freight, setFreight] = useState("");
   const [adjusting, setAdjusting] = useState(false);
@@ -186,7 +188,7 @@ export function TireQuote({
   );
 
   return (
-    <Modal open={open} onClose={onClose} title="Price a tire" width={440}>
+    <Modal open={open} onClose={onClose} title={tr("Price a tire")} width={440}>
       <p className="text-sm text-brand-400 mb-4">
         For a tire the shop doesn’t stock. Type what the supplier is charging.
       </p>

@@ -20,6 +20,7 @@ import { formatCents, parseCents } from "@/lib/money";
 import { looksSpecialized, sizeMatches } from "@/lib/tire-size";
 import { quoteTire } from "@/lib/tire-quote";
 import "./inventory.css";
+import { useLang } from "@/components/pos/LangToggle";
 
 type Tire = {
   id: number;
@@ -114,6 +115,7 @@ type Sheet =
   | null;
 
 export default function InventoryPage() {
+  const { t: tr } = useLang();
   const { can, user } = usePosAuth();
   const [data, setData] = useState<Data | null>(null);
   const [query, setQuery] = useState("");
@@ -248,15 +250,13 @@ export default function InventoryPage() {
           between them and the heading on the left. */}
       <div className="flex items-end justify-between mb-5 gap-8 flex-wrap no-print">
         <div>
-          <h1 className="text-2xl font-semibold text-brand-500">Inventory</h1>
-          <p className="text-sm text-brand-400">
-            Everything on the racks, by size.
-          </p>
+          <h1 className="text-2xl font-semibold text-brand-500">{tr("Inventory")}</h1>
+          <p className="text-sm text-brand-400">{tr("Everything on the racks, by size.")}</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <input
             className="input ml-1"
-            placeholder="Size or brand…"
+            placeholder={tr("Size or brand…")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -265,9 +265,7 @@ export default function InventoryPage() {
               type="checkbox"
               checked={showEmpty}
               onChange={(e) => setShowEmpty(e.target.checked)}
-            />
-            Show sold out
-          </label>
+            />{tr("Show sold out")}</label>
           {/* `btn` on its own has a transparent background and a transparent
               border, so on this white page it rendered as a word rather than
               something to press. These two are real actions and are styled as
@@ -276,9 +274,7 @@ export default function InventoryPage() {
             type="button"
             className="btn btn-primary"
             onClick={() => window.print()}
-          >
-            Print
-          </button>
+          >{tr("Print")}</button>
           {/* Sits on the inventory page because "do we have it, and if not what
               would it cost" is one question asked in one breath. */}
           {data?.quoteDefaults && (
@@ -286,9 +282,7 @@ export default function InventoryPage() {
               type="button"
               className="btn btn-primary"
               onClick={() => setQuoting(true)}
-            >
-              Price a tire
-            </button>
+            >{tr("Price a tire")}</button>
           )}
           {can("receiveInventory") && (
             <button
@@ -389,7 +383,7 @@ export default function InventoryPage() {
 
       {data && data.integrityIssues.length > 0 && (
         <div className="mb-4 rounded-lg px-3 py-2 text-sm bg-red-50 text-red-800 no-print">
-          <strong>Stock records disagree with themselves.</strong> This is a bug, not
+          <strong>{tr("Stock records disagree with themselves.")}</strong> This is a bug, not
           something to fix by recounting — please report it.
           <ul className="mt-1 list-disc pl-5">
             {data.integrityIssues.map((i) => (
@@ -479,9 +473,7 @@ export default function InventoryPage() {
               style={{ transform: lowOpen ? "rotate(90deg)" : "none" }}
             >
               ▶
-            </span>
-            Running low
-            <span className="font-normal text-red-700">
+            </span>{tr("Running low")}<span className="font-normal text-red-700">
               {" "}
               · {data.lowStock.length} to reorder
             </span>
@@ -554,9 +546,7 @@ export default function InventoryPage() {
               style={{ transform: pricingOpen ? "rotate(90deg)" : "none" }}
             >
               ▶
-            </span>
-            Pricing needs a look
-            <span className="font-normal text-amber-700"> · managers only</span>
+            </span>{tr("Pricing needs a look")}<span className="font-normal text-amber-700"> · managers only</span>
           </button>
 
           {pricingOpen && (
@@ -714,7 +704,7 @@ export default function InventoryPage() {
                             "low" says order more, and ordering more is not the
                             answer to a count that is already wrong. */}
                         {t.on_hand < 0 ? (
-                          <span className="inv-pill-owed" title="Sold more than the racks had">
+                          <span className="inv-pill-owed" title={tr("Sold more than the racks had")}>
                             {-t.on_hand} owed
                           </span>
                         ) : (
@@ -730,7 +720,7 @@ export default function InventoryPage() {
                         {t.price_cents === 0 && t.on_hand > 0 ? (
                           <span
                             className="inv-pill-warn no-print"
-                            title="On the rack with no price — the register does not know what to charge"
+                            title={tr("On the rack with no price — the register does not know what to charge")}
                           >
                             Warning
                           </span>
@@ -743,7 +733,7 @@ export default function InventoryPage() {
                                racks and quoted from. */
                             <span
                               className="inv-pill-discount"
-                              title="Priced this way on purpose — kept out of the below-cost review"
+                              title={tr("Priced this way on purpose — kept out of the below-cost review")}
                             >
                               Discount!
                             </span>
@@ -773,27 +763,21 @@ export default function InventoryPage() {
                             type="button"
                             className="text-xs text-brand-400 hover:text-brand-500 underline"
                             onClick={() => setSheet({ mode: "edit", product: t, size: g.size })}
-                          >
-                            Edit
-                          </button>
+                          >{tr("Edit")}</button>
                         )}
                         {can("adjustInventory") && (
                           <button
                             type="button"
                             className="text-xs text-brand-400 hover:text-brand-500 underline ml-3"
                             onClick={() => setSheet({ mode: "count", product: t, size: g.size })}
-                          >
-                            Count
-                          </button>
+                          >{tr("Count")}</button>
                         )}
                         {can("deleteProduct") && (
                           <button
                             type="button"
                             className="text-xs text-red-600 hover:text-red-800 underline ml-3"
                             onClick={() => setRemoving(t)}
-                          >
-                            Remove
-                          </button>
+                          >{tr("Remove")}</button>
                         )}
                       </td>
                     </tr>
@@ -819,7 +803,7 @@ export default function InventoryPage() {
                   g.usedCount === 0 ? " no-print" : ""
                 }`}
               >
-                <span className="text-brand-400">Used</span>
+                <span className="text-brand-400">{tr("Used")}</span>
                 <span className="flex items-center gap-3">
                   <span
                     className={`tabular-nums font-semibold ${
@@ -834,9 +818,7 @@ export default function InventoryPage() {
                       type="button"
                       className="text-xs text-brand-400 hover:text-brand-500 underline no-print"
                       onClick={() => setSheet({ mode: "receive", size: g.size, used: true })}
-                    >
-                      Add
-                    </button>
+                    >{tr("Add")}</button>
                   )}
                   {g.usedProduct && can("adjustInventory") && (
                     <button
@@ -845,18 +827,14 @@ export default function InventoryPage() {
                       onClick={() =>
                         setSheet({ mode: "count", product: g.usedProduct!, size: g.size })
                       }
-                    >
-                      Count
-                    </button>
+                    >{tr("Count")}</button>
                   )}
                   {g.usedProduct && can("deleteProduct") && (
                     <button
                       type="button"
                       className="text-xs text-red-600 hover:text-red-800 underline no-print"
                       onClick={() => setRemoving(g.usedProduct)}
-                    >
-                      Remove
-                    </button>
+                    >{tr("Remove")}</button>
                   )}
                 </span>
               </div>
@@ -878,7 +856,7 @@ export default function InventoryPage() {
       {batteries.length > 0 && (
         <div className="inv-section">
           <div className="inv-rim flex items-baseline gap-3 mt-5 mb-2">
-            <h2 className="text-xl font-bold text-brand-500">Batteries</h2>
+            <h2 className="text-xl font-bold text-brand-500">{tr("Batteries")}</h2>
             <span className="text-xs text-brand-300">
               {batteries.reduce((s, b) => s + b.on_hand, 0)} on hand
             </span>
@@ -920,27 +898,21 @@ export default function InventoryPage() {
                           type="button"
                           className="text-xs text-brand-400 hover:text-brand-500 underline"
                           onClick={() => setSheet({ mode: "edit", product: b, size: b.name })}
-                        >
-                          Edit
-                        </button>
+                        >{tr("Edit")}</button>
                       )}
                       {can("adjustInventory") && (
                         <button
                           type="button"
                           className="text-xs text-brand-400 hover:text-brand-500 underline ml-3"
                           onClick={() => setSheet({ mode: "count", product: b, size: b.name })}
-                        >
-                          Count
-                        </button>
+                        >{tr("Count")}</button>
                       )}
                       {can("deleteProduct") && (
                         <button
                           type="button"
                           className="text-xs text-red-600 hover:text-red-800 underline ml-3"
                           onClick={() => setRemoving(b)}
-                        >
-                          Remove
-                        </button>
+                        >{tr("Remove")}</button>
                       )}
                     </td>
                   </tr>
@@ -963,7 +935,7 @@ export default function InventoryPage() {
       {misc.length > 0 && (
         <div className="inv-section">
           <div className="inv-rim flex items-baseline gap-3 mt-5 mb-2">
-            <h2 className="text-xl font-bold text-brand-500">Miscellaneous</h2>
+            <h2 className="text-xl font-bold text-brand-500">{tr("Miscellaneous")}</h2>
             <span className="text-xs text-brand-300">
               {misc.reduce((s, b) => s + b.on_hand, 0)} on hand
             </span>
@@ -999,27 +971,21 @@ export default function InventoryPage() {
                           type="button"
                           className="text-xs text-brand-400 hover:text-brand-500 underline"
                           onClick={() => setSheet({ mode: "edit", product: b, size: b.name })}
-                        >
-                          Edit
-                        </button>
+                        >{tr("Edit")}</button>
                       )}
                       {can("adjustInventory") && (
                         <button
                           type="button"
                           className="text-xs text-brand-400 hover:text-brand-500 underline ml-3"
                           onClick={() => setSheet({ mode: "count", product: b, size: b.name })}
-                        >
-                          Count
-                        </button>
+                        >{tr("Count")}</button>
                       )}
                       {can("deleteProduct") && (
                         <button
                           type="button"
                           className="text-xs text-red-600 hover:text-red-800 underline ml-3"
                           onClick={() => setRemoving(b)}
-                        >
-                          Remove
-                        </button>
+                        >{tr("Remove")}</button>
                       )}
                     </td>
                   </tr>
@@ -1081,7 +1047,7 @@ export default function InventoryPage() {
         onCancel={() => setRemoving(null)}
         onConfirm={() => removing && void removeProduct(removing)}
         busy={removeBusy}
-        title="Remove this from the list?"
+        title={tr("Remove this from the list?")}
         confirmLabel="Yes, remove it"
         cancelLabel="Keep it"
         acknowledge="I know this takes it off every rack view and every search"
@@ -1112,7 +1078,7 @@ export default function InventoryPage() {
         onCancel={() => setConfirmingCheck(false)}
         onConfirm={() => void markChecked()}
         busy={checking}
-        title="Counted today?"
+        title={tr("Counted today?")}
         // Naming the action rather than saying "OK", because "OK" answers a
         // question you have already stopped reading by the time you click it.
         confirmLabel="Yes, I counted them"
@@ -1164,6 +1130,7 @@ function ReceiveModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t: tr } = useLang();
   // New is the default. Most receiving is a delivery of new tires off an
   // invoice; used trickles in a couple at a time on buybacks. The "Add" link on
   // a used line still opens straight into the used tab, so that path is no
@@ -1279,12 +1246,10 @@ function ReceiveModal({
     <Modal
       open
       onClose={onClose}
-      title="Receive stock"
+      title={tr("Receive stock")}
       footer={
         <>
-          <button type="button" className="btn btn-ghost" onClick={onClose}>
-            Cancel
-          </button>
+          <button type="button" className="btn btn-ghost" onClick={onClose}>{tr("Cancel")}</button>
           <button type="button" className="btn btn-primary" onClick={submit} disabled={busy}>
             {busy ? "Saving…" : "Receive"}
           </button>
@@ -1312,9 +1277,7 @@ function ReceiveModal({
 
         {tab === "used" ? (
           <>
-            <label className="text-sm text-brand-400">
-              Size
-              <input
+            <label className="text-sm text-brand-400">{tr("Size")}<input
                 className="input mt-1 w-full tabular-nums"
                 value={size}
                 onChange={(e) => {
@@ -1327,9 +1290,7 @@ function ReceiveModal({
                 placeholder="195-65-15"
                 autoFocus
               />
-              <span className="block mt-1 text-xs text-brand-300">
-                Any way of writing it works — 195 65 15, 195/65R15, 1956515.
-              </span>
+              <span className="block mt-1 text-xs text-brand-300">{tr("Any way of writing it works — 195 65 15, 195/65R15, 1956515.")}</span>
             </label>
             <label className="flex items-start gap-2 text-sm text-brand-400">
               <input
@@ -1380,17 +1341,13 @@ function ReceiveModal({
                     type="button"
                     className="text-xs text-brand-400 underline whitespace-nowrap"
                     onClick={() => setPicked(null)}
-                  >
-                    Change
-                  </button>
+                  >{tr("Change")}</button>
                 </div>
               ) : (
-                <label className="text-sm text-brand-400">
-                  Tire
-                  <div className="mt-1">
+                <label className="text-sm text-brand-400">{tr("Tire")}<div className="mt-1">
                     <ProductSearch
                       autoFocus
-                      placeholder="Type a size or a brand — 215 55 17, vantage…"
+                      placeholder={tr("Type a size or a brand — 215 55 17, vantage…")}
                       // Only things that can actually be received: no services,
                       // no fees, and not the used sizes, which have their own tab
                       // precisely because they are received differently.
@@ -1414,9 +1371,7 @@ function ReceiveModal({
             {adding ? (
               <div className="flex flex-col gap-3">
                 <div className="flex gap-3">
-                  <label className="text-sm text-brand-400 flex-1">
-                    Brand
-                    <input
+                  <label className="text-sm text-brand-400 flex-1">{tr("Brand")}<input
                       className="input mt-1 w-full"
                       value={newBrand}
                       onChange={(e) => setNewBrand(e.target.value)}
@@ -1424,9 +1379,7 @@ function ReceiveModal({
                       autoFocus
                     />
                   </label>
-                  <label className="text-sm text-brand-400 flex-1">
-                    Model
-                    <input
+                  <label className="text-sm text-brand-400 flex-1">{tr("Model")}<input
                       className="input mt-1 w-full"
                       value={newModel}
                       onChange={(e) => setNewModel(e.target.value)}
@@ -1435,9 +1388,7 @@ function ReceiveModal({
                   </label>
                 </div>
                 <div className="flex gap-3">
-                  <label className="text-sm text-brand-400 flex-1">
-                    Size
-                    <input
+                  <label className="text-sm text-brand-400 flex-1">{tr("Size")}<input
                       className="input mt-1 w-full tabular-nums"
                       value={newSize}
                       onChange={(e) => {
@@ -1454,9 +1405,7 @@ function ReceiveModal({
                       what it cost, and what to sell it at is a decision made
                       afterwards — helped by the suggestion under Sells at
                       further down, which needs this number to exist first. */}
-                  <label className="text-sm text-brand-400 flex-1">
-                    Cost each
-                    <input
+                  <label className="text-sm text-brand-400 flex-1">{tr("Cost each")}<input
                       className="input mt-1 w-full tabular-nums"
                       value={cost}
                       onChange={(e) => setCost(e.target.value)}
@@ -1479,9 +1428,7 @@ function ReceiveModal({
                   Left-aligned it still sits directly under the field it is
                   about; it just has room to say it once.
                 */}
-                <span className="-mt-1 text-xs text-brand-300">
-                  Any way of writing it works — 195 65 15, 195/65R15, 1956515.
-                </span>
+                <span className="-mt-1 text-xs text-brand-300">{tr("Any way of writing it works — 195 65 15, 195/65R15, 1956515.")}</span>
                 <button
                   type="button"
                   className="text-xs text-brand-400 underline self-start"
@@ -1535,9 +1482,7 @@ function ReceiveModal({
                 see the note there. Down here it is only for the ordinary path,
                 where the tire already exists and there is no price to decide. */}
             {!adding && (
-              <label className="text-sm text-brand-400">
-                Cost each
-                <input
+              <label className="text-sm text-brand-400">{tr("Cost each")}<input
                   className="input mt-1 w-full tabular-nums"
                   value={cost}
                   onChange={(e) => setCost(e.target.value)}
@@ -1548,9 +1493,7 @@ function ReceiveModal({
             )}
 
             {adding && (
-              <label className="text-sm text-brand-400">
-                Sells at
-                <input
+              <label className="text-sm text-brand-400">{tr("Sells at")}<input
                   className="input mt-1 w-full tabular-nums"
                   value={newPrice}
                   onChange={(e) => setNewPrice(e.target.value)}
@@ -1580,17 +1523,13 @@ function ReceiveModal({
               </label>
             )}
             <div className="flex gap-3">
-              <label className="text-sm text-brand-400 flex-1">
-                Supplier
-                <input
+              <label className="text-sm text-brand-400 flex-1">{tr("Supplier")}<input
                   className="input mt-1 w-full"
                   value={supplier}
                   onChange={(e) => setSupplier(e.target.value)}
                 />
               </label>
-              <label className="text-sm text-brand-400 flex-1">
-                Invoice
-                <input
+              <label className="text-sm text-brand-400 flex-1">{tr("Invoice")}<input
                   className="input mt-1 w-full"
                   value={reference}
                   onChange={(e) => setReference(e.target.value)}
@@ -1600,9 +1539,7 @@ function ReceiveModal({
           </>
         )}
 
-        <label className="text-sm text-brand-400">
-          How many
-          <input
+        <label className="text-sm text-brand-400">{tr("How many")}<input
             className="input mt-1 w-full tabular-nums"
             value={qty}
             onChange={(e) => setQty(e.target.value.replace(/\D/g, ""))}
@@ -1628,6 +1565,7 @@ function CountModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t: tr } = useLang();
   const [counted, setCounted] = useState(String(product.on_hand));
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -1663,9 +1601,7 @@ function CountModal({
       title={`Count ${size}`}
       footer={
         <>
-          <button type="button" className="btn btn-ghost" onClick={onClose}>
-            Cancel
-          </button>
+          <button type="button" className="btn btn-ghost" onClick={onClose}>{tr("Cancel")}</button>
           <button type="button" className="btn btn-primary" onClick={submit} disabled={busy}>
             {busy ? "Saving…" : "Save count"}
           </button>
@@ -1677,9 +1613,7 @@ function CountModal({
           {[product.brand, product.model].filter(Boolean).join(" ") || product.name}
           {" — "}the system has <strong>{product.on_hand}</strong>.
         </p>
-        <label className="text-sm text-brand-400">
-          Counted on the rack
-          <input
+        <label className="text-sm text-brand-400">{tr("Counted on the rack")}<input
             className="input mt-1 w-full tabular-nums text-lg"
             value={counted}
             onChange={(e) => setCounted(e.target.value.replace(/[^\d]/g, ""))}
@@ -1699,7 +1633,7 @@ function CountModal({
             className="input mt-1 w-full"
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Miscount, damaged, sold off the books…"
+            placeholder={tr("Miscount, damaged, sold off the books…")}
           />
         </label>
         {error && <div className="text-sm text-red-700">{error}</div>}
@@ -1733,6 +1667,7 @@ function EditModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t: tr } = useLang();
   // A battery has no brand, model, ply or size — it is Large, Medium or Small
   // and that is the whole description. Rather than render four boxes that must
   // be left empty (and a "Brand is required" error when they are), the form
@@ -1823,9 +1758,7 @@ function EditModal({
       title={simple ? "Edit item" : "Edit tire"}
       footer={
         <>
-          <button type="button" className="btn btn-ghost" onClick={onClose}>
-            Cancel
-          </button>
+          <button type="button" className="btn btn-ghost" onClick={onClose}>{tr("Cancel")}</button>
           <button type="button" className="btn btn-primary" onClick={submit} disabled={busy}>
             {busy ? "Saving…" : "Save"}
           </button>
@@ -1834,9 +1767,7 @@ function EditModal({
     >
       <div className="flex flex-col gap-3">
         {simple ? (
-          <label className="text-sm text-brand-400">
-            Name
-            <input
+          <label className="text-sm text-brand-400">{tr("Name")}<input
               className="input mt-1 w-full"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -1846,17 +1777,14 @@ function EditModal({
         ) : (
           <>
             <div className="grid grid-cols-2 gap-3">
-              <label className="text-sm text-brand-400">
-                Brand
-                <input
+              <label className="text-sm text-brand-400">{tr("Brand")}<input
                   className="input mt-1 w-full"
                   value={brand}
                   onChange={(e) => setBrand(e.target.value)}
                   autoFocus
                 />
               </label>
-              <label className="text-sm text-brand-400">
-                Model <span className="text-brand-300">(optional)</span>
+              <label className="text-sm text-brand-400">{tr("Model")}<span className="text-brand-300">(optional)</span>
                 <input
                   className="input mt-1 w-full"
                   value={model}
@@ -1866,17 +1794,14 @@ function EditModal({
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <label className="text-sm text-brand-400">
-                Size
-                <input
+              <label className="text-sm text-brand-400">{tr("Size")}<input
                   className="input mt-1 w-full tabular-nums"
                   value={tireSize}
                   onChange={(e) => setTireSize(e.target.value)}
                   placeholder="195-65-15"
                 />
               </label>
-              <label className="text-sm text-brand-400">
-                Ply <span className="text-brand-300">(optional)</span>
+              <label className="text-sm text-brand-400">{tr("Ply")}<span className="text-brand-300">(optional)</span>
                 <input
                   className="input mt-1 w-full"
                   value={ply}
@@ -1889,8 +1814,7 @@ function EditModal({
         )}
 
         <div className="grid grid-cols-2 gap-3">
-          <label className="text-sm text-brand-400">
-            Price <span className="text-brand-300">(tax included)</span>
+          <label className="text-sm text-brand-400">{tr("Price")}<span className="text-brand-300">(tax included)</span>
             <input
               className="input mt-1 w-full tabular-nums"
               value={price}
@@ -1900,8 +1824,7 @@ function EditModal({
             />
           </label>
           {showCosts && (
-            <label className="text-sm text-brand-400">
-              Cost <span className="text-brand-300">(what we paid)</span>
+            <label className="text-sm text-brand-400">{tr("Cost")}<span className="text-brand-300">(what we paid)</span>
               <input
                 className="input mt-1 w-full tabular-nums"
                 value={cost}
@@ -1950,9 +1873,7 @@ function EditModal({
               checked={discounted}
               onChange={(e) => setDiscounted(e.target.checked)}
             />
-            <span>
-              This price is a discount
-              <span className="block text-xs text-brand-300">
+            <span>{tr("This price is a discount")}<span className="block text-xs text-brand-300">
                 Marks it <strong>Discount!</strong> on the sheet in green
                 {belowCost && ", and keeps it out of the below-cost review."}
               </span>
@@ -1962,8 +1883,7 @@ function EditModal({
 
         <div className="grid grid-cols-2 gap-3">
           {showCosts && (
-            <label className="text-sm text-brand-400">
-              Supplier <span className="text-brand-300">(optional)</span>
+            <label className="text-sm text-brand-400">{tr("Supplier")}<span className="text-brand-300">(optional)</span>
               <input
                 className="input mt-1 w-full"
                 value={supplier}

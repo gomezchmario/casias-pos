@@ -454,3 +454,53 @@ html, body {
     display: none !important;
   }
 }
+
+/* The language switch in the register's header.
+
+   Stacked rather than side by side because of where it lives: between the
+   user's name and the Time Clock button, in a header that is already a
+   horizontal row of things. Two letters wide instead of six, and the same
+   height as the button beside it, so it sits in the furniture rather than
+   competing with it.
+
+   Both labels are always visible with one lit. A single button showing the
+   language you would switch TO is ambiguous in exactly the case that matters —
+   somebody who cannot read the screen cannot tell whether the button names
+   where they are or where they would go. */
+.lang-toggle {
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  line-height: 1;
+  flex: none;
+}
+
+.lang-opt {
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.6);
+  background: transparent;
+  transition: background 120ms, color 120ms;
+}
+
+.lang-opt:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Lit in the same gold the active tab uses, so "this is where you are" means
+   one thing everywhere in this header. */
+.lang-opt-on {
+  background: rgba(255, 200, 61, 0.2);
+  color: #ffd35a;
+}
+
+@media print {
+  .lang-toggle {
+    display: none !important;
+  }
+}

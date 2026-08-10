@@ -6,6 +6,7 @@ import { usePosAuth } from "@/components/pos/PosShell";
 import { ShopLogo } from "@/components/ui/ShopLogo";
 import { formatCents } from "@/lib/money";
 import "./movements.css";
+import { useLang } from "@/components/pos/LangToggle";
 
 /**
  * Every tire in and every tire out, in the order it happened.
@@ -85,6 +86,7 @@ type MonthReport = {
 };
 
 export default function MovementsPage() {
+  const { t: tr } = useLang();
   const { can, user } = usePosAuth();
   const [rows, setRows] = useState<Movement[] | null>(null);
   const [showCosts, setShowCosts] = useState(false);
@@ -162,7 +164,7 @@ export default function MovementsPage() {
     <div className="max-w-5xl mx-auto">
       <div className="flex items-start justify-between gap-4 flex-wrap mb-4 tm-hide-on-print">
         <div>
-          <h1 className="text-2xl font-semibold text-brand-500">Tire movements</h1>
+          <h1 className="text-2xl font-semibold text-brand-500">{tr("Tire movements")}</h1>
           <p className="text-brand-400 text-sm">
             Every tire in and out, newest first. Nothing here is ever edited — a
             correction is another row.
@@ -224,9 +226,7 @@ export default function MovementsPage() {
               Stocked this month
             </button>
             {report && (
-              <button type="button" className="btn btn-primary" onClick={() => window.print()}>
-                Print
-              </button>
+              <button type="button" className="btn btn-primary" onClick={() => window.print()}>{tr("Print")}</button>
             )}
           </div>
         </div>
@@ -297,8 +297,8 @@ export default function MovementsPage() {
               <table className="w-full text-sm tm-table">
                 <thead>
                   <tr className="text-left text-brand-300 uppercase text-xs tracking-wider">
-                    <th className="py-1 font-medium">Date</th>
-                    <th className="py-1 font-medium">Tire</th>
+                    <th className="py-1 font-medium">{tr("Date")}</th>
+                    <th className="py-1 font-medium">{tr("Tire")}</th>
                     {/* Every column that follows a right-aligned number is
                         indented off it. Without the gap "2" and "Mario" close
                         up into "2Mario" — the number ends hard against the next
@@ -429,7 +429,7 @@ export default function MovementsPage() {
 
       <div className="bg-white rounded-2xl shadow-sm p-4 tm-hide-on-print">
         {rows === null ? (
-          <div className="text-brand-300">Loading…</div>
+          <div className="text-brand-300">{tr("Loading…")}</div>
         ) : rows.length === 0 ? (
           <div className="text-brand-300 py-8 text-center">Nothing moved.</div>
         ) : (
@@ -437,12 +437,12 @@ export default function MovementsPage() {
             <thead>
               <tr className="text-left text-brand-300 uppercase text-xs tracking-wider">
                 <th className="py-2 font-medium">When</th>
-                <th className="py-2 font-medium">Tire</th>
+                <th className="py-2 font-medium">{tr("Tire")}</th>
                 <th className="py-2 font-medium">What happened</th>
                 <th className="py-2 font-medium text-right">In / out</th>
-                {showCosts && <th className="py-2 font-medium text-right pl-4">Cost each</th>}
-                <th className="py-2 font-medium pl-4">Ticket</th>
-                <th className="py-2 font-medium pl-4">Who</th>
+                {showCosts && <th className="py-2 font-medium text-right pl-4">{tr("Cost each")}</th>}
+                <th className="py-2 font-medium pl-4">{tr("Ticket")}</th>
+                <th className="py-2 font-medium pl-4">{tr("Who")}</th>
               </tr>
             </thead>
             <tbody>

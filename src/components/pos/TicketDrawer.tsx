@@ -15,6 +15,7 @@ import { TicketDetails, type KnownDetails } from "@/components/pos/TicketDetails
 import { TicketStatusPicker } from "@/components/pos/TicketStatusPicker";
 import type { Sale, SaleItem } from "@/lib/sales";
 import type { Payment, PaymentMethod, TipSplit } from "@/lib/payments";
+import { useLang } from "@/components/pos/LangToggle";
 
 type Mechanic = { id: number; name: string };
 /** A technician on THIS ticket, with how much of it they did — which is what a
@@ -52,6 +53,7 @@ export function TicketDrawer({
   onClose: () => void;
   onChanged: () => void;
 }) {
+  const { t: tr } = useLang();
   const { can } = usePosAuth();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -117,7 +119,7 @@ export function TicketDrawer({
       width={620}
     >
       {!detail ? (
-        <div className="text-brand-300">Loading…</div>
+        <div className="text-brand-300">{tr("Loading…")}</div>
       ) : (
         <div className="flex flex-col gap-5">
           {/* Provenance, above everything else on the ticket. Small, because it
@@ -144,9 +146,7 @@ export function TicketDrawer({
               rel="noreferrer"
               className="shrink-0 font-semibold underline"
               style={{ color: "#2563eb" }}
-            >
-              Print receipt
-            </a>
+            >{tr("Print receipt")}</a>
             <span>·</span>
             <span>
             Rung by {detail.cashierName ?? "someone no longer on the books"} on{" "}
@@ -349,7 +349,7 @@ export function TicketDrawer({
               /* "Details", flat. The register's wording is an instruction to
                  somebody with a customer at the counter; here the ticket is an
                  hour old and there is nobody to take anything from. */
-              label="Details"
+              label={tr("Details")}
               /* Full size, so it sits level with Pay and Void rather than
                  looking like a shrunken version of them. */
               compact={false}
@@ -541,6 +541,7 @@ function Lines({
   repriceable: boolean;
   onReprice: (itemId: number, qty: number, unitPriceCents: number) => Promise<boolean>;
 }) {
+  const { t: tr } = useLang();
   /** Which line is being re-priced, and what is typed into it. */
   const [pricing, setPricing] = useState<number | null>(null);
   const [qty, setQty] = useState("1");
@@ -600,7 +601,7 @@ function Lines({
                     )
                   }
                 >
-                  <option value="">No mechanic</option>
+                  <option value="">{tr("No mechanic")}</option>
                   <option value="other">
                     {i.mechanic_name && i.mechanic_name !== "Other"
                       ? `Other — ${i.mechanic_name}`
@@ -641,7 +642,7 @@ function Lines({
                 <button
                   type="button"
                   className="ml-2 text-xs text-brand-300 underline decoration-brand-300/40 underline-offset-2 hover:text-brand-500 hover:decoration-current transition-colors"
-                  title="Fix a price that was rung wrong"
+                  title={tr("Fix a price that was rung wrong")}
                   onClick={() => {
                     setPricing(i.id);
                     setQty(String(i.qty));
@@ -670,7 +671,7 @@ function Lines({
                       className="input tabular-nums"
                       style={{ height: 34, fontSize: 13, width: 56 }}
                       inputMode="numeric"
-                      title="How many"
+                      title={tr("How many")}
                       value={qty}
                       onChange={(e) => setQty(e.target.value)}
                     />
@@ -680,7 +681,7 @@ function Lines({
                       style={{ height: 34, fontSize: 13, width: 96 }}
                       inputMode="decimal"
                       placeholder="0.00"
-                      title="Price each"
+                      title={tr("Price each")}
                       value={price}
                       onChange={(e) => setPrice(e.target.value)}
                     />
@@ -697,9 +698,7 @@ function Lines({
                       className="btn btn-outline"
                       style={{ height: 34, fontSize: 13, flex: 1 }}
                       onClick={() => setPricing(null)}
-                    >
-                      Cancel
-                    </button>
+                    >{tr("Cancel")}</button>
                     <button
                       type="button"
                       className="btn btn-primary"
@@ -742,7 +741,7 @@ function Lines({
             <tr>
               <td colSpan={3} className="pb-1.5">
                 <div className="flex items-center gap-2 pl-2 text-xs text-brand-300">
-                  <span>Fitted by</span>
+                  <span>{tr("Fitted by")}</span>
                   {editable ? (
                     <select
                       className="input py-1 text-xs"
@@ -824,6 +823,7 @@ function Money({
   ) => Promise<boolean>;
   busy: boolean;
 }) {
+  const { t: tr } = useLang();
   const label = (id: number) => methods.find((m) => m.id === id)?.label ?? "Payment";
   const [editing, setEditing] = useState<number | null>(null);
   const [methodId, setMethodId] = useState<number>(0);
@@ -854,15 +854,15 @@ function Money({
        decide. */
     <div>
       <div className="rounded-xl bg-black/[0.03] p-3 text-sm">
-        <Row label="Subtotal" value={formatCents(sale.subtotal_cents)} />
+        <Row label={tr("Subtotal")} value={formatCents(sale.subtotal_cents)} />
         {/* Broken out here, unlike on the customer's receipt: this is the shop's
             own screen, and the person looking at it is the one who needs to know
             what was kept back. */}
-        {sale.tip_cents !== 0 && <Row label="Tip" value={formatCents(sale.tip_cents)} />}
+        {sale.tip_cents !== 0 && <Row label={tr("Tip")} value={formatCents(sale.tip_cents)} />}
         {sale.comm_cents !== 0 && (
-          <Row label="Terminal tax" value={formatCents(sale.comm_cents)} />
+          <Row label={tr("Terminal tax")} value={formatCents(sale.comm_cents)} />
         )}
-        <Row label="Total" value={formatCents(sale.total_cents)} strong />
+        <Row label={tr("Total")} value={formatCents(sale.total_cents)} strong />
         <div className="mt-2 pt-2 border-t border-black/10">
           {payments.map((p) => (
             <Row
@@ -876,11 +876,11 @@ function Money({
             />
           ))}
           {payments.length === 0 && (
-            <div className="text-brand-300">Nothing collected on this ticket.</div>
+            <div className="text-brand-300">{tr("Nothing collected on this ticket.")}</div>
           )}
         </div>
         {sale.balance_cents !== 0 && (
-          <Row label="Balance due" value={formatCents(sale.balance_cents)} strong />
+          <Row label={tr("Balance due")} value={formatCents(sale.balance_cents)} strong />
         )}
       </div>
 
@@ -903,7 +903,7 @@ function Money({
                 <button
                   type="button"
                   className="w-fit text-left text-xs text-brand-300 underline decoration-brand-300/40 underline-offset-2 hover:text-brand-500 hover:decoration-current transition-colors"
-                  title="The customer paid, but this row says the wrong thing about it"
+                  title={tr("The customer paid, but this row says the wrong thing about it")}
                   onClick={() => {
                     setEditing(p.id);
                     // Seeded with what is already there, so a correction to one
@@ -981,9 +981,7 @@ function Money({
                       className="btn btn-outline"
                       style={{ height: 34, fontSize: 13, flex: 1 }}
                       onClick={() => setEditing(null)}
-                    >
-                      Cancel
-                    </button>
+                    >{tr("Cancel")}</button>
                     <button
                       type="button"
                       className="btn btn-primary"
@@ -1076,6 +1074,7 @@ function TipAdjustment({
     split: TipSplit | null,
   ) => Promise<boolean>;
 }) {
+  const { t: tr } = useLang();
   const tipMethods = useMemo(() => methods.filter((m) => m.allows_tip === 1), [methods]);
   const [methodId, setMethodId] = useState<number>(tipMethods[0]?.id ?? 0);
   const [amount, setAmount] = useState("");
@@ -1113,13 +1112,9 @@ function TipAdjustment({
 
   return (
     <div className="rounded-xl border border-black/10 p-3">
-      <div className="text-xs uppercase tracking-wider text-brand-300 mb-2">
-        Tip added later
-      </div>
+      <div className="text-xs uppercase tracking-wider text-brand-300 mb-2">{tr("Tip added later")}</div>
       <div className="flex items-end gap-2">
-        <label className="text-xs text-brand-400 flex-1">
-          Amount
-          <input
+        <label className="text-xs text-brand-400 flex-1">{tr("Amount")}<input
             className="input mt-1 w-full text-right tabular-nums"
             inputMode="decimal"
             placeholder="0.00"
@@ -1127,9 +1122,7 @@ function TipAdjustment({
             onChange={(e) => setAmount(e.target.value)}
           />
         </label>
-        <label className="text-xs text-brand-400 flex-1">
-          Tender
-          <select
+        <label className="text-xs text-brand-400 flex-1">{tr("Tender")}<select
             className="input mt-1 w-full"
             value={methodId}
             onChange={(e) => setMethodId(Number(e.target.value))}
@@ -1164,22 +1157,18 @@ function TipAdjustment({
               setAmount("");
             }
           }}
-        >
-          Add
-        </button>
+        >{tr("Add")}</button>
       </div>
 
       {/* Same rule as the register: only asked when the ticket has more than
           one technician on it and so cannot answer for itself. */}
       {mechanics.length > 1 && (
-        <label className="text-xs text-brand-400 block mt-2">
-          Tip goes to
-          <select
+        <label className="text-xs text-brand-400 block mt-2">{tr("Tip goes to")}<select
             className="input mt-1 w-full"
             value={goesTo}
             onChange={(e) => setGoesTo(e.target.value)}
           >
-            <option value="">Nobody in particular</option>
+            <option value="">{tr("Nobody in particular")}</option>
             {/* The splits sit above the names, because when two people worked a
                 ticket a shared tip is the normal case and one person taking all
                 of it is the exception. */}
@@ -1239,6 +1228,7 @@ function BalancePayment({
   busy: boolean;
   onPay: (methodId: number, amountCents: number) => Promise<boolean>;
 }) {
+  const { t: tr } = useLang();
   const [methodId, setMethodId] = useState<number>(methods[0]?.id ?? 0);
   // Prefilled with the whole balance, because paying it off is what nearly
   // everyone is here to do. Overwritten when it's a part payment.
@@ -1253,9 +1243,7 @@ function BalancePayment({
         Take a payment — {formatCents(balanceCents)} outstanding
       </div>
       <div className="flex items-end gap-2">
-        <label className="text-xs text-brand-400 flex-1">
-          Amount
-          <input
+        <label className="text-xs text-brand-400 flex-1">{tr("Amount")}<input
             className="input mt-1 w-full text-right tabular-nums"
             inputMode="decimal"
             placeholder="0.00"
@@ -1263,9 +1251,7 @@ function BalancePayment({
             onChange={(e) => setAmount(e.target.value)}
           />
         </label>
-        <label className="text-xs text-brand-400 flex-1">
-          Tender
-          <select
+        <label className="text-xs text-brand-400 flex-1">{tr("Tender")}<select
             className="input mt-1 w-full"
             value={methodId}
             onChange={(e) => setMethodId(Number(e.target.value))}
@@ -1287,9 +1273,7 @@ function BalancePayment({
           onClick={async () => {
             if (await onPay(methodId, cents)) setAmount("");
           }}
-        >
-          Take
-        </button>
+        >{tr("Take")}</button>
       </div>
       {/* Allowed, but said out loud. Overpaying is usually a typo; occasionally
           it is a deposit on the next job, and refusing it outright would send
@@ -1311,6 +1295,7 @@ function VoidTicket({
   busy: boolean;
   onVoid: (reason: string) => Promise<boolean>;
 }) {
+  const { t: tr } = useLang();
   const [arming, setArming] = useState(false);
   const [reason, setReason] = useState("");
 
@@ -1332,9 +1317,7 @@ function VoidTicket({
         Voiding reverses every payment on this ticket. Nothing is deleted.
       </div>
       <div className="flex items-end gap-2">
-        <label className="text-xs text-red-800 flex-1">
-          Reason
-          <input
+        <label className="text-xs text-red-800 flex-1">{tr("Reason")}<input
             className="input mt-1 w-full"
             placeholder="Why is this being voided?"
             value={reason}
@@ -1347,12 +1330,8 @@ function VoidTicket({
           style={{ background: "#a71d24", color: "#fff" }}
           disabled={busy || !reason.trim()}
           onClick={() => void onVoid(reason.trim())}
-        >
-          Void
-        </button>
-        <button type="button" className="btn btn-ghost" onClick={() => setArming(false)}>
-          Cancel
-        </button>
+        >{tr("Void")}</button>
+        <button type="button" className="btn btn-ghost" onClick={() => setArming(false)}>{tr("Cancel")}</button>
       </div>
     </div>
   );
@@ -1388,6 +1367,7 @@ function TicketStatusPanel({
   onChanged: () => void;
   onError: (msg: string) => void;
 }) {
+  const { t: tr } = useLang();
   const isOrder = sale.fulfillment_status !== "none";
   const [open, setOpen] = useState(false);
 
@@ -1411,9 +1391,7 @@ function TicketStatusPanel({
         className="btn w-full"
         style={{ background: "#4b5563", color: "#fff" }}
         onClick={() => setOpen(true)}
-      >
-        Outstanding order
-      </button>
+      >{tr("Outstanding order")}</button>
     );
   }
 
@@ -1499,6 +1477,7 @@ function PinnedNote({
   busy: boolean;
   onSave: (note: string | null) => Promise<boolean>;
 }) {
+  const { t: tr } = useLang();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
 
@@ -1513,7 +1492,7 @@ function PinnedNote({
           rows={3}
           autoFocus
           maxLength={500}
-          placeholder="Anything the next person on the counter needs to know…"
+          placeholder={tr("Anything the next person on the counter needs to know…")}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
         />
@@ -1523,9 +1502,7 @@ function PinnedNote({
             className="btn btn-outline"
             style={{ height: 34, fontSize: 13, flex: 1 }}
             onClick={() => setEditing(false)}
-          >
-            Cancel
-          </button>
+          >{tr("Cancel")}</button>
           {/* Clearing is saving nothing, not a separate delete. The note is gone
               when there is nothing to say, which is how a whiteboard behaves. */}
           {note && (
@@ -1537,9 +1514,7 @@ function PinnedNote({
               onClick={async () => {
                 if (await onSave(null)) setEditing(false);
               }}
-            >
-              Take it down
-            </button>
+            >{tr("Take it down")}</button>
           )}
           <button
             type="button"
@@ -1567,9 +1542,7 @@ function PinnedNote({
           setDraft("");
           setEditing(true);
         }}
-      >
-        Pin a note to this ticket
-      </button>
+      >{tr("Pin a note to this ticket")}</button>
     );
   }
 
@@ -1599,9 +1572,7 @@ function PinnedNote({
             setDraft(note);
             setEditing(true);
           }}
-        >
-          Edit
-        </button>
+        >{tr("Edit")}</button>
       )}
     </div>
   );
@@ -1645,6 +1616,7 @@ function RefundTicket({
   busy: boolean;
   onRefund: (methodId: number, amountCents: number, reason: string) => Promise<boolean>;
 }) {
+  const { t: tr } = useLang();
   const [arming, setArming] = useState(false);
   const [methodId, setMethodId] = useState<number>(paidMethodIds[0] ?? 0);
   const [amount, setAmount] = useState("");
@@ -1666,9 +1638,7 @@ function RefundTicket({
           setReason("");
           setArming(true);
         }}
-      >
-        Refund on this ticket
-      </button>
+      >{tr("Refund on this ticket")}</button>
     );
   }
 
@@ -1705,9 +1675,7 @@ function RefundTicket({
               ))}
           </select>
         </label>
-        <label className="text-xs" style={{ color: "#78350f" }}>
-          How much
-          <input
+        <label className="text-xs" style={{ color: "#78350f" }}>{tr("How much")}<input
             className="input mt-1 w-28 text-right tabular-nums"
             inputMode="decimal"
             placeholder="0.00"
@@ -1715,9 +1683,7 @@ function RefundTicket({
             onChange={(e) => setAmount(e.target.value)}
           />
         </label>
-        <label className="text-xs flex-1" style={{ color: "#78350f", minWidth: 180 }}>
-          Reason
-          <input
+        <label className="text-xs flex-1" style={{ color: "#78350f", minWidth: 180 }}>{tr("Reason")}<input
             className="input mt-1 w-full"
             placeholder="Tire came back · adjustment agreed with the customer"
             value={reason}
@@ -1730,12 +1696,8 @@ function RefundTicket({
           style={{ background: "#b45309", color: "#fff" }}
           disabled={busy || !valid}
           onClick={() => void onRefund(methodId, cents!, reason.trim())}
-        >
-          Refund
-        </button>
-        <button type="button" className="btn btn-ghost" onClick={() => setArming(false)}>
-          Cancel
-        </button>
+        >{tr("Refund")}</button>
+        <button type="button" className="btn btn-ghost" onClick={() => setArming(false)}>{tr("Cancel")}</button>
       </div>
       {cents !== null && cents > maxCents && (
         <div className="text-xs mt-2" style={{ color: "#a71d24" }}>
@@ -1767,6 +1729,7 @@ function RemoveTip({
   busy: boolean;
   onRemove: (reason: string) => Promise<boolean>;
 }) {
+  const { t: tr } = useLang();
   const [arming, setArming] = useState(false);
   const [reason, setReason] = useState("");
 
@@ -1789,9 +1752,7 @@ function RemoveTip({
         was rung.
       </div>
       <div className="flex items-end gap-2">
-        <label className="text-xs text-brand-400 flex-1">
-          Reason
-          <input
+        <label className="text-xs text-brand-400 flex-1">{tr("Reason")}<input
             className="input mt-1 w-full"
             placeholder="Entered twice · typed 20 instead of 2"
             value={reason}
@@ -1803,12 +1764,8 @@ function RemoveTip({
           className="btn btn-primary"
           disabled={busy || !reason.trim()}
           onClick={() => void onRemove(reason.trim())}
-        >
-          Take it off
-        </button>
-        <button type="button" className="btn btn-ghost" onClick={() => setArming(false)}>
-          Cancel
-        </button>
+        >{tr("Take it off")}</button>
+        <button type="button" className="btn btn-ghost" onClick={() => setArming(false)}>{tr("Cancel")}</button>
       </div>
     </div>
   );

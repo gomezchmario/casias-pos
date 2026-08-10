@@ -8,6 +8,7 @@ import { usePosAuth } from "@/components/pos/PosShell";
 import { formatCents } from "@/lib/money";
 import type { DayEntry } from "@/lib/pos-reports";
 import type { PaymentMethod } from "@/lib/payments";
+import { useLang } from "@/components/pos/LangToggle";
 
 /**
  * Every entry of the day, consecutively, with nothing summed.
@@ -103,6 +104,7 @@ function shortTime(at: string): string {
 }
 
 export default function EntriesPage() {
+  const { t: tr } = useLang();
   const { can } = usePosAuth();
   const [date, setDate] = useState("");
   const [data, setData] = useState<Data | null>(null);
@@ -455,32 +457,36 @@ export default function EntriesPage() {
     </th>
   );
 
-  if (!data) return <div className="text-brand-300">Loading…</div>;
+  if (!data) return <div className="text-brand-300">{tr("Loading…")}</div>;
 
   return (
     <div className="max-w-7xl mx-auto">
       <div className="flex items-end justify-between mb-5 gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold text-brand-500">Logs</h1>
+          <h1 className="text-2xl font-semibold text-brand-500">{tr("Logs")}</h1>
           <p className="text-brand-400 text-sm">
             Everything that happened, in the order it happened. Voided rows stay
             on the list.
           </p>
-          {/* The other two ledgers, reached from the one people already open.
-              This page is the day; those two are the same records cut the other
-              way — by tire and by customer — and both were previously reachable
-              only from a row that happened to mention them. Put here rather than
-              in the top navigation because that is a row of places you WORK, and
-              these are places you go to answer a question. */}
+          {/* The other ledgers, reached from the one people already open.
+              This page is the day; the others are the same records cut a
+              different way — by tire, by customer, by order — and each was
+              previously reachable only from a row that happened to mention it.
+              Put here rather than in the top navigation because that is a row
+              of places you WORK, and these are places you go to answer a
+              question. */}
           <div className="flex items-center gap-2 mt-3 no-print">
             {can("viewInventory") && (
-              <Link href="/pos/movements" className="btn btn-outline" style={{ height: 34, fontSize: 13 }}>
-                Tire movements
-              </Link>
+              <Link href="/pos/movements" className="btn btn-outline" style={{ height: 34, fontSize: 13 }}>{tr("Tire movements")}</Link>
             )}
-            <Link href="/pos/customers" className="btn btn-outline" style={{ height: 34, fontSize: 13 }}>
-              Customers
-            </Link>
+            <Link href="/pos/customers" className="btn btn-outline" style={{ height: 34, fontSize: 13 }}>{tr("Customers")}</Link>
+            {/* Every order the shop has taken, not only the ones still open.
+                The board on Main carries what is outstanding, because that is
+                what somebody has to act on this morning; this is the same
+                records read as history — what was ordered, what became of it,
+                and how long it took — which is a question asked at a desk
+                rather than at a counter, and therefore belongs here. */}
+            <Link href="/pos/orders" className="btn btn-outline" style={{ height: 34, fontSize: 13 }}>{tr("Orders")}</Link>
             {/* Tips are already in the list below, scattered among four hundred
                 other rows and impossible to add up by eye. This is the same
                 rows gathered — a view of this page rather than another page,
@@ -491,9 +497,7 @@ export default function EntriesPage() {
               style={{ height: 34, fontSize: 13 }}
               aria-pressed={showTips}
               onClick={() => setShowTips((v) => !v)}
-            >
-              Tips
-            </button>
+            >{tr("Tips")}</button>
           </div>
         </div>
         {/* Picking a date pins the list to it; nothing snaps it back on its
@@ -568,9 +572,7 @@ export default function EntriesPage() {
               setUntil("");
               setDate(data.today);
             }}
-          >
-            Today
-          </button>
+          >{tr("Today")}</button>
           <input
             type="date"
             className="input"
@@ -674,9 +676,7 @@ export default function EntriesPage() {
               </div>
 
               <div>
-                <div className="text-xs uppercase tracking-wider text-brand-300 mb-1">
-                  The tickets
-                </div>
+                <div className="text-xs uppercase tracking-wider text-brand-300 mb-1">{tr("The tickets")}</div>
                 <table className="w-full text-sm">
                   <tbody>
                     {data.tips.rows.map((r, i) => (
@@ -759,14 +759,14 @@ export default function EntriesPage() {
               setCategory("all");
           }}
         >
-          <option value="all">Everything</option>
-          <option value="line">Lines rung</option>
-          <option value="money">Money moved</option>
+          <option value="all">{tr("Everything")}</option>
+          <option value="line">{tr("Lines rung")}</option>
+          <option value="money">{tr("Money moved")}</option>
         </select>
         <select
           className="input"
           value={method}
-          title="Show only money taken on one tender"
+          title={tr("Show only money taken on one tender")}
           onChange={(e) => {
             const label = e.target.value;
             setMethod(label);
@@ -786,7 +786,7 @@ export default function EntriesPage() {
             }
           }}
         >
-          <option value="all">Any tender</option>
+          <option value="all">{tr("Any tender")}</option>
           {data.paymentMethods.map((m) => (
             <option key={m.id} value={m.label}>
               {m.label}
@@ -796,7 +796,7 @@ export default function EntriesPage() {
         <select
           className="input"
           value={category}
-          title="Show only one kind of work"
+          title={tr("Show only one kind of work")}
           onChange={(e) => {
             const c = e.target.value;
             setCategory(c);
@@ -812,7 +812,7 @@ export default function EntriesPage() {
             }
           }}
         >
-          <option value="all">Any category</option>
+          <option value="all">{tr("Any category")}</option>
           {categories.map((c) => (
             <option key={c} value={c}>
               {c}
@@ -820,7 +820,7 @@ export default function EntriesPage() {
           ))}
         </select>
         <select className="input" value={who} onChange={(e) => setWho(e.target.value)}>
-          <option value="all">Anybody</option>
+          <option value="all">{tr("Anybody")}</option>
           {people.map((p) => (
             <option key={p} value={p}>
               {p}
@@ -834,9 +834,7 @@ export default function EntriesPage() {
             type="checkbox"
             checked={showVoided}
             onChange={(e) => setShowVoided(e.target.checked)}
-          />
-          Show voided
-        </label>
+          />{tr("Show voided")}</label>
         <div className="ml-auto text-sm text-brand-400">
           {/* Says the span when it is more than a day, because every figure on
               this line is a sum over it — and "3,140.00 rung" means two very
@@ -848,8 +846,7 @@ export default function EntriesPage() {
           )}
           {rows.length} {rows.length === 1 ? "entry" : "entries"} ·{" "}
           <span className="tabular-nums">{formatCents(totals.lines)}</span> rung ·{" "}
-          <span className="tabular-nums">{formatCents(totals.money)}</span> collected
-        </div>
+          <span className="tabular-nums">{formatCents(totals.money)}</span>{tr("collected")}</div>
       </div>
 
       {error && (
@@ -862,17 +859,15 @@ export default function EntriesPage() {
         <table className="w-full text-sm">
           <thead style={{ background: "rgba(10,37,64,0.03)" }}>
             <tr className="text-brand-400">
-              <Th k="at">Time</Th>
+              <Th k="at">{tr("Time")}</Th>
               {/* A column of its own, and only here. See `cardView`. */}
               {cardView && <Th k="seq">SEQ</Th>}
-              <Th k="saleNo">Ticket</Th>
-              <Th k="what">What</Th>
-              <Th k="category">Category</Th>
-              <Th k="detail">Detail</Th>
-              <Th k="who">Who</Th>
-              <Th k="amountCents" right>
-                Amount
-              </Th>
+              <Th k="saleNo">{tr("Ticket")}</Th>
+              <Th k="what">{tr("What")}</Th>
+              <Th k="category">{tr("Category")}</Th>
+              <Th k="detail">{tr("Detail")}</Th>
+              <Th k="who">{tr("Who")}</Th>
+              <Th k="amountCents" right>{tr("Amount")}</Th>
               {/* Unlabelled. The column holds one word on a handful of rows and
                   a heading over it would read as a thing every row has. */}
               {canStrike && <th />}
@@ -978,7 +973,7 @@ export default function EntriesPage() {
                       column, and reading a payment as a second line rung is how
                       a day appears to have taken twice what it did. */}
                   {e.kind === "money" && (
-                    <span className="text-brand-300 mr-1.5" title="Money moved">
+                    <span className="text-brand-300 mr-1.5" title={tr("Money moved")}>
                       $
                     </span>
                   )}
@@ -1020,7 +1015,7 @@ export default function EntriesPage() {
                         this is the column for whatever did not fit a column,
                         and a note is exactly that. */}
                     {notesOn.has(e.key) && (
-                      <span className="italic text-brand-300" title="Note on this ticket">
+                      <span className="italic text-brand-300" title={tr("Note on this ticket")}>
                         {e.saleNotes}
                       </span>
                     )}
@@ -1058,9 +1053,7 @@ export default function EntriesPage() {
                         className="text-xs text-brand-400 hover:text-brand-500 underline"
                         title="Put this row back on the log"
                         onClick={() => void strike(e, true)}
-                      >
-                        put back
-                      </button>
+                      >{tr("put back")}</button>
                     ) : (
                       e.strikeable && (
                         <button
@@ -1068,9 +1061,7 @@ export default function EntriesPage() {
                           className="text-xs text-brand-300 hover:text-red-700 underline"
                           title="Take this row off the log. It moves no money — everyone else stops seeing it, you still do."
                           onClick={() => void strike(e, false)}
-                        >
-                          delete
-                        </button>
+                        >{tr("delete")}</button>
                       )
                     )}
                   </td>
@@ -1124,7 +1115,7 @@ export default function EntriesPage() {
                         </div>
                         <div className="text-base leading-snug">
                           A customer&apos;s older tickets will not show until you
-                          widen the dates — use <strong>Range</strong> at the top
+                          widen the dates — use <strong>{tr("Range")}</strong> at the top
                           of the page.
                         </div>
                       </div>
