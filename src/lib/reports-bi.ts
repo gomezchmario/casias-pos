@@ -1,6 +1,7 @@
 import { getDb } from "./db";
 import { taxIncludedInCents } from "./money";
 import { getSetting } from "./settings";
+import { normalizeTireSize } from "./tire-size";
 
 /**
  * The management reports: everything the shop's own records can be made to say
@@ -985,7 +986,40 @@ export function controlStats(from: string, to: string): ControlStats {
 // What the shop could not sell
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type LostRow = { size: string; tires: number; asks: number; onHand: number | null };
+export type LostRow = {
+  size: string;
+  tires: number;
+  asks: number;
+  onHand: number | null;
+  /**
+   * The text resolved to a whole tire size.
+   *
+   * False on the debris the search box logs on the way to a real query — "21545"
+   * typed on the way to "2154517", "USE" on the way to "USED", a size with a
+   * brand still half-typed after it. Those are keystrokes rather than questions,
+   * and the report hides them unless somebody asks to see them.
+   */
+  complete: boolean;
+};
+
+/**
+ * The size somebody was actually looking for, out of whatever they typed.
+ *
+ * "2154517", "215/45/17", "215 45 17" and "215-45-17" are one size and must
+ * count as one row — the register's own `normalizeTireSize` already settles
+ * that. What it cannot settle is a size with a brand trailing after it
+ * ("2259016 TRANS EAGLE 16"), so the first token is tried on its own as well.
+ *
+ * Returns null when nothing in the text resolves to a full size, which is the
+ * signal that this was a keystroke rather than a question.
+ */
+function sizeFromQuery(raw: string): string | null {
+  const whole = /^\d{2,3}-\d{2,3}(\.\d)?-\d{2}(\.\d)?$/;
+  const one = normalizeTireSize(raw);
+  if (whole.test(one)) return one;
+  const first = normalizeTireSize(raw.trim().split(/\s+/)[0] ?? "");
+  return whole.test(first) ? first : null;
+}
 
 /**
  * Demand that walked out, from the counter's own study, alongside the searches
@@ -1021,20 +1055,60 @@ export function lostDemand(from: string, to: string): { recorded: LostRow[]; sea
     )
     .all(from, to) as LostRow[];
 
-  const searched = db
+  /*
+    Grouped in JavaScript rather than in SQL, and it has to be.
+
+    The search box logs on every keystroke, so one customer asking for a
+    215/45/17 leaves "2", "21", "215", "21545", "215451" and "2154517" behind
+    it. Grouping on the stored text counts that as six different sizes nobody
+    had — the exact opposite of what the panel is for. Only `sizeFromQuery` can
+    tell which of those six is a question, and it is not expressible in SQL.
+  */
+  const raw = db
     .prepare(
-      `SELECT normalized_query AS size,
-              0 AS tires, COUNT(*) AS asks,
-              ${onHandFor("product_searches.normalized_query")} AS onHand
+      `SELECT normalized_query AS q, COUNT(*) AS n
          FROM product_searches
         WHERE business_date BETWEEN ? AND ?
           AND (result_count = 0 OR in_stock = 0)
-     GROUP BY normalized_query
-       HAVING asks > 1
-     ORDER BY asks DESC
-        LIMIT 20`,
+     GROUP BY normalized_query`,
     )
-    .all(from, to) as LostRow[];
+    .all(from, to) as { q: string; n: number }[];
+
+  const onHandBySize = new Map(
+    (
+      db
+        .prepare(
+          `SELECT p.tire_size AS size, SUM(mv.qty_delta) AS q
+             FROM inventory_movements mv
+             JOIN products p ON p.id = mv.product_id
+            WHERE p.deleted = 0 AND p.tire_size IS NOT NULL
+         GROUP BY p.tire_size`,
+        )
+        .all() as { size: string; q: number }[]
+    ).map((r) => [r.size, r.q]),
+  );
+
+  const merged = new Map<string, LostRow>();
+  for (const r of raw) {
+    const size = sizeFromQuery(r.q);
+    const key = size ?? r.q;
+    const row = merged.get(key) ?? {
+      size: key,
+      tires: 0,
+      asks: 0,
+      onHand: size ? (onHandBySize.get(size) ?? null) : null,
+      complete: size !== null,
+    };
+    row.asks += r.n;
+    merged.set(key, row);
+  }
+
+  const searched = [...merged.values()]
+    // Whole sizes first, then by how often. The toggle on the page decides
+    // whether the incomplete half is drawn at all; the order is the same either
+    // way so nothing jumps when it is switched.
+    .sort((a, b) => Number(b.complete) - Number(a.complete) || b.asks - a.asks)
+    .slice(0, 40);
 
   return { recorded, searched };
 }

@@ -139,6 +139,14 @@ export default function ReportsPage() {
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [printedOn, setPrintedOn] = useState("");
+  /**
+   * Whether the searched-for list shows the keystrokes as well as the questions.
+   *
+   * Off by default. The search box logs every character, so one customer asking
+   * for a 215/45/17 leaves half a dozen partial strings behind — those are the
+   * register being used, not sizes anybody wanted.
+   */
+  const [showPartial, setShowPartial] = useState(false);
 
   useEffect(() => setPrintedOn(new Date().toLocaleDateString()), []);
 
@@ -934,14 +942,57 @@ export default function ReportsPage() {
               {tr("The whole study")} →
             </Link>
           </Panel>
-          <Panel title={tr("Searched for and not found")} note={tr("Register searches that came back empty.")}>
+          <Panel
+            title={tr("Searched for and not found")}
+            note={tr("Sizes the register was asked for and could not show.")}
+          >
+            {/* The eye, in the corner of this panel and nowhere else on the
+                page, because this is the only list with debris in it: the
+                search box logs on every keystroke, so one customer asking for a
+                215/45/17 leaves "21545" and "215451" behind on the way there.
+
+                Open when the half-typed ones are showing, struck through when
+                they are not — the icon says what you are looking at, which is
+                how every other toggle in this app reads. */}
+            <button
+              type="button"
+              className="rp-eye rp-no-print"
+              aria-pressed={showPartial}
+              aria-label={tr("Show half-typed searches")}
+              title={
+                showPartial
+                  ? tr("Showing half-typed searches as well as whole sizes")
+                  : tr("Also show half-typed searches and other odd entries")
+              }
+              onClick={() => setShowPartial((v) => !v)}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width={16}
+                height={16}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.8}
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
+                <path d="M1.8 12S5.5 5.2 12 5.2 22.2 12 22.2 12 18.5 18.8 12 18.8 1.8 12 1.8 12Z" />
+                <circle cx="12" cy="12" r="3.1" />
+                {!showPartial && <path d="M3.5 20.5 20.5 3.5" />}
+              </svg>
+            </button>
             <RankedBars
-              data={data.lost.searched.slice(0, 10).map((r) => ({
-                label: r.size,
-                value: r.asks,
-              }))}
+              data={data.lost.searched
+                .filter((r) => showPartial || r.complete)
+                .slice(0, 10)
+                .map((r) => ({
+                  label: r.size,
+                  value: r.asks,
+                  note: r.complete ? undefined : ` · ${tr("half-typed")}`,
+                  color: r.complete ? undefined : "rgba(10,37,64,0.3)",
+                }))}
               format={(n) => `${n}`}
-              emptyLabel={tr("Every search found something.")}
+              emptyLabel={tr("Every search found a size we had.")}
             />
           </Panel>
         </div>

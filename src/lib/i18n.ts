@@ -541,6 +541,31 @@ const ES: Record<string, string> = {
   "The suggestion is about a fortnight of sales at the rate above — a starting figure, not an answer. A fortnight is right only if the truck comes in a fortnight, which this cannot know. Set it on the tire in Inventory and it starts appearing in To order.":
     "El sugerido es más o menos lo que se vende en dos semanas al ritmo de arriba — un punto de partida, no una respuesta. Dos semanas sirve solo si el camión llega en dos semanas, y eso el sistema no lo sabe. Póngalo en la llanta desde Inventario y empezará a salir en Por pedir.",
 
+// ── Discounts and the search list ──────────────────────────────────────
+  "Take money off this ticket": "Quitarle dinero a este ticket",
+  "Change the": "Cambiar el",
+  discount: "descuento",
+  "How much off": "Cuánto de descuento",
+  Why: "Por qué",
+  "Regular · matched a price · put right a mistake": "Cliente frecuente · igualamos un precio · corregir un error",
+  "Comes off the ticket before payment, and is reported separately at close.":
+    "Se descuenta del ticket antes de cobrar, y en el corte sale por separado.",
+  "You can take up to": "Usted puede quitar hasta",
+  "off; more than that needs a manager.": "; más que eso lo tiene que hacer un gerente.",
+  "That is more than you can take off on your own — a manager has to do it.":
+    "Eso es más de lo que usted puede quitar solo — lo tiene que hacer un gerente.",
+  "That is more than the ticket comes to. Giving back more than was charged is a refund.":
+    "Eso es más de lo que suma el ticket. Regresar más de lo que se cobró es una devolución.",
+  "Sizes the register was asked for and could not show.":
+    "Medidas que le pidieron a la caja y no pudo mostrar.",
+  "half-typed": "a medio escribir",
+  "Show half-typed searches": "Ver búsquedas a medio escribir",
+  "Showing half-typed searches as well as whole sizes":
+    "Mostrando también las búsquedas a medio escribir",
+  "Also show half-typed searches and other odd entries":
+    "Ver también las búsquedas a medio escribir y otros casos raros",
+  "Every search found a size we had.": "Todas las búsquedas encontraron una medida que teníamos.",
+
   // ── Things that go wrong ───────────────────────────────────────────────
   "That did not save": "Eso no se guardó",
   "Could not load": "No se pudo cargar",
