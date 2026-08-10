@@ -54,6 +54,44 @@ function Empty({ label }: { label: string }) {
   return <div className="rp-empty">{label}</div>;
 }
 
+/**
+ * The heat scale: quiet is cool, busy is hot.
+ *
+ * ONE HUE WOULD BE SAFER AND IS WORSE HERE. A single colour fading from pale to
+ * dark only separates cleanly at the two ends — the middle two thirds of a
+ * navy ramp are a smear, and the whole question this grid is asked is which of
+ * two middling hours is busier. Changing hue as well as darkness gives every
+ * step of the scale a name a person can hold: blue morning, green hour, amber
+ * hour, red hour.
+ *
+ * The stops are the brand's own navy-blue through to the red the rest of the
+ * app already uses for "this needs attention", so the grid reads as part of
+ * this program rather than as a weather map dropped into it. Darkness climbs
+ * with the hue rather than resetting, so the shape still survives being
+ * photocopied, printed in grey, or looked at by somebody who cannot separate
+ * red from green.
+ */
+const HEAT: [number, [number, number, number]][] = [
+  [0.0, [219, 232, 244]],
+  [0.3, [109, 163, 209]],
+  [0.55, [72, 165, 133]],
+  [0.78, [222, 158, 54]],
+  [1.0, [193, 47, 55]],
+];
+
+export function heatColor(t: number): string {
+  const x = Math.min(1, Math.max(0, t));
+  for (let i = 1; i < HEAT.length; i++) {
+    const [hi, top] = HEAT[i];
+    if (x > hi && i < HEAT.length - 1) continue;
+    const [lo, bottom] = HEAT[i - 1];
+    const k = hi === lo ? 0 : (x - lo) / (hi - lo);
+    const c = bottom.map((b, j) => Math.round(b + (top[j] - b) * k));
+    return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+  }
+  return `rgb(${HEAT[0][1].join(", ")})`;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -347,12 +385,16 @@ export function Heatmap({
   hours,
   format,
   emptyLabel = "No tickets in this window.",
+  quietLabel = "Quiet",
+  busyLabel = "Busiest",
 }: {
   cells: { weekday: number; hour: number; value: number }[];
   /** The hours to draw, so a shop open 8–6 does not get a grid of empty nights. */
   hours: number[];
   format: (n: number) => string;
   emptyLabel?: string;
+  quietLabel?: string;
+  busyLabel?: string;
 }) {
   if (cells.length === 0) return <Empty label={emptyLabel} />;
   const max = Math.max(...cells.map((c) => c.value), 1);
@@ -362,17 +404,34 @@ export function Heatmap({
     h === 0 ? "12a" : h < 12 ? `${h}a` : h === 12 ? "12p" : `${h - 12}p`;
 
   return (
-    <div className="rp-heat" style={{ gridTemplateColumns: `36px repeat(${hours.length}, 1fr)` }}>
-      <div />
-      {hours.map((h) => (
-        <div key={`h${h}`} className="rp-heat-hour">
-          {hourLabel(h)}
+    <>
+      <div className="rp-heat" style={{ gridTemplateColumns: `36px repeat(${hours.length}, 1fr)` }}>
+        <div />
+        {hours.map((h) => (
+          <div key={`h${h}`} className="rp-heat-hour">
+            {hourLabel(h)}
+          </div>
+        ))}
+        {DAYS.map((d, w) => (
+          <Row key={d} day={d} weekday={w} hours={hours} at={at} max={max} format={format} />
+        ))}
+      </div>
+
+      {/* A key, which the single-hue version did not need and this one does.
+          "Darker is more" explains itself; "green is more than blue" does not,
+          and a scale nobody can read is a decoration. */}
+      <div className="rp-heat-key">
+        <span>{quietLabel}</span>
+        <div className="rp-heat-ramp" aria-hidden>
+          {Array.from({ length: 24 }, (_, i) => (
+            <i key={i} style={{ background: heatColor(i / 23) }} />
+          ))}
         </div>
-      ))}
-      {DAYS.map((d, w) => (
-        <Row key={d} day={d} weekday={w} hours={hours} at={at} max={max} format={format} />
-      ))}
-    </div>
+        <span>
+          {busyLabel} · {format(max)}
+        </span>
+      </div>
+    </>
   );
 }
 
@@ -402,15 +461,126 @@ function Row({
             className="rp-heat-cell"
             title={`${day} ${h}:00 · ${format(v)}`}
             style={{
-              // Floored at a visible tint so a cell with one ticket in it does
-              // not read as an empty hour.
-              background:
-                v === 0 ? "rgba(10,37,64,0.04)" : `rgba(10,37,64,${0.12 + (v / max) * 0.78})`,
+              // An hour with nothing in it is left almost white rather than
+              // given the bottom of the scale: "shut" and "one ticket" are
+              // different facts and the coldest colour has to mean the second.
+              background: v === 0 ? "rgba(10,37,64,0.045)" : heatColor(0.08 + (v / max) * 0.92),
             }}
           />
         );
       })}
     </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A year of shape, small enough to sit in a table cell.
+ *
+ * WITHOUT THIS, EVERY FIGURE BESIDE A NAME IS AMBIGUOUS. A technician who
+ * brought in $900 a day either always has, or has just climbed, or is on the
+ * way down — three different conversations, and the number alone cannot tell
+ * them apart. The bars are unlabelled on purpose: this is a direction, not a
+ * reading, and anybody who wants the figures has the table around it.
+ *
+ * Every sparkline on a page shares one maximum, passed in by the caller, so the
+ * rows can be compared with each other. Scaled to its own maximum each row
+ * would be the same height whatever the person earned, which is the one thing
+ * this must not say.
+ */
+export function Spark({
+  values,
+  max,
+  labels,
+  format,
+  color = NAVY,
+}: {
+  values: number[];
+  max: number;
+  labels?: string[];
+  format?: (n: number) => string;
+  color?: string;
+}) {
+  if (values.length === 0) return null;
+  const top = Math.max(max, 1);
+  return (
+    <div className="rp-spark" role="img">
+      {values.map((v, i) => (
+        <i
+          key={i}
+          title={labels && format ? `${labels[i]} · ${format(v)}` : undefined}
+          style={{
+            // A floor of 2%, so a month with nothing in it still draws a
+            // baseline. A gap where a bar should be reads as a rendering fault;
+            // a flat sliver reads as a bad month, which is what it was.
+            height: `${Math.max(2, (v / top) * 100)}%`,
+            background: v === 0 ? "rgba(10,37,64,0.14)" : color,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Shares of a whole, over time.
+ *
+ * The one question a row of separate bars cannot answer: whether the shop is
+ * selling a different mix than it used to. Totals rise and fall for a dozen
+ * reasons, so each column here is normalised to its own full height and only
+ * the proportions are drawn — the money is in the tooltip and in the charts
+ * above. What the eye is meant to catch is a band getting thicker across the
+ * page.
+ */
+export function StackedBars({
+  columns,
+  format,
+  emptyLabel = "Nothing to compare yet.",
+}: {
+  columns: { label: string; parts: { label: string; value: number }[] }[];
+  format: (n: number) => string;
+  emptyLabel?: string;
+}) {
+  const drawable = columns.filter((c) => c.parts.some((p) => p.value > 0));
+  if (drawable.length === 0) return <Empty label={emptyLabel} />;
+  const names = drawable[0].parts.map((p) => p.label);
+
+  return (
+    <div className="rp-stack-wrap">
+      <div className="rp-stack">
+        {drawable.map((c) => {
+          const total = c.parts.reduce((n, p) => n + Math.max(0, p.value), 0) || 1;
+          return (
+            <div key={c.label} className="rp-stack-col">
+              <div className="rp-stack-bar">
+                {c.parts.map((p, i) => (
+                  <div
+                    key={p.label}
+                    title={`${c.label} · ${p.label} · ${format(p.value)} (${Math.round((p.value / total) * 100)}%)`}
+                    style={{
+                      height: `${(Math.max(0, p.value) / total) * 100}%`,
+                      background: SERIES[i % SERIES.length],
+                    }}
+                  />
+                ))}
+              </div>
+              <div className="rp-stack-lab">{c.label}</div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="rp-legend">
+        {names.map((n, i) => (
+          <span key={n}>
+            <i style={{ background: SERIES[i % SERIES.length] }} />
+            {n}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 

@@ -8,6 +8,8 @@ import {
   controlStats,
   customerStats,
   deadStock,
+  employeePerformance,
+  employeeSparks,
   headline,
   hourHeatmap,
   lostDemand,
@@ -19,6 +21,7 @@ import {
   revenueTrend,
   stockValue,
   tenderMix,
+  trends,
   weekdayProfile,
   type Grain,
 } from "@/lib/reports-bi";
@@ -112,15 +115,21 @@ export async function GET(req: NextRequest) {
     tenders: tenderMix(from, to),
     heatmap: hourHeatmap(from, to),
     weekdays: weekdayProfile(from, to),
-    // Both ends of one ranked list. Sent already cut so the page does not have
-    // to know the rule, and so the payload does not carry six hundred products
-    // to draw twenty of them.
-    bestSellers: products.filter((p) => p.units > 0).slice(0, 12),
+    /**
+     * The sellers, deepest first, cut at a hundred.
+     *
+     * Deeper than the dozen the page draws, because the page draws them ten at
+     * a time and somebody hunting for a size they think should be there will
+     * press for more. A hundred rows is a few kilobytes and saves a round trip
+     * per press; six hundred would be carrying the whole catalogue to show ten
+     * of it.
+     */
+    bestSellers: products.filter((p) => p.units > 0).slice(0, 100),
     stock: stockValue(),
     dead: deadStock(to, 45).slice(0, 15),
     reorder: reorderList(to).slice(0, 20),
     // Deliberately not windowed — it measures a rate, and a rate taken over the
-    // seven days somebody happened to pick is noise. See .
+    // seven days somebody happened to pick is noise. See `restockAdvice`.
     restock: restockAdvice(to).slice(0, 15),
     aging: receivablesAging(to),
     customers: customerStats(from, to),
@@ -146,5 +155,21 @@ export async function GET(req: NextRequest) {
         incomePct: total > 0 ? (t.incomeCents / total) * 100 : 0,
       }));
     })(),
+    /**
+     * The same people again, measured rather than listed.
+     *
+     * `techs` above is the board: who did what, over this window. This is the
+     * appraisal — days present, money per day present, the same figures over
+     * the window before, and a year of shape behind each name. They are drawn
+     * as two sections because they answer two different questions, and the one
+     * that compares has to carry the caveats the one that lists does not.
+     */
+    employees: employeePerformance(from, to),
+    sparks: employeeSparks(to),
+    /**
+     * Not windowed, and the section says so. A direction taken over whichever
+     * fortnight somebody selected is not a direction — see `trends`.
+     */
+    trends: trends(today),
   });
 }

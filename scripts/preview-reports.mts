@@ -24,6 +24,8 @@ import {
   Heatmap,
   PairedBars,
   RankedBars,
+  Spark,
+  StackedBars,
   Stat,
   changePct,
 } from "../src/components/pos/Charts.tsx";
@@ -32,6 +34,8 @@ import {
   controlStats,
   customerStats,
   deadStock,
+  employeePerformance,
+  employeeSparks,
   headline,
   hourHeatmap,
   lostDemand,
@@ -42,6 +46,7 @@ import {
   revenueTrend,
   stockValue,
   tenderMix,
+  trends,
   weekdayProfile,
 } from "../src/lib/reports-bi.ts";
 import { formatCents } from "../src/lib/money.ts";
@@ -72,6 +77,19 @@ const cust = customerStats(from, to);
 const ctl = controlStats(from, to);
 const lost = lostDemand(from, to);
 const buys = purchaseSummary(from, to);
+
+const emp = employeePerformance(from, to);
+const sparks = employeeSparks(to);
+const tr = trends(to);
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const mlabel = (b: string) => `${MONTHS[Number(b.split("-")[1]) - 1].slice(0, 3)} ${b.slice(2, 4)}`;
+const dayRates = emp.rows.map((r) => r.perDayCents).sort((a, b) => a - b);
+const medianPerDay = dayRates.length ? dayRates[Math.floor(dayRates.length / 2)] : 0;
+const bestPerDay = emp.rows.reduce<(typeof emp.rows)[number] | null>(
+  (best, r) => (!best || r.perDayCents > best.perDayCents ? r : best),
+  null,
+);
+const sparkMax = Math.max(1, ...Object.values(sparks.byEmployee).flatMap((s) => s));
 
 const hrs = heat.map((c) => c.hour);
 const lo = hrs.length ? Math.min(...hrs) : 8;
@@ -170,7 +188,7 @@ const body = renderToStaticMarkup(
     ),
 
     Section("When the shop is busy",
-      "Darker is more tickets. This is the one report that settles a rota argument.",
+      "Blue is quiet, red is flat out. This is the one report that settles a rota argument.",
       Panel("Tickets by hour", null, h(Heatmap, {
         cells: heat.map((c) => ({ weekday: c.weekday, hour: c.hour, value: c.tickets })),
         hours, format: (n: number) => `${n} tickets`,
@@ -193,6 +211,83 @@ const body = renderToStaticMarkup(
           })(), format: count,
         })),
       ]),
+    ),
+
+    Section("How everyone is doing",
+      "Measured per day they were actually here, against the same length of time before this window.",
+      emp.priorTradingDays === 0
+        ? h("div", { className: "rp-warn", key: "w" },
+            `There is no record of the shop opening between ${emp.priorFrom} and ${emp.priorTo}, so there is nothing to compare this window against.`)
+        : null,
+      h("div", { className: "rp-stats", key: "s" }, [
+        h(Stat, { key: 1, label: "On the floor", value: String(emp.rows.length), sub: "credited with work in this window" }),
+        h(Stat, { key: 2, label: "Best day rate", value: money(bestPerDay?.perDayCents ?? 0), sub: bestPerDay ? `${bestPerDay.name} · ${bestPerDay.daysWorked} days here` : "—" }),
+        h(Stat, { key: 3, label: "Typical day rate", value: money(medianPerDay), sub: "the middle of the crew" }),
+        h(Stat, { key: 4, label: "Tips", value: money(emp.rows.reduce((n, r) => n + r.tipCents, 0)), sub: "what customers added" }),
+      ]),
+      Panel("Money brought in, per day here", "The fair comparison between people who work different amounts.",
+        h(RankedBars, {
+          data: emp.rows.slice().sort((a, b) => b.perDayCents - a.perDayCents)
+            .map((r) => ({ label: r.name, value: r.perDayCents, note: ` · ${r.daysWorked} days` })),
+          format: money,
+        })),
+      h("table", { className: "rp-table", key: "tb" }, [
+        h("thead", { key: "h" }, h("tr", null,
+          ["Technician", "Days here", "Tickets", "Per ticket", "Tip a ticket", "Per day here", "Brought in", "Last 12 months"]
+            .map((c, i) => h("th", { key: i, className: i && i < 7 ? "r" : undefined }, c)))),
+        h("tbody", { key: "b" }, emp.rows.map((r) => h("tr", { key: r.employeeId }, [
+          h("td", { key: 0 }, r.name),
+          h("td", { key: 1, className: "r n" }, String(r.daysWorked)),
+          h("td", { key: 2, className: "r n" }, String(r.ticketCount)),
+          h("td", { key: 3, className: "r n" }, money(r.perTicketCents)),
+          h("td", { key: 4, className: "r n" }, r.tipCents ? money(r.tipPerTicketCents) : "—"),
+          h("td", { key: 5, className: "r n" }, money(r.perDayCents)),
+          h("td", { key: 6, className: "r n" }, `${money(r.incomeCents)} · ${r.incomePct.toFixed(0)}%`),
+          h("td", { key: 7 }, h(Spark, {
+            values: sparks.byEmployee[r.employeeId] ?? [], max: sparkMax,
+            labels: sparks.months, format: money,
+          })),
+        ]))),
+      ]),
+    ),
+
+    Section("Which way it is going",
+      "The only section that ignores the window at the top — it always covers the last two years.",
+      tr.gapMonths.length > 0
+        ? h("div", { className: "rp-warn", key: "w" },
+            `No records at all for ${tr.gapMonths.join(", ")}. Those months are left out of every comparison below rather than counted as zero.`)
+        : null,
+      h("div", { className: "rp-stats", key: "s" }, [
+        h(Stat, { key: 1, label: "Takings a day", value: money(tr.summary.perDayNowCents),
+          deltaPct: tr.summary.growthPct ?? undefined, deltaLabel: `on a year ago · ${tr.summary.comparedMonths} months compared` }),
+        h(Stat, { key: 2, label: "Last 12 months", value: money(tr.summary.last12Cents), sub: `${tr.summary.ticketsLast12} tickets` }),
+        h(Stat, { key: 3, label: "Average ticket", value: money(tr.summary.avgTicketLast12),
+          deltaPct: changePct(tr.summary.avgTicketLast12, tr.summary.avgTicketPrev12) ?? undefined, deltaLabel: "on the 12 months before" }),
+        h(Stat, { key: 4, label: "Best month", value: tr.summary.bestMonth ? mlabel(tr.summary.bestMonth.bucket) : "—",
+          sub: tr.summary.bestMonth ? `${money(tr.summary.bestMonth.perDayCents)} a day` : undefined }),
+      ]),
+      Panel("Takings for every day open, month by month", "Per trading day, so a short February is not a bad February.",
+        h(BarChart, {
+          data: tr.months.map((m) => ({ label: mlabel(m.bucket), value: m.perDayCents, sub: m.tradingDays === 0 ? "no records" : undefined })),
+          format: money, height: 150,
+        })),
+      h("div", { className: "rp-two", key: "y" }, [
+        Panel("This year against last", "Each month beside the same month a year earlier.",
+          h(PairedBars, {
+            data: tr.yoy.map((y) => ({ label: mlabel(y.bucket), a: y.beforeCents, b: y.nowCents })),
+            labels: ["A year ago", "This year"] as [string, string], format: money,
+          })),
+        Panel("The shop's year", "Every January averaged, every February averaged, and so on.",
+          h(RankedBars, {
+            data: tr.seasonality.map((s) => ({ label: MONTHS[s.month - 1], value: s.perDayCents, note: ` · ${s.years} years` })),
+            format: money,
+          })),
+      ]),
+      Panel("What the shop sells, quarter by quarter", "Watch for a band getting thicker across the page.",
+        h(StackedBars, {
+          columns: tr.mix.map((q) => ({ label: q.bucket.replace("-", " "), parts: q.parts.map((p) => ({ label: p.label, value: p.cents })) })),
+          format: money,
+        })),
     ),
 
     Section("The racks",

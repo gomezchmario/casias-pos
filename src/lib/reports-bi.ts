@@ -2,6 +2,7 @@ import { getDb } from "./db";
 import { taxIncludedInCents } from "./money";
 import { getSetting } from "./settings";
 import { COST_JOINS, UNIT_COST_SQL } from "./costs";
+import { techPeriod, tipsByTech } from "./leaderboard";
 import { normalizeTireSize } from "./tire-size";
 
 /**
@@ -1082,23 +1083,58 @@ export function lostDemand(from: string, to: string): { recorded: LostRow[]; sea
     .all(from, to) as LostRow[];
 
   /*
-    Grouped in JavaScript rather than in SQL, and it has to be.
+    Grouped in JavaScript rather than in SQL, and it has to be — twice over.
 
     The search box logs on every keystroke, so one customer asking for a
     215/45/17 leaves "2", "21", "215", "21545", "215451" and "2154517" behind
     it. Grouping on the stored text counts that as six different sizes nobody
     had — the exact opposite of what the panel is for. Only `sizeFromQuery` can
     tell which of those six is a question, and it is not expressible in SQL.
+
+    ONE CUSTOMER IS ONE ASK, however many times the size was typed. Even after
+    the keystrokes collapse onto a size, the count is still inflated by the
+    counter searching a size, talking to the customer, and searching it again to
+    be sure. So repeats of the same size are ignored unless there is a gap
+    between them: two minutes, long enough to swallow a size looked up three
+    times while somebody is still standing there, short enough that the next
+    customer asking for the same size an hour later counts again — which is the
+    whole thing this panel is trying to measure.
+
+    That second pass walks the rows in time order rather than grouping them,
+    because "how many gaps are there in this run of timestamps" is not a
+    question GROUP BY can answer.
   */
-  const raw = db
+  const hits = db
     .prepare(
-      `SELECT normalized_query AS q, COUNT(*) AS n
+      `SELECT normalized_query AS q, created_at AS at
          FROM product_searches
         WHERE business_date BETWEEN ? AND ?
           AND (result_count = 0 OR in_stock = 0)
-     GROUP BY normalized_query`,
+     ORDER BY created_at`,
     )
-    .all(from, to) as { q: string; n: number }[];
+    .all(from, to) as { q: string; at: string }[];
+
+  const APART_MS = 2 * 60 * 1000;
+  const lastSeen = new Map<string, number>();
+  const raw: { q: string; n: number }[] = [];
+  const counted = new Map<string, number>();
+
+  for (const h of hits) {
+    // Keyed on the SIZE rather than on the text, so "2154517" typed at 10:00
+    // and "215/45/17" typed at 10:01 are the same customer asking once.
+    const key = sizeFromQuery(h.q) ?? h.q;
+    const at = Date.parse(h.at.replace(" ", "T"));
+    const prev = lastSeen.get(key);
+    if (prev !== undefined && Number.isFinite(at) && at - prev < APART_MS) {
+      lastSeen.set(key, at);
+      continue;
+    }
+    if (Number.isFinite(at)) lastSeen.set(key, at);
+    // The text of the first hit in each run carries the row, so a size that
+    // only ever arrived half-typed still reports as half-typed.
+    counted.set(h.q, (counted.get(h.q) ?? 0) + 1);
+  }
+  for (const [q, n] of counted) raw.push({ q, n });
 
   const onHandBySize = new Map(
     (
@@ -1263,6 +1299,512 @@ export function headline(from: string, to: string): Headline {
       goodsCents: before.goods,
       tickets: before.tickets,
       avgTicketCents: before.tickets > 0 ? Math.round(before.goods / before.tickets) : 0,
+    },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The people
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type EmployeeRow = {
+  employeeId: number;
+  name: string;
+  role: string;
+  active: number;
+  newTires: number;
+  usedTires: number;
+  otherCount: number;
+  ticketCount: number;
+  incomeCents: number;
+  tipCents: number;
+  /** Days this person was credited with anything — the only attendance the sales records can prove. */
+  daysWorked: number;
+  lastDay: string | null;
+  perDayCents: number;
+  perTicketCents: number;
+  tipPerTicketCents: number;
+  incomePct: number;
+  prior: { incomeCents: number; daysWorked: number; perDayCents: number };
+};
+
+/**
+ * The credit union, spelled once.
+ *
+ * A line can pay two people — the seller of an ordered tire and whoever fitted
+ * it days later — and `techPeriod` in leaderboard.ts already settles how that
+ * splits. Attendance has to be counted over the SAME union or a fitter who only
+ * ever mounted other people's tires reads as never having come in.
+ */
+const CREDIT_DAYS = `
+  SELECT i.mechanic_id AS emp, s.business_date AS d
+    FROM sale_items i JOIN sales s ON s.id = i.sale_id
+   WHERE ${SALE} AND i.voided = 0 AND i.mechanic_id IS NOT NULL
+     AND s.business_date BETWEEN ? AND ?
+   UNION
+  SELECT i.mount_mechanic_id, s.business_date
+    FROM sale_items i JOIN sales s ON s.id = i.sale_id
+   WHERE ${SALE} AND i.voided = 0 AND i.mount_mechanic_id IS NOT NULL
+     AND s.business_date BETWEEN ? AND ?`;
+
+/** Days present and the last of them, per person, over a window. */
+function attendance(from: string, to: string): Map<number, { days: number; lastDay: string }> {
+  const rows = getDb()
+    .prepare(
+      `SELECT emp, COUNT(*) AS days, MAX(d) AS lastDay
+         FROM (${CREDIT_DAYS})
+     GROUP BY emp`,
+    )
+    .all(from, to, from, to) as { emp: number; days: number; lastDay: string }[];
+  return new Map(rows.map((r) => [r.emp, { days: r.days, lastDay: r.lastDay }]));
+}
+
+/**
+ * How each technician did, against how they did over the window before it.
+ *
+ * BUILT ON WHAT THE RECORDS CAN ACTUALLY PROVE, which is a shorter list than it
+ * looks. The obvious performance measure — money per hour on the clock — is not
+ * here, and deliberately: the time clock has a handful of entries against two
+ * and a half years of sales, so a revenue-per-hour column would be blank for
+ * everybody and wrong for the two it wasn't. Days credited is the attendance
+ * this data can support, so that is what per-day is divided by.
+ *
+ * Who was at the counter is not measured either. Every imported ticket names
+ * one person as cashier because the workbook it came from never recorded that,
+ * and a chart of it would say far more about the import than about the shop.
+ *
+ * The prior window is the same length ending the day before this one, matching
+ * the headline tiles, so a delta here and a delta there mean the same thing.
+ */
+export function employeePerformance(
+  from: string,
+  to: string,
+): { rows: EmployeeRow[]; priorFrom: string; priorTo: string; priorTradingDays: number } {
+  const db = getDb();
+  const span =
+    Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
+  const priorTo = shiftDate(from, -1);
+  const priorFrom = shiftDate(priorTo, -(span - 1));
+
+  const now = techPeriod(from, to);
+  const before = new Map(techPeriod(priorFrom, priorTo).map((t) => [t.employeeId, t]));
+  const tips = new Map(tipsByTech(from, to).map((t) => [t.employeeId, t.tipCents]));
+  const daysNow = attendance(from, to);
+  const daysBefore = attendance(priorFrom, priorTo);
+  const who = new Map(
+    (
+      db.prepare("SELECT id, pos_role AS role, active FROM employees").all() as {
+        id: number;
+        role: string;
+        active: number;
+      }[]
+    ).map((e) => [e.id, e]),
+  );
+
+  const total = now.reduce((n, t) => n + t.incomeCents, 0);
+
+  /*
+    Whether the window before this one has any record of the shop opening.
+    Eleven weeks of 2026 do not — the workbooks the history was rebuilt from
+    never covered them — and without this the page would draw every technician
+    as down 100% for a fortnight nobody wrote down. The page checks it and says
+    so instead of drawing an arrow.
+  */
+  const priorTradingDays = (
+    db
+      .prepare(
+        `SELECT COUNT(DISTINCT s.business_date) AS d FROM sales s
+          WHERE ${SALE} AND s.business_date BETWEEN ? AND ?`,
+      )
+      .get(priorFrom, priorTo) as { d: number }
+  ).d;
+
+  const rows = now.map((t) => {
+    const d = daysNow.get(t.employeeId);
+    const pd = daysBefore.get(t.employeeId);
+    const p = before.get(t.employeeId);
+    const days = d?.days ?? 0;
+    const priorDays = pd?.days ?? 0;
+    const priorIncome = p?.incomeCents ?? 0;
+    const tipCents = tips.get(t.employeeId) ?? 0;
+    return {
+      ...t,
+      role: who.get(t.employeeId)?.role ?? "technician",
+      active: who.get(t.employeeId)?.active ?? 0,
+      tipCents,
+      daysWorked: days,
+      lastDay: d?.lastDay ?? null,
+      // Per DAY PRESENT, not per day in the window. Somebody who works
+      // Saturdays only is not a sixth as productive as somebody who works six
+      // days, and a column that said so would be read as saying they were.
+      perDayCents: days > 0 ? Math.round(t.incomeCents / days) : 0,
+      perTicketCents: t.ticketCount > 0 ? Math.round(t.incomeCents / t.ticketCount) : 0,
+      tipPerTicketCents: t.ticketCount > 0 ? Math.round(tipCents / t.ticketCount) : 0,
+      incomePct: total > 0 ? (t.incomeCents / total) * 100 : 0,
+      prior: {
+        incomeCents: priorIncome,
+        daysWorked: priorDays,
+        perDayCents: priorDays > 0 ? Math.round(priorIncome / priorDays) : 0,
+      },
+    };
+  });
+
+  return { rows, priorFrom, priorTo, priorTradingDays };
+}
+
+/**
+ * The last twelve months of each technician's income, for a sparkline.
+ *
+ * Not windowed, and it must not be: the point of the row of bars beside a name
+ * is to say whether the figure to its left is where that person has always been
+ * or somewhere they have just arrived, and a shape drawn only over the window
+ * cannot answer that.
+ */
+export function employeeSparks(
+  to: string,
+  months = 12,
+): { months: string[]; byEmployee: Record<number, number[]> } {
+  const start = `${shiftMonths(to.slice(0, 7), -(months - 1))}-01`;
+  const keys = bucketsBetween(start, to, "month");
+  const rows = getDb()
+    .prepare(
+      `SELECT emp, bucket, SUM(cents) AS cents FROM (
+         SELECT i.mechanic_id AS emp, substr(s.business_date, 1, 7) AS bucket,
+                i.line_total_cents
+                  - CASE WHEN i.mount_mechanic_id IS NULL THEN 0
+                         ELSE MIN(i.mount_unit_cents * i.qty, i.line_total_cents) END AS cents
+           FROM sale_items i JOIN sales s ON s.id = i.sale_id
+          WHERE ${SALE} AND i.voided = 0 AND i.mechanic_id IS NOT NULL
+            AND s.business_date BETWEEN ? AND ?
+          UNION ALL
+         SELECT i.mount_mechanic_id, substr(s.business_date, 1, 7),
+                MIN(i.mount_unit_cents * i.qty, i.line_total_cents)
+           FROM sale_items i JOIN sales s ON s.id = i.sale_id
+          WHERE ${SALE} AND i.voided = 0 AND i.mount_mechanic_id IS NOT NULL
+            AND s.business_date BETWEEN ? AND ?
+       ) GROUP BY emp, bucket`,
+    )
+    .all(start, to, start, to) as { emp: number; bucket: string; cents: number }[];
+
+  const byEmployee: Record<number, number[]> = {};
+  for (const r of rows) {
+    const series = (byEmployee[r.emp] ??= keys.map(() => 0));
+    const at = keys.indexOf(r.bucket);
+    if (at >= 0) series[at] = r.cents;
+  }
+  return { months: keys, byEmployee };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Trends
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type TrendsData = {
+  /** Month by month over the long run, whatever the window at the top says. */
+  months: {
+    bucket: string;
+    goodsCents: number;
+    tickets: number;
+    avgTicketCents: number;
+    tradingDays: number;
+    perDayCents: number;
+  }[];
+  /** The last twelve months against the twelve before them, month by month. */
+  yoy: { bucket: string; label: string; nowCents: number; beforeCents: number }[];
+  /** Every January averaged, every February averaged, and so on. */
+  seasonality: { month: number; perDayCents: number; years: number }[];
+  /** Months inside the drawn range with no record of trading at all. */
+  gapMonths: string[];
+  /** What the shop sold, as a share, quarter by quarter. */
+  mix: { bucket: string; parts: { label: string; cents: number }[] }[];
+  summary: {
+    last12Cents: number;
+    prev12Cents: number;
+    /**
+     * Takings per trading day, this year against last, over the months BOTH
+     * years have records for. See the note on `trends` — with days missing out
+     * of the history a straight total tells a lie and this does not.
+     */
+    perDayNowCents: number;
+    perDayBeforeCents: number;
+    growthPct: number | null;
+    comparedMonths: number;
+    skippedMonths: string[];
+    ticketsLast12: number;
+    ticketsPrev12: number;
+    avgTicketLast12: number;
+    avgTicketPrev12: number;
+    bestMonth: { bucket: string; perDayCents: number; cents: number } | null;
+    bestDay: { date: string; cents: number } | null;
+    monthsOfHistory: number;
+  };
+};
+
+/** A month key, `n` months away. */
+function shiftMonths(month: string, n: number): string {
+  const [y, m] = month.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + n, 1));
+  return d.toISOString().slice(0, 7);
+}
+
+/** A date, `n` days away. */
+function shiftDate(date: string, n: number): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Where the shop is heading, over as much history as it has.
+ *
+ * THE ONE SECTION THAT IGNORES THE WINDOW AT THE TOP, and it says so on the
+ * page. Every other figure on this page answers "how did we do over these
+ * dates"; a trend answers "which way is this going", and a direction taken over
+ * whatever fortnight somebody happened to select is not a direction. The
+ * restock advice already works this way for the same reason.
+ *
+ * Two years of the old workbook are what make this section worth having at all.
+ * Before the import there was one season of history, and a year-over-year
+ * column with nothing in it is worse than no column.
+ *
+ * A month is the bucket rather than a week because tire work is seasonal in
+ * months — the cold snap, the tax refunds, the school run — and weekly bars
+ * turn that into noise.
+ *
+ * EVERY COMPARISON HERE IS PER TRADING DAY, and that is not a stylistic choice.
+ * The history has holes in it — the workbooks it was rebuilt from do not cover
+ * every week, and eleven weeks of 2026 have no record at all. A total for a
+ * month nobody wrote down is zero, and zero against a full month the year
+ * before reads as the shop having collapsed. Dividing by the days there is
+ * actually a record of turns a hole into a smaller sample instead of a
+ * catastrophe, and the months that are missing entirely are dropped from both
+ * sides of the comparison and named in `skippedMonths` so the page can say so
+ * out loud. It also happens to be the fairer measure anyway: February is short,
+ * and a shop shut for a week in July did not have a bad July.
+ */
+export function trends(today: string): TrendsData {
+  const db = getDb();
+  const firstDate =
+    (
+      db.prepare(`SELECT MIN(business_date) d FROM sales s WHERE s.deleted = 0 AND s.kind = 'sale'`).get() as {
+        d: string | null;
+      }
+    ).d ?? today;
+
+  /*
+    Two years of FINISHED months, plus the part-finished one we are standing in
+    — twenty-five buckets, not twenty-four.
+
+    The extra one is not decoration. The current month is excluded from every
+    comparison below, so a range of twenty-four buckets leaves only twenty-three
+    closed months, and the oldest half of a twelve-against-twelve comparison
+    comes up one short: last August has no August to be measured against and
+    gets silently thrown out. Reaching back one further month is what makes the
+    twelve pairs twelve.
+  */
+  const startMonth = shiftMonths(today.slice(0, 7), -24);
+  const start = `${startMonth}-01` < firstDate ? firstDate : `${startMonth}-01`;
+
+  const raw = db
+    .prepare(
+      `SELECT substr(s.business_date, 1, 7) AS bucket,
+              COALESCE(SUM(s.subtotal_cents - s.discount_cents), 0) AS goods,
+              COUNT(*) AS tickets,
+              COUNT(DISTINCT s.business_date) AS tradingDays
+         FROM sales s
+        WHERE ${SALE} AND s.business_date BETWEEN ? AND ?
+     GROUP BY bucket`,
+    )
+    .all(start, today) as {
+    bucket: string;
+    goods: number;
+    tickets: number;
+    tradingDays: number;
+  }[];
+  const byMonth = new Map(raw.map((r) => [r.bucket, r]));
+
+  const months = bucketsBetween(start, today, "month").map((bucket) => {
+    const r = byMonth.get(bucket);
+    const goodsCents = r?.goods ?? 0;
+    const tickets = r?.tickets ?? 0;
+    const tradingDays = r?.tradingDays ?? 0;
+    return {
+      bucket,
+      goodsCents,
+      tickets,
+      tradingDays,
+      avgTicketCents: tickets > 0 ? Math.round(goodsCents / tickets) : 0,
+      perDayCents: tradingDays > 0 ? Math.round(goodsCents / tradingDays) : 0,
+    };
+  });
+
+  /*
+    THE CURRENT MONTH IS PART-FINISHED and is left out of every comparison
+    below. On the ninth of the month its total is a third of a month and would
+    read as a collapse — the single most misleading thing a trend chart can do.
+    It stays in the bar chart, where the gap beside the bars makes it obvious,
+    and it is excluded from the growth figures, where nothing would.
+  */
+  const thisMonth = today.slice(0, 7);
+  const closed = months.filter((m) => m.bucket !== thisMonth);
+  const last12 = closed.slice(-12);
+  const prev12 = closed.slice(-24, -12);
+  const sum = (rows: typeof closed, pick: (r: (typeof closed)[number]) => number) =>
+    rows.reduce((n, r) => n + pick(r), 0);
+
+  const last12Cents = sum(last12, (r) => r.goodsCents);
+  const prev12Cents = sum(prev12, (r) => r.goodsCents);
+  const ticketsLast12 = sum(last12, (r) => r.tickets);
+  const ticketsPrev12 = sum(prev12, (r) => r.tickets);
+
+  /*
+    LIKE FOR LIKE, month against the same month a year earlier, and only where
+    both of them have a record. A month missing from either side is thrown out
+    of both and listed, because the alternative — counting it as zero — is what
+    makes a gap in the records look like a collapse in the business.
+  */
+  const prevBy = new Map(prev12.map((m) => [m.bucket, m]));
+  const skippedMonths: string[] = [];
+  let nowGoods = 0;
+  let nowDays = 0;
+  let beforeGoods = 0;
+  let beforeDays = 0;
+  for (const m of last12) {
+    const b = prevBy.get(shiftMonths(m.bucket, -12));
+    if (m.tradingDays === 0 || !b || b.tradingDays === 0) {
+      skippedMonths.push(m.bucket);
+      continue;
+    }
+    nowGoods += m.goodsCents;
+    nowDays += m.tradingDays;
+    beforeGoods += b.goodsCents;
+    beforeDays += b.tradingDays;
+  }
+  const perDayNowCents = nowDays > 0 ? Math.round(nowGoods / nowDays) : 0;
+  const perDayBeforeCents = beforeDays > 0 ? Math.round(beforeGoods / beforeDays) : 0;
+
+  const yoy = last12.map((m) => {
+    const beforeKey = shiftMonths(m.bucket, -12);
+    return {
+      bucket: m.bucket,
+      label: m.bucket,
+      nowCents: m.goodsCents,
+      // Null would be honest for a month that predates the records, but a chart
+      // cannot draw null — zero with no bar beside it says the same thing and
+      // the note under the chart says which months those are.
+      beforeCents: byMonth.get(beforeKey)?.goods ?? 0,
+    };
+  });
+
+  /*
+    Seasonality over EVERY year on record, not just the two drawn above — it is
+    the one question here that gets better the further back it reaches.
+
+    Per trading day again, and here it matters most of all. Half of one July is
+    on record and all of another; a plain average over years would put July at
+    three quarters of its real height and invent a summer slump that the shop
+    never had.
+  */
+  const season = db
+    .prepare(
+      `SELECT CAST(substr(s.business_date, 6, 2) AS INTEGER) AS month,
+              COALESCE(SUM(s.subtotal_cents - s.discount_cents), 0) AS goods,
+              COUNT(DISTINCT s.business_date) AS days,
+              COUNT(DISTINCT substr(s.business_date, 1, 4)) AS years
+         FROM sales s
+        WHERE ${SALE}
+     GROUP BY month
+     ORDER BY month`,
+    )
+    .all() as { month: number; goods: number; days: number; years: number }[];
+  const seasonality = season.map((r) => ({
+    month: r.month,
+    perDayCents: r.days > 0 ? Math.round(r.goods / r.days) : 0,
+    years: r.years,
+  }));
+
+  /*
+    The mix by quarter, in the same three buckets the rest of the page uses.
+    Quarterly rather than monthly because a share only moves slowly and twenty
+    four stacked columns of near-identical proportions communicate nothing.
+  */
+  const mixRows = db
+    .prepare(
+      `SELECT substr(s.business_date, 1, 4) || '-Q' ||
+                ((CAST(substr(s.business_date, 6, 2) AS INTEGER) + 2) / 3) AS bucket,
+              CASE WHEN c.code = 'new_tire'  THEN 'New tires'
+                   WHEN c.code = 'used_tire' THEN 'Used tires'
+                   ELSE 'Service' END AS part,
+              COALESCE(SUM(i.line_total_cents), 0) AS cents
+         FROM sale_items i
+         JOIN sales s ON s.id = i.sale_id
+    LEFT JOIN service_categories c ON c.id = i.category_id
+        WHERE ${SALE} AND i.voided = 0 AND s.business_date BETWEEN ? AND ?
+     GROUP BY bucket, part
+     ORDER BY bucket`,
+    )
+    .all(start, today) as { bucket: string; part: string; cents: number }[];
+
+  const mixBy = new Map<string, { label: string; cents: number }[]>();
+  for (const r of mixRows) {
+    const parts = mixBy.get(r.bucket) ?? [];
+    parts.push({ label: r.part, cents: r.cents });
+    mixBy.set(r.bucket, parts);
+  }
+  const ORDER = ["New tires", "Used tires", "Service"];
+  const mix = [...mixBy.entries()].map(([bucket, parts]) => ({
+    bucket,
+    parts: ORDER.map((label) => ({
+      label,
+      cents: parts.find((p) => p.label === label)?.cents ?? 0,
+    })),
+  }));
+
+  // Ranked on the daily rate, so a fully recorded month cannot lose to a
+  // half-recorded one purely for having been written down.
+  const bestMonth = closed.reduce<{ bucket: string; perDayCents: number; cents: number } | null>(
+    (best, m) =>
+      m.tradingDays > 0 && (!best || m.perDayCents > best.perDayCents)
+        ? { bucket: m.bucket, perDayCents: m.perDayCents, cents: m.goodsCents }
+        : best,
+    null,
+  );
+  const bestDayRow = db
+    .prepare(
+      `SELECT s.business_date AS date,
+              COALESCE(SUM(s.subtotal_cents - s.discount_cents), 0) AS cents
+         FROM sales s
+        WHERE ${SALE}
+     GROUP BY s.business_date
+     ORDER BY cents DESC
+        LIMIT 1`,
+    )
+    .get() as { date: string; cents: number } | undefined;
+
+  return {
+    months,
+    yoy,
+    seasonality,
+    mix,
+    gapMonths: months.filter((m) => m.tradingDays === 0).map((m) => m.bucket),
+    summary: {
+      last12Cents,
+      prev12Cents,
+      perDayNowCents,
+      perDayBeforeCents,
+      growthPct:
+        perDayBeforeCents > 0
+          ? ((perDayNowCents - perDayBeforeCents) / perDayBeforeCents) * 100
+          : null,
+      comparedMonths: last12.length - skippedMonths.length,
+      skippedMonths,
+      ticketsLast12,
+      ticketsPrev12,
+      avgTicketLast12: ticketsLast12 > 0 ? Math.round(last12Cents / ticketsLast12) : 0,
+      avgTicketPrev12: ticketsPrev12 > 0 ? Math.round(prev12Cents / ticketsPrev12) : 0,
+      bestMonth,
+      bestDay: bestDayRow ?? null,
+      monthsOfHistory: closed.filter((m) => m.tickets > 0).length,
     },
   };
 }

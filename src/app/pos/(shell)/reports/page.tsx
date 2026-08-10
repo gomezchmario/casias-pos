@@ -7,10 +7,13 @@ import { useLang } from "@/components/pos/LangToggle";
 import { ShopLogo } from "@/components/ui/ShopLogo";
 import {
   BarChart,
+  Delta,
   Donut,
   Heatmap,
   PairedBars,
   RankedBars,
+  Spark,
+  StackedBars,
   Stat,
   changePct,
 } from "@/components/pos/Charts";
@@ -21,6 +24,7 @@ import type {
   ControlStats,
   CustomerStats,
   DeadStockRow,
+  EmployeeRow,
   Headline,
   HourCell,
   LostRow,
@@ -31,6 +35,7 @@ import type {
   StockValueRow,
   TenderRow,
   TrendPoint,
+  TrendsData,
   WeekdayRow,
 } from "@/lib/reports-bi";
 import "./reports.css";
@@ -50,15 +55,20 @@ import "./reports.css";
  *   What sells   — where the money comes from and where the margin is
  *   When         — the hours and days the shop actually earns in
  *   Who          — the technicians, over the same window as everything else
+ *   Performance  — the same people measured rather than listed
+ *   Trends       — which way the whole thing is heading
  *   The racks    — cash standing still, and cash about to run out
  *   Owed         — what is out there, by how old it is
  *   Customers    — who comes back, and who spends
  *   Missed       — what walked out of the door unsold
  *   Control      — the handful of things worth a second look
  *
- * EVERY FIGURE COVERS THE WINDOW AT THE TOP. That promise is the reason this
- * page can be trusted, and it is why the technician board here is built from
- * the window rather than borrowed from the close-out's calendar week.
+ * EVERY FIGURE COVERS THE WINDOW AT THE TOP, WITH ONE MARKED EXCEPTION. That
+ * promise is the reason this page can be trusted, and it is why the technician
+ * board here is built from the window rather than borrowed from the close-out's
+ * calendar week. Trends is the exception and says so in its own heading: a
+ * direction measured over whichever fortnight somebody selected is not a
+ * direction, so that section always covers the last two years.
  *
  * WHERE A NUMBER CANNOT BE HONEST IT SAYS SO. Margin is computed only over
  * lines that carry a cost — a flat repair has none and never should — and the
@@ -102,9 +112,27 @@ type Data = {
     tipCents: number;
     incomePct: number;
   }[];
+  employees: {
+    rows: EmployeeRow[];
+    priorFrom: string;
+    priorTo: string;
+    priorTradingDays: number;
+  };
+  sparks: { months: string[]; byEmployee: Record<number, number[]> };
+  trends: TrendsData;
 };
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/** "2026-08" as "Aug 26" — short enough for a bar label, unambiguous across years. */
+function monthLabel(bucket: string): string {
+  const [y, m] = bucket.split("-");
+  return `${MONTH_NAMES[Number(m) - 1]?.slice(0, 3) ?? bucket} ${y.slice(2)}`;
+}
 
 /** A window somebody would actually ask for, as a button. */
 const PRESETS: { key: string; label: string; days: number }[] = [
@@ -117,6 +145,15 @@ const PRESETS: { key: string; label: string; days: number }[] = [
   // because that answer moved by two years the day the old workbook came in.
   { key: "all", label: "All time", days: 0 },
 ];
+
+/**
+ * The key the two date boxes are showing under.
+ *
+ * A preset key rather than a separate piece of state, so there is one answer to
+ * "which window is this" and the buttons cannot end up looking like a preset is
+ * selected while the dates say otherwise.
+ */
+const RANGE = "range";
 
 function shiftDays(from: string, n: number): string {
   const d = new Date(`${from}T00:00:00Z`);
@@ -162,6 +199,15 @@ export default function ReportsPage() {
    */
   const [applied, setApplied] = useState<Record<number, number>>({});
   const [applying, setApplying] = useState<number | null>(null);
+  /**
+   * How deep into the sellers list to draw, ten at a time.
+   *
+   * Ten is what a ranked bar chart can carry before the labels stop being
+   * readable, and it is also almost always the answer — but "is the size I
+   * think we sell actually in here" is a real question and it lives at number
+   * thirty. The server sends a hundred, so pressing this costs nothing.
+   */
+  const [sellersShown, setSellersShown] = useState(10);
 
   async function applyReorder(productId: number, reorderPoint: number) {
     setApplying(productId);
@@ -227,6 +273,24 @@ export default function ReportsPage() {
   if (!data) return <div className="text-brand-300">{tr("Adding it up…")}</div>;
 
   const h = data.headline;
+  const t = data.trends;
+
+  // The crew, summarised. The MIDDLE of the day rates rather than the average
+  // of them: one technician back for a single busy Saturday drags a mean a long
+  // way and says nothing about how the shop is running.
+  const dayRates = data.employees.rows.map((r) => r.perDayCents).sort((a, b) => a - b);
+  const medianPerDay = dayRates.length ? dayRates[Math.floor(dayRates.length / 2)] : 0;
+  const bestPerDay = data.employees.rows.reduce<EmployeeRow | null>(
+    (best, r) => (!best || r.perDayCents > best.perDayCents ? r : best),
+    null,
+  );
+  // One scale across every sparkline on the page, so the rows can be read
+  // against each other. Per-row scaling would draw everybody the same height.
+  const sparkMax = Math.max(
+    1,
+    ...Object.values(data.sparks.byEmployee).flatMap((s) => s),
+  );
+
   const totalRevenue = data.categories.reduce((n, c) => n + c.revenueCents, 0);
   const totalTender = data.tenders.reduce((n, t) => n + Math.max(0, t.amountCents), 0);
   const owedTickets = data.aging.reduce((n, b) => n + b.ticketCents, 0);
@@ -250,18 +314,67 @@ export default function ReportsPage() {
             {tr("How the shop is doing, over whatever window you ask for.")}
           </p>
         </div>
+        {/* The presets and the two date boxes are ONE control that swaps what
+            it shows, not two sitting side by side. Both on screen at once
+            invites the reading that a preset and a range are somehow both in
+            force; and the row of five buttons is what somebody wants nine
+            times in ten, so it is what the page opens with. */}
         <div className="flex items-center gap-2 flex-wrap">
-          {PRESETS.map((p) => (
-            <button
-              key={p.key}
-              type="button"
-              className={preset === p.key ? "btn btn-primary" : "btn btn-outline"}
-              style={{ height: 34, fontSize: 13 }}
-              onClick={() => choose(p.key)}
-            >
-              {tr(p.label)}
-            </button>
-          ))}
+          {preset === RANGE ? (
+            <>
+              <span className="rp-range-note">{tr("Between")}</span>
+              <input
+                type="date"
+                className="input"
+                style={{ height: 34, fontSize: 13 }}
+                value={from || data.from}
+                max={to || data.to}
+                onChange={(e) => setFrom(e.target.value)}
+              />
+              <span className="rp-range-note">{tr("and")}</span>
+              <input
+                type="date"
+                className="input"
+                style={{ height: 34, fontSize: 13 }}
+                value={to || data.to}
+                min={from || data.from}
+                max={data.today}
+                onChange={(e) => setTo(e.target.value)}
+              />
+            </>
+          ) : (
+            PRESETS.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                className={preset === p.key ? "btn btn-primary" : "btn btn-outline"}
+                style={{ height: 34, fontSize: 13 }}
+                onClick={() => choose(p.key)}
+              >
+                {tr(p.label)}
+              </button>
+            ))
+          )}
+          {/* Stays put in both states, so the way back is where the way in
+              was. The window it opens on is whatever is already loaded —
+              pressing it must never move the dates under somebody. */}
+          <button
+            type="button"
+            className={preset === RANGE ? "btn btn-primary" : "btn btn-outline"}
+            style={{ height: 34, fontSize: 13 }}
+            aria-pressed={preset === RANGE}
+            onClick={() => {
+              if (preset === RANGE) {
+                choose("30");
+                return;
+              }
+              setFrom(from || data.from);
+              setTo(to || data.to);
+              setPreset(RANGE);
+            }}
+          >
+            {preset === RANGE ? tr("Done") : tr("Range")}
+          </button>
           <button type="button" className="btn btn-outline" style={{ height: 34, fontSize: 13 }} onClick={() => window.print()}>
             {tr("Print")}
           </button>
@@ -269,31 +382,8 @@ export default function ReportsPage() {
       </div>
 
       <div className="rp-range rp-no-print">
-        <span>{tr("Between")}</span>
-        <input
-          type="date"
-          className="input"
-          value={from || data.from}
-          max={to || data.to}
-          onChange={(e) => {
-            setPreset("custom");
-            setFrom(e.target.value);
-          }}
-        />
-        <span>{tr("and")}</span>
-        <input
-          type="date"
-          className="input"
-          value={to || data.to}
-          min={from || data.from}
-          max={data.today}
-          onChange={(e) => {
-            setPreset("custom");
-            setTo(e.target.value);
-          }}
-        />
         <span className="rp-range-note">
-          {data.days} {data.days === 1 ? tr("day") : tr("days")} ·{" "}
+          {data.from} → {data.to} · {data.days} {data.days === 1 ? tr("day") : tr("days")} ·{" "}
           {tr("compared with the same length before it")}
         </span>
       </div>
@@ -309,6 +399,8 @@ export default function ReportsPage() {
           ["sells", tr("What sells")],
           ["when", tr("When")],
           ["who", tr("Who")],
+          ["people", tr("Performance")],
+          ["trends", tr("Trends")],
           ["racks", tr("The racks")],
           ["owed", tr("Owed")],
           ["customers", tr("Customers")],
@@ -510,14 +602,34 @@ export default function ReportsPage() {
 
         <Panel title={tr("Best sellers")} note={tr("Units sold in this window.")}>
           <RankedBars
-            data={data.bestSellers.map((p) => ({
+            data={data.bestSellers.slice(0, sellersShown).map((p) => ({
               label: p.name,
               value: p.units,
               note: ` · ${formatCents(p.revenueCents)}`,
             }))}
+            // Held at the top seller's height rather than the tenth's, so the
+            // bars do not all stretch back to full width each time the list
+            // grows. The point of the ranking is that the leader is longer.
+            max={data.bestSellers[0]?.units}
             format={(n) => String(n)}
             emptyLabel={tr("Nothing sold in this window.")}
           />
+          {data.bestSellers.length > sellersShown && (
+            <div className="rp-more rp-no-print">
+              <button
+                type="button"
+                className="btn btn-outline"
+                style={{ height: 30, fontSize: 12 }}
+                onClick={() => setSellersShown((n) => n + 10)}
+              >
+                {tr("Show 10 more")}
+              </button>
+              <span>
+                {tr("showing")} {Math.min(sellersShown, data.bestSellers.length)} {tr("of")}{" "}
+                {data.bestSellers.length}
+              </span>
+            </div>
+          )}
         </Panel>
       </Section>
 
@@ -525,7 +637,7 @@ export default function ReportsPage() {
       <Section
         id="when"
         title={tr("When the shop is busy")}
-        note={tr("Darker is more tickets. This is the one report that settles a rota argument — a shop can feel busy on a Saturday and take most of its money on a Thursday.")}
+        note={tr("Blue is quiet, red is flat out. This is the one report that settles a rota argument — a shop can feel busy on a Saturday and take most of its money on a Thursday.")}
       >
         <Panel title={tr("Tickets by hour")}>
           <Heatmap
@@ -537,6 +649,8 @@ export default function ReportsPage() {
             hours={hours}
             format={(n) => `${n} ${n === 1 ? tr("ticket") : tr("tickets")}`}
             emptyLabel={tr("No tickets in this window.")}
+            quietLabel={tr("Quiet")}
+            busyLabel={tr("Busiest")}
           />
         </Panel>
 
@@ -634,7 +748,249 @@ export default function ReportsPage() {
         )}
       </Section>
 
-      {/* ── 5 · THE RACKS ───────────────────────────────────────────────── */}
+      {/* ── 5 · PERFORMANCE ─────────────────────────────────────────────── */}
+      <Section
+        id="people"
+        title={tr("How everyone is doing")}
+        note={tr("Measured per day they were actually here, against the same length of time before this window. Somebody who works Saturdays is not a sixth of somebody who works six days.")}
+      >
+        {data.employees.rows.length === 0 ? (
+          <div className="rp-empty">
+            {tr("Nobody has been credited with a line in this window.")}
+          </div>
+        ) : (
+          <>
+            {/* Said once, plainly, rather than left for somebody to work out
+                from a column of red arrows. */}
+            {data.employees.priorTradingDays === 0 && (
+              <div className="rp-warn">
+                {tr("There is no record of the shop opening between")} {data.employees.priorFrom}{" "}
+                {tr("and")} {data.employees.priorTo}
+                {tr(", so there is nothing to compare this window against. The arrows below are left off rather than showing everyone down 100%.")}
+              </div>
+            )}
+
+            <div className="rp-stats">
+              <Stat
+                label={tr("On the floor")}
+                value={String(data.employees.rows.length)}
+                sub={tr("credited with work in this window")}
+              />
+              <Stat
+                label={tr("Best day rate")}
+                value={formatCents(bestPerDay?.perDayCents ?? 0)}
+                sub={bestPerDay ? `${bestPerDay.name} · ${bestPerDay.daysWorked} ${tr("days here")}` : "—"}
+              />
+              <Stat
+                label={tr("Typical day rate")}
+                value={formatCents(medianPerDay)}
+                sub={tr("the middle of the crew")}
+              />
+              <Stat
+                label={tr("Tips")}
+                value={formatCents(data.employees.rows.reduce((n, r) => n + r.tipCents, 0))}
+                sub={tr("what customers added, this window")}
+              />
+            </div>
+
+            <Panel
+              title={tr("Money brought in, per day here")}
+              note={tr("The fair comparison between people who work different amounts.")}
+            >
+              <RankedBars
+                data={data.employees.rows
+                  .slice()
+                  .sort((a, b) => b.perDayCents - a.perDayCents)
+                  .map((r) => ({
+                    label: r.name,
+                    value: r.perDayCents,
+                    note: ` · ${r.daysWorked} ${r.daysWorked === 1 ? tr("day") : tr("days")}`,
+                  }))}
+                format={formatCents}
+              />
+            </Panel>
+
+            <table className="rp-table">
+              <thead>
+                <tr>
+                  <th>{tr("Technician")}</th>
+                  <th className="r">{tr("Days here")}</th>
+                  <th className="r">{tr("Tickets")}</th>
+                  <th className="r">{tr("Per ticket")}</th>
+                  <th className="r">{tr("Tip a ticket")}</th>
+                  <th className="r">{tr("Per day here")}</th>
+                  <th className="r">{tr("Brought in")}</th>
+                  <th>{tr("Last 12 months")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.employees.rows.map((r) => {
+                  const delta =
+                    data.employees.priorTradingDays === 0 || r.prior.perDayCents === 0
+                      ? null
+                      : changePct(r.perDayCents, r.prior.perDayCents);
+                  return (
+                    <tr key={r.employeeId}>
+                      <td>
+                        {r.name}
+                        {/* Somebody who has left still owns their history and
+                            still appears in an all-time window. Saying so is
+                            cheaper than letting somebody wonder why a name
+                            they do not recognise is on the board. */}
+                        {r.active === 0 && (
+                          <span className="rp-pill" style={{ marginLeft: 6 }}>
+                            {tr("gone")}
+                          </span>
+                        )}
+                      </td>
+                      <td className="r n">{r.daysWorked}</td>
+                      <td className="r n">{r.ticketCount}</td>
+                      <td className="r n">{formatCents(r.perTicketCents)}</td>
+                      <td className="r n">
+                        {r.tipCents ? formatCents(r.tipPerTicketCents) : "—"}
+                      </td>
+                      <td className="r n">
+                        {formatCents(r.perDayCents)}
+                        {delta !== null && (
+                          <span style={{ marginLeft: 6 }}>
+                            <Delta pct={delta} />
+                          </span>
+                        )}
+                      </td>
+                      <td className="r n" style={{ fontWeight: 600 }}>
+                        {formatCents(r.incomeCents)}
+                        <span className="rp-rank-note"> · {r.incomePct.toFixed(0)}%</span>
+                      </td>
+                      <td>
+                        <Spark
+                          values={data.sparks.byEmployee[r.employeeId] ?? []}
+                          max={sparkMax}
+                          labels={data.sparks.months}
+                          format={formatCents}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </>
+        )}
+      </Section>
+
+      {/* ── 6 · TRENDS ──────────────────────────────────────────────────── */}
+      <Section
+        id="trends"
+        title={tr("Which way it is going")}
+        note={tr("The only section that ignores the window at the top. A direction taken over whichever fortnight you selected is not a direction — this one always covers the last two years.")}
+      >
+        {/* Said before any of the figures, because it changes how all of them
+            should be read. */}
+        {data.trends.gapMonths.length > 0 && (
+          <div className="rp-warn">
+            {tr("No records at all for")}{" "}
+            {data.trends.gapMonths.map(monthLabel).join(", ")}.{" "}
+            {tr("Those months are left out of every comparison below rather than counted as zero, which would read as a collapse that never happened.")}
+          </div>
+        )}
+
+        <div className="rp-stats">
+          <Stat
+            label={tr("Takings a day")}
+            value={formatCents(t.summary.perDayNowCents)}
+            deltaPct={
+              t.summary.growthPct === null ? undefined : t.summary.growthPct
+            }
+            deltaLabel={`${tr("on a year ago")} · ${t.summary.comparedMonths} ${tr("months compared")}`}
+          />
+          <Stat
+            label={tr("Last 12 months")}
+            value={formatCents(t.summary.last12Cents)}
+            sub={`${t.summary.ticketsLast12.toLocaleString()} ${tr("tickets")}`}
+          />
+          <Stat
+            label={tr("Average ticket")}
+            value={formatCents(t.summary.avgTicketLast12)}
+            deltaPct={changePct(t.summary.avgTicketLast12, t.summary.avgTicketPrev12) ?? undefined}
+            deltaLabel={tr("on the 12 months before")}
+          />
+          <Stat
+            label={tr("Best month")}
+            value={t.summary.bestMonth ? monthLabel(t.summary.bestMonth.bucket) : "—"}
+            sub={
+              t.summary.bestMonth
+                ? `${formatCents(t.summary.bestMonth.perDayCents)} ${tr("a day")}`
+                : undefined
+            }
+          />
+        </div>
+
+        <Panel
+          title={tr("Takings for every day open, month by month")}
+          note={tr("Per trading day rather than per month, so a short February and a week shut in July do not read as bad months.")}
+        >
+          <BarChart
+            data={t.months.map((m) => ({
+              label: monthLabel(m.bucket),
+              value: m.perDayCents,
+              sub: m.tradingDays === 0 ? tr("no records") : undefined,
+            }))}
+            format={formatCents}
+            height={150}
+          />
+        </Panel>
+
+        <div className="rp-two">
+          <Panel
+            title={tr("This year against last")}
+            note={tr("Each month beside the same month a year earlier.")}
+          >
+            <PairedBars
+              data={t.yoy.map((y) => ({
+                label: monthLabel(y.bucket),
+                a: y.beforeCents,
+                b: y.nowCents,
+              }))}
+              labels={[tr("A year ago"), tr("This year")]}
+              format={formatCents}
+            />
+          </Panel>
+          <Panel
+            title={tr("The shop's year")}
+            note={tr("Every January averaged, every February averaged, and so on, over everything on record.")}
+          >
+            <RankedBars
+              data={t.seasonality.map((s) => ({
+                label: tr(MONTH_NAMES[s.month - 1] ?? String(s.month)),
+                value: s.perDayCents,
+                note: ` · ${s.years} ${s.years === 1 ? tr("year") : tr("years")}`,
+              }))}
+              format={formatCents}
+            />
+          </Panel>
+        </div>
+
+        <Panel
+          title={tr("What the shop sells, quarter by quarter")}
+          note={tr("Each column is one quarter's takings as shares. Watch for a band getting thicker across the page — that is the business changing shape.")}
+        >
+          <StackedBars
+            columns={t.mix.map((q) => ({
+              label: q.bucket.replace("-", " "),
+              parts: q.parts.map((p) => ({ label: tr(p.label), value: p.cents })),
+            }))}
+            format={formatCents}
+          />
+        </Panel>
+
+        <p className="rp-note">
+          {tr("The shop has")} {t.summary.monthsOfHistory}{" "}
+          {tr("months on record. The busiest single day was")}{" "}
+          {t.summary.bestDay ? `${t.summary.bestDay.date} · ${formatCents(t.summary.bestDay.cents)}` : "—"}.
+        </p>
+      </Section>
+
+      {/* ── 7 · THE RACKS ───────────────────────────────────────────────── */}
       <Section
         id="racks"
         title={tr("The racks")}
@@ -868,7 +1224,7 @@ export default function ReportsPage() {
         </Panel>
       </Section>
 
-      {/* ── 6 · OWED ────────────────────────────────────────────────────── */}
+      {/* ── 8 · OWED ────────────────────────────────────────────────────── */}
       <Section
         id="owed"
         title={tr("What is owed to the shop")}
@@ -927,7 +1283,7 @@ export default function ReportsPage() {
         </Panel>
       </Section>
 
-      {/* ── 7 · CUSTOMERS ───────────────────────────────────────────────── */}
+      {/* ── 9 · CUSTOMERS ───────────────────────────────────────────────── */}
       <Section
         id="customers"
         title={tr("Customers")}
@@ -968,7 +1324,7 @@ export default function ReportsPage() {
         </Panel>
       </Section>
 
-      {/* ── 8 · MISSED ──────────────────────────────────────────────────── */}
+      {/* ── 10 · MISSED ──────────────────────────────────────────────────── */}
       <Section
         id="missed"
         title={tr("What walked out")}
@@ -1049,7 +1405,7 @@ export default function ReportsPage() {
         </div>
       </Section>
 
-      {/* ── 9 · CONTROL ─────────────────────────────────────────────────── */}
+      {/* ── 11 · CONTROL ─────────────────────────────────────────────────── */}
       <Section
         id="control"
         title={tr("Worth a second look")}
