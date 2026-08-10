@@ -46,6 +46,9 @@ export type AuditAction =
   | "payment.correct"
   | "payment.comm_override"
   | "payment.seq_update"
+  // A tip taken back off a ticket. Its own action rather than payment.correct:
+  // "who removed a tip" is a question somebody will ask about their own money.
+  | "payment.tip_removed"
   | "shift.open"
   | "shift.close"
   | "drawer.withdraw"
@@ -76,6 +79,8 @@ export type AuditAction =
   // removed, and a log searched for "who deleted an entry" must not return both.
   | "pos_entry.strike"
   | "pos_entry.restore"
+  // A tire the shop was asked for and could not sell.
+  | "tire_demand.record"
   | "vehicle.create"
   | "vehicle.update"
   | "vehicle.delete"

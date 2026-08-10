@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { LockScreen } from "@/components/pos/LockScreen";
+import { TireDemandButton } from "@/components/pos/TireDemandButton";
 import { ShopLogo } from "@/components/ui/ShopLogo";
 import { ROLE_LABELS, type Capability, type PosRole } from "@/lib/roles";
 
@@ -293,6 +294,11 @@ export function PosShell({ children }: { children: React.ReactNode }) {
 
         <main className="flex-1 p-6">{children}</main>
       </div>
+
+      {/* Outside `main` on purpose: it floats over every screen of the register
+          and belongs to none of them. It draws nothing at all unless the shop
+          has the study switched on. */}
+      <TireDemandButton />
 
       {locked && <LockScreen onUnlocked={() => void unlock()} />}
     </PosAuthContext.Provider>

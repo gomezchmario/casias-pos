@@ -17,13 +17,14 @@ import { inTx } from "@/lib/tx";
  */
 
 type Payload = {
-  settings: { posIdleLockSeconds: number };
+  settings: { posIdleLockSeconds: number; tireDemandEnabled: boolean };
 };
 
 function read(): Payload {
   return {
     settings: {
       posIdleLockSeconds: Number(getSetting("pos_idle_lock_seconds")) || 900,
+      tireDemandEnabled: getSetting("tire_demand_enabled") === "1",
     },
   };
 }
@@ -38,7 +39,10 @@ export async function PATCH(req: NextRequest) {
   const auth = await requirePos("manageSettings");
   if (!auth.ok) return auth.response;
 
-  const body = (await req.json().catch(() => ({}))) as { posIdleLockSeconds?: unknown };
+  const body = (await req.json().catch(() => ({}))) as {
+    posIdleLockSeconds?: unknown;
+    tireDemandEnabled?: unknown;
+  };
 
   if (body.posIdleLockSeconds !== undefined) {
     const n = Number(body.posIdleLockSeconds);
@@ -60,6 +64,24 @@ export async function PATCH(req: NextRequest) {
         targetId: "pos_idle_lock_seconds",
         before: { seconds: before },
         after: { seconds: String(n) },
+      });
+    });
+  }
+
+  if (body.tireDemandEnabled !== undefined) {
+    const on = body.tireDemandEnabled === true || body.tireDemandEnabled === "1";
+    const before = getSetting("tire_demand_enabled");
+    inTx(() => {
+      setSetting("tire_demand_enabled", on ? "1" : "0");
+      // Audited like any other switch. Turning the study off stops data being
+      // collected, and somebody reading the report in six months will want to
+      // know why the numbers stop where they do.
+      logActorAudit(auth.actor, {
+        action: "settings.update",
+        targetType: "setting",
+        targetId: "tire_demand_enabled",
+        before: { enabled: before },
+        after: { enabled: on ? "1" : "0" },
       });
     });
   }

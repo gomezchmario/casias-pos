@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jsonError, requirePos } from "@/lib/api-helpers";
-import { correctPayment, setPaymentSeq } from "@/lib/payments";
+import { correctPayment, removeTip, setPaymentSeq } from "@/lib/payments";
 
 /**
  * The two ways a payment gets corrected, and they are not the same kind of act.
@@ -35,11 +35,21 @@ export async function PATCH(
     methodId?: number;
     amountCents?: number;
     reason?: string;
+    removeTip?: boolean;
   };
   try {
     body = await req.json();
   } catch {
     return jsonError("Invalid JSON");
+  }
+
+  // Checked first, because taking the tip off is a different act from
+  // re-tendering and a body carrying both would otherwise re-tender and leave
+  // the tip on. `removeTip` enforces its own rank.
+  if (body.removeTip) {
+    const r = removeTip(auth.user, paymentId, body.reason ?? "");
+    if (!r.ok) return jsonError(r.error);
+    return NextResponse.json({ ok: true, removedCents: r.removedCents });
   }
 
   if (body.methodId !== undefined || body.amountCents !== undefined) {

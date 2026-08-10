@@ -1,0 +1,108 @@
+/* The tire study. Screen is an ordinary POS page; print is a sheet somebody
+   takes to a supplier, so the controls drop away and a letterhead appears. */
+
+.tdr-print-head {
+  display: none;
+}
+
+.tdr-note {
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  color: #78350f;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+@media print {
+  /* The shell, undone — the same rule the close-out needs and for the same
+     reason: the POS wrapper is a full-height flex column, and a flex container
+     that has to fragment across printed pages paginates badly. */
+  html,
+  body,
+  body > div,
+  main {
+    background: #fff !important;
+    display: block !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  header,
+  nav {
+    display: none !important;
+  }
+
+  .tdr {
+    max-width: none;
+    width: 100%;
+    color: #111;
+    font-size: 10pt;
+    line-height: 1.35;
+  }
+
+  .tdr-hide-on-print {
+    display: none !important;
+  }
+
+  .tdr-print-head {
+    display: flex;
+    align-items: center;
+    gap: 4mm;
+    border-bottom: 1px solid #111;
+    padding-bottom: 2.5mm;
+    margin-bottom: 4mm;
+  }
+
+  .tdr-block {
+    box-shadow: none !important;
+    border-radius: 0;
+    padding: 0;
+    margin-bottom: 6mm;
+  }
+
+  .tdr-table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  /* Vertical padding only. Zeroing the horizontal padding is what once put a
+     right-aligned figure hard against the next column. */
+  .tdr-table th,
+  .tdr-table td {
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
+
+  /* The zebra is an inline background, which Chrome drops on paper by default. */
+  .tdr-table tr {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    break-inside: avoid;
+  }
+
+  .tdr-table tfoot {
+    break-before: avoid;
+  }
+
+  .tdr-summary {
+    font-size: 10pt;
+    color: #111;
+  }
+
+  .tdr-note {
+    border: 1px solid #111;
+    background: transparent;
+    color: #111;
+    border-radius: 0;
+    font-size: 9pt;
+    break-inside: avoid;
+  }
+
+  @page {
+    size: letter;
+    margin: 16mm;
+  }
+}

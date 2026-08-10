@@ -372,6 +372,22 @@ export default function EntriesPage() {
   }, [rows]);
 
   /**
+   * The same, for the tickets that were refunded rather than voided.
+   *
+   * Its own counter, so a run of refunds alternates among themselves and is not
+   * thrown out of step by a void that happened to fall between them.
+   */
+  const amberTone = useMemo(() => {
+    const tone = new Map<string, 0 | 1>();
+    let n = 0;
+    for (const r of rows) {
+      if (r.saleVoided || r.deletedBy || !r.saleRefunded) continue;
+      tone.set(r.key, (n++ % 2) as 0 | 1);
+    }
+    return tone;
+  }, [rows]);
+
+  /**
    * Take a dead row off the log, or put it back.
    *
    * No confirm dialog on the way in. Nothing is destroyed and the button is
@@ -877,6 +893,17 @@ export default function EntriesPage() {
 
                    Kept at 0.5 opacity as well, which is what stops the red from
                    shouting: the row recedes AND is unmistakably marked. */
+                /* Amber for a REFUNDED ticket, and it is a third state rather
+                   than a lighter red. A void says the sale did not happen; a
+                   refund says it did and some of the money went back. Those are
+                   opposite facts about the day — a voided ticket contributes no
+                   takings at all, a refunded one contributes takings AND money
+                   out, both real — and a reader scanning for "why is the drawer
+                   like this" has to be able to tell them apart at a glance.
+
+                   Not faded, unlike the red. A refunded ticket is still a live
+                   part of the day and its figures still count; dimming it would
+                   say the opposite. */
                 style={
                   e.saleVoided || e.deletedBy
                     ? {
@@ -885,9 +912,15 @@ export default function EntriesPage() {
                           ? "rgba(216,68,76,0.10)"
                           : "rgba(216,68,76,0.06)",
                       }
-                    : e.voided
-                      ? { opacity: 0.5 }
-                      : undefined
+                    : e.saleRefunded
+                      ? {
+                          background: amberTone.get(e.key)
+                            ? "rgba(180,83,9,0.11)"
+                            : "rgba(180,83,9,0.06)",
+                        }
+                      : e.voided
+                        ? { opacity: 0.5 }
+                        : undefined
                 }
               >
                 <td className="px-3 py-2 tabular-nums text-brand-300 whitespace-nowrap">

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { usePosAuth } from "@/components/pos/PosShell";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -151,6 +152,7 @@ export default function SettingsPage() {
       {error && <div className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>}
 
       {canShop && <LockCard onError={setError} />}
+      {canShop && <TireStudyCard onError={setError} />}
       {canShop && <InventoryAlarmCard onError={setError} />}
 
       {canButtons && !buttons && <div className="text-brand-300">Loading…</div>}
@@ -266,6 +268,96 @@ export default function SettingsPage() {
  * in seconds and "900" in a box invites somebody to try 90 and lock the counter
  * every minute and a half.
  */
+/**
+ * The tire study: the switch, and the way to the report it produces.
+ *
+ * Both in one card, deliberately. A switch that turns on data collection and a
+ * report that reads it are one thing to the person deciding whether to run it,
+ * and separating them is how a study gets switched on in March and remembered
+ * in November.
+ *
+ * The switch says what it costs the floor, because that is the question an owner
+ * actually has about it — not "what does this do" but "what does this put in
+ * front of my cashier while there is a queue".
+ */
+function TireStudyCard({ onError }: { onError: (m: string | null) => void }) {
+  const [on, setOn] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  /** How many sizes have been recorded, so the card can say whether it is worth reading. */
+  const [count, setCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      const res = await fetch("/api/pos/settings");
+      if (res.ok) {
+        const d: { settings: { tireDemandEnabled: boolean } } = await res.json();
+        setOn(d.settings.tireDemandEnabled);
+      }
+      const r2 = await fetch("/api/pos/tire-demand");
+      if (r2.ok) setCount((await r2.json()).totals?.tires ?? 0);
+    })();
+  }, []);
+
+  async function toggle() {
+    if (on === null) return;
+    setBusy(true);
+    onError(null);
+    const res = await fetch("/api/pos/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tireDemandEnabled: !on }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      onError("Could not change that");
+      return;
+    }
+    const d: { settings: { tireDemandEnabled: boolean } } = await res.json();
+    setOn(d.settings.tireDemandEnabled);
+  }
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-4 mb-6">
+      <div className="text-xs uppercase tracking-wider text-brand-300 mb-2">
+        Tire study
+      </div>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div style={{ maxWidth: 560 }}>
+          <p className="text-sm text-brand-400">
+            Puts a small, faded button in the corner of every register screen. The
+            counter presses it when a customer asks for a size the shop does not
+            have and leaves without it — the one number the shop has never had.
+          </p>
+          <p className="text-xs text-brand-300 mt-1">
+            It takes a size and a quantity, changes nothing about the day, and is
+            never part of a ticket.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className={on ? "btn btn-primary" : "btn btn-outline"}
+            disabled={busy || on === null}
+            aria-pressed={on === true}
+            onClick={() => void toggle()}
+          >
+            {on === null ? "…" : on ? "Recording" : "Switched off"}
+          </button>
+          {/* Always offered, on or off. Switching the study off does not delete
+              what it collected, and the commonest reason to open this card at
+              all is to go and read the numbers. */}
+          <Link href="/pos/demand" className="btn btn-outline">
+            The report
+            {count !== null && count > 0 && (
+              <span className="text-xs font-normal"> · {count}</span>
+            )}
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LockCard({ onError }: { onError: (m: string | null) => void }) {
   const [minutes, setMinutes] = useState<string | null>(null);
   const [saved, setSaved] = useState<number | null>(null);

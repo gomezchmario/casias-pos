@@ -89,6 +89,9 @@ export type SettingsMap = {
   inventory_alarm_cleared: string; // YYYY-MM-DD business date, "" = never
   inventory_alarm_cleared_by: string;
 
+  // "1" = the register shows the lost-sale button. See DEFAULT_SETTINGS.
+  tire_demand_enabled: string;
+
   // The board above the register: a standing note a manager leaves for whoever
   // is on the counter. Empty means no board is shown at all -- a permanently
   // visible box reading "(no notes)" is furniture people stop seeing, and the
@@ -153,6 +156,17 @@ export const DEFAULT_SETTINGS: SettingsMap = {
 
   inventory_alarm_cleared: "",
   inventory_alarm_cleared_by: "",
+
+  /**
+   * Whether the register offers the lost-sale button.
+   *
+   * A switch rather than always-on because it is a study, not a feature of
+   * ringing a sale: the shop turns it on when it wants a few months of data
+   * about what to buy, and off again afterwards. A permanently floating button
+   * that nobody has a reason to press is a button people learn to ignore, and
+   * then it is useless on the day somebody does want the numbers.
+   */
+  tire_demand_enabled: "0",
 
   pos_notice: "",
   pos_notice_by: "",

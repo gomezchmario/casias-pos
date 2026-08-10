@@ -422,6 +422,63 @@ export function TicketDrawer({
             />
           )}
 
+          {/* A tip that should not be on the ticket, taken off the row that
+              carries it. One control per tipped payment, because a ticket can
+              have more than one and "which tip" has no good abstract answer.
+
+              Manager and up — see `removeTip`. This is somebody's money. */}
+          {detail.sale.status !== "voided" &&
+            can("correctPayment") &&
+            detail.payments
+              .filter(
+                (p) =>
+                  p.tip_cents > 0 &&
+                  p.kind !== "reversal" &&
+                  !detail.payments.some((r) => r.reverses_payment_id === p.id),
+              )
+              .map((p) => (
+                <RemoveTip
+                  key={`tip-${p.id}`}
+                  tipCents={p.tip_cents}
+                  busy={busy}
+                  onRemove={async (reason) =>
+                    send(`/api/pos/payments/${p.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ removeTip: true, reason }),
+                    })
+                  }
+                />
+              ))}
+
+          {/* Money back on a ticket that stands, which is not a void — see
+              `RefundTicket`. Only where something was actually collected: a
+              refund on a ticket nobody paid is not a refund, it is a discount,
+              and it has its own path. */}
+          {detail.sale.status === "completed" &&
+            can("voidSale") &&
+            detail.sale.paid_cents > 0 && (
+              <RefundTicket
+                methods={methods}
+                paidMethodIds={[
+                  ...new Set(
+                    detail.payments
+                      .filter((p) => p.amount_cents > 0)
+                      .map((p) => p.method_id),
+                  ),
+                ]}
+                maxCents={detail.sale.paid_cents}
+                busy={busy}
+                onRefund={async (methodId, amountCents, reason) =>
+                  send(`/api/pos/sales/${saleId}/payments`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ kind: "refund", methodId, amountCents, reason }),
+                  })
+                }
+              />
+            )}
+
           {detail.sale.status !== "voided" && can("voidSale") && (
             <VoidTicket
               busy={busy}
@@ -1546,6 +1603,213 @@ function PinnedNote({
           Edit
         </button>
       )}
+    </div>
+  );
+}
+
+/**
+ * Give money back on a ticket that stands.
+ *
+ * DELIBERATELY NOT A VOID, and the difference is the whole reason this control
+ * exists separately. A void says the ticket should never have existed: it
+ * reverses every payment, puts the tires back on the rack, and takes the sale
+ * out of the day. A refund says the sale happened — the customer had the work
+ * done, paid for it, and has now brought something back or been given money for
+ * a complaint. The ticket stays completed, because it is true that it completed.
+ *
+ * Getting these the wrong way round is the classic register error and it costs
+ * in both directions: void a real sale and the day's takings drop by money the
+ * shop actually kept; refund a ticket that should never have been rung and the
+ * stock never comes back.
+ *
+ * The tender is asked for rather than assumed. Money going back out has to leave
+ * the same place it came in — cash out of the drawer, a card refunded on the
+ * terminal — and the close-out counts each of those separately, so guessing here
+ * would put the day out by the refund on two tenders at once.
+ *
+ * Armed behind a press for the same reason the void is: it is the second most
+ * expensive button on the screen.
+ */
+function RefundTicket({
+  methods,
+  paidMethodIds,
+  maxCents,
+  busy,
+  onRefund,
+}: {
+  methods: PaymentMethod[];
+  /** Tenders actually used on this ticket — see the note below. */
+  paidMethodIds: number[];
+  /** What was collected. Refunding more than that is arithmetic gone wrong. */
+  maxCents: number;
+  busy: boolean;
+  onRefund: (methodId: number, amountCents: number, reason: string) => Promise<boolean>;
+}) {
+  const [arming, setArming] = useState(false);
+  const [methodId, setMethodId] = useState<number>(paidMethodIds[0] ?? 0);
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+
+  const cents = parseCents(amount);
+  const valid =
+    methodId > 0 && cents !== null && cents > 0 && cents <= maxCents && reason.trim().length > 0;
+
+  if (!arming) {
+    return (
+      <button
+        type="button"
+        className="text-sm underline self-center"
+        style={{ color: "#b45309" }}
+        onClick={() => {
+          setMethodId(paidMethodIds[0] ?? methods[0]?.id ?? 0);
+          setAmount("");
+          setReason("");
+          setArming(true);
+        }}
+      >
+        Refund on this ticket
+      </button>
+    );
+  }
+
+  return (
+    <div className="rounded-xl p-3" style={{ background: "#fffbeb" }}>
+      <div className="text-sm mb-2" style={{ color: "#78350f" }}>
+        The sale stays as it is. This writes money going back out — it does not
+        put stock back on the rack.{" "}
+        {maxCents > 0 && <>Up to {formatCents(maxCents)} was collected.</>}
+      </div>
+      <div className="flex items-end gap-2 flex-wrap">
+        <label className="text-xs" style={{ color: "#78350f" }}>
+          Back on
+          {/* Every tender is offered, with the ones actually used on this ticket
+              first. Usually the money goes back the way it came, and a shop that
+              took cash and is handing cash back should not have to hunt. But a
+              card refunded as cash out of the drawer is a real afternoon, so the
+              rest are still there. */}
+          <select
+            className="input mt-1"
+            value={methodId}
+            onChange={(e) => setMethodId(Number(e.target.value))}
+          >
+            {[...methods]
+              .sort(
+                (a, b) =>
+                  Number(paidMethodIds.includes(b.id)) - Number(paidMethodIds.includes(a.id)),
+              )
+              .map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                  {paidMethodIds.includes(m.id) ? " — paid on this" : ""}
+                </option>
+              ))}
+          </select>
+        </label>
+        <label className="text-xs" style={{ color: "#78350f" }}>
+          How much
+          <input
+            className="input mt-1 w-28 text-right tabular-nums"
+            inputMode="decimal"
+            placeholder="0.00"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+        </label>
+        <label className="text-xs flex-1" style={{ color: "#78350f", minWidth: 180 }}>
+          Reason
+          <input
+            className="input mt-1 w-full"
+            placeholder="Tire came back · adjustment agreed with the customer"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </label>
+        <button
+          type="button"
+          className="btn"
+          style={{ background: "#b45309", color: "#fff" }}
+          disabled={busy || !valid}
+          onClick={() => void onRefund(methodId, cents!, reason.trim())}
+        >
+          Refund
+        </button>
+        <button type="button" className="btn btn-ghost" onClick={() => setArming(false)}>
+          Cancel
+        </button>
+      </div>
+      {cents !== null && cents > maxCents && (
+        <div className="text-xs mt-2" style={{ color: "#a71d24" }}>
+          Only {formatCents(maxCents)} was ever collected on this ticket.
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Take a tip back off, on the row that carries it.
+ *
+ * Here rather than in a panel of its own because a tip belongs to a payment and
+ * a ticket can have several — asking "which tip" in the abstract would be a
+ * question with no good way to answer it. On the row, there is nothing to
+ * choose.
+ *
+ * A reason is required and it is not ceremony: this moves somebody's money off
+ * their own name, and the person it comes off is entitled to know who did it and
+ * why. See `removeTip`.
+ */
+function RemoveTip({
+  tipCents,
+  busy,
+  onRemove,
+}: {
+  tipCents: number;
+  busy: boolean;
+  onRemove: (reason: string) => Promise<boolean>;
+}) {
+  const [arming, setArming] = useState(false);
+  const [reason, setReason] = useState("");
+
+  if (!arming)
+    return (
+      <button
+        type="button"
+        className="text-sm text-brand-400 hover:text-brand-500 underline text-left"
+        onClick={() => setArming(true)}
+      >
+        Take the {formatCents(tipCents)} tip off
+      </button>
+    );
+
+  return (
+    <div className="rounded-xl bg-black/[0.03] p-3">
+      <div className="text-xs text-brand-400 mb-2">
+        The {formatCents(tipCents)} comes back off the ticket and off whoever it
+        was credited to. The sale itself is untouched, and it stays on the day it
+        was rung.
+      </div>
+      <div className="flex items-end gap-2">
+        <label className="text-xs text-brand-400 flex-1">
+          Reason
+          <input
+            className="input mt-1 w-full"
+            placeholder="Entered twice · typed 20 instead of 2"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </label>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={busy || !reason.trim()}
+          onClick={() => void onRemove(reason.trim())}
+        >
+          Take it off
+        </button>
+        <button type="button" className="btn btn-ghost" onClick={() => setArming(false)}>
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }

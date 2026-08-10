@@ -576,6 +576,16 @@ export type DayEntry = {
    */
   saleVoided: boolean;
   /**
+   * Money has been given back on this ticket — and the ticket still stands.
+   *
+   * A THIRD STATE, not a shade of void, and the list colours it differently for
+   * exactly that reason. A void means the sale did not happen; a refund means it
+   * did happen and some of the money went back. They look alike from a distance
+   * and they are opposite facts about the day: a voided ticket has no takings in
+   * it at all, while a refunded one has takings AND money out, both real.
+   */
+  saleRefunded: boolean;
+  /**
    * Struck off the log by the owner — see `entry-deletions.ts`. Null on every
    * row for everybody else, because they never receive one that is set.
    */
@@ -692,7 +702,12 @@ export function dayEntries(
               -- the kind of near-miss comparison that gets misread.
               CASE WHEN i.list_price_cents IS NULL THEN NULL
                    ELSE i.list_price_cents * i.qty END AS listPriceCents,
-              CASE WHEN i.voided = 1 OR s.status = 'voided' THEN 1 ELSE 0 END AS voided
+              CASE WHEN i.voided = 1 OR s.status = 'voided' THEN 1 ELSE 0 END AS voided,
+              -- Money given back on this ticket, which is not the same as the
+              -- ticket being voided. See saleRefunded on DayEntry.
+              CASE WHEN EXISTS (SELECT 1 FROM payments rf
+                                 WHERE rf.sale_id = s.id AND rf.kind = 'refund')
+                   THEN 1 ELSE 0 END AS saleRefunded
          FROM sale_items i
          JOIN sales s ON s.id = i.sale_id
     LEFT JOIN employees e ON e.id = i.mechanic_id
@@ -702,11 +717,12 @@ export function dayEntries(
     )
     .all(from, to) as (Omit<
     DayEntry,
-    "key" | "kind" | "seq" | "voided" | "category" | "paymentId" | "isCard" | "saleVoided" | "deletedBy" | "deletedAt" | "deletedReason" | "strikeable"
+    "key" | "kind" | "seq" | "voided" | "category" | "paymentId" | "isCard" | "saleVoided" | "deletedBy" | "deletedAt" | "deletedReason" | "strikeable" | "saleRefunded"
   > & {
     rowId: number;
     categoryCode: string | null;
     voided: number;
+    saleRefunded: number;
   })[];
 
   const money = db
@@ -738,7 +754,12 @@ export function dayEntries(
                      OR p.kind = 'reversal'
                      OR EXISTS (SELECT 1 FROM payments rv
                                  WHERE rv.reverses_payment_id = p.id)
-                   THEN 1 ELSE 0 END AS strikeable
+                   THEN 1 ELSE 0 END AS strikeable,
+              -- Money given back on this ticket, which is not the same as the
+              -- ticket being voided. See saleRefunded on DayEntry.
+              CASE WHEN EXISTS (SELECT 1 FROM payments rf
+                                 WHERE rf.sale_id = s.id AND rf.kind = 'refund')
+                   THEN 1 ELSE 0 END AS saleRefunded
          FROM payments p
          JOIN payment_methods m ON m.id = p.method_id
          JOIN sales s ON s.id = p.sale_id
@@ -748,12 +769,13 @@ export function dayEntries(
     )
     .all(from, to) as (Omit<
     DayEntry,
-    "key" | "kind" | "voided" | "category" | "paymentId" | "isCard" | "saleVoided" | "deletedBy" | "deletedAt" | "deletedReason" | "strikeable"
+    "key" | "kind" | "voided" | "category" | "paymentId" | "isCard" | "saleVoided" | "deletedBy" | "deletedAt" | "deletedReason" | "strikeable" | "saleRefunded"
   > & {
     rowId: number;
     isCard: number;
     voided: number;
     strikeable: number;
+    saleRefunded: number;
   })[];
 
   /** The strike, when the caller is allowed to be told about it. */
@@ -779,6 +801,7 @@ export function dayEntries(
         isCard: false,
         voided: !!r.voided,
         saleVoided: r.saleStatus === "voided",
+        saleRefunded: !!r.saleRefunded,
         // A line is strikeable exactly when it is dead, and dead is what
         // `voided` already means for a line. No second rule.
         strikeable: !!r.voided,
@@ -797,6 +820,7 @@ export function dayEntries(
         isCard: r.isCard === 1,
         voided: !!r.voided,
         saleVoided: r.saleStatus === "voided",
+        saleRefunded: !!r.saleRefunded,
         strikeable: !!r.strikeable,
         ...strike(`money-${r.rowId}`),
       })),

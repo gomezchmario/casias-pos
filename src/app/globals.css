@@ -317,3 +317,140 @@ html, body {
   text-transform: uppercase;
   white-space: nowrap;
 }
+
+/* The lost-sale button: a customer asked for a size the shop did not have.
+
+   Faint, small and in the corner, because it is not part of ringing a sale.
+   A control that competes with the till for attention is one somebody
+   eventually asks to have taken off the screen — and this only earns its place
+   by being there without being in the way. It comes up to full strength on
+   hover and focus, so it is unmistakable once somebody is reaching for it. */
+.td-fab {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 40;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #0a2540;
+  color: #fff;
+  opacity: 0.28;
+  box-shadow: 0 2px 10px rgb(10 37 64 / 0.25);
+  transition: opacity 140ms, transform 140ms;
+}
+
+.td-fab:hover,
+.td-fab:focus-visible {
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
+.td-panel {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 40;
+  width: 340px;
+  max-width: calc(100vw - 36px);
+  background: #fff;
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 10px 40px rgb(10 37 64 / 0.22);
+  border: 1px solid rgb(10 37 64 / 0.08);
+}
+
+.td-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(10 37 64 / 0.55);
+  margin-bottom: 6px;
+}
+
+.td-x {
+  font-size: 20px;
+  line-height: 1;
+  color: rgb(10 37 64 / 0.35);
+  padding: 0 2px;
+}
+
+.td-x:hover {
+  color: rgb(10 37 64 / 0.7);
+}
+
+/* Said once, in the panel, because the commonest reason somebody does not use a
+   button like this is not knowing whether pressing it charges anybody. */
+.td-why {
+  font-size: 12px;
+  line-height: 1.35;
+  color: rgb(10 37 64 / 0.45);
+  margin-bottom: 10px;
+}
+
+.td-qty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0;
+  font-size: 12px;
+  color: rgb(10 37 64 / 0.5);
+}
+
+.td-q {
+  min-width: 34px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgb(10 37 64 / 0.15);
+  font-weight: 600;
+  color: #0a2540;
+}
+
+.td-q-on {
+  background: #0a2540;
+  border-color: #0a2540;
+  color: #fff;
+}
+
+.td-qn {
+  width: 52px;
+  height: 30px;
+  text-align: center;
+}
+
+.td-note {
+  margin-top: 2px;
+  font-size: 13px;
+}
+
+.td-err {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #b91c1c;
+}
+
+.td-ok {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #15803d;
+}
+
+.td-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* None of it is part of any printed document. */
+@media print {
+  .td-fab,
+  .td-panel {
+    display: none !important;
+  }
+}

@@ -942,3 +942,148 @@ export function correctPayment(
     return { ok: true as const, payment: next };
   });
 }
+
+/**
+ * Take a tip back off a ticket.
+ *
+ * The gap this fills: a tip could be added and never removed. Somebody keys $20
+ * where they meant $2, or adds the same tip twice, and until now the only way
+ * out was to void the whole ticket and ring it again — which throws away a
+ * correct sale to fix a wrong two dollars, and takes the sale's date and
+ * sequence number with it.
+ *
+ * TWO SHAPES, BECAUSE A TIP LIVES IN TWO PLACES.
+ *
+ * A `tip_adjustment` row IS the tip: nothing else is on it. So it is reversed
+ * outright, exactly as a void reverses a payment.
+ *
+ * A tip taken WITH the payment is a few dollars inside a row that is mostly the
+ * customer's goods. Reversing that row would take the whole sale back out. So it
+ * is the same manoeuvre `correctPayment` performs: the row is reversed and taken
+ * again without the tip, at an amount reduced by the tip and its terminal fee.
+ *
+ * BOTH KEEP THE ORIGINAL'S BUSINESS DATE AND SHIFT, and that is the deliberate
+ * part. A void takes money back out of the drawer now and belongs to tonight. A
+ * tip that was mis-keyed never existed: the customer handed over what they
+ * handed over, on the day they did, and what is wrong is the record. Booking the
+ * correction into today would take money out of one day's card total and put it
+ * into another's, and would credit a technician on a day they were not tipped.
+ *
+ * The consequence, said out loud: removing a tip from a shift that has already
+ * been counted changes what that shift expected. That is intended and it is the
+ * same trade `correctPayment` makes — the count was taken against a figure that
+ * was wrong, and the honest thing is for it to move.
+ *
+ * Manager and up. A tip is somebody's money, and a cashier who can quietly
+ * remove one from a technician's ticket is a problem no ledger can fix.
+ */
+export function removeTip(
+  user: PosUser,
+  paymentId: number,
+  reason: string,
+): Result<{ removedCents: number }> {
+  if (!can(user.role, "correctPayment"))
+    return { ok: false, error: "Only a manager can take a tip off" };
+  const why = reason.trim();
+  if (!why) return { ok: false, error: "Say why the tip is coming off" };
+
+  const db = getDb();
+  const payment = db.prepare("SELECT * FROM payments WHERE id = ?").get(paymentId) as
+    | Payment
+    | undefined;
+  if (!payment) return { ok: false, error: "Payment not found" };
+  if (payment.tip_cents === 0)
+    return { ok: false, error: "There is no tip on that row" };
+  if (payment.kind === "reversal")
+    return { ok: false, error: "That row is already a reversal" };
+  if (db.prepare("SELECT 1 FROM payments WHERE reverses_payment_id = ?").get(paymentId))
+    return { ok: false, error: "That payment has already been reversed" };
+
+  const sale = getSale(payment.sale_id);
+  if (!sale) return { ok: false, error: "Sale not found" };
+  if (sale.status === "voided")
+    return { ok: false, error: "This ticket is voided — the tip is already off it" };
+
+  const removedCents = payment.tip_cents;
+  // What is left of the row once the tip and the fee charged on it come out.
+  // Zero on a tip adjustment, by construction: there was nothing else on it.
+  const restCents = payment.amount_cents - payment.tip_cents - payment.comm_cents;
+  if (restCents < 0)
+    return { ok: false, error: "That row does not add up — have somebody look at it" };
+
+  return inTx(() => {
+    const now = nowLocalIso();
+
+    db.prepare(
+      `INSERT INTO payments
+         (sale_id, method_id, kind, amount_cents, tip_cents, comm_cents,
+          mechanic_id, reverses_payment_id, taken_by, business_date, shift_id, note, created_at)
+       VALUES (?, ?, 'reversal', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      payment.sale_id,
+      payment.method_id,
+      -payment.amount_cents,
+      -payment.tip_cents,
+      -payment.comm_cents,
+      // The same technician the positive was credited to. Left null, the tip
+      // would come off the day's total and stay on the person's, which is the
+      // quiet payroll error this whole ledger exists to prevent.
+      payment.mechanic_id,
+      payment.id,
+      user.employeeId,
+      payment.business_date,
+      payment.shift_id,
+      `Tip removed: ${why}`,
+      now,
+    );
+
+    // Only when there was a sale underneath the tip. A tip adjustment reversed
+    // to nothing needs no replacement row — writing a $0.00 payment would put a
+    // row on the ledger that says nothing happened.
+    let replacementId: number | null = null;
+    if (restCents > 0) {
+      const info = db
+        .prepare(
+          `INSERT INTO payments
+             (sale_id, method_id, kind, amount_cents, tip_cents, comm_cents,
+              mechanic_id, seq, taken_by, business_date, shift_id, note, created_at)
+           VALUES (?, ?, 'payment', ?, 0, 0, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          payment.sale_id,
+          payment.method_id,
+          restCents,
+          payment.mechanic_id,
+          // The same charge on the same slip — see `correctPayment` for why a
+          // re-stated card payment keeps its number rather than taking a new one.
+          payment.seq,
+          user.employeeId,
+          payment.business_date,
+          payment.shift_id,
+          `Retaken without the tip: ${why}`,
+          now,
+        );
+      replacementId = Number(info.lastInsertRowid);
+    }
+
+    recalcMoney(payment.sale_id);
+
+    logActorAudit(actorOf(user), {
+      action: "payment.tip_removed",
+      targetType: "sale",
+      targetId: payment.sale_id,
+      details: {
+        sale_no: sale.sale_no,
+        reason: why,
+        reversed_payment_id: payment.id,
+        replacement_payment_id: replacementId,
+        tip_cents: removedCents,
+        comm_cents: payment.comm_cents,
+      },
+      before: { tip_cents: payment.tip_cents, amount_cents: payment.amount_cents },
+      after: { tip_cents: 0, amount_cents: restCents },
+    });
+
+    return { ok: true as const, removedCents };
+  });
+}
