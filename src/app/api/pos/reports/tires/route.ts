@@ -3,11 +3,13 @@ import { jsonError, requirePos } from "@/lib/api-helpers";
 import { tireMonth } from "@/lib/pos-reports";
 
 /**
- * The month's new tires, sold or received.
+ * The month's new tires — sold, received, or hauled away as disposals.
  *
- * `viewReports` for both. The sold side is takings and the received side is
+ * `viewReports` for all three. The sold side is takings, the received side is
  * what the shop paid a supplier — the one figure the capability exists to keep
- * off the counter.
+ * off the counter — and the disposal side rides along: it is only fees, but it
+ * prints from the same sheet and splitting the gate would mean two buttons on
+ * one row behaving differently for the same person.
  */
 export async function GET(req: NextRequest) {
   const auth = await requirePos("viewReports");
@@ -15,7 +17,9 @@ export async function GET(req: NextRequest) {
 
   const sp = req.nextUrl.searchParams;
   const month = sp.get("month") ?? "";
-  const kind = sp.get("kind") === "received" ? "received" : "sold";
+  const kindParam = sp.get("kind");
+  const kind =
+    kindParam === "received" ? "received" : kindParam === "disposal" ? "disposal" : "sold";
 
   if (!/^\d{4}-\d{2}$/.test(month)) return jsonError("Give a month as YYYY-MM");
 

@@ -64,7 +64,7 @@ const shortTime = (at: string) => {
 
 type MonthReport = {
   month: string;
-  kind: "sold" | "received";
+  kind: "sold" | "received" | "disposal";
   rows: {
     businessDate: string;
     productName: string;
@@ -115,7 +115,7 @@ export default function MovementsPage() {
    * in pressed again — the alternative is a report that can be opened and never
    * closed, which is how a screen ends up with a Clear button nobody looks for.
    */
-  async function runReport(kind: "sold" | "received") {
+  async function runReport(kind: "sold" | "received" | "disposal") {
     if (reportBusy) return;
     if (report?.kind === kind) {
       setReport(null);
@@ -180,16 +180,17 @@ export default function MovementsPage() {
       )}
 
       {/*
-        The month sheet, and the only part of this page that prints.
+        The month sheets, and the only part of this page that prints.
 
-        New tires only, both ways. Used tires have no cost and a price decided
-        at the counter, so a total that mixed them in would be a number that is
-        not true of either half.
+        New tires only on the sold and stocked sides. Used tires have no cost
+        and a price decided at the counter, so a total that mixed them in would
+        be a number that is not true of either half. The disposal sheet counts
+        something else entirely — casings hauled in, which were never stock.
       */}
       {can("viewReports") && (
         <div className="bg-white rounded-2xl shadow-sm p-3 mb-4 tm-hide-on-print">
           <div className="text-xs uppercase tracking-wider text-brand-300 mb-2">
-            New tires, by month
+            By month
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <input
@@ -225,6 +226,17 @@ export default function MovementsPage() {
             >
               Stocked this month
             </button>
+            {/* Casings, not stock — the tires this counts were never the
+                shop's. The figure the hauler charges against. */}
+            <button
+              type="button"
+              className={report?.kind === "disposal" ? "btn btn-primary" : "btn btn-outline"}
+              aria-pressed={report?.kind === "disposal"}
+              onClick={() => void runReport("disposal")}
+              disabled={reportBusy || !month}
+            >
+              Disposals this month
+            </button>
             {report && (
               <button type="button" className="btn btn-primary" onClick={() => window.print()}>{tr("Print")}</button>
             )}
@@ -244,8 +256,10 @@ export default function MovementsPage() {
                 Casias Muffler and Tire Shop
               </div>
               <div style={{ fontSize: "9pt" }}>
-                New tires {report.kind === "sold" ? "sold" : "stocked"} · {report.month} ·
-                printed by {user.name}
+                {report.kind === "disposal"
+                  ? "Tire disposals"
+                  : `New tires ${report.kind === "sold" ? "sold" : "stocked"}`}{" "}
+                · {report.month} · printed by {user.name}
               </div>
             </div>
           </div>
@@ -281,7 +295,10 @@ export default function MovementsPage() {
 
           <div className="flex items-baseline justify-between gap-3 mb-2 tm-hide-on-print">
             <h2 className="text-lg font-semibold text-brand-500">
-              New tires {report.kind === "sold" ? "sold" : "stocked"} · {report.month}
+              {report.kind === "disposal"
+                ? "Tire disposals"
+                : `New tires ${report.kind === "sold" ? "sold" : "stocked"}`}{" "}
+              · {report.month}
             </h2>
             <span className="text-sm text-brand-300">
               {report.rows.length} {report.rows.length === 1 ? "line" : "lines"}
@@ -290,7 +307,9 @@ export default function MovementsPage() {
 
           {report.rows.length === 0 ? (
             <div className="text-brand-300 py-6 text-center">
-              No new tires {report.kind === "sold" ? "sold" : "received"} that month.
+              {report.kind === "disposal"
+                ? "No disposals rung that month."
+                : `No new tires ${report.kind === "sold" ? "sold" : "received"} that month.`}
             </div>
           ) : (
             <>
@@ -298,18 +317,23 @@ export default function MovementsPage() {
                 <thead>
                   <tr className="text-left text-brand-300 uppercase text-xs tracking-wider">
                     <th className="py-1 font-medium">{tr("Date")}</th>
-                    <th className="py-1 font-medium">{tr("Tire")}</th>
+                    <th className="py-1 font-medium">
+                      {report.kind === "disposal" ? tr("Line") : tr("Tire")}
+                    </th>
                     {/* Every column that follows a right-aligned number is
                         indented off it. Without the gap "2" and "Mario" close
                         up into "2Mario" — the number ends hard against the next
                         column because one is pushed right and the other left,
                         so they meet in the middle with nothing between them. */}
                     <th className="py-1 font-medium text-right">Qty</th>
+                    {/* The disposal sheet reads like the sold one — a fee is a
+                        line on a ticket, so the ticket is what identifies it.
+                        Only the received sheet swaps in who signed for stock. */}
                     <th className="py-1 font-medium pl-4">
-                      {report.kind === "sold" ? "Ticket" : "Received by"}
+                      {report.kind === "received" ? "Received by" : "Ticket"}
                     </th>
                     <th className="py-1 font-medium text-right pl-4">
-                      {report.kind === "sold" ? "Charged" : "Paid"}
+                      {report.kind === "received" ? "Paid" : "Charged"}
                     </th>
                   </tr>
                 </thead>
@@ -334,7 +358,7 @@ export default function MovementsPage() {
                       </td>
                       <td className="py-1 text-right tabular-nums">{r.qty}</td>
                       <td className="py-1 pl-4 whitespace-nowrap text-brand-400">
-                        {report.kind === "sold" ? (r.saleNo ?? "—") : (r.byName ?? "—")}
+                        {report.kind === "received" ? (r.byName ?? "—") : (r.saleNo ?? "—")}
                       </td>
                       <td className="py-1 pl-4 text-right tabular-nums">
                         {formatCents(r.grossCents)}
@@ -374,22 +398,36 @@ export default function MovementsPage() {
                   </div>
                 )}
                 <div className="flex justify-between text-sm">
-                  <span>{report.qty} new tires</span>
+                  <span>
+                    {report.qty}{" "}
+                    {report.kind === "disposal" ? "casings taken in" : "new tires"}
+                  </span>
                   <span className="tabular-nums">{formatCents(report.grossCents)}</span>
                 </div>
                 {/* The split, in words, because it is the sentence somebody
                     repeats out loud off this sheet — and because two numbers
-                    side by side invite the reader to work out which is which. */}
+                    side by side invite the reader to work out which is which.
+                    The disposal sheet has no split to speak; what it says
+                    instead is its one honest caveat — a combined line's money
+                    cannot be taken apart, so the count is exact and the money
+                    is "as rung". */}
                 <div className="text-sm text-brand-400">
                   {report.kind === "sold" ? (
                     <>
                       {report.orderedQty} had to be ordered in, {report.stockQty} sold
                       from stock
                     </>
-                  ) : (
+                  ) : report.kind === "received" ? (
                     <>
                       {report.orderedQty} came in for orders, {report.stockQty} went
                       onto the racks
+                    </>
+                  ) : (
+                    <>
+                      The count is what the hauler charges against. Where a line
+                      combines the fee with other work — a mount, a flat — its money
+                      is the whole line, so the total is what was rung, not the fees
+                      alone.
                     </>
                   )}
                 </div>
@@ -400,7 +438,7 @@ export default function MovementsPage() {
                   <span className="tabular-nums">−{formatCents(report.taxCents)}</span>
                 </div>
                 <div className="flex justify-between font-semibold text-brand-500 mt-1">
-                  <span>{report.kind === "sold" ? "Net of tax" : "Net cost of tax"}</span>
+                  <span>{report.kind === "received" ? "Net cost of tax" : "Net of tax"}</span>
                   <span className="tabular-nums">{formatCents(report.netCents)}</span>
                 </div>
 

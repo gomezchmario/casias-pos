@@ -1167,7 +1167,7 @@ export type TireMonthRow = {
 
 export type TireMonthReport = {
   month: string;
-  kind: "sold" | "received";
+  kind: "sold" | "received" | "disposal";
   /**
    * The first month the stock ledger has anything in it — which is the month
    * the shop's existing racks were typed into the system.
@@ -1218,14 +1218,53 @@ export type TireMonthReport = {
  * the rate ITS OWN ticket froze at completion, not by today's setting: a rate
  * change would otherwise quietly restate every month that came before it.
  */
-export function tireMonth(month: string, kind: "sold" | "received"): TireMonthReport {
+export function tireMonth(
+  month: string,
+  kind: "sold" | "received" | "disposal",
+): TireMonthReport {
   const db = getDb();
   const like = `${month}%`;
   const currentBp = Number(getSetting("tax_rate_bp"));
 
+  /*
+    The disposal sheet is the odd one out: it counts CASINGS, not stock.
+
+    A disposal line is a fee for hauling a customer's dead tire away, so there
+    is no product behind it and nothing in the inventory ledger — the tire being
+    counted was never the shop's. Matched on the description because that is all
+    a fee line has, and matched broadly (%DISPOSAL%) because the counter also
+    rings "DISPOSAL FEE", "MOUNT & DISPOSAL" and the like. A combined line's
+    money is the whole line — the fee cannot be split back out of a mount after
+    the fact — and the sheet says so rather than pretending the split exists.
+
+    The qty is the figure this sheet exists for: it is the number of casings
+    accumulating out back, which is what the hauler charges against.
+  */
   const rows =
-    kind === "sold"
+    kind === "disposal"
       ? (db
+          .prepare(
+            `SELECT s.business_date            AS businessDate,
+                    i.description              AS productName,
+                    NULL                       AS tireSize,
+                    i.qty                      AS qty,
+                    s.sale_no                  AS saleNo,
+                    e.name                     AS byName,
+                    i.line_total_cents         AS grossCents,
+                    0                          AS ordered,
+                    COALESCE(s.tax_rate_bp, ?) AS taxRateBp
+               FROM sale_items i
+               JOIN sales s ON s.id = i.sale_id
+          LEFT JOIN employees e ON e.id = i.mechanic_id
+              WHERE s.business_date LIKE ?
+                AND s.deleted = 0 AND s.status = 'completed' AND s.kind = 'sale'
+                AND i.voided = 0
+                AND UPPER(i.description) LIKE '%DISPOSAL%'
+           ORDER BY s.business_date, i.id`,
+          )
+          .all(currentBp, like) as (TireMonthRow & { taxRateBp: number })[])
+      : kind === "sold"
+        ? (db
           .prepare(
             `SELECT s.business_date            AS businessDate,
                     i.description              AS productName,
