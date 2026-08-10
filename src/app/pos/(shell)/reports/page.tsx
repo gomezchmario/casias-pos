@@ -73,6 +73,8 @@ type Data = {
   days: number;
   grain: "day" | "week" | "month";
   today: string;
+  /** The earliest day the shop has any record of — see the route. */
+  firstDate: string;
   headline: Headline;
   trend: TrendPoint[];
   categories: CategoryRow[];
@@ -110,6 +112,10 @@ const PRESETS: { key: string; label: string; days: number }[] = [
   { key: "30", label: "Last 30 days", days: 30 },
   { key: "90", label: "Last 90 days", days: 90 },
   { key: "365", label: "Last 12 months", days: 365 },
+  // Everything the shop has ever recorded. Days are not fixed — the window
+  // starts at the first day there is a record of, which the server sends,
+  // because that answer moved by two years the day the old workbook came in.
+  { key: "all", label: "All time", days: 0 },
 ];
 
 function shiftDays(from: string, n: number): string {
@@ -147,6 +153,30 @@ export default function ReportsPage() {
    * register being used, not sizes anybody wanted.
    */
   const [showPartial, setShowPartial] = useState(false);
+  /**
+   * Reorder points set from this page, by product.
+   *
+   * Held here rather than reloading the whole report after each one. The page
+   * is a few dozen queries and somebody setting eight reorder points in a row
+   * should not wait for all of them eight times.
+   */
+  const [applied, setApplied] = useState<Record<number, number>>({});
+  const [applying, setApplying] = useState<number | null>(null);
+
+  async function applyReorder(productId: number, reorderPoint: number) {
+    setApplying(productId);
+    const res = await fetch(`/api/pos/products/${productId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reorderPoint }),
+    });
+    setApplying(null);
+    if (!res.ok) {
+      setError("Could not set that reorder point");
+      return;
+    }
+    setApplied((a) => ({ ...a, [productId]: reorderPoint }));
+  }
 
   useEffect(() => setPrintedOn(new Date().toLocaleDateString()), []);
 
@@ -177,10 +207,12 @@ export default function ReportsPage() {
     // and the server's business date is the one everything else is bucketed by.
     setTo("");
     setFrom("");
-    // Computed from the server's today once it has told us. Until then the
-    // default window — thirty days — is what comes back, which is this page's
+    // All time starts where the records do. Everything else counts back from
+    // the server's today, once it has told us what that is — until then the
+    // default thirty-day window is what comes back, which is this page's
     // default anyway.
-    if (data?.today) setFrom(shiftDays(data.today, -(p.days - 1)));
+    if (key === "all") setFrom(data?.firstDate ?? "");
+    else if (data?.today) setFrom(shiftDays(data.today, -(p.days - 1)));
   }
 
   if (!can("viewBusinessReports"))
@@ -798,10 +830,29 @@ export default function ReportsPage() {
                         {r.daysOfCover === null ? tr("none left") : `${r.daysOfCover}`}
                       </td>
                       <td className="r n" style={{ color: "rgba(10,37,64,0.4)" }}>
-                        {r.reorderPoint || "—"}
+                        {applied[r.productId] ?? r.reorderPoint ?? "—"}
                       </td>
-                      <td className="r n" style={{ fontWeight: 600, color: "#15803d" }}>
-                        {r.suggested}
+                      {/* The suggestion, and the one press that takes it.
+                          A number somebody has to go and retype into another
+                          screen is a number that mostly does not get typed —
+                          and the point of the whole panel is that these tires
+                          have no reorder point at all. */}
+                      <td className="r n" style={{ fontWeight: 600 }}>
+                        {applied[r.productId] === r.suggested ? (
+                          <span style={{ color: "#15803d" }}>{tr("set")}</span>
+                        ) : can("manageProducts") ? (
+                          <button
+                            type="button"
+                            className="rp-apply"
+                            disabled={applying === r.productId}
+                            title={`${tr("Set the reorder point to")} ${r.suggested}`}
+                            onClick={() => void applyReorder(r.productId, r.suggested)}
+                          >
+                            {applying === r.productId ? "…" : `${tr("set")} ${r.suggested}`}
+                          </button>
+                        ) : (
+                          <span style={{ color: "#15803d" }}>{r.suggested}</span>
+                        )}
                       </td>
                     </tr>
                   ))}

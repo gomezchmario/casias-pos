@@ -1,6 +1,7 @@
 import { getDb } from "./db";
 import { taxIncludedInCents } from "./money";
 import { getSetting } from "./settings";
+import { COST_JOINS, UNIT_COST_SQL } from "./costs";
 import { normalizeTireSize } from "./tire-size";
 
 /**
@@ -194,12 +195,13 @@ export function categoryMix(from: string, to: string): CategoryRow[] {
               COALESCE(SUM(i.line_total_cents), 0) AS revenueCents,
               COALESCE(SUM(i.qty), 0)          AS units,
               COUNT(*)                         AS lines,
-              COALESCE(SUM(CASE WHEN i.unit_cost_cents > 0
-                                THEN i.unit_cost_cents * i.qty ELSE 0 END), 0) AS costCents,
-              COALESCE(SUM(CASE WHEN i.unit_cost_cents > 0
+              COALESCE(SUM(CASE WHEN ${UNIT_COST_SQL} IS NOT NULL
+                                THEN ${UNIT_COST_SQL} * i.qty ELSE 0 END), 0) AS costCents,
+              COALESCE(SUM(CASE WHEN ${UNIT_COST_SQL} IS NOT NULL
                                 THEN i.line_total_cents ELSE 0 END), 0) AS costedRevenueCents
          FROM sale_items i
          JOIN sales s ON s.id = i.sale_id
+         ${COST_JOINS}
     LEFT JOIN service_categories c ON c.id = i.category_id
         WHERE ${SALE} AND i.voided = 0 AND s.business_date BETWEEN ? AND ?
      GROUP BY code
@@ -365,9 +367,13 @@ export function productMovement(from: string, to: string): ProductRow[] {
               SELECT i.product_id,
                      SUM(i.qty) AS units,
                      SUM(i.line_total_cents) AS revenue,
-                     SUM(COALESCE(i.unit_cost_cents, 0) * i.qty) AS cost
+                     -- The snapshot where there is one, the product's own
+                     -- cost where there is not. Every imported line is the
+                     -- second case: the old workbook recorded no costs.
+                     SUM(COALESCE(NULLIF(i.unit_cost_cents, 0), pp.default_cost_cents, 0) * i.qty) AS cost
                 FROM sale_items i
                 JOIN sales s ON s.id = i.sale_id
+           LEFT JOIN products pp ON pp.id = i.product_id
                WHERE ${SALE} AND i.voided = 0 AND s.business_date BETWEEN ? AND ?
             GROUP BY i.product_id
              ) sold ON sold.product_id = p.id
@@ -619,6 +625,25 @@ export type RestockRow = {
  * seven days into "reorder at 1", which is advice that would empty the racks.
  * The observed span is capped at ninety and reported on the row.
  */
+/**
+ * A number of tires a shop would actually hold, rounded up from a rate.
+ *
+ * NEVER THREE, and never five or seven. A car has four wheels, so tires move in
+ * ones, pairs and sets — a customer buys one, two, or four, and a fleet buys
+ * six or eight. Three on a shelf is two with an orphan, and a reorder point of
+ * three would keep re-ordering the orphan forever.
+ *
+ * Rounded UP rather than to the nearest, because the failure this list exists
+ * to prevent is running out. Past twelve the named steps stop and it rounds to
+ * the next even number, which is still a pair.
+ */
+export function tireQuantity(rate: number): number {
+  const STEPS = [1, 2, 4, 6, 8, 10, 12];
+  const want = Math.max(1, rate);
+  for (const step of STEPS) if (want <= step) return step;
+  return Math.ceil(want / 2) * 2;
+}
+
 export function restockAdvice(asOf: string, minSold = 2): RestockRow[] {
   // How much history there actually is, capped at the ninety days asked for.
   const first = getDb()
@@ -662,10 +687,11 @@ export function restockAdvice(asOf: string, minSold = 2): RestockRow[] {
       return {
         ...r,
         overDays,
-        // A fortnight of sales at the observed rate. A starting figure rather
-        // than an answer: the right number is a fortnight only if the truck
-        // comes in a fortnight, and nothing here knows that.
-        suggested: Math.max(1, Math.ceil(perDay * 14)),
+        // A fortnight of sales at the observed rate, snapped to a number of
+        // tires a shop actually holds. A starting figure rather than an answer:
+        // the right span is a fortnight only if the truck comes in a fortnight,
+        // and nothing here knows that.
+        suggested: tireQuantity(perDay * 14),
         daysOfCover: r.onHand > 0 && perDay > 0 ? Math.round(r.onHand / perDay) : null,
       };
     })
@@ -1208,12 +1234,13 @@ export function headline(from: string, to: string): Headline {
 
   const costed = db
     .prepare(
-      `SELECT COALESCE(SUM(CASE WHEN i.unit_cost_cents > 0
+      `SELECT COALESCE(SUM(CASE WHEN ${UNIT_COST_SQL} IS NOT NULL
                                THEN i.line_total_cents ELSE 0 END), 0) AS revenue,
-              COALESCE(SUM(CASE WHEN i.unit_cost_cents > 0
-                               THEN i.unit_cost_cents * i.qty ELSE 0 END), 0) AS cost,
+              COALESCE(SUM(CASE WHEN ${UNIT_COST_SQL} IS NOT NULL
+                               THEN ${UNIT_COST_SQL} * i.qty ELSE 0 END), 0) AS cost,
               COALESCE(SUM(i.line_total_cents), 0) AS allRevenue
          FROM sale_items i JOIN sales s ON s.id = i.sale_id
+         ${COST_JOINS}
         WHERE ${SALE} AND i.voided = 0 AND s.business_date BETWEEN ? AND ?`,
     )
     .get(from, to) as { revenue: number; cost: number; allRevenue: number };

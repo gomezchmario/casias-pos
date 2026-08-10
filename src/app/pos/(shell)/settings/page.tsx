@@ -162,6 +162,7 @@ export default function SettingsPage() {
       {error && <div className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>}
 
       {canShop && <LockCard onError={setError} />}
+      {canShop && <CostsCard onError={setError} />}
       {canShop && <TireStudyCard onError={setError} />}
       {can("managePermissions") && <ExtraPermissionsCard onError={setError} />}
       {canShop && <InventoryAlarmCard onError={setError} />}
@@ -859,3 +860,215 @@ function ExtraPermissionsCard({ onError }: { onError: (m: string | null) => void
  */
 const DENIED_BY_NAME = (role: PosRole, capability: Capability) =>
   roleAtLeast(role, CAPABILITIES[capability]) && !can(role, capability);
+
+/**
+ * What things cost the shop.
+ *
+ * THE SCREEN THAT ANSWERS "not enough cost data". A tire carries a cost because
+ * it was bought from a supplier at a price somebody typed in; nothing else in
+ * the register ever did. Two thirds of what this shop sells is labour — flats,
+ * mounts, rotations, oil — and every one of those lines reached the margin
+ * report with no cost at all, so the report could only say it did not know.
+ *
+ * It leads with the coverage figure rather than with the boxes, because that is
+ * the number being moved and it is the only thing that makes a list of thirty
+ * boxes worth working through. Each one saved moves it, immediately.
+ *
+ * Ranked by revenue and cut at thirty. There are 1,346 distinct service
+ * descriptions in this shop's history and the top two are 39% of the money — a
+ * screen listing all of them is a screen nobody fills in.
+ *
+ * MATERIALS, NOT LABOUR, and the card says so. What a flat repair consumes is a
+ * patch and a valve; the hour is a fixed cost of opening the doors and does not
+ * scale with one more repair. Folding wages in here would make every margin on
+ * the reports depend on how busy the day happened to be.
+ */
+function CostsCard({ onError }: { onError: (m: string | null) => void }) {
+  const { t: tr } = useLang();
+  const [data, setData] = useState<{
+    from: string;
+    to: string;
+    coverage: { revenueCents: number; costedCents: number; pct: number; linesWithout: number };
+    services: {
+      key: string;
+      costCents: number | null;
+      lines: number;
+      revenueCents: number;
+      setByName: string | null;
+    }[];
+    productsMissing: { productId: number; name: string; lines: number; revenueCents: number }[];
+  } | null>(null);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+
+  const load = useCallback(async () => {
+    const res = await fetch("/api/pos/costs");
+    if (!res.ok) return;
+    const d = await res.json();
+    setData(d);
+    setDraft(
+      Object.fromEntries(
+        d.services.map((s: { key: string; costCents: number | null }) => [
+          s.key,
+          s.costCents === null ? "" : (s.costCents / 100).toFixed(2),
+        ]),
+      ),
+    );
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function save(key: string) {
+    const raw = draft[key] ?? "";
+    // An empty box means "not answered", which is a different fact from zero.
+    // Clearing one takes the answer away rather than recording that the job
+    // consumes nothing.
+    const costCents = raw.trim() === "" ? null : parseCents(raw);
+    if (raw.trim() !== "" && costCents === null) {
+      onError(tr("That is not an amount"));
+      return;
+    }
+    setBusy(key);
+    onError(null);
+    const res = await fetch("/api/pos/costs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description: key, costCents }),
+    });
+    setBusy(null);
+    if (!res.ok) {
+      onError(tr("That did not save"));
+      return;
+    }
+    const d = await res.json();
+    setData((cur) => (cur ? { ...cur, coverage: d.coverage } : cur));
+  }
+
+  if (!data) return null;
+  const c = data.coverage;
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-4 mb-6">
+      <div className="text-xs uppercase tracking-wider text-brand-300 mb-1">
+        {tr("What things cost")}
+      </div>
+
+      {/* The number this screen exists to move, and what moving it buys. */}
+      <div className="flex items-baseline gap-3 flex-wrap mb-1">
+        <span
+          className="text-2xl font-semibold tabular-nums"
+          style={{ color: c.pct >= 80 ? "#15803d" : c.pct >= 40 ? "#b45309" : "#b91c1c" }}
+        >
+          {c.pct}%
+        </span>
+        <span className="text-sm text-brand-400">
+          {tr("of the last year's takings can be given a cost")}
+        </span>
+      </div>
+      <p className="text-sm text-brand-400 mb-3" style={{ maxWidth: "70ch" }}>
+        {tr(
+          "Gross Margin on the Reports tab is worked out only over the part that can. Below about a fifth it shows no figure at all, because a margin over a fifth of the shop is not a margin for the shop. Filling these in raises it.",
+        )}{" "}
+        <strong>{tr("Materials only")}</strong>{" "}
+        {tr(
+          "— what the job consumes. Not wages: those are a cost of opening the doors and do not change with one more repair.",
+        )}
+      </p>
+
+      <button
+        type="button"
+        className={open ? "btn btn-primary" : "btn btn-outline"}
+        style={{ height: 34, fontSize: 13 }}
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {open ? tr("Hide the list") : tr("Fill these in")}
+        <span className="text-xs font-normal">
+          {" · "}
+          {data.services.filter((s) => s.costCents === null).length} {tr("unanswered")}
+        </span>
+      </button>
+
+      {open && (
+        <>
+          <table className="w-full text-sm mt-3">
+            <thead>
+              <tr className="text-brand-300 text-xs uppercase tracking-wider">
+                <th className="text-left py-2 font-medium">{tr("Service")}</th>
+                <th className="text-right py-2 font-medium pl-4">{tr("Times sold")}</th>
+                <th className="text-right py-2 font-medium pl-4">{tr("Brought in")}</th>
+                <th className="text-right py-2 font-medium pl-4">{tr("Costs us, each")}</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {data.services.map((s) => (
+                <tr key={s.key} className="border-t border-black/5">
+                  <td className="py-1.5 text-brand-500">{s.key}</td>
+                  <td className="py-1.5 pl-4 text-right tabular-nums text-brand-400">{s.lines}</td>
+                  <td className="py-1.5 pl-4 text-right tabular-nums text-brand-400">
+                    {formatCents(s.revenueCents)}
+                  </td>
+                  <td className="py-1.5 pl-4 text-right">
+                    {/* Saved on leaving the box as well as on Enter. Thirty of
+                        these get filled in with a keyboard, and a row that
+                        needed a button pressed as well as a number typed is a
+                        row somebody skips. */}
+                    <input
+                      className="input text-right tabular-nums"
+                      style={{ width: 90, height: 30 }}
+                      inputMode="decimal"
+                      placeholder="—"
+                      value={draft[s.key] ?? ""}
+                      onChange={(e) => setDraft((d) => ({ ...d, [s.key]: e.target.value }))}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void save(s.key);
+                      }}
+                      onBlur={() => {
+                        const was = s.costCents === null ? "" : (s.costCents / 100).toFixed(2);
+                        if ((draft[s.key] ?? "") !== was) void save(s.key);
+                      }}
+                    />
+                  </td>
+                  <td className="py-1.5 pl-2 text-xs text-brand-300 whitespace-nowrap">
+                    {busy === s.key ? tr("Saving…") : (s.setByName ?? "")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {data.productsMissing.length > 0 && (
+            <div className="mt-4">
+              <div className="text-xs uppercase tracking-wider text-brand-300 mb-1">
+                {tr("Tires with no cost")}
+              </div>
+              <p className="text-sm text-brand-400 mb-2">
+                {tr(
+                  "These have sold and the shop has never recorded what it paid for them. A tire's cost is set on the tire itself, in Inventory.",
+                )}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {data.productsMissing.slice(0, 20).map((p) => (
+                  <span
+                    key={p.productId}
+                    className="pos-grant"
+                    style={{ background: "rgba(216,68,76,0.12)", color: "#a71d24" }}
+                  >
+                    {p.name}
+                    <em style={{ fontStyle: "normal", opacity: 0.65 }}>
+                      {formatCents(p.revenueCents)}
+                    </em>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}

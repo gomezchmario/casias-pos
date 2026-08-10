@@ -20,9 +20,17 @@
  *   with those tickets de-duplicated out of it, line by line, so nothing is
  *   counted twice.
  *
- *   SPECIAL ORDERS. Every imported ticket is `is_special_order = 0` and
- *   `fulfillment_status = 'none'`, so nothing new can appear on the orders board
- *   or in the outstanding panel.
+ *   SPECIAL ORDERS AND THE OUTSTANDING PANEL. Every imported ticket is
+ *   `is_special_order = 0`, `fulfillment_status = 'none'`, paid in full — and
+ *   `work_status = NULL`.
+ *
+ *   That last one is not a detail. `outstandingTickets` treats a work status of
+ *   NULL as "no car involved" and ANY other value as a car still on the
+ *   premises, `picked_up` excepted. Writing the string 'none' there — which
+ *   reads as neutral and is not — put all forty thousand imported tickets on
+ *   the counter's Outstanding panel at once. The three "no special order" flags
+ *   were all correct and the panel filled up anyway, because it asks a fourth
+ *   question. Anything seeding this table has to answer all four.
  *
  *   CUSTOMERS. The workbook's customer column is deliberately ignored. No
  *   customer rows are created and no ticket is attached to one.
@@ -37,7 +45,9 @@
  *   npx --yes tsx --tsconfig scripts/tsconfig.preview.json scripts/import-excel-history.mts [--apply]
  */
 
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { getDb } from "../src/lib/db.ts";
 import { inTx } from "../src/lib/tx.ts";
@@ -45,9 +55,57 @@ import { normalizeTireSize } from "../src/lib/tire-size.ts";
 import { readSharedStrings, readSheet, serialToDate, serialToTime } from "./lib-xlsx.mts";
 
 const APPLY = process.argv.includes("--apply");
-const XL = process.argv.find((a) => a.endsWith(".xlsm") || a.endsWith(".xlsx"));
-const DIR =
-  "C:/Users/Casia/AppData/Local/Temp/claude/C--Users-Casia-Check-In/5e2d0312-8f7f-4e7f-ac47-3ac0745641a3/scratchpad/xlsx/x";
+
+/**
+ * Import only the days the database has nothing at all for.
+ *
+ * The mode for a BACKUP of the workbook rather than the workbook itself. The
+ * shop keeps several copies taken at different moments, and one of them turned
+ * out to hold a month the main file had lost — 20 October to 20 November 2025.
+ * Run over the whole file that month would arrive alongside two years that are
+ * already in; restricted to the empty days it arrives alone.
+ *
+ * "Empty" means not one completed ticket on that date. A day the register has
+ * even one ticket on is a day somebody was using the system, and a backup's
+ * version of it is a second telling rather than a missing one.
+ */
+const ONLY_MISSING = process.argv.includes("--only-missing");
+
+const XL = process.argv.find((a) => /\.xlsm$|\.xlsx$/i.test(a));
+
+/** A workbook is a zip. ExcelJS refuses these ones — see `lib-xlsx.mts`. */
+function unzip(file: string): string {
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), "wb-"));
+  const zip = path.join(out, "book.zip");
+  fs.copyFileSync(file, zip);
+  execFileSync(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-Command",
+      `Expand-Archive -LiteralPath '${zip}' -DestinationPath '${out}/x' -Force`,
+    ],
+    { stdio: "pipe" },
+  );
+  return path.join(out, "x");
+}
+
+/** The sheet named Data, whatever file it lives in. */
+function dataSheetOf(dir: string): string {
+  const rels = fs.readFileSync(`${dir}/xl/_rels/workbook.xml.rels`, "utf8");
+  const map: Record<string, string> = {};
+  for (const m of rels.matchAll(/<Relationship Id="(rId\d+)"[^>]*Target="([^"]+)"/g))
+    map[m[1]] = m[2];
+  const wb = fs.readFileSync(`${dir}/xl/workbook.xml`, "utf8");
+  for (const m of wb.matchAll(/<sheet name="([^"]+)"[^>]*r:id="(rId\d+)"/g))
+    if (m[1].trim().toLowerCase() === "data") return map[m[2]];
+  throw new Error("no sheet called Data in that workbook");
+}
+
+const DIR = XL
+  ? unzip(XL)
+  : "C:/Users/Casia/AppData/Local/Temp/claude/C--Users-Casia-Check-In/5e2d0312-8f7f-4e7f-ac47-3ac0745641a3/scratchpad/xlsx/x";
+const SHEET = XL ? dataSheetOf(DIR) : "worksheets/sheet2.xml";
 
 const db = getDb();
 const money = (c: number) => `$${(c / 100).toFixed(2)}`;
@@ -146,7 +204,7 @@ const MIN_LINES_FOR_ACCOUNT = 5;
 // ── Read the sheet ─────────────────────────────────────────────────────────
 
 const shared = readSharedStrings(DIR);
-const rows = readSheet(DIR, "worksheets/sheet2.xml", shared)
+const rows = readSheet(DIR, SHEET, shared)
   .slice(1)
   .filter((r) => r[0] != null && r[9] != null);
 
@@ -164,9 +222,34 @@ type Line = {
   category: string;
 };
 
+/** Days the database has not one completed ticket for. See `ONLY_MISSING`. */
+const emptyDays = new Set<string>();
+if (ONLY_MISSING) {
+  const have = new Set(
+    (
+      db
+        .prepare(
+          `SELECT DISTINCT business_date d FROM sales
+             WHERE deleted = 0 AND kind = 'sale' AND status = 'completed'`,
+        )
+        .all() as { d: string }[]
+    ).map((r) => r.d),
+  );
+  for (const r of rows) {
+    const d = serialToDate(Number(r[9]));
+    if (d && !have.has(d)) emptyDays.add(d);
+  }
+  const list = [...emptyDays].sort();
+  console.log(
+    `only-missing: ${emptyDays.size} days the database has nothing for` +
+      (list.length ? ` (${list[0]} → ${list.at(-1)})` : ""),
+  );
+}
+
 const lines: Line[] = [];
 let skippedFrozen = 0;
 let skippedUndated = 0;
+let skippedPresent = 0;
 
 for (const r of rows) {
   const date = serialToDate(Number(r[9]));
@@ -176,6 +259,10 @@ for (const r of rows) {
   }
   if (FROZEN.has(date)) {
     skippedFrozen++;
+    continue;
+  }
+  if (ONLY_MISSING && !emptyDays.has(date)) {
+    skippedPresent++;
     continue;
   }
   const qty = Math.max(1, Math.round(Number(r[1]) || 1));
@@ -209,7 +296,10 @@ for (const r of rows) {
 }
 
 console.log(`workbook: ${rows.length} rows · usable ${lines.length}`);
-console.log(`  skipped: ${skippedFrozen} on frozen days (5–6 Aug), ${skippedUndated} undated`);
+console.log(
+  `  skipped: ${skippedFrozen} on frozen days (5–6 Aug), ${skippedUndated} undated` +
+    (ONLY_MISSING ? `, ${skippedPresent} on days already in the database` : ""),
+);
 
 // ── De-duplicate against what the POS already has ──────────────────────────
 //
@@ -490,7 +580,7 @@ inTx(() => {
         total_cents, paid_cents, balance_cents, discount_cents, tax_rate_bp,
         kind, work_status, created_at, updated_at, deleted, notes)
      VALUES (?, ?, ?, ?, 'completed', 'none', 0, ?, ?, ?, ?, ?, ?, 0, 0, ?,
-             'sale', 'none', ?, ?, 0, ?)`,
+             'sale', NULL, ?, ?, 0, ?)`,
   );
   const insertItem = db.prepare(
     `INSERT INTO sale_items
@@ -518,7 +608,16 @@ inTx(() => {
     .prepare("SELECT id FROM employees WHERE pos_role = 'owner' AND active = 1 ORDER BY id LIMIT 1")
     .get() as { id: number }).id;
 
-  let seq = 1;
+  // Continues wherever the last import stopped. A second run — a backup
+  // filling a gap the main workbook lost — must not re-issue numbers the first
+  // one already used.
+  let seq =
+    1 +
+    ((
+      db
+        .prepare("SELECT COUNT(*) n FROM sales WHERE sale_no LIKE 'H-%'")
+        .get() as { n: number }
+    ).n);
   /** The negative rows, kept so the note can say what they were. */
   const outgoing: Line[] = [];
   let refundOnly = 0;
@@ -693,6 +792,25 @@ console.log(
 console.log(
   "imported tickets with a balance owing:",
   (db.prepare("SELECT COUNT(*) n FROM sales WHERE sale_no LIKE 'H-%' AND balance_cents <> 0").get() as { n: number }).n,
+);
+// The check that would have caught the one thing this script got wrong. Every
+// imported ticket must be invisible to the counter's Outstanding panel, and
+// that panel asks four questions rather than three — see the header.
+console.log(
+  "on the Outstanding panel because of the import:",
+  (
+    db
+      .prepare(
+        `SELECT COUNT(*) n FROM sales
+          WHERE sale_no LIKE 'H-%'
+            AND (balance_cents > 0
+                 OR (is_special_order = 1
+                     AND fulfillment_status NOT IN ('none', 'delivered', 'cancelled'))
+                 OR (work_status IS NOT NULL AND work_status <> 'picked_up'))`,
+      )
+      .get() as { n: number }
+  ).n,
+  "— must be 0",
 );
 console.log(
   "customers created:",

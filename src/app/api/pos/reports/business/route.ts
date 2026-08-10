@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePos } from "@/lib/api-helpers";
+import { getDb } from "@/lib/db";
 import { currentBusinessDate } from "@/lib/business-date";
 import { techPeriod, tipsByTech } from "@/lib/leaderboard";
 import {
@@ -41,6 +42,7 @@ export async function GET(req: NextRequest) {
   const auth = await requirePos("viewBusinessReports");
   if (!auth.ok) return auth.response;
 
+  const db = getDb();
   const sp = req.nextUrl.searchParams;
   const today = currentBusinessDate();
 
@@ -90,6 +92,20 @@ export async function GET(req: NextRequest) {
     days,
     grain,
     today,
+    /**
+     * The first day the shop has any record of, so the page can offer an
+     * All time window without guessing at one. Sent rather than assumed
+     * because the answer changed by two years the day the workbook was
+     * imported, and it will change again the day anything else is.
+     */
+    firstDate:
+      (
+        db
+          .prepare(
+            "SELECT MIN(business_date) d FROM sales WHERE deleted = 0 AND kind = 'sale'",
+          )
+          .get() as { d: string | null }
+      ).d ?? today,
     headline: headline(from, to),
     trend: revenueTrend(from, to, grain),
     categories: categoryMix(from, to),
