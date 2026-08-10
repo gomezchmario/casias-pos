@@ -457,6 +457,85 @@ const ES: Record<string, string> = {
   "Used tires": "Llantas usadas",
   "Other work": "Otro trabajo",
   "Brought in": "Trajo",
+
+// ── Performance, trends, and the rest of the newer report panels ───────
+  Trends: "Tendencias",
+  "Show 10 more": "Ver 10 más",
+  showing: "mostrando",
+  of: "de",
+  Quiet: "Tranquilo",
+  Busiest: "A tope",
+  "Blue is quiet, red is flat out. This is the one report that settles a rota argument — a shop can feel busy on a Saturday and take most of its money on a Thursday.":
+    "Azul es tranquilo, rojo es a tope. Este es el reporte que zanja una discusión de horarios — el taller puede sentirse ocupado en sábado y hacer la mayor parte del dinero en jueves.",
+
+  "How everyone is doing": "Cómo va cada quien",
+  "Measured per day they were actually here, against the same length of time before this window. Somebody who works Saturdays is not a sixth of somebody who works six days.":
+    "Medido por día que de verdad estuvo aquí, contra el mismo periodo anterior. Quien trabaja los sábados no es la sexta parte de quien trabaja seis días.",
+  "Nobody has been credited with a line in this window.":
+    "Nadie tiene trabajo acreditado en este periodo.",
+  "There is no record of the shop opening between": "No hay registro de que el taller abriera entre",
+  ", so there is nothing to compare this window against. The arrows below are left off rather than showing everyone down 100%.":
+    ", así que no hay contra qué comparar este periodo. Las flechas de abajo se omiten en vez de mostrar a todos con menos 100%.",
+  "On the floor": "En el piso",
+  "credited with work in this window": "con trabajo acreditado en este periodo",
+  "Best day rate": "Mejor por día",
+  "days here": "días aquí",
+  "Typical day rate": "Lo normal por día",
+  "the middle of the crew": "el medio del equipo",
+  "what customers added, this window": "lo que los clientes agregaron, este periodo",
+  "Money brought in, per day here": "Dinero que trajo, por día aquí",
+  "The fair comparison between people who work different amounts.":
+    "La comparación justa entre quienes trabajan distinto número de días.",
+  "Days here": "Días aquí",
+  "Per ticket": "Por ticket",
+  "Tip a ticket": "Propina por ticket",
+  "Per day here": "Por día aquí",
+  gone: "ya no",
+
+  "Which way it is going": "Hacia dónde va",
+  "The only section that ignores the window at the top. A direction taken over whichever fortnight you selected is not a direction — this one always covers the last two years.":
+    "La única sección que ignora el periodo de arriba. Una tendencia medida sobre la quincena que usted haya escogido no es una tendencia — esta siempre cubre los últimos dos años.",
+  "No records at all for": "No hay ningún registro de",
+  "Those months are left out of every comparison below rather than counted as zero, which would read as a collapse that never happened.":
+    "Esos meses quedan fuera de toda comparación de abajo en vez de contarse como cero, lo cual se leería como una caída que nunca pasó.",
+  "Takings a day": "Venta por día",
+  "on a year ago": "contra hace un año",
+  "months compared": "meses comparados",
+  "on the 12 months before": "contra los 12 meses anteriores",
+  "Best month": "Mejor mes",
+  "a day": "por día",
+  "Takings for every day open, month by month": "Venta por cada día abierto, mes por mes",
+  "Per trading day rather than per month, so a short February and a week shut in July do not read as bad months.":
+    "Por día trabajado y no por mes, para que un febrero corto o una semana cerrado en julio no se lean como meses malos.",
+  "no records": "sin registro",
+  "This year against last": "Este año contra el pasado",
+  "Each month beside the same month a year earlier.":
+    "Cada mes junto al mismo mes del año anterior.",
+  "A year ago": "Hace un año",
+  "This year": "Este año",
+  "The shop's year": "El año del taller",
+  "Every January averaged, every February averaged, and so on, over everything on record.":
+    "Cada enero promediado, cada febrero promediado, y así, sobre todo lo registrado.",
+  year: "año",
+  years: "años",
+  "What the shop sells, quarter by quarter": "Qué vende el taller, trimestre por trimestre",
+  "Each column is one quarter's takings as shares. Watch for a band getting thicker across the page — that is the business changing shape.":
+    "Cada columna es la venta de un trimestre en partes. Fíjese si una franja se hace más gruesa a lo largo de la página — eso es el negocio cambiando de forma.",
+  "The shop has": "El taller tiene",
+  "months on record. The busiest single day was": "meses registrados. El día más fuerte fue",
+  January: "Enero",
+  February: "Febrero",
+  March: "Marzo",
+  April: "Abril",
+  May: "Mayo",
+  June: "Junio",
+  July: "Julio",
+  August: "Agosto",
+  September: "Septiembre",
+  October: "Octubre",
+  November: "Noviembre",
+  December: "Diciembre",
+
   "The racks": "Los racks",
   "Stock on hand": "Existencia",
   "units, at cost": "unidades, a costo",
