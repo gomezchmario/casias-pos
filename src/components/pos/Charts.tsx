@@ -33,7 +33,10 @@ const NAVY = "#0a2540";
 const AMBER = "#b45309";
 const GREEN = "#15803d";
 const RED = "#b91c1c";
-const MUTED = "rgba(10,37,64,0.35)";
+// 0.55 rather than 0.35: composited over white that is 3.5:1 against 2.1:1,
+// and both places it is used carry meaning — the ring's caption and the
+// sentence that says there is nothing to compare against.
+const MUTED = "rgba(10,37,64,0.55)";
 
 /** The palette for anything categorical, in the order it gets handed out. */
 export const SERIES = [

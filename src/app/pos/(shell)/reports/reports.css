@@ -26,7 +26,7 @@
   gap: 8px;
   flex-wrap: wrap;
   font-size: 13px;
-  color: rgba(10, 37, 64, 0.5);
+  color: rgba(10, 37, 64, 0.6);
   margin-bottom: 24px;
 }
 
@@ -36,13 +36,53 @@
 }
 
 .rp-range-note {
-  color: rgba(10, 37, 64, 0.35);
+  color: rgba(10, 37, 64, 0.55);
+}
+
+/* The section index.
+
+   Sticky, because the moment somebody wants it is the moment they are halfway
+   down a page four screens tall — which is exactly when a list at the top has
+   scrolled out of reach. It sits above the content on a solid background so the
+   charts scrolling under it stay legible, and it never prints: paper has its own
+   way of finding a heading, and a navigation bar frozen onto a filed sheet is
+   just a row of words. */
+.rp-index {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  background: #f4f6fa;
+  padding: 8px 0 10px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(10, 37, 64, 0.08);
+}
+
+.rp-index a {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(10, 37, 64, 0.6);
+  padding: 4px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.rp-index a:hover {
+  color: #0a2540;
+  background: rgba(10, 37, 64, 0.06);
 }
 
 /* ── Sections ─────────────────────────────────────────────────────────── */
 
 .rp-section {
   margin-bottom: 34px;
+  /* So an anchored jump does not park the heading underneath the sticky
+     index that did the jumping. */
+  scroll-margin-top: 52px;
 }
 
 .rp-h2 {
@@ -62,7 +102,7 @@
 .rp-note {
   font-size: 12.5px;
   line-height: 1.45;
-  color: rgba(10, 37, 64, 0.5);
+  color: rgba(10, 37, 64, 0.65);
   margin-bottom: 14px;
   max-width: 74ch;
 }
@@ -88,7 +128,7 @@
   font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: rgba(10, 37, 64, 0.42);
+  color: rgba(10, 37, 64, 0.62);
   margin-bottom: 3px;
 }
 
@@ -101,7 +141,7 @@
 
 .rp-stat-sub {
   font-size: 11.5px;
-  color: rgba(10, 37, 64, 0.45);
+  color: rgba(10, 37, 64, 0.65);
   margin-top: 2px;
   line-height: 1.35;
 }
@@ -125,7 +165,7 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(10, 37, 64, 0.45);
+  color: rgba(10, 37, 64, 0.62);
   margin-bottom: 10px;
 }
 
@@ -135,13 +175,31 @@
   letter-spacing: 0;
   text-transform: none;
   font-size: 12px;
-  color: rgba(10, 37, 64, 0.35);
+  color: rgba(10, 37, 64, 0.65);
 }
 
 .rp-two {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+}
+
+/* `min-width: 0`, and it is load-bearing rather than tidying.
+ *
+ * A grid item defaults to `min-width: auto`, which means it refuses to shrink
+ * below the width of its content. A panel holding thirty days of bars is
+ * therefore wider than its 1fr track, and rather than the bars scrolling inside
+ * their own box the whole track grows — which widens the grid, which widens the
+ * page, which puts a horizontal scrollbar under the entire dashboard. Measured
+ * at 1421px of content in a 1265px window before this line existed.
+ *
+ * The same rule the truncating columns elsewhere in this app need, for the same
+ * reason, and it has to be stated because `auto` is the default and looks like
+ * nothing. */
+.rp-two > *,
+.rp-panel,
+.rp-chart-wrap {
+  min-width: 0;
 }
 
 @media (max-width: 900px) {
@@ -164,14 +222,14 @@
   padding: 24px 8px;
   text-align: center;
   font-size: 13px;
-  color: rgba(10, 37, 64, 0.3);
+  color: rgba(10, 37, 64, 0.65);
 }
 
 .rp-more {
   display: inline-block;
   margin-top: 8px;
   font-size: 12px;
-  color: rgba(10, 37, 64, 0.45);
+  color: rgba(10, 37, 64, 0.6);
   text-decoration: underline;
 }
 
@@ -205,7 +263,7 @@
   height: 14px;
   font-size: 10px;
   font-variant-numeric: tabular-nums;
-  color: rgba(10, 37, 64, 0.55);
+  color: rgba(10, 37, 64, 0.65);
   white-space: nowrap;
 }
 
@@ -232,21 +290,21 @@
 
 .rp-bar-lab {
   font-size: 9.5px;
-  color: rgba(10, 37, 64, 0.4);
+  color: rgba(10, 37, 64, 0.65);
   margin-top: 4px;
   white-space: nowrap;
 }
 
 .rp-bar-sub {
   font-size: 9px;
-  color: rgba(10, 37, 64, 0.28);
+  color: rgba(10, 37, 64, 0.5);
 }
 
 .rp-legend {
   display: flex;
   gap: 14px;
   font-size: 11.5px;
-  color: rgba(10, 37, 64, 0.5);
+  color: rgba(10, 37, 64, 0.62);
   margin-bottom: 8px;
 }
 
@@ -306,7 +364,7 @@
 
 .rp-rank-note {
   font-weight: 400;
-  color: rgba(10, 37, 64, 0.38);
+  color: rgba(10, 37, 64, 0.65);
 }
 
 /* ── The ring ─────────────────────────────────────────────────────────── */
@@ -364,7 +422,7 @@
 
 .rp-key-val em {
   font-style: normal;
-  color: rgba(10, 37, 64, 0.35);
+  color: rgba(10, 37, 64, 0.55);
   margin-left: 6px;
 }
 
@@ -377,14 +435,14 @@
 }
 
 .rp-heat-hour {
-  font-size: 9px;
-  color: rgba(10, 37, 64, 0.35);
+  font-size: 9.5px;
+  color: rgba(10, 37, 64, 0.65);
   text-align: center;
 }
 
 .rp-heat-day {
   font-size: 10.5px;
-  color: rgba(10, 37, 64, 0.5);
+  color: rgba(10, 37, 64, 0.62);
   padding-right: 6px;
 }
 
@@ -409,7 +467,7 @@
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: rgba(10, 37, 64, 0.4);
+  color: rgba(10, 37, 64, 0.65);
   padding: 4px 0 6px;
 }
 
@@ -433,7 +491,7 @@
 
 .rp-foot {
   font-size: 11.5px;
-  color: rgba(10, 37, 64, 0.35);
+  color: rgba(10, 37, 64, 0.55);
   border-top: 1px solid rgba(10, 37, 64, 0.08);
   padding-top: 10px;
 }
@@ -460,7 +518,8 @@
     display: none !important;
   }
 
-  .rp-no-print {
+  .rp-no-print,
+  .rp-index {
     display: none !important;
   }
 

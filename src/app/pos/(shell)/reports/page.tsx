@@ -256,6 +256,29 @@ export default function ReportsPage() {
         </span>
       </div>
 
+      {/* The way around a page that is four screens tall.
+          Sticky rather than a list at the top, because the reason somebody
+          wants it is that they are already halfway down and want a different
+          section — which is exactly when a list at the top has scrolled away.
+          Off the printed sheet: paper has its own way of finding a heading. */}
+      <nav className="rp-index rp-no-print" aria-label={tr("Sections")}>
+        {[
+          ["money", tr("Money")],
+          ["sells", tr("What sells")],
+          ["when", tr("When")],
+          ["who", tr("Who")],
+          ["racks", tr("The racks")],
+          ["owed", tr("Owed")],
+          ["customers", tr("Customers")],
+          ["missed", tr("Missed")],
+          ["control", tr("Control")],
+        ].map(([id, label]) => (
+          <a key={id} href={`#${id}`}>
+            {label}
+          </a>
+        ))}
+      </nav>
+
       {/* On paper only — a sheet taken to an accountant has to say whose shop
           it is and what period it covers. */}
       <div className="rp-print-head">
@@ -270,6 +293,7 @@ export default function ReportsPage() {
 
       {/* ── 1 · MONEY ───────────────────────────────────────────────────── */}
       <Section
+        id="money"
         title={tr("Money")}
         note={tr("Sold is what was charged for. Collected is what came in — a deposit today on last week's order is in one and not the other.")}
       >
@@ -359,6 +383,7 @@ export default function ReportsPage() {
 
       {/* ── 2 · WHAT SELLS ──────────────────────────────────────────────── */}
       <Section
+        id="sells"
         title={tr("What sells")}
         note={tr("Margin is worked out only on the lines that carry a cost, and the tax is taken out of the price first — the shop never kept that part.")}
       >
@@ -456,6 +481,7 @@ export default function ReportsPage() {
 
       {/* ── 3 · WHEN ────────────────────────────────────────────────────── */}
       <Section
+        id="when"
         title={tr("When the shop is busy")}
         note={tr("Darker is more tickets. This is the one report that settles a rota argument — a shop can feel busy on a Saturday and take most of its money on a Thursday.")}
       >
@@ -516,6 +542,7 @@ export default function ReportsPage() {
 
       {/* ── 4 · WHO ─────────────────────────────────────────────────────── */}
       <Section
+        id="who"
         title={tr("Who did the work")}
         note={tr("Over the same window as everything else on this page — not the close-out's week.")}
       >
@@ -567,6 +594,7 @@ export default function ReportsPage() {
 
       {/* ── 5 · THE RACKS ───────────────────────────────────────────────── */}
       <Section
+        id="racks"
         title={tr("The racks")}
         note={tr("Stock is valued at what it actually cost — the weighted average of everything received — not at what the next one is expected to cost.")}
       >
@@ -697,6 +725,7 @@ export default function ReportsPage() {
 
       {/* ── 6 · OWED ────────────────────────────────────────────────────── */}
       <Section
+        id="owed"
         title={tr("What is owed to the shop")}
         note={tr("Two columns because they are chased by different people. A ticket balance is settled at the register; a house account is settled monthly.")}
       >
@@ -755,6 +784,7 @@ export default function ReportsPage() {
 
       {/* ── 7 · CUSTOMERS ───────────────────────────────────────────────── */}
       <Section
+        id="customers"
         title={tr("Customers")}
         note={tr("Bounded by how many tickets took a name at all — the figures below describe only those.")}
       >
@@ -795,6 +825,7 @@ export default function ReportsPage() {
 
       {/* ── 8 · MISSED ──────────────────────────────────────────────────── */}
       <Section
+        id="missed"
         title={tr("What walked out")}
         note={tr("Two different qualities of evidence, kept apart. A recorded lost sale is somebody watching a customer leave; an empty search is a keystroke.")}
       >
@@ -832,6 +863,7 @@ export default function ReportsPage() {
 
       {/* ── 9 · CONTROL ─────────────────────────────────────────────────── */}
       <Section
+        id="control"
         title={tr("Worth a second look")}
         note={tr("None of these is wrong by itself. What matters is the shape — one name against most of them, or a month where the count doubles.")}
       >
@@ -914,16 +946,19 @@ export default function ReportsPage() {
 
 /** A titled block of the report, with the sentence that says how to read it. */
 function Section({
+  id,
   title,
   note,
   children,
 }: {
+  /** Anchor for the index strip. Also what the strip's link reads. */
+  id: string;
   title: string;
   note?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="rp-section">
+    <section className="rp-section" id={id}>
       <h2 className="rp-h2">{title}</h2>
       {/* The sentence under the heading is not decoration. Every panel on this
           page can be read wrong, and the commonest way is assuming a figure
