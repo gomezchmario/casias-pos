@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { jsonError, requirePos } from "@/lib/api-helpers";
 import { currentBusinessDate } from "@/lib/business-date";
 import { demandReport, recordDemand, tireDemandEnabled } from "@/lib/tire-demand";
+import { lostDemand } from "@/lib/reports-bi";
 import { can } from "@/lib/roles";
 
 /**
@@ -63,5 +64,12 @@ export async function GET(req: NextRequest) {
     canRecord: can(auth.user.role, "ringSale"),
     today,
     ...demandReport(from, to),
+    /*
+      The other half of the same question, from the other recorder. The study
+      is somebody at the counter writing a lost sale down; the searches are the
+      register logging that it was asked for a size and had nothing to show.
+      One report carrying both is what "the whole study" ought to mean.
+    */
+    searched: lostDemand(from === "0000-01-01" ? "2000-01-01" : from, to).searched,
   });
 }

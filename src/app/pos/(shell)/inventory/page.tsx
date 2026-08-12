@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePosAuth } from "@/components/pos/PosShell";
 import { ProductSearch, type FoundProduct } from "@/components/pos/ProductSearch";
@@ -16,7 +17,9 @@ import {
   formatCheckDate,
   type InventoryCheck,
 } from "@/lib/inventory-alarm";
+import { RankedBars, Stat } from "@/components/pos/Charts";
 import { formatCents, parseCents } from "@/lib/money";
+import "../reports/reports.css";
 import { looksSpecialized, sizeMatches } from "@/lib/tire-size";
 import { quoteTire } from "@/lib/tire-quote";
 import "./inventory.css";
@@ -118,6 +121,15 @@ type Sheet =
 type Insights = {
   from: string;
   to: string;
+  bestSellers: { productId: number; name: string; units: number; revenueCents: number }[];
+  /** The opening tiles — counts only; money stays behind viewCosts. */
+  counts: {
+    stockUnits: number;
+    deadSizes: number;
+    reorderSizes: number;
+    weekSoldUnits: number;
+    weekStockedUnits: number;
+  };
   dead: {
     productId: number;
     name: string;
@@ -173,7 +185,13 @@ export default function InventoryPage() {
    * Fetched only when opened. The three queries sweep the whole sales history,
    * and the counter pays that cost never; the manager pays it on click.
    */
+  /** Whether the searched list shows the keystrokes too — off, like Reports. */
+  const [showPartial, setShowPartial] = useState(false);
   const [insightsOpen, setInsightsOpen] = useState(false);
+  // Ten at a time, like the Reports panel this is lifted from: ten is what a
+  // ranked chart can carry, and the next press is the manager hunting for a
+  // size they believe should be on the list.
+  const [sellersShown, setSellersShown] = useState(10);
   const [insights, setInsights] = useState<Insights | null>(null);
   const [applying, setApplying] = useState<number | null>(null);
   const [applied, setApplied] = useState<Record<number, number>>({});
@@ -448,7 +466,7 @@ export default function InventoryPage() {
             </svg>
             {!insightsOpen && (
               <span className="inv-foldhead-hint">
-                {tr("money standing still, what to keep stocked, and what walked out")}
+                {tr("money standing still, and what to keep stocked")}
               </span>
             )}
           </button>
@@ -459,9 +477,8 @@ export default function InventoryPage() {
 
           {insightsOpen && insights && (
             <div className="inv-insights grid gap-4 mb-4" style={{ gridTemplateColumns: "1fr" }}>
-              {/* The sheet's own letterhead — print only, and only when the
-                  fold is what is printing. A page with two printables has to
-                  say on paper which one this is. */}
+              {/* The letterhead for the printable. Print-only; the screen
+                  never sees it. */}
               <div className="inv-insights-head">
                 <ShopLogo size={44} priority />
                 <div>
@@ -484,6 +501,81 @@ export default function InventoryPage() {
                 >
                   {tr("Print")}
                 </button>
+              </div>
+
+              {/* The week at a glance, in counts. Five questions a manager
+                  actually asks at the racks, answered before any table:
+                  what is here, what is asleep, what needs ordering, and
+                  whether the week moved tires out and in. */}
+              <div className="rp-stats">
+                <Stat
+                  label={tr("Stock on hand")}
+                  value={insights.counts.stockUnits.toLocaleString()}
+                  sub={tr("units on the racks")}
+                />
+                <Stat
+                  label={tr("Standing still")}
+                  value={String(insights.counts.deadSizes)}
+                  sub={
+                    <>
+                      {tr("sizes with no sale in 45 days")} ·{" "}
+                      <Link href="/pos/standing-still" className="underline">
+                        {tr("the full list")} →
+                      </Link>
+                    </>
+                  }
+                  tone={insights.counts.deadSizes > 0 ? "warn" : undefined}
+                />
+                <Stat
+                  label={tr("At the reorder point")}
+                  value={String(insights.counts.reorderSizes)}
+                  sub={tr("sizes to order")}
+                  tone={insights.counts.reorderSizes > 0 ? "warn" : undefined}
+                />
+                <Stat
+                  label={tr("Tires sold this week")}
+                  value={String(insights.counts.weekSoldUnits)}
+                  sub={tr("new tires, last 7 days")}
+                />
+                <Stat
+                  label={tr("Tires stocked this week")}
+                  value={String(insights.counts.weekStockedUnits)}
+                  sub={tr("new tires, last 7 days")}
+                />
+              </div>
+
+              {/* ── Best sellers — the Reports panel, lifted whole ── */}
+              <div className="rp-panel">
+                <div className="rp-panel-head">
+                  <span>{tr("Best sellers")}</span>
+                  <em>{tr("Units sold in this window.")}</em>
+                </div>
+                <RankedBars
+                  data={insights.bestSellers.slice(0, sellersShown).map((m) => ({
+                    label: m.name,
+                    value: m.units,
+                    note: ` · ${formatCents(m.revenueCents)}`,
+                  }))}
+                  max={insights.bestSellers[0]?.units}
+                  format={(n) => String(n)}
+                  emptyLabel={tr("Nothing sold in this window.")}
+                />
+                {insights.bestSellers.length > sellersShown && (
+                  <div className="rp-more rp-no-print">
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      style={{ height: 30, fontSize: 12 }}
+                      onClick={() => setSellersShown((n) => n + 10)}
+                    >
+                      {tr("Show 10 more")}
+                    </button>
+                    <span>
+                      {tr("showing")} {Math.min(sellersShown, insights.bestSellers.length)}{" "}
+                      {tr("of")} {insights.bestSellers.length}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* ── Money standing still ── */}
@@ -598,48 +690,77 @@ export default function InventoryPage() {
                 )}
               </div>
 
-              {/* ── What walked out ── */}
-              <div className="bg-white rounded-2xl shadow-sm p-4">
-                <div className="text-xs uppercase tracking-wider text-brand-300 mb-1">
-                  {tr("What walked out")}
-                </div>
-                <p className="text-sm text-brand-400 mb-2">
-                  {tr("Sizes asked for in the last month that the shop could not sell — from the counter's own study, and from searches that found nothing. Every row is a customer who left.")}
+              {/* ── What walked out — the Reports section, lifted whole ──
+                  At the bottom of the fold, by instruction. Same components,
+                  same classes, same stylesheet as the page it came from. */}
+              <div className="rp">
+                <h2 className="rp-h2">{tr("What walked out")}</h2>
+                <p className="rp-note">
+                  {tr("Two different qualities of evidence, kept apart. A recorded lost sale is somebody watching a customer leave; an empty search is a keystroke.")}
                 </p>
-                {insights.lost.recorded.length === 0 &&
-                insights.lost.searched.filter((s) => s.complete).length === 0 ? (
-                  <div className="text-sm text-brand-300">
-                    {tr("Nothing recorded walking out this month.")}
+                <div className="rp-two">
+                  <div className="rp-panel">
+                    <div className="rp-panel-head">
+                      <span>{tr("Asked for and not in stock")}</span>
+                      <em>{tr("From the counter's study.")}</em>
+                    </div>
+                    <RankedBars
+                      data={insights.lost.recorded.slice(0, 10).map((r) => ({
+                        label: r.size,
+                        value: r.tires,
+                        note:
+                          r.onHand === null || r.onHand <= 0
+                            ? ` · ${tr("still none")}`
+                            : ` · ${r.onHand} ${tr("now on hand")}`,
+                        color: r.onHand === null || r.onHand <= 0 ? "#b91c1c" : "#15803d",
+                      }))}
+                      format={(n) => `${n}`}
+                      emptyLabel={tr("Nothing recorded in this window.")}
+                    />
+                    <Link href="/pos/demand" className="rp-more rp-no-print">
+                      {tr("The whole study")} →
+                    </Link>
                   </div>
-                ) : (
-                  <div className="flex flex-wrap gap-1.5">
-                    {insights.lost.recorded.map((l) => (
-                      <span
-                        key={`r${l.size}`}
-                        className="pos-grant"
-                        style={{ background: "rgba(216,68,76,0.12)", color: "#a71d24" }}
-                        title={`${l.asks} ${tr("asks")}`}
-                      >
-                        {l.size}
-                        <em style={{ fontStyle: "normal", opacity: 0.75 }}>×{l.tires}</em>
-                      </span>
-                    ))}
-                    {insights.lost.searched
-                      .filter((s) => s.complete && !insights.lost.recorded.some((r) => r.size === s.size))
-                      .slice(0, 12)
-                      .map((l) => (
-                        <span
-                          key={`s${l.size}`}
-                          className="pos-grant"
-                          title={tr("searched and not found")}
-                        >
-                          {l.size}
-                          <em style={{ fontStyle: "normal", opacity: 0.65 }}>×{l.asks}</em>
-                        </span>
-                      ))}
+                  <div className="rp-panel">
+                    <div className="rp-panel-head">
+                      <span>{tr("Searched for and not found")}</span>
+                      <em>{tr("Sizes the register was asked for and could not show.")}</em>
+                    </div>
+                    <button
+                      type="button"
+                      className="rp-eye rp-no-print"
+                      aria-pressed={showPartial}
+                      aria-label={tr("Show half-typed searches")}
+                      title={
+                        showPartial
+                          ? tr("Showing half-typed searches as well as whole sizes")
+                          : tr("Also show half-typed searches and other odd entries")
+                      }
+                      onClick={() => setShowPartial((v) => !v)}
+                    >
+                      <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" aria-hidden="true">
+                        <path d="M1.8 12S5.5 5.2 12 5.2 22.2 12 22.2 12 18.5 18.8 12 18.8 1.8 12 1.8 12Z" />
+                        <circle cx="12" cy="12" r="3.1" />
+                        {!showPartial && <path d="M3.5 20.5 20.5 3.5" />}
+                      </svg>
+                    </button>
+                    <RankedBars
+                      data={insights.lost.searched
+                        .filter((r) => showPartial || r.complete)
+                        .slice(0, 10)
+                        .map((r) => ({
+                          label: r.size,
+                          value: r.asks,
+                          note: r.complete ? undefined : ` · ${tr("half-typed")}`,
+                          color: r.complete ? undefined : "rgba(10,37,64,0.3)",
+                        }))}
+                      format={(n) => `${n}`}
+                      emptyLabel={tr("Every search found a size we had.")}
+                    />
                   </div>
-                )}
+                </div>
               </div>
+
             </div>
           )}
         </>

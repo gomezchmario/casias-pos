@@ -164,10 +164,15 @@ export function demandReport(from: string, to: string): DemandReport {
               -- What is on the rack today for that size, across every product
               -- that carries it. Null when the shop has never had one on the
               -- books at all, which is a different answer from zero.
+              --
+              -- p.tire_size, NOT p.size — there is no p.size, and the typo made
+              -- this whole statement fail to prepare. It hid for months because
+              -- the study table was empty and nobody had reason to open the
+              -- page; the day it gained data, "The whole study" opened blank.
               (SELECT SUM(mv.qty_delta)
                  FROM inventory_movements mv
                  JOIN products p ON p.id = mv.product_id
-                WHERE p.deleted = 0 AND p.size = d.size_norm) AS onHand
+                WHERE p.deleted = 0 AND p.tire_size = d.size_norm) AS onHand
          FROM tire_demand d
         WHERE d.business_date BETWEEN ? AND ?
      GROUP BY d.size_norm

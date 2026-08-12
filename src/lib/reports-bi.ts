@@ -1175,6 +1175,42 @@ export function lostDemand(from: string, to: string): { recorded: LostRow[]; sea
   return { recorded, searched };
 }
 
+/**
+ * New tires through the door, both directions, over a window — as COUNTS.
+ *
+ * The inventory fold's opening tiles. Same definitions as the month sheets on
+ * the movements page — sold means a completed sale line pointing at a new
+ * tire, stocked means a `receive` movement on one — so a week read here and a
+ * month printed there can never disagree about what counts as a tire moving.
+ * Units only, no money: the fold is a manager's screen, and what the shop PAID
+ * stays behind `viewCosts`.
+ */
+export function tiresInOut(from: string, to: string): { soldUnits: number; receivedUnits: number } {
+  const db = getDb();
+  const sold = db
+    .prepare(
+      `SELECT COALESCE(SUM(i.qty), 0) AS n
+         FROM sale_items i
+         JOIN sales s ON s.id = i.sale_id
+         JOIN products p ON p.id = i.product_id
+        WHERE ${SALE} AND i.voided = 0
+          AND p.kind = 'tire' AND p.condition = 'new'
+          AND s.business_date BETWEEN ? AND ?`,
+    )
+    .get(from, to) as { n: number };
+  const received = db
+    .prepare(
+      `SELECT COALESCE(SUM(m.qty_delta), 0) AS n
+         FROM inventory_movements m
+         JOIN products p ON p.id = m.product_id
+        WHERE m.reason = 'receive'
+          AND p.kind = 'tire' AND p.condition = 'new'
+          AND m.business_date BETWEEN ? AND ?`,
+    )
+    .get(from, to) as { n: number };
+  return { soldUnits: sold.n, receivedUnits: received.n };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Buybacks
 // ─────────────────────────────────────────────────────────────────────────────

@@ -670,6 +670,23 @@ const ES: Record<string, string> = {
 
   "printed by": "impreso por",
 
+  "Tires sold this week": "Llantas vendidas esta semana",
+  "Tires stocked this week": "Llantas surtidas esta semana",
+  "units on the racks": "piezas en los racks",
+  "new tires, last 7 days": "llantas nuevas, últimos 7 días",
+
+  "the full list": "la lista completa",
+  "Every size on the racks with no sale in 45 days — oldest sleeper first.": "Cada medida en los racks sin una venta en 45 días — la más dormida primero.",
+  "as of": "al",
+  "Days on shelf": "Días en repisa",
+  "never sold one": "nunca vendió una",
+  sizes: "medidas",
+  units: "piezas",
+  "at cost": "a costo",
+  "with no sale in": "sin venta en",
+  Searches: "Búsquedas",
+  "Your account can't see this report.": "Su cuenta no puede ver este reporte.",
+
   "The racks": "Los racks",
   "Stock on hand": "Existencia",
   "units, at cost": "unidades, a costo",

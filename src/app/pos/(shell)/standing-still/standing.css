@@ -1,0 +1,47 @@
+/* Money standing still — screen chrome hidden on paper, letterhead shown,
+   the same print discipline as the demand study and the month sheets. */
+
+.sst-print-head {
+  display: none;
+}
+
+@media print {
+  .sst-hide-on-print,
+  .pos-nav,
+  nav,
+  header {
+    display: none !important;
+  }
+
+  .sst-print-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 2pt solid #0a2540;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+  }
+
+  .sst-block {
+    box-shadow: none;
+    border: none;
+    padding: 0;
+  }
+
+  .sst-table {
+    font-size: 9pt;
+  }
+
+  /* Zebra and rules survive the printer. */
+  .sst-table tr,
+  .sst-table td,
+  .sst-table th {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  @page {
+    size: letter;
+    margin: 14mm;
+  }
+}

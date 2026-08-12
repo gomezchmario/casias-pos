@@ -27,7 +27,16 @@ import { useLang } from "@/components/pos/LangToggle";
  * counter's own note is on each one.
  */
 
-type Data = DemandReport & { enabled: boolean; today: string };
+type Data = DemandReport & {
+  enabled: boolean;
+  today: string;
+  searched: {
+    size: string;
+    asks: number;
+    onHand: number | null;
+    complete: boolean;
+  }[];
+};
 
 /** "August 2026", or the whole span when it is not one month. */
 const MONTHS = [
@@ -56,6 +65,8 @@ export default function TireDemandPage() {
   /** Empty means everything, which is the default — see the route. */
   const [month, setMonth] = useState("");
   const [data, setData] = useState<Data | null>(null);
+  /** Whether the searched list shows the keystrokes too — off, like Reports. */
+  const [showPartial, setShowPartial] = useState(false);
   const [printedOn, setPrintedOn] = useState("");
 
   useEffect(() => setPrintedOn(new Date().toLocaleDateString()), []);
@@ -229,6 +240,80 @@ export default function TireDemandPage() {
               )}
               .
             </p>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm p-4 mb-4 tdr-block">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="text-xs uppercase tracking-wider text-brand-300">
+                {tr("Searched for and not found")}
+              </div>
+              {/* The eye, exactly as it works on Reports: the register logs a
+                  search per keystroke, so the debris is hidden until asked
+                  for, and hidden from paper always. */}
+              <button
+                type="button"
+                className="tdr-hide-on-print text-brand-300"
+                aria-pressed={showPartial}
+                title={
+                  showPartial
+                    ? tr("Showing half-typed searches as well as whole sizes")
+                    : tr("Also show half-typed searches and other odd entries")
+                }
+                onClick={() => setShowPartial((v) => !v)}
+              >
+                <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" aria-hidden="true">
+                  <path d="M1.8 12S5.5 5.2 12 5.2 22.2 12 22.2 12 18.5 18.8 12 18.8 1.8 12 1.8 12Z" />
+                  <circle cx="12" cy="12" r="3.1" />
+                  {!showPartial && <path d="M3.5 20.5 20.5 3.5" />}
+                </svg>
+              </button>
+            </div>
+            <p className="text-sm text-brand-400 mb-2">
+              {tr("Sizes the register was asked for and could not show.")}
+            </p>
+            {data.searched.filter((r) => showPartial || r.complete).length === 0 ? (
+              <div className="text-sm text-brand-300">{tr("Every search found a size we had.")}</div>
+            ) : (
+              <table className="w-full text-sm tdr-table" style={{ maxWidth: 560 }}>
+                <thead>
+                  <tr className="text-brand-300 text-xs uppercase tracking-wider">
+                    <th className="text-left py-2 font-medium">{tr("Size")}</th>
+                    <th className="text-right py-2 font-medium pl-4">{tr("Searches")}</th>
+                    <th className="text-right py-2 font-medium pl-4">{tr("On hand now")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.searched
+                    .filter((r) => showPartial || r.complete)
+                    .map((r, i) => (
+                      <tr
+                        key={r.size + i}
+                        className={`border-t border-black/5${r.complete ? "" : " tdr-hide-on-print"}`}
+                        style={i % 2 === 1 ? { background: "rgba(10,37,64,0.02)" } : undefined}
+                      >
+                        <td className={`py-2 ${r.complete ? "font-medium text-brand-500" : "text-brand-300"}`}>
+                          {r.size}
+                          {!r.complete && (
+                            <span className="text-xs"> · {tr("half-typed")}</span>
+                          )}
+                        </td>
+                        <td className="py-2 pl-4 text-right tabular-nums">{r.asks}</td>
+                        <td
+                          className={`py-2 pl-4 text-right tabular-nums ${
+                            r.onHand === null
+                              ? "text-brand-300"
+                              : r.onHand > 0
+                                ? "text-green-700"
+                                : "text-red-700 font-semibold"
+                          }`}
+                        >
+                          {r.onHand === null ? tr("never carried") : r.onHand}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            )}
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm p-4 mb-4 tdr-block">

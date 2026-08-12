@@ -806,7 +806,8 @@ export function Stat({
   deltaPct?: number;
   /** What the change is against — "on the window before". */
   deltaLabel?: string;
-  sub?: string;
+  /** A node, not a string, so a tile can carry a "see the full list →" link. */
+  sub?: React.ReactNode;
   tone?: "good" | "warn" | "bad";
   /** True where going UP is the bad direction — discounts, voids, money owed. */
   invert?: boolean;
