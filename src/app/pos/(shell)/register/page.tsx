@@ -107,6 +107,14 @@ export default function RegisterPage() {
   const [takingPayment, setTakingPayment] = useState(false);
   const [data, setData] = useState<RegisterData | null>(null);
   const [sale, setSale] = useState<Sale | null>(null);
+  /**
+   * Whether the tender chosen below is the house account.
+   *
+   * Lifted out of the payment panel because it changes what the DETAILS panel
+   * above must do: a tab needs a name and a number to chase later, so choosing
+   * it opens that panel, keeps it open, and makes those two boxes required.
+   */
+  const [accountTender, setAccountTender] = useState(false);
   const [items, setItems] = useState<SaleItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -1513,6 +1521,16 @@ export default function RegisterPage() {
                 key={sale.id}
                 sale={sale}
                 thresholdCents={data.settings.customerPromptThresholdCents}
+                /*
+                  THE TICKET'S OWN CUSTOMER, PREFILLED. The panel used to start
+                  empty on every ticket, which is right for one that is seconds
+                  old and wrong for one picked back up: a resumed ticket already
+                  carrying somebody showed blank boxes while the rest of the
+                  screen quietly billed them, and the first person to notice
+                  reasonably asked why it was being billed to a customer who
+                  "was not there". The panel now says who is on the ticket.
+                */
+                requireCustomer={accountTender}
                 onSaved={setSale}
                 onError={setError}
               />
@@ -1725,6 +1743,7 @@ export default function RegisterPage() {
                 mechanics={ticketMechanics}
                 commPerCents={data.settings.tipCommPerCents}
                 commChargeCents={data.settings.tipCommChargeCents}
+                onTenderChange={setAccountTender}
                 onError={setError}
                 onDone={finishTicket}
               />

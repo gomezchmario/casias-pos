@@ -78,6 +78,7 @@ export function TicketDetails({
   thresholdCents,
   known,
   startOpen = false,
+  requireCustomer = false,
   label,
   compact = true,
   onSaved,
@@ -93,6 +94,17 @@ export function TicketDetails({
    */
   known?: KnownDetails;
   startOpen?: boolean;
+  /**
+   * The ticket is going on the house account, so a name and a number stop
+   * being optional.
+   *
+   * A tab is a promise to collect later, and "later" needs somebody to ring.
+   * An account charge with no name on it is money the shop has given away and
+   * cannot chase, so this panel opens, refuses to fold away, and says which
+   * boxes have to be filled. It also carries the fleet picker, because the
+   * question "whose tab is this" only exists on this tender.
+   */
+  requireCustomer?: boolean;
   /**
    * What the folded-up button says.
    *
@@ -157,6 +169,15 @@ export function TicketDetails({
     known?.customer?.creditApproved ?? false,
   );
   const [saved, setSaved] = useState(false);
+  /** Who the ticket is billed to, and the companies it could be billed to. */
+  const [billing, setBilling] = useState<{
+    name: string;
+    fleetId: number | null;
+    fleetName: string | null;
+    isFleet: boolean;
+  } | null>(null);
+  const [fleets, setFleets] = useState<{ id: number; name: string }[]>([]);
+  const [fleetBusy, setFleetBusy] = useState(false);
   const lastSent = useRef<string>("");
 
   // Opened for you once the ticket is big enough to regret not having a name on.
@@ -165,6 +186,65 @@ export function TicketDetails({
   useEffect(() => {
     if (thresholdCents > 0 && sale.subtotal_cents >= thresholdCents) setOpen(true);
   }, [sale.subtotal_cents, thresholdCents]);
+
+  // Choosing the house account opens this and keeps it open — see
+  // `requireCustomer`. One-way, like the threshold above it.
+  useEffect(() => {
+    if (requireCustomer) setOpen(true);
+  }, [requireCustomer]);
+
+  /** Which required boxes are still empty, for the panel to point at. */
+  const missing = requireCustomer
+    ? [!fields.name.trim() && "name", !fields.phone.trim() && "phone"].filter(Boolean)
+    : [];
+
+  /*
+    WHOEVER IS ALREADY ON THIS TICKET, read back from the sale.
+
+    The panel starts empty on purpose — a blank means "I did not type this",
+    which is what stops the ninth visit wiping a phone number taken on the
+    first. But a ticket PICKED BACK UP already points at somebody, and showing
+    blank boxes while the rest of the screen bills them is how a cashier ends up
+    asking why a sale with "no client" is going on a customer's tab. So the
+    ticket's own customer is fetched and shown, once, and only when the boxes
+    are still untouched.
+  */
+  useEffect(() => {
+    if (!customerId || fields.name.trim() || known?.customer) return;
+    let live = true;
+    void (async () => {
+      const res = await fetch(`/api/pos/customers/${customerId}`);
+      if (!live || !res.ok) return;
+      const d = await res.json();
+      setFields((f) =>
+        f.name.trim()
+          ? f
+          : { ...f, name: d.customer.name, phone: d.customer.phone ?? f.phone },
+      );
+      setCreditApproved(d.customer.creditApproved === true);
+      setBilling({
+        name: d.customer.name,
+        fleetId: d.customer.fleetId ?? null,
+        fleetName: d.fleet?.name ?? null,
+        isFleet: d.customer.isFleet === true,
+      });
+    })();
+    return () => {
+      live = false;
+    };
+    // Deliberately not depending on `fields.name`: this runs for the ticket,
+    // not for every keystroke, and the guard inside handles the rest.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId, known?.customer]);
+
+  /** The companies, for the picker. Only fetched when the account needs it. */
+  useEffect(() => {
+    if (!requireCustomer || fleets.length > 0) return;
+    void (async () => {
+      const res = await fetch("/api/pos/fleets");
+      if (res.ok) setFleets((await res.json()).fleets);
+    })();
+  }, [requireCustomer, fleets.length]);
 
   const set = (patch: Partial<Fields>) => setFields((f) => ({ ...f, ...patch }));
 
@@ -360,6 +440,14 @@ export function TicketDetails({
         </span>
         {saved ? (
           <span className="text-xs text-green-700">Saved</span>
+        ) : requireCustomer ? (
+          /* No way out while the ticket is going on a tab. Folding the panel
+             away would hide the two boxes the sale is now blocked on, and the
+             cashier would be left pressing a disabled button with nothing on
+             screen saying why. */
+          <span className="text-xs" style={{ color: "#1d4ed8" }}>
+            Needed for the account
+          </span>
         ) : (
           <button
             type="button"
@@ -371,6 +459,18 @@ export function TicketDetails({
           </button>
         )}
       </div>
+
+      {/* What the account needs, said before the boxes rather than after a
+          refusal. Two names, in the order they appear below. */}
+      {requireCustomer && missing.length > 0 && (
+        <div
+          className="mb-2 rounded-lg px-3 py-2 text-xs"
+          style={{ background: "rgba(180,83,9,0.1)", color: "#7c3d06" }}
+        >
+          A tab has to be collectable later: fill in the{" "}
+          <strong>{missing.join(" and the ")}</strong> before completing this sale.
+        </div>
+      )}
 
       {/*
         Said where the decision gets acted on.
@@ -447,6 +547,69 @@ export function TicketDetails({
         </div>
         {field("po", "P.O. number")}
         {field("notes", "Note", { maxLength: 500 })}
+
+        {/* ── Billed to ──────────────────────────────────────────────────
+            At the bottom of the details, where the rest of what is known
+            about this customer lives — and only on the house account, which
+            is the one tender where the question exists. A company on this
+            ticket is not billed to anybody: it IS the account. */}
+        {requireCustomer && customerId && billing && !billing.isFleet && (
+          <div
+            className="mt-1 rounded-lg px-3 py-2"
+            style={{ background: "rgba(31,122,140,0.08)" }}
+          >
+            <div className="text-xs uppercase tracking-wider mb-1" style={{ color: "#146070" }}>
+              Billed to
+            </div>
+            <div className="flex items-center gap-2 flex-wrap text-sm">
+              <span className="text-brand-400">{billing.name} →</span>
+              <select
+                className="input"
+                style={{ height: 30, fontSize: 13, maxWidth: 200 }}
+                value={billing.fleetId ?? ""}
+                disabled={fleetBusy}
+                onChange={async (e) => {
+                  const fleetId = e.target.value ? Number(e.target.value) : null;
+                  setFleetBusy(true);
+                  const res = await fetch("/api/pos/fleets", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ customerId, fleetId }),
+                  });
+                  setFleetBusy(false);
+                  if (!res.ok) {
+                    const d = await res.json().catch(() => ({}));
+                    onError(d.error || "Could not set who this is billed to");
+                    return;
+                  }
+                  onError(null);
+                  setBilling((b) =>
+                    b
+                      ? {
+                          ...b,
+                          fleetId,
+                          fleetName: fleets.find((f) => f.id === fleetId)?.name ?? null,
+                        }
+                      : b,
+                  );
+                }}
+              >
+                <option value="">Themselves</option>
+                {fleets.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {billing.fleetId !== null && (
+              <div className="text-xs mt-1" style={{ color: "#146070" }}>
+                This charge goes on {billing.fleetName ?? "the company"}&rsquo;s account,
+                with the driver&rsquo;s name on it.
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -30,6 +30,7 @@ export function PaymentPanel({
   mechanics,
   commPerCents,
   commChargeCents,
+  onTenderChange,
   onError,
   onDone,
 }: {
@@ -39,28 +40,12 @@ export function PaymentPanel({
   mechanics: { id: number; name: string }[];
   commPerCents: number;
   commChargeCents: number;
+  /** True while the house account is the chosen tender — see the register. */
+  onTenderChange?: (isAccount: boolean) => void;
   onError: (msg: string | null) => void;
   onDone: (saleId: number) => void;
 }) {
   const { t: tr } = useLang();
-  /**
-   * Who this ticket's customer is billed to, fetched only when the account
-   * tender is picked.
-   *
-   * THE MOMENT THE QUESTION ACTUALLY COMES UP. A driver hands over the keys and
-   * says "put it on Williams" — and until now the only way to make that true
-   * was to abandon the ticket, open the customer book, link them, and come
-   * back. So the answer is offered here, on the one tender where it changes
-   * where the money goes, and nowhere else: the panel stays a payment screen.
-   */
-  const [fleetBox, setFleetBox] = useState<{
-    customerName: string;
-    fleetId: number | null;
-    fleetName: string | null;
-    isFleet: boolean;
-  } | null>(null);
-  const [fleets, setFleets] = useState<{ id: number; name: string }[]>([]);
-  const [fleetBusy, setFleetBusy] = useState(false);
   /**
    * Nothing is chosen until somebody chooses it.
    *
@@ -101,35 +86,10 @@ export function PaymentPanel({
   const method = methods.find((m) => m.id === methodId);
   /** The house account, by code rather than by label — labels get renamed. */
   const isAccount = method?.code === "credit_account";
-
-  /*
-    Loaded when the account tender is picked, not on mount. Most tickets never
-    touch the house account, and the panel opening should not cost two requests
-    to answer a question nobody asked.
-  */
   useEffect(() => {
-    if (!isAccount || !sale.customer_id) return;
-    let live = true;
-    void (async () => {
-      const [cRes, fRes] = await Promise.all([
-        fetch(`/api/pos/customers/${sale.customer_id}`),
-        fetch("/api/pos/fleets"),
-      ]);
-      if (!live || !cRes.ok || !fRes.ok) return;
-      const c = await cRes.json();
-      const f = await fRes.json();
-      setFleets(f.fleets.map((x: { id: number; name: string }) => ({ id: x.id, name: x.name })));
-      setFleetBox({
-        customerName: c.customer.name,
-        fleetId: c.customer.fleetId ?? null,
-        fleetName: c.fleet?.name ?? null,
-        isFleet: c.customer.isFleet === true,
-      });
-    })();
-    return () => {
-      live = false;
-    };
-  }, [isAccount, sale.customer_id]);
+    onTenderChange?.(isAccount);
+  }, [isAccount, onTenderChange]);
+
   const tipCents = Math.max(0, parseCents(tip) ?? 0);
   const commCents = useMemo(
     () => computeTipCommission(tipCents, commPerCents, commChargeCents),
@@ -445,69 +405,6 @@ export function PaymentPanel({
           </button>
         ))}
       </div>
-
-      {/* ── Billed to ────────────────────────────────────────────────────
-          Only on the house account, only when the ticket has a customer, and
-          only when that customer is not already a company. Everything else
-          about fleets lives in the customer book; what belongs HERE is the one
-          sentence a driver says at the counter. */}
-      {isAccount && sale.customer_id && fleetBox && !fleetBox.isFleet && (
-        <div className="mb-3 rounded-lg px-3 py-2" style={{ background: "rgba(31,122,140,0.08)" }}>
-          <div className="text-xs uppercase tracking-wider mb-1" style={{ color: "#146070" }}>
-            {tr("Billed to")}
-          </div>
-          <div className="flex items-center gap-2 flex-wrap text-sm">
-            <span className="text-brand-400">{fleetBox.customerName} →</span>
-            <select
-              className="input"
-              style={{ height: 30, fontSize: 13, maxWidth: 220 }}
-              value={fleetBox.fleetId ?? ""}
-              disabled={fleetBusy}
-              onChange={async (e) => {
-                const fleetId = e.target.value ? Number(e.target.value) : null;
-                setFleetBusy(true);
-                const res = await fetch("/api/pos/fleets", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ customerId: sale.customer_id, fleetId }),
-                });
-                setFleetBusy(false);
-                if (!res.ok) {
-                  const d = await res.json().catch(() => ({}));
-                  onError(d.error || "Could not set who this is billed to");
-                  return;
-                }
-                onError(null);
-                setFleetBox((b) =>
-                  b
-                    ? {
-                        ...b,
-                        fleetId,
-                        fleetName: fleets.find((f) => f.id === fleetId)?.name ?? null,
-                      }
-                    : b,
-                );
-              }}
-            >
-              <option value="">{tr("Themselves")}</option>
-              {fleets.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          {/* Said plainly, because it is the whole consequence of the picker
-              and it is not obvious: the charge leaves this person's name and
-              lands on the company's tab. */}
-          {fleetBox.fleetId !== null && (
-            <div className="text-xs mt-1" style={{ color: "#146070" }}>
-              {tr("This charge goes on")} {fleetBox.fleetName ?? tr("the company")}
-              {tr("'s account, with the driver's name on it.")}
-            </div>
-          )}
-        </div>
-      )}
 
       {method?.allows_tip === 1 && (
         <>

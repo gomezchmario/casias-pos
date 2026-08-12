@@ -280,6 +280,28 @@ export function takePayment(
     .get(args.methodId) as PaymentMethod | undefined;
   if (!method) return { ok: false, error: "Unknown payment method" };
 
+  /*
+    A TAB HAS TO BE COLLECTABLE. The house account is a promise to collect
+    later, and "later" needs somebody to ring — an account charge with no name
+    on it is money the shop has given away and cannot chase.
+
+    Refused here rather than only on the screen, because the screen is one of
+    several ways a payment reaches this function and the rule is about the money
+    rather than about the form. The register opens the details panel, keeps it
+    open and names the missing boxes; this is what makes that more than a
+    suggestion.
+
+    A phone number OR a name is enough to identify the person on the record —
+    the customer is already attached by the time this runs, and `customers`
+    requires a name — so what is actually checked is that a customer exists at
+    all.
+  */
+  if (method.kind === "house_account" && !sale.customer_id)
+    return {
+      ok: false,
+      error: "Put a name and a phone number on this ticket before charging it to an account",
+    };
+
   const defaultComm = defaultCommissionFor(tip);
   let comm = defaultComm;
   let overridden = 0;
