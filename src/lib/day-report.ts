@@ -806,10 +806,31 @@ function buildChecklist(r: CloseoutV2): ChecklistItem[] {
     {
       label: "Oversells reviewed",
       done: r.stock.unreviewedOversells === 0,
+      /*
+        Named, not counted.
+
+        "1 waiting on the Inventory tab" sent somebody to a tab to hunt for a
+        row they had no way to recognise — and it is easily read as already
+        handled, because DISMISSING THE ALARM AND REVIEWING THE OVERSELL ARE
+        TWO DIFFERENT ACTS. Waving the alert away says somebody saw it; the
+        queue only clears when somebody stands at the racks and says what the
+        count really is. One line named the tire and this stopped being
+        ambiguous.
+
+        Note the queue is not today's — an oversell sits there until it is
+        cleared, so the date is part of the answer.
+      */
       detail:
         r.stock.unreviewedOversells === 0
           ? "Queue is empty."
-          : `${r.stock.unreviewedOversells} waiting on the Inventory tab.`,
+          : r.stock.oversellRows.length > 0
+            ? `${r.stock.unreviewedOversells} waiting on the Inventory tab: ` +
+              r.stock.oversellRows
+                .slice(0, 2)
+                .map((o) => `${o.productName}${o.saleNo ? ` on ${o.saleNo}` : ""}`)
+                .join("; ") +
+              (r.stock.unreviewedOversells > 2 ? "; …" : "")
+            : `${r.stock.unreviewedOversells} waiting on the Inventory tab.`,
     },
     // "Shift closed" used to sit here and was removed on purpose. It is
     // pending on every screen anybody looks at, because the shift is closed

@@ -16,10 +16,23 @@
 }
 
 /* The checklist: states the database verified, one line each. */
-.cv2-check {
+/* The heading the list never had. A bare run of ticks and crosses sitting
+   under the alerts reads as more findings; this says they are things still to
+   do. The rule moves up here so the heading sits inside the section rather
+   than floating above its own line. */
+.cv2-check-head {
   margin-top: 12px;
   border-top: 1px solid rgb(10 37 64 / 0.08);
   padding-top: 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.cv2-check {
+  margin-top: 8px;
   display: flex;
   flex-direction: column;
   gap: 6px;

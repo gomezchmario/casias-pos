@@ -239,6 +239,9 @@ export default function CloseoutV2Page() {
         )}
 
         {/* The checklist — states the database can verify, never promises. */}
+        {/* Named, because an unlabelled run of ticks and crosses under the
+            alerts reads as more findings rather than as things still to do. */}
+        <div className="cv2-check-head">{tr("To-do")}</div>
         <div className="cv2-check">
           {data.checklist.map((c) => (
             <div key={c.label} className="cv2-check-row">
