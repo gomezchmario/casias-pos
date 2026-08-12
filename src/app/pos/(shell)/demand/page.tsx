@@ -202,7 +202,6 @@ export default function TireDemandPage() {
                 <tr className="text-brand-300 text-xs uppercase tracking-wider">
                   <th className="text-left py-2 font-medium">{tr("Size")}</th>
                   <th className="text-right py-2 font-medium pl-4">{tr("Tires wanted")}</th>
-                  <th className="text-right py-2 font-medium pl-4">{tr("Customers")}</th>
                   <th className="text-right py-2 font-medium pl-4">{tr("On hand now")}</th>
                   <th className="text-right py-2 font-medium pl-4">{tr("Last asked")}</th>
                 </tr>
@@ -224,7 +223,6 @@ export default function TireDemandPage() {
                       )}
                     </td>
                     <td className="py-2 pl-4 text-right tabular-nums font-semibold">{s.tires}</td>
-                    <td className="py-2 pl-4 text-right tabular-nums text-brand-400">{s.asks}</td>
                     {/* The column that decides whether a row is a buying signal.
                         Stock since bought in reads green — the shop already
                         answered this one and it should stop shouting. */}
@@ -251,7 +249,6 @@ export default function TireDemandPage() {
                     {data.totals.sizes} size{data.totals.sizes === 1 ? "" : "s"}
                   </td>
                   <td className="py-2 pl-4 text-right tabular-nums">{data.totals.tires}</td>
-                  <td className="py-2 pl-4 text-right tabular-nums">{data.totals.asks}</td>
                   <td className="py-2 pl-4" colSpan={2} />
                 </tr>
               </tfoot>
