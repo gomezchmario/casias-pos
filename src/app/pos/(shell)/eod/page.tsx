@@ -90,6 +90,19 @@ type EodData = {
   shopName: string;
 };
 
+/**
+ * The tenders that get counted, and everything else just gets read.
+ *
+ * Two, by the shop's own instruction: cash — the drawer in hand — and the card
+ * batch the terminal prints. Those are the only figures a person physically
+ * produces at close, so they are the only ones that take a typed count, carry a
+ * blind cover, and reconcile. Every other tender (SNAP, the house accounts, PO,
+ * Other) is money that never passes through anybody's hands at close: its
+ * takings are listed openly for the record and there is nothing to count them
+ * against.
+ */
+const COUNTED_TENDERS = new Set(["cash", "cc"]);
+
 export default function EndOfDayPage() {
   const { user, can } = usePosAuth();
   const [date, setDate] = useState("");
@@ -128,6 +141,18 @@ export default function EndOfDayPage() {
    * The evidence is the terminal's own printout, stapled to this one.
    */
   const [checked, setChecked] = useState(false);
+  /**
+   * Which tenders the last log actually covered, by method id.
+   *
+   * The cover used to be one flag for the whole table, and that was a hole in
+   * the blind count: logging the terminal batch at noon — Credit Card typed,
+   * nothing else — uncovered EVERY tender's expectation, so whoever counted the
+   * drawer that night counted next to the number they were supposed to produce.
+   * A tender's expectation now uncovers only when that tender itself was in a
+   * logged count, and `resetSequence` covers them all again the moment any
+   * count changes.
+   */
+  const [loggedMethods, setLoggedMethods] = useState<ReadonlySet<number>>(new Set());
   /**
    * The whole reading block — the two charts AND the performance board — folded
    * away until somebody asks for it.
@@ -205,17 +230,35 @@ export default function EndOfDayPage() {
   const resetSequence = useCallback(() => {
     setChecked(false);
     setBatchClosedAt(null);
+    // Re-covered per tender too. A second attempt at a count is still a count,
+    // for each drawer and terminal separately.
+    setLoggedMethods(new Set());
   }, []);
+
+  /** The method ids behind `COUNTED_TENDERS`, once the day's data is here. */
+  const countableIds = useMemo(
+    () =>
+      new Set(
+        (data?.reconciliation.methods ?? [])
+          .filter((m) => COUNTED_TENDERS.has(m.code))
+          .map((m) => m.methodId),
+      ),
+    [data],
+  );
 
   const countsPayload = useMemo(() => {
     const out: { methodId: number; countedCents: number }[] = [];
     for (const [id, raw] of Object.entries(counts)) {
+      // Only the countable tenders may enter a count. The others have no input
+      // box, but old checks seeded values for them into `counts` — without this
+      // filter a re-log would faithfully re-record a tender nobody counts.
+      if (!countableIds.has(Number(id))) continue;
       const cents = parseCents(raw);
       if (cents === null || cents < 0) continue;
       out.push({ methodId: Number(id), countedCents: cents });
     }
     return out;
-  }, [counts]);
+  }, [counts, countableIds]);
 
   const load = useCallback(
     async (preview: boolean) => {
@@ -349,7 +392,12 @@ export default function EndOfDayPage() {
     }
     const ok = await load(true);
     setBusy(false);
-    if (ok) setChecked(true);
+    if (ok) {
+      setChecked(true);
+      // Uncover exactly what was logged. Cash typed alone uncovers cash alone;
+      // the terminal's expectation stays covered until ITS count is logged.
+      setLoggedMethods(new Set(countsPayload.map((c) => c.methodId)));
+    }
   }
 
   async function removeRegisterCheck(c: RegisterCheck) {
@@ -916,12 +964,21 @@ export default function EndOfDayPage() {
           </div>
         )}
         {/* Says why the column is dashes, so it reads as a rule rather than as
-            the page having failed to load. */}
-        {!showExpected && (
-          <p className="text-sm text-brand-400 mb-3 no-print">
-            Count it first. What the register expects is covered until you log it.
-          </p>
-        )}
+            the page having failed to load. Shown while ANY countable tender is
+            still covered — logging the drawer does not finish the job if the
+            batch is still to count, and the rule holds per tender. */}
+        {countBlind &&
+          r.methods.some(
+            (m) =>
+              COUNTED_TENDERS.has(m.code) &&
+              (m.count > 0 || m.counted || counts[m.methodId]) &&
+              !loggedMethods.has(m.methodId),
+          ) && (
+            <p className="text-sm text-brand-400 mb-3 no-print">
+              Count it first. Cash and the card batch each stay covered until their
+              own count is logged.
+            </p>
+          )}
         {/*
           A DRAWER THAT EXPECTS MINUS MONEY, explained before anybody counts
           against it. A physical drawer cannot hold −$31; when the figure below
@@ -965,23 +1022,53 @@ export default function EndOfDayPage() {
           <tbody>
             {r.methods
               .filter((m) => m.count > 0 || m.counted || counts[m.methodId])
-              .map((m) => (
-                <CountRow
-                  key={m.methodId}
-                  method={m}
-                  showExpected={showExpected}
-                  // Cash, on a day the owner has planted a withdrawal in. Only
-                  // the owner ever receives a non-zero `hiddenDrawerCents`, so
-                  // this can never be true on anybody else's screen.
-                  maskPrint={data.hiddenDrawerCents !== 0 && m.code === "cash"}
-                  value={counts[m.methodId] ?? ""}
-                  onChange={(v) => {
-                    dirty.current = true;
-                    resetSequence();
-                    setCounts((c) => ({ ...c, [m.methodId]: v }));
-                  }}
-                />
-              ))}
+              .map((m) =>
+                COUNTED_TENDERS.has(m.code) ? (
+                  <CountRow
+                    key={m.methodId}
+                    method={m}
+                    // Per tender, not per table. Cash and the card batch each
+                    // stay covered until THEIR OWN count is logged — logging
+                    // one must not hand over the number the other person is
+                    // still supposed to produce.
+                    showExpected={!countBlind || loggedMethods.has(m.methodId)}
+                    // Cash, on a day the owner has planted a withdrawal in. Only
+                    // the owner ever receives a non-zero `hiddenDrawerCents`, so
+                    // this can never be true on anybody else's screen.
+                    maskPrint={data.hiddenDrawerCents !== 0 && m.code === "cash"}
+                    value={counts[m.methodId] ?? ""}
+                    onChange={(v) => {
+                      dirty.current = true;
+                      resetSequence();
+                      setCounts((c) => ({ ...c, [m.methodId]: v }));
+                    }}
+                  />
+                ) : (
+                  /* Everything that is not the drawer or the batch. Nobody
+                     physically produces these figures at close — SNAP settles
+                     itself, the house accounts are a ledger — so there is
+                     nothing to count them against and no count to keep honest:
+                     the takings sit in the open, uncovered, by instruction. */
+                  <tr key={m.methodId} className="border-t border-black/5">
+                    <td className="py-2">
+                      {m.label}
+                      <span className="text-xs text-brand-300 ml-2">
+                        {m.count} payment{m.count === 1 ? "" : "s"}
+                      </span>
+                    </td>
+                    <td className="py-2 text-right tabular-nums">
+                      {formatCents(m.takingsCents)}
+                    </td>
+                    <td
+                      className="py-2 text-right text-brand-300"
+                      title="Not counted at close — listed for the record"
+                    >
+                      —
+                    </td>
+                    <td className="py-2 text-right text-brand-300">—</td>
+                  </tr>
+                ),
+              )}
           </tbody>
           {r.anyCounted && (
             <tfoot>
