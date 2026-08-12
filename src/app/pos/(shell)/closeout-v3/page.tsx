@@ -64,6 +64,10 @@ export default function CloseoutV3Page() {
   const [counts, setCounts] = useState<{ cash: string; cc: string }>({ cash: "", cc: "" });
   /** Codes whose count has been logged this sequence — the per-tender covers. */
   const [logged, setLogged] = useState<ReadonlySet<string>>(new Set());
+  const [drawerKind, setDrawerKind] = useState<"withdrawal" | "deposit">("withdrawal");
+  const [drawerAmount, setDrawerAmount] = useState("");
+  const [drawerReason, setDrawerReason] = useState("");
+  const [drawerHidden, setDrawerHidden] = useState(false);
 
   useEffect(() => setPrintedOn(new Date().toLocaleString()), []);
 
@@ -105,11 +109,6 @@ export default function CloseoutV3Page() {
   const cashLine = finalCheck?.lines.find((l) => l.isCard === 0) ?? null;
   const shortByExactlyTips =
     !!cashLine && data.totals.tipCents > 0 && cashLine.varianceCents === -data.totals.tipCents;
-
-  const [drawerKind, setDrawerKind] = useState<"withdrawal" | "deposit">("withdrawal");
-  const [drawerAmount, setDrawerAmount] = useState("");
-  const [drawerReason, setDrawerReason] = useState("");
-  const [drawerHidden, setDrawerHidden] = useState(false);
 
   async function saveMovement(acknowledgeOverdraw = false) {
     if (busy) return;
