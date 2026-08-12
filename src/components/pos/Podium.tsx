@@ -84,7 +84,11 @@ export const PODIUM_METRICS: PodiumMetric[] = [
   {
     key: "serviceCount",
     label: "Most services by count",
-    unit: "jobs",
+    // "services", not "jobs". The figure counts qty — a mount and balance on
+    // three tires scores three, the same way the tire boards above count the
+    // same column — and calling three tires off one car "3 jobs" would be the
+    // label disagreeing with the number under it.
+    unit: "services",
     score: (t) => t.otherCount,
     show: (t) => String(t.otherCount),
   },

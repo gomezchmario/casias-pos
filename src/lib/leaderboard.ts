@@ -274,15 +274,31 @@ export function techPeriod(start: string, end: string): TechPeriod[] {
                 sale_id,
                 CASE WHEN cat = 'new_tire'  THEN qty ELSE 0 END AS newTires,
                 CASE WHEN cat = 'used_tire' THEN qty ELSE 0 END AS usedTires,
+                /*
+                  QTY, NOT ONE PER LINE.
+
+                  A MOUNT & BALANCE rung as qty 3 is three tires taken off,
+                  fitted and balanced, and it used to score the same as a single
+                  plug. Franklin's nine lines on 12 August were twelve tires'
+                  worth of work, and the board said nine — while "Most new tires
+                  sold" two rows above it counted the same qty column properly.
+                  One podium cannot measure in two units: whoever does the
+                  multi-tire jobs is the one it quietly under-counts, and they
+                  are the ones who notice.
+                */
                 CASE WHEN cat IS NULL OR cat NOT IN ('new_tire', 'used_tire')
-                     THEN 1 ELSE 0 END AS otherCount,
+                     THEN qty ELSE 0 END AS otherCount,
                 CASE WHEN cat IS NULL OR cat NOT IN ('new_tire', 'used_tire')
                      THEN line_total_cents - mountCents ELSE 0 END AS otherIncomeCents,
                 line_total_cents - mountCents AS incomeCents
            FROM line
           WHERE mechanic_id IS NOT NULL
           UNION ALL
-         SELECT mount_mechanic_id, sale_id, 0, 0, 1, mountCents, mountCents
+         -- The fitter's half of an ordered tire, counted the same way: the
+         -- credit that moves to them is mount_unit_cents * qty, so the count
+         -- beside it has to be qty too. A 1 here would have said one job for
+         -- four tires fitted, and disagreed with the money on its own row.
+         SELECT mount_mechanic_id, sale_id, 0, 0, qty, mountCents, mountCents
            FROM line
           WHERE mount_mechanic_id IS NOT NULL AND mountCents > 0
        )
