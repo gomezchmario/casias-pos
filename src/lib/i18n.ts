@@ -668,6 +668,8 @@ const ES: Record<string, string> = {
   "Nothing recorded walking out this month.": "Nada registrado que se fuera este mes.",
   "searched and not found": "buscada y no encontrada",
 
+  "printed by": "impreso por",
+
   "The racks": "Los racks",
   "Stock on hand": "Existencia",
   "units, at cost": "unidades, a costo",

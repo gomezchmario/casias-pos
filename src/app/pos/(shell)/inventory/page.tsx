@@ -178,6 +178,21 @@ export default function InventoryPage() {
   const [applying, setApplying] = useState<number | null>(null);
   const [applied, setApplied] = useState<Record<number, number>>({});
 
+  /**
+   * True only for the duration of the fold's own print. The state must be IN
+   * the DOM before the print dialog reads it, so the button sets it and this
+   * effect — which runs after the class is committed — is what actually calls
+   * print, then clears itself when the dialog closes.
+   */
+  const [printingInsights, setPrintingInsights] = useState(false);
+  useEffect(() => {
+    if (!printingInsights) return;
+    const done = () => setPrintingInsights(false);
+    window.addEventListener("afterprint", done);
+    window.print();
+    return () => window.removeEventListener("afterprint", done);
+  }, [printingInsights]);
+
   async function toggleInsights() {
     const opening = !insightsOpen;
     setInsightsOpen(opening);
@@ -322,7 +337,10 @@ export default function InventoryPage() {
   }, [sections]);
 
   return (
-    <div className="inv max-w-5xl mx-auto">
+    // `inv-mode-insights` flips which of the page's two printables comes out
+    // of the printer: the rack sheet by default, the fold's three panels while
+    // its own Print is running. Screen appearance never changes.
+    <div className={`inv max-w-5xl mx-auto${printingInsights ? " inv-mode-insights" : ""}`}>
       {/* gap-8 rather than gap-4: the controls are already hard against the
           right edge, so the only thing that can un-cram them is a wider gutter
           between them and the heading on the left. */}
@@ -440,7 +458,34 @@ export default function InventoryPage() {
           )}
 
           {insightsOpen && insights && (
-            <div className="grid gap-4 mb-4 no-print" style={{ gridTemplateColumns: "1fr" }}>
+            <div className="inv-insights grid gap-4 mb-4" style={{ gridTemplateColumns: "1fr" }}>
+              {/* The sheet's own letterhead — print only, and only when the
+                  fold is what is printing. A page with two printables has to
+                  say on paper which one this is. */}
+              <div className="inv-insights-head">
+                <ShopLogo size={44} priority />
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: "13pt" }}>
+                    Casias Muffler and Tire Shop
+                  </div>
+                  <div style={{ fontSize: "9pt" }}>
+                    {tr("The racks, worth a look")} · {insights.from} → {insights.to} ·{" "}
+                    {tr("printed by")} {user.name}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end no-print" style={{ marginBottom: -6 }}>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  style={{ height: 30, fontSize: 12 }}
+                  onClick={() => setPrintingInsights(true)}
+                >
+                  {tr("Print")}
+                </button>
+              </div>
+
               {/* ── Money standing still ── */}
               <div className="bg-white rounded-2xl shadow-sm p-4">
                 <div className="text-xs uppercase tracking-wider text-brand-300 mb-1">
@@ -505,7 +550,7 @@ export default function InventoryPage() {
                         <th className="py-1 font-medium text-right">{tr("Sold")}</th>
                         <th className="py-1 font-medium text-right pl-4">{tr("On hand")}</th>
                         <th className="py-1 font-medium text-right pl-4">{tr("Keep")}</th>
-                        {can("manageProducts") && <th className="py-1" />}
+                        {can("manageProducts") && <th className="py-1 no-print" />}
                       </tr>
                     </thead>
                     <tbody>
@@ -527,7 +572,7 @@ export default function InventoryPage() {
                               {s.suggested}
                             </td>
                             {can("manageProducts") && (
-                              <td className="py-1 text-right pl-3">
+                              <td className="py-1 text-right pl-3 no-print">
                                 {done ? (
                                   <span className="text-xs" style={{ color: "#15803d" }}>
                                     ✓ {tr("set")}

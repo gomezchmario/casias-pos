@@ -355,3 +355,42 @@
   text-transform: none;
   color: rgb(10 37 64 / 0.38);
 }
+
+/* Which of the page's two printables comes out of the printer.
+
+   By default the rack sheet prints and the fold does not exist on paper. With
+   `inv-mode-insights` on the root — set only while the fold's own Print is
+   running — the roles swap: the fold's three panels print under their own
+   letterhead and every sibling stays on screen. The letterhead itself is
+   print-only in that mode and never shows on screen at all. */
+.inv-insights-head {
+  display: none;
+}
+
+@media print {
+  .inv-insights {
+    display: none;
+  }
+
+  .inv-mode-insights .inv-insights {
+    display: grid;
+  }
+
+  .inv-mode-insights > *:not(.inv-insights) {
+    display: none !important;
+  }
+
+  .inv-mode-insights .inv-insights-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 2pt solid #0a2540;
+    padding-bottom: 8px;
+  }
+
+  .inv-mode-insights .inv-insights > div {
+    box-shadow: none;
+    border: 0.6pt solid rgb(10 37 64 / 0.15);
+    break-inside: avoid;
+  }
+}

@@ -1335,22 +1335,39 @@ export default function EndOfDayPage() {
           below it, and it belongs over the signature. */}
       {data.registerChecks.some((c) => !c.balanced) && (
         <div className="eod-flag">
-          <strong>A REGISTER LOG DID NOT BALANCE</strong> —{" "}
-          {data.registerChecks
-            .filter((c) => !c.balanced)
-            .map(
-              (c) =>
-                `${shortTime(c.checkedAt)} (${c.checkedByName}): ` +
-                c.lines
-                  .filter((l) => l.varianceCents !== 0)
-                  .map(
-                    (l) =>
-                      `${l.label} ${varianceWords(shownVariance(l.varianceCents, l.isCard))}`,
-                  )
-                  .join(", "),
-            )
-            .join(" · ")}
-          .
+          <strong>A REGISTER LOG DID NOT BALANCE</strong>
+          {/* One row per log, one chip per tender that was out. This was a
+              prose sentence — every log and every tender run together with
+              commas — and three logs in it read as a wall. The person this
+              block exists for is tired and filing paper; rows and signed
+              figures are what survive that. */}
+          <div className="eod-flag-rows">
+            {data.registerChecks
+              .filter((c) => !c.balanced)
+              .map((c) => (
+                <div key={c.id} className="eod-flag-row">
+                  <span className="eod-flag-when">
+                    {shortTime(c.checkedAt)}
+                    <span className="eod-flag-who">{c.checkedByName}</span>
+                  </span>
+                  <span className="eod-flag-chips">
+                    {c.lines
+                      .filter((l) => l.varianceCents !== 0)
+                      .map((l) => {
+                        const shown = shownVariance(l.varianceCents, l.isCard);
+                        return (
+                          <span
+                            key={l.methodId}
+                            className={`eod-flag-chip ${shown < 0 ? "is-short" : "is-over"}`}
+                          >
+                            {l.label} {varianceWords(shown)}
+                          </span>
+                        );
+                      })}
+                  </span>
+                </div>
+              ))}
+          </div>
         </div>
       )}
       {/* An uncounted tender is not the same as a balanced one and must not

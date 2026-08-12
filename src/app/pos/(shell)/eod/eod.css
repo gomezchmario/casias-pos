@@ -136,6 +136,62 @@
     margin-bottom: 16px;
   }
 
+  /* The rows inside a flag: one log per line, one chip per tender that was
+     out. Signed figures in pills read at a glance where the old prose sentence
+     had to be parsed; red is money not there, green is money over. */
+  .eod-flag-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .eod-flag-row {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .eod-flag-when {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    white-space: nowrap;
+    min-width: 118px;
+  }
+
+  .eod-flag-who {
+    font-weight: 400;
+    color: rgb(10 37 64 / 0.55);
+    margin-left: 6px;
+  }
+
+  .eod-flag-chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .eod-flag-chip {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.8125rem;
+    padding: 1px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .eod-flag-chip.is-short {
+    background: rgb(185 28 28 / 0.09);
+    color: #a71d24;
+  }
+
+  .eod-flag-chip.is-over {
+    background: rgb(21 128 61 / 0.1);
+    color: #15803d;
+  }
+
   /* Not an alarm — a note that something was left uncounted. Grey edge, because
      dressing it in red teaches people that red on this screen is ordinary. */
   .eod-flag-quiet {
