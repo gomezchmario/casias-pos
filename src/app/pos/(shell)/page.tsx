@@ -588,6 +588,46 @@ export default function DayPage() {
               >
                 <Caret open={allWhatOpen} />
               </button>
+
+              {/* Straight to the board.
+
+                  This panel says WHICH tickets are waiting; the board is where
+                  anything gets done about one — moved a stage, rung, marked
+                  picked up. Getting there was Logs, then Orders, from a screen
+                  already showing the list. Same square as the chevron beside
+                  it, because they are the same kind of thing: a small control
+                  on the end of a heading, one that opens the rows in place and
+                  one that leaves for the page that can act on them. */}
+              <Link
+                href="/pos/orders"
+                className="inline-flex items-center justify-center rounded-md shrink-0 transition-colors"
+                style={{
+                  width: "1.35rem",
+                  height: "1.35rem",
+                  border: "1px solid rgba(180,83,9,0.40)",
+                  background: "transparent",
+                  color: "#92400e",
+                }}
+                aria-label="Open the orders board"
+                title="Open the orders board"
+              >
+                {/* A chain, drawn rather than an emoji: 🔗 renders at whatever
+                    size and colour the platform feels like, and this has to sit
+                    at exactly the weight of the chevron next to it. */}
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
+                  <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5" />
+                  <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.5-1.5" />
+                </svg>
+              </Link>
             </div>
             {/* Money only when there is money. Everything in this box is paid
                 for now — what is outstanding about it is a tire or a car, not a
