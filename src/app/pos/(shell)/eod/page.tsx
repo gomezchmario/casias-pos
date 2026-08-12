@@ -374,7 +374,7 @@ export default function EndOfDayPage() {
     void load(false);
   }
 
-  async function saveDrawerMovement() {
+  async function saveDrawerMovement(acknowledgeOverdraw = false) {
     if (busy) return;
     const cents = parseCents(drawerAmount);
     if (cents === null || cents <= 0) {
@@ -394,11 +394,23 @@ export default function EndOfDayPage() {
         kind: drawerKind,
         reason: drawerReason.trim(),
         hidden: drawerHidden,
+        acknowledgeOverdraw,
       }),
     });
     const d = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) {
+      /*
+        The one refusal with a second question in it. The server said this
+        withdrawal is bigger than the drawer's books — which is either a typo
+        about to poison the day, or the truth about a drawer that is over. Only
+        the person holding the cash knows which, so they are asked, in the
+        server's own words, and their yes goes back with the flag set.
+      */
+      if (d.overdraw && window.confirm(`${d.error}\n\nRecord it anyway?`)) {
+        void saveDrawerMovement(true);
+        return;
+      }
       setError(d.error || "Could not record that");
       return;
     }
@@ -910,6 +922,37 @@ export default function EndOfDayPage() {
             Count it first. What the register expects is covered until you log it.
           </p>
         )}
+        {/*
+          A DRAWER THAT EXPECTS MINUS MONEY, explained before anybody counts
+          against it. A physical drawer cannot hold −$31; when the figure below
+          says it does, the movement ledger has more going out than ever came
+          in, and no count can balance until the wrong movement is found. Said
+          here in full because of what happened the one time it was not: the
+          number was read as "the difference", three counts were logged and
+          struck against it, and a negative payment was rung onto a real ticket
+          to force it to zero.
+
+          Shown even before the register is logged — the Expected column is
+          covered then, but this is not a figure, it is a fault, and covering a
+          fault is how it gets counted against blind.
+        */}
+        {(() => {
+          const negCash = r.methods.find((m) => m.kind === "cash" && m.expectedCents < 0);
+          if (!negCash) return null;
+          return (
+            <div className="mb-3 rounded-lg border-2 border-red-400 bg-red-50 px-3 py-2 text-sm text-red-900">
+              <strong>
+                The drawer&apos;s books have gone negative — the register expects{" "}
+                −{formatCents(-negCash.expectedCents)}, which no drawer can hold.
+              </strong>{" "}
+              More cash is recorded leaving the drawer today than the float and the
+              day&apos;s cash sales put into it, so a movement below is too big or was
+              entered twice. Counting cannot come out right until it is fixed: find
+              the wrong row under <em>Cash in and out of the drawer</em> and undo it.
+              This is not the amount missing — it is the bookkeeping being impossible.
+            </div>
+          );
+        })()}
         <table className="w-full text-sm eod-table">
           <thead>
             <tr className="text-left text-brand-300 uppercase text-xs tracking-wider">
@@ -1398,6 +1441,20 @@ export default function EndOfDayPage() {
                       <option value="deposit">Cash into the drawer</option>
                     </select>
                   </label>
+                  {/* Said at the moment the mistake gets made, not in a manual.
+                      The one morning this happened, every count until
+                      mid-afternoon read $100 short and the floor went looking
+                      for money that was never missing. */}
+                  {drawerKind === "deposit" && (
+                    <div
+                      className="text-xs text-amber-900 bg-amber-50 border border-amber-300 rounded-lg px-2 py-1"
+                      style={{ maxWidth: 260 }}
+                    >
+                      The opening float is counted on its own when the shift
+                      opens — don&apos;t record it here too, or every count today
+                      reads short by that much.
+                    </div>
+                  )}
                   <label className="text-xs text-brand-400">
                     Amount
                     <input
@@ -1950,7 +2007,21 @@ function CountRow({
         )}
       </td>
       <td className="py-2 text-right tabular-nums">
-        {showExpected ? formatCents(method.expectedCents) : <Covered />}
+        {!showExpected ? (
+          <Covered />
+        ) : method.expectedCents < 0 ? (
+          /* An impossible figure never reads as an ordinary one. The banner
+             above the table explains it; this makes sure the cell itself is
+             what sends the eye there. */
+          <span
+            className="text-red-700 font-semibold"
+            title="No drawer can hold minus money — a movement is too big or entered twice. See the notice above."
+          >
+            −{formatCents(-method.expectedCents)} ⚠
+          </span>
+        ) : (
+          formatCents(method.expectedCents)
+        )}
       </td>
       <td className="py-2 text-right">
         <input

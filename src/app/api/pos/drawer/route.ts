@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
     note?: string | null;
     reverseId?: number;
     hidden?: boolean;
+    acknowledgeOverdraw?: boolean;
   };
   try {
     body = await req.json();
@@ -57,7 +58,14 @@ export async function POST(req: NextRequest) {
     // Refused inside recordDrawerMovement for anyone but the owner, so this
     // passing straight through is safe.
     hidden: body.hidden === true,
+    acknowledgeOverdraw: body.acknowledgeOverdraw === true,
   });
-  if (!result.ok) return jsonError(result.error);
+  if (!result.ok)
+    // The overdraw flag rides along so the screen can offer "record it anyway"
+    // for exactly this refusal and no other.
+    return NextResponse.json(
+      { error: result.error, ...(result.overdraw ? { overdraw: true } : {}) },
+      { status: 400 },
+    );
   return NextResponse.json({ movement: result.movement });
 }

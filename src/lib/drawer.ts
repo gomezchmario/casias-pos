@@ -2,7 +2,8 @@ import { getDb } from "./db";
 import { inTx } from "./tx";
 import { nowLocalIso } from "./time";
 import { currentBusinessDate } from "./business-date";
-import { ensureShift } from "./shifts";
+import { currentShift, ensureShift, expectedByMethodForDay } from "./shifts";
+import { formatCents } from "./money";
 import { logActorAudit, type Actor } from "./audit";
 import { can } from "./roles";
 import type { PosUser } from "./pos-session";
@@ -33,7 +34,16 @@ export type DrawerMovement = {
 
 type Result<T = undefined> =
   | ({ ok: true } & (T extends undefined ? object : T))
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      error: string;
+      /**
+       * The refusal is "this would overdraw the drawer's books" and nothing
+       * else. Set so the screen can offer "record it anyway" for exactly this
+       * refusal without ever offering it for a bad amount or a missing reason.
+       */
+      overdraw?: true;
+    };
 
 const actorOf = (user: PosUser): Actor => ({
   type: "employee",
@@ -162,6 +172,8 @@ export function recordDrawerMovement(
     note?: string | null;
     /** Owner only. See `026_drawer_hidden.sql`. */
     hidden?: boolean;
+    /** The caller has read the overdraw warning and answered "record it anyway". */
+    acknowledgeOverdraw?: boolean;
   },
 ): Result<{ movement: DrawerMovement }> {
   const amount = Math.round(args.amountCents);
@@ -178,8 +190,77 @@ export function recordDrawerMovement(
 
   const signed = args.kind === "withdrawal" ? -amount : amount;
 
+  /*
+    THE OVERDRAW GUARD, added after the day the drawer's books went to −$31.
+
+    A withdrawal bigger than what the ledger says the drawer holds drives the
+    expected figure negative — a drawer that "contains minus thirty-one
+    dollars", which is not a state a physical drawer can be in. The screen then
+    shows that impossibility to whoever counts next, and what followed the one
+    time it happened was the floor fighting the number: three counts logged and
+    struck, and a negative cash payment rung onto a real ticket to force the
+    total to zero.
+
+    It is a warning with an override rather than a hard wall, because the
+    expectation can be the thing that is wrong. A drawer OVER — a cash sale rung
+    as card, say — genuinely holds more than the books expect, and somebody
+    emptying it at close is recording the truth. The message tells them to count
+    first; `acknowledgeOverdraw` is the screen saying they did.
+
+    Visible withdrawals only. A hidden one is excluded from the floor's
+    expectation by design, so it cannot drive the visible figure negative — and
+    it is the owner's own instrument besides.
+  */
+  if (args.kind === "withdrawal" && !args.hidden && !args.acknowledgeOverdraw) {
+    const cash = expectedByMethodForDay(currentBusinessDate()).find((e) => e.kind === "cash");
+    const after = (cash?.expectedCents ?? 0) + signed;
+    if (after < 0)
+      return {
+        ok: false,
+        overdraw: true,
+        error:
+          `The register expects only ${formatCents(cash?.expectedCents ?? 0)} in the drawer — ` +
+          `taking ${formatCents(amount)} would put its books at −${formatCents(-after)}, ` +
+          `and a drawer cannot hold minus money. Count the drawer first: if the cash really ` +
+          `is there, the day has a difference that needs a look before the money leaves.`,
+      };
+  }
+
+  // Whether a shift existed BEFORE this movement — `ensureShift` below will
+  // open one if not, and that distinction is what the float guard reads.
+  const hadShift = !!currentShift();
+
   return inTx(() => {
     const shift = ensureShift(user);
+
+    /*
+      THE FLOAT, COUNTED ONCE. The morning this guards against actually
+      happened: the first act of the day was recording the float as "cash in",
+      which auto-opened the shift — so the same hundred dollars entered the
+      books twice, once as `opening_float_cents` and once as a movement, and
+      every count until mid-afternoon read a hundred short. Whoever counted
+      "found" a shortage the arithmetic had invented.
+
+      The signature is precise — a deposit, equal to the float, on the very
+      movement that opened the shift — and only that is refused, with the way
+      out in the message. A genuine extra-cash deposit after the shift exists
+      is untouched.
+    */
+    if (
+      !hadShift &&
+      args.kind === "deposit" &&
+      amount === shift.opening_float_cents &&
+      amount > 0
+    )
+      return {
+        ok: false as const,
+        error:
+          `That looks like the opening float being recorded as cash in. The float is ` +
+          `counted on its own the moment a shift opens — recording it here counts the same ` +
+          `${formatCents(amount)} twice, and every count for the rest of the day reads that ` +
+          `much short. The shift is open now, so if this really is extra cash beyond the ` +
+          `float, record it again and it will go through.`,
+      };
     const now = nowLocalIso();
     const info = getDb()
       .prepare(
