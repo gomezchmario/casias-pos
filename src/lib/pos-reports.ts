@@ -713,9 +713,14 @@ export function dayEntries(
     LEFT JOIN employees e ON e.id = i.mechanic_id
     LEFT JOIN customers cu ON cu.id = s.customer_id
     LEFT JOIN service_categories c ON c.id = i.category_id
-        WHERE s.business_date BETWEEN ? AND ? AND s.deleted = 0`,
+        -- A ticket the owner has struck WHOLE carries sales.deleted, which is
+        -- what takes it out of every count. Its lines have to stay reachable to
+        -- the one screen that can put it back, though, or the undo has nothing
+        -- left to press. So the flag is honoured for everybody except the
+        -- caller who has already asked to see struck rows.
+        WHERE s.business_date BETWEEN ? AND ? AND (s.deleted = 0 OR ?)`,
     )
-    .all(from, to) as (Omit<
+    .all(from, to, opts?.includeDeleted ? 1 : 0) as (Omit<
     DayEntry,
     "key" | "kind" | "seq" | "voided" | "category" | "paymentId" | "isCard" | "saleVoided" | "deletedBy" | "deletedAt" | "deletedReason" | "strikeable" | "saleRefunded"
   > & {

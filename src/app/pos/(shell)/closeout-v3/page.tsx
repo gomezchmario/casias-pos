@@ -152,6 +152,19 @@ export default function CloseoutV3Page() {
     firstCashIn === undefined || now - firstCashIn < 10 * 60 * 1000;
 
   const weekday = DAY_NAMES[new Date(`${data.businessDate}T12:00:00`).getDay()];
+
+  /*
+    Split by whether anybody has answered them.
+
+    A dismissal on the alarm log does not stop an alarm firing — the figures
+    underneath it have not changed — but it does mean somebody has looked. An
+    alert list where "Mario checked this at 3:51 and said what it was" sits in
+    the same red box as "nobody has seen this" is a list that gets read once and
+    then skimmed, so the answered ones move below the fold and take their note
+    with them.
+  */
+  const live = data.exceptions.filter((x) => !x.dismissed);
+  const answered = data.exceptions.filter((x) => x.dismissed);
   const liveChecks = data.drawer.checks.filter((c) => !c.deleted);
   /** The verdict is read off the LAST live log — the one the paper certifies. */
   const finalCheck = liveChecks.at(-1) ?? null;
@@ -342,9 +355,9 @@ export default function CloseoutV3Page() {
             walks over and looks BEFORE the drawer is counted and the day is
             signed off. Underneath the steps it was a footnote to work already
             finished. */}
-        {data.exceptions.length > 0 && (
+        {live.length > 0 && (
           <div className="rp-concerns mb-4">
-            {data.exceptions.map((x, i) => (
+            {live.map((x, i) => (
               <div key={i} className={`rp-concern ${x.severity}`}>
                 <div className="rp-concern-head">
                   <span className="rp-concern-tag">
@@ -355,6 +368,35 @@ export default function CloseoutV3Page() {
               </div>
             ))}
           </div>
+        )}
+
+        {/*
+          Answered alarms drop below the line.
+
+          Dismissing still does not silence anything — the alarm is computed the
+          same way and is still on this page, still on the printout, still
+          carrying its own words. What changes is that it stops competing with
+          the ones nobody has looked at. An alert list where "somebody checked
+          this at 3:51 and said what it was" sits in the same red box as "nobody
+          has seen this" is a list that gets read once and then skimmed.
+        */}
+        {answered.length > 0 && (
+          <details className="rp-answered">
+            <summary>
+              {answered.length}{" "}
+              {answered.length === 1 ? "alert dealt with" : "alerts dealt with"}
+            </summary>
+            {answered.map((x, i) => (
+              <div key={i} className="rp-answered-row">
+                <div className="rp-answered-text">{x.text}</div>
+                <div className="rp-answered-by">
+                  Dismissed by {x.dismissed?.byName} ·{" "}
+                  {x.dismissed?.at.slice(11, 16)}
+                  {x.dismissed?.note ? ` — “${x.dismissed.note}”` : ""}
+                </div>
+              </div>
+            ))}
+          </details>
         )}
 
         {/* ── Step 1 · The morning count ─────────────────────────────────

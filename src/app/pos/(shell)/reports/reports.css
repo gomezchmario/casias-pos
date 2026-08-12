@@ -910,3 +910,48 @@
   color: #0a2540;
   background: rgba(255, 200, 61, 0.25);
 }
+
+/* Alerts somebody has already answered.
+   Below the fold, quieter than the live ones, and never gone: the note is the
+   reason the alarm log is worth keeping, so it prints with the rest. */
+.rp-answered {
+  margin-top: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 8px 12px;
+}
+
+.rp-answered summary {
+  cursor: pointer;
+  font-size: 0.78rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rp-answered-row {
+  margin-top: 8px;
+  padding-left: 10px;
+  border-left: 2px solid #cbd5e1;
+}
+
+.rp-answered-text {
+  font-size: 0.82rem;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.rp-answered-by {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+@media print {
+  /* Folded away on screen is a choice; folded away on paper is a gap in the
+     record. Same trick as the alarm log's history. */
+  .rp-answered:not([open]) > *:not(summary) {
+    display: block;
+  }
+}

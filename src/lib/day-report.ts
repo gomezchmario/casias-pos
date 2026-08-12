@@ -112,6 +112,18 @@ export type Exception = {
   scope: "day" | "standing";
   severity: "serious" | "watch";
   text: string;
+  /**
+   * Who waved this away, when, and what they said — null while nobody has.
+   *
+   * Read off `alarm_actions` (036_alarms.sql), which the alarm log writes.
+   * The alarm itself is still computed exactly as before and still fires: the
+   * figures underneath it have not changed, and an alarm that could be switched
+   * off would be switched off. What this does is let the page that shows it
+   * distinguish "nobody has looked at this" from "Mario looked at it at 3:51
+   * and said what it was" — which is the whole difference between a list worth
+   * reading at close and a list of things somebody already dealt with.
+   */
+  dismissed: { byName: string; at: string; note: string } | null;
 };
 
 export type ChecklistItem = {
@@ -561,12 +573,52 @@ export function closeoutV2(businessDate: string): CloseoutV2 {
     checklist: [],
   };
 
-  report.exceptions = findExceptions(report);
+  report.exceptions = markDismissed(businessDate, findExceptions(report));
   report.checklist = buildChecklist(report);
   return report;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Attach the human answer, where somebody has given one.
+ *
+ * One query for the whole day rather than one per alarm, and the NEWEST row per
+ * code wins — reopening writes a `reopen` row rather than deleting the
+ * dismissal, so the last word is the current state. See 036_alarms.sql.
+ *
+ * Queried here rather than imported from `alarms.ts`, which imports this file:
+ * the alarm log needs the whole history and builds its own richer read, and a
+ * shared helper between the two would be a circle for the sake of nine lines.
+ */
+function markDismissed(businessDate: string, out: Exception[]): Exception[] {
+  if (out.length === 0) return out;
+  const rows = getDb()
+    .prepare(
+      `SELECT a.code, a.kind, a.note, a.created_at, e.name AS by_name
+         FROM alarm_actions a
+         JOIN employees e ON e.id = a.employee_id
+        WHERE a.business_date = ?
+        ORDER BY a.id`,
+    )
+    .all(businessDate) as {
+    code: string;
+    kind: "dismiss" | "reopen";
+    note: string;
+    created_at: string;
+    by_name: string;
+  }[];
+
+  const latest = new Map<string, (typeof rows)[number]>();
+  for (const r of rows) latest.set(r.code, r);
+
+  return out.map((e) => {
+    const r = latest.get(e.code);
+    return r && r.kind === "dismiss"
+      ? { ...e, dismissed: { byName: r.by_name, at: r.created_at, note: r.note } }
+      : e;
+  });
+}
 
 /**
  * The judgements — everything on the page an owner would otherwise have to
@@ -583,6 +635,7 @@ function findExceptions(r: CloseoutV2): Exception[] {
     out.push({
       code: "drawer-negative",
       scope: "day",
+      dismissed: null,
       severity: "serious",
       text: `The drawer's books are negative (−${money(-r.drawer.expectedCents)}) — more cash recorded leaving than ever came in. A movement is too big or entered twice; fix it before counting.`,
     });
@@ -592,6 +645,7 @@ function findExceptions(r: CloseoutV2): Exception[] {
     out.push({
       code: "checks-unbalanced",
       scope: "day",
+      dismissed: null,
       severity: "serious",
       text: `${badChecks.length} register ${badChecks.length === 1 ? "log" : "logs"} today did not balance. The earliest imbalance is the fact worth chasing — everything after it inherits the problem.`,
     });
@@ -611,6 +665,7 @@ function findExceptions(r: CloseoutV2): Exception[] {
       out.push({
         code: "racks-vs-tickets",
       scope: "day",
+      dismissed: null,
       severity: "serious",
         text: `The racks and the tickets disagree even after order fulfilments are set aside: ${ticketsSameDay} tires sold-and-fitted on today's lines, ${racksSameDay} off the racks. A tire moved without the other record hearing about it.`,
       });
@@ -624,6 +679,7 @@ function findExceptions(r: CloseoutV2): Exception[] {
     out.push({
       code: "oversells",
       scope: "standing",
+      dismissed: null,
       severity: "watch",
       text: `${r.stock.unreviewedOversells} oversell${r.stock.unreviewedOversells === 1 ? "" : "s"} awaiting review — stock the register sold that its count said was not there: ${named}${r.stock.unreviewedOversells > 3 ? "; …" : ""}. Review on the Inventory tab.`,
     });
@@ -633,6 +689,7 @@ function findExceptions(r: CloseoutV2): Exception[] {
     out.push({
       code: "unpaid-balances",
       scope: "day",
+      dismissed: null,
       severity: "watch",
       text: `${r.tickets.unpaid.length} completed ticket${r.tickets.unpaid.length === 1 ? "" : "s"} today still carr${r.tickets.unpaid.length === 1 ? "ies" : "y"} a balance (${money(r.tickets.unpaid.reduce((n, u) => n + u.balanceCents, 0))} in total). Deliberate for an ordered tire; worth a look otherwise.`,
     });
@@ -641,6 +698,7 @@ function findExceptions(r: CloseoutV2): Exception[] {
     out.push({
       code: "open-tickets",
       scope: "day",
+      dismissed: null,
       severity: "watch",
       text: `${r.tickets.open} ticket${r.tickets.open === 1 ? "" : "s"} still open. An open ticket is not in any total on this page.`,
     });
@@ -649,6 +707,7 @@ function findExceptions(r: CloseoutV2): Exception[] {
     out.push({
       code: "voids",
       scope: "day",
+      dismissed: null,
       severity: "watch",
       text: `${r.tickets.voided} void${r.tickets.voided === 1 ? "" : "s"} today, listed below with who and why. Voids netting to zero is what the reversal design guarantees — the question is only whether each reason holds up.`,
     });
@@ -659,6 +718,7 @@ function findExceptions(r: CloseoutV2): Exception[] {
     out.push({
       code: "discounts",
       scope: "day",
+      dismissed: null,
       severity: "watch",
       text: `Discounts ran to ${((discountTotal / goods) * 100).toFixed(1)}% of the day's goods (${money(discountTotal)}). Over five percent is worth reading the list, not just the total.`,
     });
@@ -667,6 +727,7 @@ function findExceptions(r: CloseoutV2): Exception[] {
     out.push({
       code: "on-the-clock",
       scope: "day",
+      dismissed: null,
       severity: "watch",
       text: `${r.hours.people.filter((p) => p.onTheClock).length} still on the clock: ${r.hours.people
         .filter((p) => p.onTheClock)
@@ -679,6 +740,7 @@ function findExceptions(r: CloseoutV2): Exception[] {
     out.push({
       code: "pricing-flags",
       scope: "standing",
+      dismissed: null,
       severity: "watch",
       text: `${flags} pricing warning${flags === 1 ? "" : "s"} on the racks — tires in stock with no price, or priced under cost. Not today's doing, but today's risk.`,
     });

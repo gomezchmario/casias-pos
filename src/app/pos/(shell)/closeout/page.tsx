@@ -72,6 +72,19 @@ export default function CloseoutV2Page() {
     goodsWithDiscounts > 0 ? (data.totals.discountsCents / goodsWithDiscounts) * 100 : 0;
   const refundCents = data.tickets.refunds.reduce((n, r) => n + Math.abs(r.amountCents), 0);
   const weekday = DAY_NAMES[new Date(`${data.businessDate}T12:00:00`).getDay()];
+
+  /*
+    Split by whether anybody has answered them.
+
+    A dismissal on the alarm log does not stop an alarm firing — the figures
+    underneath it have not changed — but it does mean somebody has looked. An
+    alert list where "Mario checked this at 3:51 and said what it was" sits in
+    the same red box as "nobody has seen this" is a list that gets read once and
+    then skimmed, so the answered ones move below the fold and take their note
+    with them.
+  */
+  const live = data.exceptions.filter((x) => !x.dismissed);
+  const answered = data.exceptions.filter((x) => x.dismissed);
   /** The day's first live register log that counted CASH — see below. */
   const firstCashCheck =
     data.drawer.checks.find((c) => !c.deleted && c.lines.some((l) => l.isCard === 0)) ?? null;
@@ -113,7 +126,7 @@ export default function CloseoutV2Page() {
               href={`/pos/alarms?date=${date || data.businessDate}`}
             >
               {tr("Alarms")}
-              {data.exceptions.length > 0 && ` (${data.exceptions.length})`}
+              {live.length > 0 && ` (${live.length})`}
             </a>
           )}
           <button
@@ -177,13 +190,13 @@ export default function CloseoutV2Page() {
           />
         </div>
 
-        {data.exceptions.length === 0 ? (
+        {live.length === 0 ? (
           <div className="cv2-clean">
             ✓ {tr("Nothing stands out. The rest of this page is the evidence for that sentence.")}
           </div>
         ) : (
           <div className="rp-concerns">
-            {data.exceptions.map((x, i) => (
+            {live.map((x, i) => (
               <div key={i} className={`rp-concern ${x.severity}`}>
                 <div className="rp-concern-head">
                   <span className="rp-concern-tag">
@@ -194,6 +207,35 @@ export default function CloseoutV2Page() {
               </div>
             ))}
           </div>
+        )}
+
+        {/*
+          Answered alarms drop below the line.
+
+          Dismissing still does not silence anything — the alarm is computed the
+          same way and is still on this page, still on the printout, still
+          carrying its own words. What changes is that it stops competing with
+          the ones nobody has looked at. An alert list where "somebody checked
+          this at 3:51 and said what it was" sits in the same red box as "nobody
+          has seen this" is a list that gets read once and then skimmed.
+        */}
+        {answered.length > 0 && (
+          <details className="rp-answered">
+            <summary>
+              {answered.length}{" "}
+              {answered.length === 1 ? tr("alert dealt with") : tr("alerts dealt with")}
+            </summary>
+            {answered.map((x, i) => (
+              <div key={i} className="rp-answered-row">
+                <div className="rp-answered-text">{x.text}</div>
+                <div className="rp-answered-by">
+                  {tr("Dismissed by")} {x.dismissed?.byName} ·{" "}
+                  {x.dismissed?.at.slice(11, 16)}
+                  {x.dismissed?.note ? ` — “${x.dismissed.note}”` : ""}
+                </div>
+              </div>
+            ))}
+          </details>
         )}
 
         {/* The checklist — states the database can verify, never promises. */}
