@@ -58,7 +58,17 @@ export default function ToOrderPage() {
   const { can, user } = usePosAuth();
   const [data, setData] = useState<Data | null>(null);
   const [printedOn, setPrintedOn] = useState("");
-  const [applied, setApplied] = useState<Record<number, number>>({});
+  /**
+   * The level each tire currently carries, as far as this page knows.
+   *
+   * Held rather than re-fetched after every edit: setting eight levels in a row
+   * should not cost eight round trips through the two sweeps behind this page.
+   * Seeded from the server on load and updated in place on each save, so the
+   * row shows what was actually written.
+   */
+  const [level, setLevel] = useState<Record<number, number>>({});
+  /** What is in the box right now, which may not be a number yet. */
+  const [draft, setDraft] = useState<Record<number, string>>({});
   const [applying, setApplying] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,27 +76,113 @@ export default function ToOrderPage() {
 
   const load = useCallback(async () => {
     const res = await fetch("/api/pos/inventory/to-order");
-    if (res.ok) setData(await res.json());
+    if (!res.ok) return;
+    const d: Data = await res.json();
+    setData(d);
+    setLevel(
+      Object.fromEntries([
+        ...d.reorder.map((r) => [r.productId, r.reorderPoint]),
+        ...d.restock.map((r) => [r.productId, r.reorderPoint]),
+      ]),
+    );
   }, []);
   useEffect(() => {
     void load();
   }, [load]);
 
-  /** The same one-press level-setting the Reports page has, same route. */
-  async function applyReorder(productId: number, reorderPoint: number) {
+  /**
+   * Write a reorder level — any whole number, including none.
+   *
+   * ZERO IS A REAL ANSWER, not an empty field: it means "do not watch this
+   * size", which is a decision a shop makes about a tire it stocks on request
+   * and does not want an alarm for. So the box can be cleared and that clears
+   * the level, rather than the page refusing an empty value and leaving the old
+   * one quietly in place.
+   *
+   * The suggestion is only ever a suggestion. It rounds to how tires actually
+   * sell — one, a pair, a set — but the person holding the phone knows things
+   * the rate of sale does not, so the number is theirs to overrule.
+   */
+  async function saveLevel(productId: number, raw: string) {
+    const trimmed = raw.trim();
+    const next = trimmed === "" ? 0 : Number(trimmed);
+    if (!Number.isInteger(next) || next < 0) {
+      setError(tr("A reorder level is a whole number of tires, or blank for none."));
+      return;
+    }
+    if (next === level[productId]) return;
     setApplying(productId);
+    setError(null);
     const res = await fetch(`/api/pos/products/${productId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reorderPoint }),
+      body: JSON.stringify({ reorderPoint: next }),
     });
     setApplying(null);
     if (!res.ok) {
       setError(tr("Could not set that reorder point"));
       return;
     }
-    setApplied((a) => ({ ...a, [productId]: reorderPoint }));
+    setLevel((l) => ({ ...l, [productId]: next }));
+    setDraft((d) => {
+      const n = { ...d };
+      delete n[productId];
+      return n;
+    });
   }
+
+  /**
+   * One editable level, shared by both tables.
+   *
+   * The box shows what the tire CARRIES, not what is suggested — a field
+   * pre-filled with a recommendation is one somebody saves without reading, and
+   * then the shop's levels are whatever the rate of sale said on the day
+   * somebody happened to open this page. The suggestion sits beside it as a
+   * button, which is a thing you choose rather than a thing you accept.
+   */
+  const LevelBox = ({ productId, suggested }: { productId: number; suggested: number }) => {
+    const current = level[productId] ?? 0;
+    const value = draft[productId] ?? (current === 0 ? "" : String(current));
+    return (
+      <span className="flex items-center gap-1.5 justify-end">
+        <input
+          className="input text-right tabular-nums"
+          style={{ width: 58, height: 28, fontSize: 13 }}
+          inputMode="numeric"
+          placeholder={tr("none")}
+          value={value}
+          disabled={applying === productId}
+          onChange={(e) => setDraft((d) => ({ ...d, [productId]: e.target.value }))}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          }}
+          onBlur={(e) => void saveLevel(productId, e.target.value)}
+        />
+        {current !== suggested && (
+          <button
+            type="button"
+            className="text-xs underline text-brand-400 whitespace-nowrap"
+            title={tr("Use the suggested level")}
+            disabled={applying === productId}
+            onClick={() => void saveLevel(productId, String(suggested))}
+          >
+            {suggested}
+          </button>
+        )}
+        {current !== 0 && (
+          <button
+            type="button"
+            className="text-xs underline text-brand-300"
+            title={tr("Stop watching this size")}
+            disabled={applying === productId}
+            onClick={() => void saveLevel(productId, "0")}
+          >
+            ✕
+          </button>
+        )}
+      </span>
+    );
+  };
 
   if (!can("viewReports"))
     return <div className="text-brand-400">{tr("Your account can't see this report.")}</div>;
@@ -170,6 +266,7 @@ export default function ToOrderPage() {
                     <th className="text-left py-2 font-medium">{tr("Tire")}</th>
                     <th className="text-right py-2 font-medium pl-4">{tr("On hand")}</th>
                     <th className="text-right py-2 font-medium pl-4">{tr("Level")}</th>
+                    <th className="py-2 sst-hide-on-print" />
                     <th className="text-right py-2 font-medium pl-4">{tr("Sold, 90 days")}</th>
                     <th className="text-right py-2 font-medium pl-4">{tr("Order")}</th>
                   </tr>
@@ -188,8 +285,18 @@ export default function ToOrderPage() {
                       >
                         {r.onHand}
                       </td>
-                      <td className="py-1.5 pl-4 text-right tabular-nums text-brand-400">
-                        {r.reorderPoint}
+                      {/* Printed as a plain figure; edited on screen. */}
+                      <td className="py-1.5 pl-4 text-right tabular-nums text-brand-400 sst-print-only">
+                        {level[r.productId] ?? r.reorderPoint}
+                      </td>
+                      <td className="py-1.5 pl-4 text-right sst-hide-on-print">
+                        {can("manageProducts") ? (
+                          <LevelBox productId={r.productId} suggested={r.suggested} />
+                        ) : (
+                          <span className="tabular-nums text-brand-400">
+                            {level[r.productId] ?? r.reorderPoint}
+                          </span>
+                        )}
                       </td>
                       <td className="py-1.5 pl-4 text-right tabular-nums text-brand-400">
                         {r.sold90}
@@ -210,7 +317,7 @@ export default function ToOrderPage() {
               {tr("Selling faster than it is stocked")}
             </div>
             <p className="text-sm text-brand-400 mb-2">
-              {tr("Worked out from the rate of sale, whether or not anybody set a level. Set puts the suggested level on the tire so the alarm watches it from now on.")}
+              {tr("Worked out from the rate of sale, whether or not anybody set a level. Type a Keep level to have the alarm watch this size — the suggestion beside the box fills it in, and ✕ or an empty box stops watching.")}
             </p>
             {data.restock.length === 0 ? (
               <div className="text-sm text-brand-300">
@@ -224,14 +331,12 @@ export default function ToOrderPage() {
                     <th className="text-right py-2 font-medium pl-4">{tr("Sold")}</th>
                     <th className="text-right py-2 font-medium pl-4">{tr("On hand")}</th>
                     <th className="text-right py-2 font-medium pl-4">{tr("Days of cover")}</th>
+                    <th className="text-right py-2 font-medium pl-4">{tr("Suggested")}</th>
                     <th className="text-right py-2 font-medium pl-4">{tr("Keep")}</th>
-                    {can("manageProducts") && <th className="py-2 sst-hide-on-print" />}
                   </tr>
                 </thead>
                 <tbody>
                   {data.restock.map((r, i) => {
-                    const done =
-                      applied[r.productId] === r.suggested || r.reorderPoint === r.suggested;
                     return (
                       <tr
                         key={r.productId}
@@ -253,28 +358,21 @@ export default function ToOrderPage() {
                         <td className="py-1.5 pl-4 text-right tabular-nums text-brand-400">
                           {r.daysOfCover === null ? tr("none left") : r.daysOfCover}
                         </td>
-                        <td className="py-1.5 pl-4 text-right tabular-nums font-semibold">
+                        <td className="py-1.5 pl-4 text-right tabular-nums text-brand-400">
                           {r.suggested}
                         </td>
-                        {can("manageProducts") && (
-                          <td className="py-1.5 pl-3 text-right sst-hide-on-print">
-                            {done ? (
-                              <span className="text-xs" style={{ color: "#15803d" }}>
-                                ✓ {tr("set")}
-                              </span>
-                            ) : (
-                              <button
-                                type="button"
-                                className="btn btn-outline"
-                                style={{ height: 26, fontSize: 12, padding: "0 10px" }}
-                                disabled={applying === r.productId}
-                                onClick={() => void applyReorder(r.productId, r.suggested)}
-                              >
-                                {tr("Set")}
-                              </button>
-                            )}
-                          </td>
-                        )}
+                        <td className="py-1.5 pl-4 text-right tabular-nums font-semibold sst-print-only">
+                          {level[r.productId] ?? r.reorderPoint}
+                        </td>
+                        <td className="py-1.5 pl-4 text-right sst-hide-on-print">
+                          {can("manageProducts") ? (
+                            <LevelBox productId={r.productId} suggested={r.suggested} />
+                          ) : (
+                            <span className="tabular-nums">
+                              {level[r.productId] ?? r.reorderPoint}
+                            </span>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}

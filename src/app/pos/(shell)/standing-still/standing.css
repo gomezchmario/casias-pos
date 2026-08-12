@@ -5,7 +5,15 @@
   display: none;
 }
 
+.sst-print-only {
+  display: none;
+}
+
 @media print {
+  .sst-print-only {
+    display: table-cell;
+  }
+
   .sst-hide-on-print,
   .pos-nav,
   nav,
