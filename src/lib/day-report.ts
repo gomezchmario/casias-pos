@@ -1,7 +1,7 @@
 import { getDb } from "./db";
 import { taxIncludedInCents } from "./money";
 import { getSetting } from "./settings";
-import { COST_JOINS, UNIT_COST_SQL } from "./costs";
+import { COST_JOINS, assumedCostSql } from "./costs";
 import {
   dayByMechanic,
   dayDiscounts,
@@ -449,10 +449,10 @@ export function closeoutV2(businessDate: string): CloseoutV2 {
   // ── Margin today, under the program's one margin rule ─────────────────────
   const costed = db
     .prepare(
-      `SELECT COALESCE(SUM(CASE WHEN ${UNIT_COST_SQL} IS NOT NULL
+      `SELECT COALESCE(SUM(CASE WHEN ${assumedCostSql()} IS NOT NULL
                                 THEN i.line_total_cents ELSE 0 END), 0) AS revenue,
-              COALESCE(SUM(CASE WHEN ${UNIT_COST_SQL} IS NOT NULL
-                                THEN ${UNIT_COST_SQL} * i.qty ELSE 0 END), 0) AS cost,
+              COALESCE(SUM(CASE WHEN ${assumedCostSql()} IS NOT NULL
+                                THEN ${assumedCostSql()} * i.qty ELSE 0 END), 0) AS cost,
               COALESCE(SUM(i.line_total_cents), 0) AS allRevenue
          FROM sale_items i
          JOIN sales s ON s.id = i.sale_id

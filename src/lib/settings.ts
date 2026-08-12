@@ -48,6 +48,19 @@ export type SettingsMap = {
   // same one the register rings on, because a quote computed at a different
   // rate than the ticket is a quote that comes apart at the counter.
   quote_margin_bp: string; // 2000 = 20%
+  /**
+   * The floor the shop assumes it made on a tire it has no cost for.
+   *
+   * A MARKUP ON COST, the same direction as `quote_margin_bp` and the same
+   * arithmetic the quoter shows as "Markup 20%": cost = price / 1.20. Kept as
+   * its own key rather than reusing the quote margin, because changing what the
+   * counter quotes tomorrow must not silently restate what the shop earned last
+   * March.
+   *
+   * Set to 0 to switch the assumption off entirely and go back to counting only
+   * tires with a real cost recorded.
+   */
+  assumed_tire_markup_bp: string; // 2000 = 20%
   quote_mount_balance_cents: string;
   quote_round_to_cents: string; // 1000 = round up to the next $10
 
@@ -146,6 +159,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   discount_cashier_max_cents: "1500", // $15
 
   quote_margin_bp: "2000", // 20%
+  assumed_tire_markup_bp: "2000", // 20%
   quote_mount_balance_cents: "3500", // $35
   quote_round_to_cents: "1000", // next $10
 

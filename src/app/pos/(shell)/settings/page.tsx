@@ -927,7 +927,15 @@ function CostsCard({ onError }: { onError: (m: string | null) => void }) {
   const [data, setData] = useState<{
     from: string;
     to: string;
-    coverage: { revenueCents: number; costedCents: number; pct: number; linesWithout: number };
+    coverage: {
+      revenueCents: number;
+      costedCents: number;
+      pct: number;
+      linesWithout: number;
+      /** Revenue covered only by the tire assumption — never folded into pct. */
+      assumedCents: number;
+      assumedPct: number;
+    };
     services: {
       key: string;
       avgPriceCents: number;
@@ -1027,9 +1035,33 @@ function CostsCard({ onError }: { onError: (m: string | null) => void }) {
           {c.pct}%
         </span>
         <span className="text-sm text-brand-400">
-          {tr("of the last year's takings can be given a cost")}
+          {tr("of the last year's takings has a cost the shop recorded")}
         </span>
       </div>
+
+      {/*
+        The assumption, said out loud and kept apart from the measurement.
+
+        Most of this shop's tire money arrives as free text with no product row
+        behind it, so it has no recorded cost and never will retrospectively.
+        Those lines are now counted at the posted markup — a floor, not an
+        estimate — which is what makes a margin over the whole shop possible at
+        all. It is reported on its own line rather than added to the figure
+        above, because a coverage number that counted a guess as a measurement
+        would destroy the one thing it is for.
+      */}
+      {c.assumedPct > 0 && (
+        <div className="flex items-baseline gap-3 flex-wrap mb-1">
+          <span className="text-lg font-semibold tabular-nums text-brand-400">
+            +{c.assumedPct}%
+          </span>
+          <span className="text-sm text-brand-400">
+            {tr(
+              "assumed: tires with no cost recorded, counted at the shop's posted markup and no better",
+            )}
+          </span>
+        </div>
+      )}
       <p className="text-sm text-brand-400 mb-3" style={{ maxWidth: "70ch" }}>
         {tr(
           "Gross Margin on the Reports tab is worked out only over the part that can. Below about a fifth it shows no figure at all, because a margin over a fifth of the shop is not a margin for the shop. Filling these in raises it.",

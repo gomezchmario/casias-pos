@@ -1,4 +1,5 @@
 import { getDb } from "./db";
+import { getSetting } from "./settings";
 import { inTx } from "./tx";
 import { nowLocalIso } from "./time";
 import { logActorAudit, type Actor } from "./audit";
@@ -67,7 +68,45 @@ export const UNIT_COST_SQL = `
 export const COST_JOINS = `
   LEFT JOIN products p ON p.id = i.product_id
   LEFT JOIN service_costs sc
-         ON sc.description_key = UPPER(TRIM(i.description))`;
+         ON sc.description_key = UPPER(TRIM(i.description))
+  LEFT JOIN service_categories cc ON cc.id = i.category_id`;
+
+/**
+ * The same cost, with a floor under the tires nobody priced.
+ *
+ * MOST OF THE SHOP'S TIRE MONEY HAS NO COST AGAINST IT. Nearly two thousand
+ * new-tire lines were rung as free text — "NEW 11/22.5 TBB" and its like —
+ * with no product row to carry what the shop paid, and that is $730k of
+ * revenue the margin reports had to leave out entirely. A margin computed over
+ * the third of the shop that happens to be priced is not a fact about the shop.
+ *
+ * So a tire with no recorded cost is assumed to have been sold at the shop's
+ * posted markup and no better: at 20%, cost = price / 1.20. It is a FLOOR, not
+ * an estimate — the real margin on these is very likely higher, and a figure
+ * that understates is one an owner can act on, where an optimistic one is not.
+ *
+ * ONLY TIRES. A flat or a mount has no purchase price behind it and never did;
+ * assuming a cost for one would be inventing a supplier. Those are what the
+ * "What things cost" screen asks about, and they stay unanswered until somebody
+ * answers them.
+ *
+ * `costCoverage` still reports what is KNOWN separately from what is assumed,
+ * so this can never quietly turn a guess into a measurement. Set
+ * `assumed_tire_markup_bp` to 0 to switch it off.
+ */
+export function assumedCostSql(): string {
+  const bp = Number(getSetting("assumed_tire_markup_bp"));
+  if (!Number.isFinite(bp) || bp <= 0) return UNIT_COST_SQL;
+  return `
+    COALESCE(
+      NULLIF(i.unit_cost_cents, 0),
+      NULLIF(p.default_cost_cents, 0),
+      sc.cost_cents,
+      CASE WHEN cc.code IN ('new_tire', 'used_tire') AND i.unit_price_cents > 0
+           THEN CAST(i.unit_price_cents * 10000.0 / ${10000 + bp} AS INTEGER)
+      END
+    )`;
+}
 
 export type ServiceCost = {
   key: string;
@@ -110,6 +149,7 @@ export function serviceCosts(limit = 30): ServiceCost[] {
          FROM sale_items i
          JOIN sales s ON s.id = i.sale_id
     LEFT JOIN service_costs sc ON sc.description_key = UPPER(TRIM(i.description))
+    LEFT JOIN service_categories c ON c.id = i.category_id
     LEFT JOIN employees e ON e.id = sc.set_by
         WHERE s.deleted = 0 AND s.status = 'completed' AND s.kind = 'sale'
           AND i.voided = 0
@@ -117,6 +157,13 @@ export function serviceCosts(limit = 30): ServiceCost[] {
           -- takes its cost from the product and does not belong on a list of
           -- questions about services.
           AND i.product_id IS NULL
+          -- And a tire rung as free text is still a tire. "NEW 11/22.5 TBB"
+          -- was being asked for a per-unit cost on a screen of services, next
+          -- to FLAT and ROTACION, which is a question about a supplier invoice
+          -- dressed as a question about labour. Nearly two thousand lines of
+          -- this shop's new-tire money arrives without a product row; it gets
+          -- the assumed markup instead -- see assumedCostSql.
+          AND (c.code IS NULL OR c.code NOT IN ('new_tire', 'used_tire'))
      GROUP BY key
      ORDER BY sc.cost_cents IS NULL, revenueCents DESC
         LIMIT ?`,
@@ -127,16 +174,34 @@ export function serviceCosts(limit = 30): ServiceCost[] {
 /** How much of the shop's revenue can be given a cost at all. */
 export function costCoverage(from: string, to: string): {
   revenueCents: number;
+  /** Revenue whose cost the shop actually recorded. */
   costedCents: number;
   pct: number;
   linesWithout: number;
+  /**
+   * Revenue covered only by the tire assumption — see `assumedCostSql`.
+   *
+   * Reported apart from `costedCents` and never folded into it. The whole
+   * point of a coverage figure is to say how much of a margin is measured, and
+   * a number that counted a guess as a measurement would destroy the one thing
+   * it exists for.
+   */
+  assumedCents: number;
+  assumedPct: number;
 } {
+  const assumed = assumedCostSql();
   const r = getDb()
     .prepare(
       `SELECT COALESCE(SUM(i.line_total_cents), 0) AS revenueCents,
               COALESCE(SUM(CASE WHEN ${UNIT_COST_SQL} IS NOT NULL
                                 THEN i.line_total_cents ELSE 0 END), 0) AS costedCents,
-              SUM(CASE WHEN ${UNIT_COST_SQL} IS NULL THEN 1 ELSE 0 END) AS linesWithout
+              -- Covered by the assumption and not by a real cost: the gap
+              -- between the two expressions, which is exactly the tire lines
+              -- nobody priced.
+              COALESCE(SUM(CASE WHEN ${UNIT_COST_SQL} IS NULL
+                                 AND ${assumed} IS NOT NULL
+                                THEN i.line_total_cents ELSE 0 END), 0) AS assumedCents,
+              SUM(CASE WHEN ${assumed} IS NULL THEN 1 ELSE 0 END) AS linesWithout
          FROM sale_items i
          JOIN sales s ON s.id = i.sale_id
          ${COST_JOINS}
@@ -146,12 +211,12 @@ export function costCoverage(from: string, to: string): {
     .get(from, to) as {
     revenueCents: number;
     costedCents: number;
+    assumedCents: number;
     linesWithout: number;
   };
-  return {
-    ...r,
-    pct: r.revenueCents > 0 ? Math.round((r.costedCents / r.revenueCents) * 100) : 0,
-  };
+  const pctOf = (n: number) =>
+    r.revenueCents > 0 ? Math.round((n / r.revenueCents) * 100) : 0;
+  return { ...r, pct: pctOf(r.costedCents), assumedPct: pctOf(r.assumedCents) };
 }
 
 /** Tires the shop sells and has never recorded a cost for. */
