@@ -106,6 +106,32 @@ type Oversell = {
   on_hand: number;
 };
 
+/** One row of a tire's history — see `productHistory`. */
+type Move = {
+  id: number;
+  business_date: string;
+  created_at: string;
+  qty_delta: number;
+  unit_cost_cents: number;
+  reason: string;
+  oversold: number;
+  note: string | null;
+  saleNo: string | null;
+  byName: string | null;
+};
+
+/** The shop's words for a movement, the same ones the Movements tab uses. */
+const MOVE_REASON: Record<string, string> = {
+  receive: "Received",
+  sale: "Sold",
+  void_return: "Back — ticket voided",
+  refund_return: "Back — refunded",
+  adjust: "Adjusted",
+  count: "Counted",
+  damage: "Damaged",
+  opening: "Opening count",
+};
+
 type Data = {
   sections: RimSection[];
   batteries: Tire[];
@@ -305,6 +331,32 @@ export default function InventoryPage() {
       return;
     }
     await loadOversells();
+  }
+
+  /**
+   * The tire whose history is open, and what happened to it.
+   *
+   * Pressing the name is how anybody asks "where did these go" while standing
+   * in front of the rack — the count on the row says four and the question is
+   * always what the other six did. Everything needed to answer that is already
+   * in `inventory_movements` and was reachable only from the Movements tab,
+   * filtered by hand.
+   */
+  const [history, setHistory] = useState<{ tire: Tire; rows: Move[] } | null>(null);
+  const [historyBusy, setHistoryBusy] = useState(false);
+
+  async function openHistory(t: Tire) {
+    setHistory({ tire: t, rows: [] });
+    setHistoryBusy(true);
+    const res = await fetch(`/api/pos/products/${t.id}`);
+    setHistoryBusy(false);
+    if (!res.ok) {
+      setHistory(null);
+      setError("Could not read that tire's history");
+      return;
+    }
+    const d = await res.json();
+    setHistory({ tire: t, rows: d.movements ?? [] });
   }
 
   const [quoting, setQuoting] = useState(false);
@@ -1310,6 +1362,19 @@ export default function InventoryPage() {
                       }`}
                     >
                       <td className="inv-c-name py-1">
+                        {/* The name is the way in. A button rather than a link
+                            because it opens over the sheet rather than leaving
+                            it — somebody checking where six tires went does not
+                            want to lose their place on a rack of forty rows.
+                            Styled as the name still: underlined only on hover,
+                            and `inv-name-btn` keeps it off the printout's
+                            cursor, where a button is a lie. */}
+                        <button
+                          type="button"
+                          className="inv-name-btn"
+                          title={tr("Everything that happened to this tire")}
+                          onClick={() => void openHistory(t)}
+                        >
                         <span className="inv-tire-name text-brand-500">
                           {[t.brand, t.model].filter(Boolean).join(" ") || t.name}
                           {/*
@@ -1326,6 +1391,7 @@ export default function InventoryPage() {
                           */}
                           {t.cost_code && ` ${t.cost_code}`}
                         </span>
+                        </button>
                         {t.ply && <span className="text-brand-300 text-xs"> · {t.ply}</span>}
                         {/*
                           Who to call for more. Behind the same capability as
@@ -1708,6 +1774,92 @@ export default function InventoryPage() {
             void load();
           }}
         />
+      )}
+
+      {/*
+        One tire's whole life, over the sheet.
+
+        Read newest first, unlike the order board's history: the question here
+        is "what happened to this recently", not "how did it get like this".
+        Costs follow `showCosts` like everywhere else — the server sends the
+        movement rows with unit costs on them, so the column is hidden rather
+        than the row, and a cashier's copy of this payload still carries them.
+      */}
+      {history && (
+        <Modal open onClose={() => setHistory(null)} title={history.tire.name} width={860}>
+          <div className="text-sm text-brand-400 mb-2">
+            {tr("On hand now")}{" "}
+            <strong className={history.tire.on_hand < 0 ? "text-red-700" : "text-brand-500"}>
+              {history.tire.on_hand}
+            </strong>
+            {history.tire.sku ? ` · ${history.tire.sku}` : ""}
+          </div>
+
+          {historyBusy && <div className="text-brand-300">{tr("Reading the ledger…")}</div>}
+
+          {!historyBusy && history.rows.length === 0 && (
+            <div className="text-brand-300">
+              {tr("Nothing has moved. This tire has never been received or sold.")}
+            </div>
+          )}
+
+          {history.rows.length > 0 && (
+            <div style={{ maxHeight: "60vh", overflowY: "auto" }}>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-brand-300 text-xs uppercase tracking-wider">
+                    <th className="text-left py-2 font-medium">{tr("When")}</th>
+                    <th className="text-left py-2 font-medium pl-4">{tr("What happened")}</th>
+                    <th className="text-right py-2 font-medium pl-4">{tr("In / out")}</th>
+                    {data?.showCosts && (
+                      <th className="text-right py-2 font-medium pl-4">{tr("Cost each")}</th>
+                    )}
+                    <th className="text-left py-2 font-medium pl-4">{tr("Ticket")}</th>
+                    <th className="text-left py-2 font-medium pl-4">{tr("Who")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.rows.map((m) => (
+                    <tr key={m.id} className="border-t border-black/5">
+                      <td className="py-1.5 text-brand-400 whitespace-nowrap">
+                        {m.business_date}
+                        <span className="text-brand-300 text-xs">
+                          {" "}
+                          {m.created_at.slice(11, 16)}
+                        </span>
+                      </td>
+                      <td className="py-1.5 pl-4 text-brand-500">
+                        {MOVE_REASON[m.reason] ?? m.reason}
+                        {/* Said on the row it happened on, because an oversell
+                            is the one movement whose meaning is not in its
+                            reason: it was a sale, and the sale was impossible. */}
+                        {!!m.oversold && (
+                          <span className="inv-pill-warn"> {tr("oversold")}</span>
+                        )}
+                        {m.note && (
+                          <span className="text-brand-300 text-xs"> · {m.note}</span>
+                        )}
+                      </td>
+                      <td
+                        className="py-1.5 pl-4 text-right tabular-nums font-semibold"
+                        style={{ color: m.qty_delta < 0 ? "#b45309" : "#15803d" }}
+                      >
+                        {m.qty_delta > 0 ? `+${m.qty_delta}` : m.qty_delta}
+                      </td>
+                      {data?.showCosts && (
+                        <td className="py-1.5 pl-4 text-right tabular-nums text-brand-400">
+                          {m.unit_cost_cents ? formatCents(m.unit_cost_cents) : "—"}
+                        </td>
+                      )}
+                      <td className="py-1.5 pl-4 text-brand-400">{m.saleNo ?? "—"}</td>
+                      <td className="py-1.5 pl-4 text-brand-400">{m.byName ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Modal>
       )}
 
       <ConfirmModal

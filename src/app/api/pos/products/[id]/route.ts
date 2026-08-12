@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jsonError, requirePos } from "@/lib/api-helpers";
 import { deleteProduct, getProduct, restoreProduct, updateProduct } from "@/lib/products";
-import { listLots, listMovements, stockOnHand } from "@/lib/inventory";
+import { listLots, productHistory, stockOnHand } from "@/lib/inventory";
 import { can } from "@/lib/roles";
 
 export async function GET(
@@ -22,7 +22,9 @@ export async function GET(
     // Lots ARE costs — there is nothing left in one once the cost is stripped,
     // so it is cleaner to withhold the list than to send hollowed-out rows.
     lots: showCosts ? listLots(id, true) : [],
-    movements: listMovements(id, 100),
+    // Named rather than raw: this is what the history popup on the inventory
+    // sheet renders, and "created_by 8" is not an answer anybody can use.
+    movements: productHistory(id, 200),
   });
 }
 

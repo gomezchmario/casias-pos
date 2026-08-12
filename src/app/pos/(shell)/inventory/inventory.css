@@ -429,3 +429,31 @@
 .inv-public .inv-table tbody tr:nth-child(even) {
   background: rgb(10 37 64 / 0.028);
 }
+
+/* The tire name, which is now the way into its history.
+   Styled as text, not as a control: on a rack of forty rows a column of blue
+   underlined links is a wall, and the name has to stay the thing being read.
+   The underline arrives on hover, which is where somebody is already looking. */
+.inv-name-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.inv-name-btn:hover .inv-tire-name,
+.inv-name-btn:focus-visible .inv-tire-name {
+  text-decoration: underline;
+}
+
+@media print {
+  /* On paper it is a name again. A cursor and a hover state mean nothing
+     there, and the button's box must not disturb the row. */
+  .inv-name-btn {
+    cursor: default;
+  }
+}

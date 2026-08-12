@@ -123,6 +123,36 @@ export function listMovements(productId: number, limit = 200): Movement[] {
     .all(productId, limit) as Movement[];
 }
 
+/**
+ * One tire's history, with the names filled in.
+ *
+ * `listMovements` returns the raw ledger — employee ids and sale ids — which is
+ * right for code and useless to a person: "created_by 8" answers nothing at a
+ * counter. This is the same rows with the ticket number and the name attached,
+ * for the history a manager opens by pressing a tire on the inventory sheet.
+ *
+ * Newest first. Unlike the order board's history, which is a story read from
+ * the beginning, this is a feed — the question is almost always "what happened
+ * to this recently", and the answer is at the top.
+ */
+export function productHistory(productId: number, limit = 200): MovementRow[] {
+  return getDb()
+    .prepare(
+      `SELECT m.*, p.name AS productName, p.tire_size AS tireSize,
+              COALESCE(p.condition, 'new') AS condition,
+              e.name AS byName, s.sale_no AS saleNo, r.name AS reviewedByName
+         FROM inventory_movements m
+         JOIN products p ON p.id = m.product_id
+    LEFT JOIN employees e ON e.id = m.created_by
+    LEFT JOIN employees r ON r.id = m.reviewed_by
+    LEFT JOIN sales s ON s.id = m.sale_id
+        WHERE m.product_id = ?
+     ORDER BY m.id DESC
+        LIMIT ?`,
+    )
+    .all(productId, limit) as MovementRow[];
+}
+
 /** A movement with enough around it to read without opening anything else. */
 export type MovementRow = Movement & {
   productName: string;
