@@ -537,7 +537,7 @@ export default function CloseoutV2Page() {
       <Section
         id="people"
         title={tr("Who did the work")}
-        note={tr("Per person, off the same lines the leaderboard reads. Revenue per hour is deliberately absent: the shop does not record hours, and a KPI computed from missing data is noise wearing a suit.")}
+        note={tr("Per person, off the same lines the leaderboard reads. Revenue per hour uses only hours somebody actually clocked out of — the share that is still an auto-close guess is stated rather than folded in.")}
       >
         <div className="rp-two">
           <Panel title={tr("Technicians")}>
@@ -554,6 +554,59 @@ export default function CloseoutV2Page() {
               />
             )}
           </Panel>
+          <Panel
+            title={tr("Hours on the clock")}
+            note={
+              data.hours.confidencePct === 100
+                ? tr("All clocked out.")
+                : `${data.hours.confidencePct}% ${tr("clocked out; the rest auto-closed at 9pm and is an estimate")}`
+            }
+          >
+            {data.hours.people.length === 0 ? (
+              <div className="rp-empty">{tr("Nobody clocked in.")}</div>
+            ) : (
+              <table className="rp-table">
+                <tbody>
+                  {data.hours.people.map((h) => {
+                    // Per hour ONLY over hours that were really clocked out. A
+                    // rate over an auto-closed 21:00 is money divided by a
+                    // placeholder, which is the number this page refused to
+                    // print before hours existed at all.
+                    const tech = data.mechanics.find((m) => m.employeeId === h.employeeId);
+                    const perHour =
+                      h.knownMinutes > 0 && tech
+                        ? Math.round((tech.salesCents / h.knownMinutes) * 60)
+                        : null;
+                    return (
+                      <tr key={h.employeeId}>
+                        <td>
+                          {h.name}
+                          {h.onTheClock && (
+                            <span className="text-xs text-amber-700"> · {tr("still on")}</span>
+                          )}
+                        </td>
+                        <td className="r n">
+                          {((h.knownMinutes + h.assumedMinutes) / 60).toFixed(1)} h
+                        </td>
+                        <td className="r n">
+                          {perHour === null ? (
+                            <span className="text-brand-300" title={tr("No clocked-out hours to divide by")}>
+                              —
+                            </span>
+                          ) : (
+                            `${formatCents(perHour)}/h`
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </Panel>
+        </div>
+
+        <div className="rp-two">
           <Panel
             title={tr("At the register")}
             note={tr("Who took the money, per payment.")}

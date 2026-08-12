@@ -65,6 +65,8 @@ export default function CloseoutV3Page() {
   /** Codes whose count has been logged this sequence — the per-tender covers. */
   const [logged, setLogged] = useState<ReadonlySet<string>>(new Set());
   const [floatCount, setFloatCount] = useState("");
+  /** Clock-out times being typed, by employee — defaulted to now on first edit. */
+  const [outAt, setOutAt] = useState<Record<number, string>>({});
   const [drawerKind, setDrawerKind] = useState<"withdrawal" | "deposit">("withdrawal");
   const [drawerAmount, setDrawerAmount] = useState("");
   const [drawerReason, setDrawerReason] = useState("");
@@ -110,6 +112,28 @@ export default function CloseoutV3Page() {
   const cashLine = finalCheck?.lines.find((l) => l.isCard === 0) ?? null;
   const shortByExactlyTips =
     !!cashLine && data.totals.tipCents > 0 && cashLine.varianceCents === -data.totals.tipCents;
+
+  async function doClockOut(employeeId: number) {
+    if (busy) return;
+    const hhmm = outAt[employeeId] ?? new Date().toTimeString().slice(0, 5);
+    setBusy(true);
+    const res = await fetch("/api/pos/hours", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        employeeId,
+        at: `${data!.businessDate}T${hhmm}:00`,
+      }),
+    });
+    const d = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) {
+      setError(d.error || "Could not clock them out");
+      return;
+    }
+    setError(null);
+    await load();
+  }
 
   async function saveFloat() {
     if (busy) return;
@@ -525,6 +549,66 @@ export default function CloseoutV3Page() {
           </div>
         </div>
 
+        {/* ── Who is still on the clock ──────────────────────────────────
+            The half of the time clock that never happened. People check in at
+            the door and leave without checking out, so a nightly job closes
+            every open entry at nine and every stored day reads as ending at
+            21:00 — which makes hours, and anything divided by them, fiction.
+
+            The person closing the day is standing here and knows who went
+            home and roughly when. Asking them once, here, is what turns the
+            clock into data. The entry records who pressed it: a manager
+            attesting is different evidence from the technician pressing their
+            own button, and payroll should be able to tell. */}
+        {data.hours.people.some((h) => h.onTheClock) && (
+          <div className="cv3-step">
+            <div className="cv3-step-head">
+              <span className="cv3-step-no">⏱</span>
+              <span className="cv3-step-title">Still on the clock</span>
+            </div>
+            <p className="text-sm text-brand-400 mb-2">
+              Clock them out at the time they actually left. Anyone left on will be
+              auto-closed at 9pm tonight, and their hours will be a guess.
+            </p>
+            <table className="rp-table">
+              <tbody>
+                {data.hours.people
+                  .filter((h) => h.onTheClock)
+                  .map((h) => (
+                    <tr key={h.employeeId}>
+                      <td>{h.name}</td>
+                      <td className="text-brand-400">
+                        in at {h.since?.slice(11, 16)}
+                      </td>
+                      <td className="r">
+                        <input
+                          type="time"
+                          className="input"
+                          style={{ height: 30, fontSize: 13, width: 110 }}
+                          value={outAt[h.employeeId] ?? new Date().toTimeString().slice(0, 5)}
+                          onChange={(e) =>
+                            setOutAt((o) => ({ ...o, [h.employeeId]: e.target.value }))
+                          }
+                        />
+                      </td>
+                      <td className="r">
+                        <button
+                          type="button"
+                          className="btn btn-outline"
+                          style={{ height: 30, fontSize: 12 }}
+                          disabled={busy}
+                          onClick={() => void doClockOut(h.employeeId)}
+                        >
+                          Clock out
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         {/* ── Step 3 · The verdict ───────────────────────────────────────── */}
         <div className={`cv3-step ${registerLogged ? "" : "cv3-step-waiting"}`}>
           <div className="cv3-step-head">
@@ -824,6 +908,33 @@ export default function CloseoutV3Page() {
             format={formatCents}
             emptyLabel="Nobody credited."
           />
+
+          {data.hours.people.length > 0 && (
+            <>
+              <h3 className="cv3-h3">Hours on the clock</h3>
+              <table className="rp-table">
+                <tbody>
+                  {data.hours.people.map((h) => (
+                    <tr key={h.employeeId}>
+                      <td>{h.name}</td>
+                      <td className="r n">
+                        {((h.knownMinutes + h.assumedMinutes) / 60).toFixed(1)} h
+                      </td>
+                      <td className="text-brand-400">
+                        {h.assumedMinutes > 0
+                          ? `${(h.assumedMinutes / 60).toFixed(1)} h of it assumed`
+                          : "clocked out"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="rp-note">
+                {data.hours.confidencePct}% of the day&rsquo;s hours were actually clocked
+                out; the rest was auto-closed at 9pm and is an estimate.
+              </p>
+            </>
+          )}
 
           <h3 className="cv3-h3">What sold</h3>
           <p className="rp-note">

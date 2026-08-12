@@ -21,6 +21,7 @@ import { registerChecksForDay, type RegisterCheck } from "./register-checks";
 import { listOversells } from "./inventory";
 import { receivablesAging, type AgingBucket } from "./reports-bi";
 import { pricingFlagCount } from "./pricing-flags";
+import { hoursForDay, type DayHours } from "./hours";
 
 /**
  * The Close-out V2 report: one business day, answered completely.
@@ -129,6 +130,8 @@ export type CloseoutV2 = {
     discounts: DayDiscount[];
   };
   mechanics: MechanicTotal[];
+  /** Hours on the clock, and how much of that was actually clocked out. */
+  hours: DayHours;
   cashiers: { employeeId: number; name: string; collectedCents: number; tipCents: number; count: number }[];
   sold: {
     newTires: { units: number; cents: number };
@@ -481,6 +484,7 @@ export function closeoutV2(businessDate: string): CloseoutV2 {
       discounts: dayDiscounts(businessDate),
     },
     mechanics: dayByMechanic(businessDate),
+    hours: hoursForDay(businessDate),
     cashiers: byCashier({ businessDate }),
     sold: {
       newTires: { units: cat.newUnits, cents: cat.newCents },
@@ -617,6 +621,15 @@ function findExceptions(r: CloseoutV2): Exception[] {
     out.push({
       severity: "watch",
       text: `Discounts ran to ${((discountTotal / goods) * 100).toFixed(1)}% of the day's goods (${money(discountTotal)}). Over five percent is worth reading the list, not just the total.`,
+    });
+
+  if (r.hours.people.some((p) => p.onTheClock))
+    out.push({
+      severity: "watch",
+      text: `${r.hours.people.filter((p) => p.onTheClock).length} still on the clock: ${r.hours.people
+        .filter((p) => p.onTheClock)
+        .map((p) => p.name)
+        .join(", ")}. Clock them out on the close-out so the day's hours are real rather than auto-closed at nine.`,
     });
 
   const flags = pricingFlagCount();
