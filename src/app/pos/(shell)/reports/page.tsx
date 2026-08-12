@@ -94,6 +94,8 @@ type Data = {
   bestSellers: ProductRow[];
   stock: { totalUnits: number; totalCostCents: number; byBrand: StockValueRow[]; byRim: StockValueRow[] };
   dead: DeadStockRow[];
+  /** Over the whole list, not the fifteen rows shown. */
+  deadTotal: { sizes: number; costCents: number };
   reorder: ReorderRow[];
   restock: RestockRow[];
   aging: AgingBucket[];
@@ -904,9 +906,16 @@ export default function ReportsPage() {
           />
           <Stat
             label={tr("Standing still")}
-            value={formatCents(data.dead.reduce((n, d) => n + d.costCents, 0))}
-            sub={`${data.dead.length} ${tr("sizes with no sale in 45 days")}`}
-            tone={data.dead.length > 0 ? "warn" : undefined}
+            value={formatCents(data.deadTotal.costCents)}
+            sub={
+              <>
+                {data.deadTotal.sizes} {tr("sizes with no sale in 45 days")} ·{" "}
+                <Link href="/pos/standing-still" className="underline rp-no-print">
+                  {tr("the full list")} →
+                </Link>
+              </>
+            }
+            tone={data.deadTotal.sizes > 0 ? "warn" : undefined}
           />
           <Stat
             label={tr("At the reorder point")}

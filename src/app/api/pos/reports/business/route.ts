@@ -125,6 +125,17 @@ export async function GET(req: NextRequest) {
      */
     bestSellers: products.filter((p) => p.units > 0).slice(0, 100),
     stock: stockValue(),
+    /*
+      The tile and the table part company here on purpose. The table shows the
+      worst fifteen; the TILE claims to say how much money is standing still,
+      and it was quietly reading the sliced list — "15 sizes, $12,543" on a day
+      the racks held 133 sleeping sizes. The totals are computed over the whole
+      list before the cut.
+    */
+    deadTotal: (() => {
+      const all = deadStock(to, 45);
+      return { sizes: all.length, costCents: all.reduce((n, d) => n + d.costCents, 0) };
+    })(),
     dead: deadStock(to, 45).slice(0, 15),
     reorder: reorderList(to).slice(0, 20),
     // Deliberately not windowed — it measures a rate, and a rate taken over the
