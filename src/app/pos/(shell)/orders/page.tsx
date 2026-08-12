@@ -112,6 +112,19 @@ export default function OrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
   const [showDone, setShowDone] = useState(false);
+  /**
+   * How far back finished orders reach, once they are asked for.
+   *
+   * Thirty days rather than everything, because "show finished" on a shop with
+   * years of history behind it means the four rows that matter disappear under
+   * a thousand that were picked up in 2024. The month is the answer to the
+   * question this actually gets opened for — "did that Landsail ever go out?"
+   * — and All time is one press away for the rarer one.
+   *
+   * Measured on `daysWaiting`, which on a finished order is days since it
+   * finished. It is the same figure the card already prints.
+   */
+  const [doneWithin, setDoneWithin] = useState<7 | 30 | 0>(30);
 
   const [view, setView] = useState<View>("board");
   /** Empty means every order ever taken — see `listOrderLog`. */
@@ -232,11 +245,15 @@ export default function OrdersPage() {
     // The board's own tidy-up: finished and paid drops off unless asked for.
     // The log never hides anything — hiding history is the one thing a log
     // must not do — so this only applies to the board.
-    if (view === "board" && !showDone) {
-      list = list.filter(
-        (o) =>
-          !((o.status === "delivered" || o.status === "cancelled") && o.balanceCents === 0),
-      );
+    if (view === "board") {
+      const finished = (o: SpecialOrder) =>
+        (o.status === "delivered" || o.status === "cancelled") && o.balanceCents === 0;
+      if (!showDone) list = list.filter((o) => !finished(o));
+      // Asked for, but only back as far as the window. An unfinished order is
+      // never dropped by this — however long it has sat, it is still waiting on
+      // somebody, which is the whole reason the board exists.
+      else if (doneWithin > 0)
+        list = list.filter((o) => !finished(o) || o.daysWaiting <= doneWithin);
     }
 
     if (status === "open") list = list.filter((o) => !CLOSED.includes(o.status));
@@ -260,7 +277,7 @@ export default function OrdersPage() {
       });
     }
     return list;
-  }, [data, showDone, view, status, query]);
+  }, [data, showDone, doneWithin, view, status, query]);
 
   const waitingOnUs = useMemo(
     () => (data?.orders ?? []).filter((o) => OURS.includes(o.status)).length,
@@ -316,6 +333,28 @@ export default function OrdersPage() {
                 checked={showDone}
                 onChange={(e) => setShowDone(e.target.checked)}
               />{tr("Show finished")}</label>
+          )}
+          {/* Only once there is something for it to narrow. A window control
+              beside an unticked box would be asking how far back to look
+              through orders that are not being shown. */}
+          {view === "board" && showDone && (
+            <div className="ord-seg">
+              {([
+                [7, "Last week"],
+                [30, "30 days"],
+                [0, "All time"],
+              ] as [7 | 30 | 0, string][]).map(([d, label]) => (
+                <button
+                  key={d}
+                  type="button"
+                  className={`ord-seg-btn${doneWithin === d ? " is-on" : ""}`}
+                  aria-pressed={doneWithin === d}
+                  onClick={() => setDoneWithin(d)}
+                >
+                  {tr(label)}
+                </button>
+              ))}
+            </div>
           )}
         </div>
       </div>

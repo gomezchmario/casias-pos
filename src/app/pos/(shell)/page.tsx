@@ -108,7 +108,20 @@ export default function DayPage() {
   // Default-hidden rather than default-shown for the usual reason: the failure
   // mode of forgetting to press the button is a stranger reading the day's
   // takings, and the failure mode of having to press it is one press.
-  const [hideMoney, setHideMoney] = useState(true);
+  /**
+   * This screen never shows dollars. Percentages, always.
+   *
+   * It was a toggle, defaulting to hidden, and the toggle is gone rather than
+   * the behaviour: Main is the board the shop stands in front of, and a control
+   * that puts every technician's takings on it is one press from a customer at
+   * the counter reading them. What is worth seeing here is the shape of the day
+   * — who is carrying it, how the week compares — and a percentage says that
+   * without saying anybody's wage out loud.
+   *
+   * The figures themselves are on the Reports and Daily Report pages, which are
+   * behind capabilities rather than behind a button.
+   */
+  const hideMoney = true;
 
   /*
    * No podium here any more.
@@ -291,18 +304,6 @@ export default function DayPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            className={hideMoney ? "btn btn-ghost" : "btn btn-primary"}
-            onClick={() => setHideMoney((v) => !v)}
-            title={
-              hideMoney
-                ? "Put the dollar amounts back on screen — including tips"
-                : "Swap dollar amounts back for percentages so the board can go on a wall"
-            }
-          >
-            {hideMoney ? "Show money" : "Hide money"}
-          </button>
           {/* Picking a date pins the screen to it. Nothing snaps it back on
               its own after that — a board that jumped to today while somebody
               was reading last Friday would be worse than one that sits still.
@@ -892,12 +893,6 @@ export default function DayPage() {
           the page, which is what an arrow like that means. */}
       <div className="flex items-center justify-center gap-6 flex-wrap mb-6 text-sm">
         <Link href="/help" className="text-brand-400 underline hover:text-brand-500">{tr("Help")}</Link>
-        <Link
-          href="/pos/entries"
-          className="text-brand-400 underline hover:text-brand-500"
-        >
-          Every entry of this day, line by line →
-        </Link>
       </div>
 
       {openSaleId !== null && (

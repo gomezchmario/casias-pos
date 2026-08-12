@@ -129,3 +129,19 @@
   color: #92400e;
 }
 
+
+/*
+  A gap between columns, so a date does not run into a tire.
+
+  Some cells carried `pl-4` and the first few did not, which read as
+  "2026-08-12FORTUNE 10 PLY 235-65-16" — two true facts glued into one word
+  that is neither. Set on the table rather than per cell so a column added
+  later cannot be the one that forgets.
+
+  `td + td` rather than every cell: the first column wants to sit flush with
+  the edge of the panel, like every other table here.
+*/
+.tm-table th + th,
+.tm-table td + td {
+  padding-left: 14px;
+}

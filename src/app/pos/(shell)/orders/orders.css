@@ -135,3 +135,33 @@
     justify-content: space-between;
   }
 }
+
+/* The window on finished orders. Same segmented control as the alarm log's
+   ranges — one shape for "pick one of these", wherever it turns up. */
+.ord-seg {
+  display: inline-flex;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.ord-seg-btn {
+  padding: 0 12px;
+  height: 32px;
+  font-size: 13px;
+  background: #fff;
+  color: #475569;
+  border: none;
+  border-right: 1px solid #e2e8f0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ord-seg-btn:last-child {
+  border-right: none;
+}
+
+.ord-seg-btn.is-on {
+  background: #0f172a;
+  color: #fff;
+}
