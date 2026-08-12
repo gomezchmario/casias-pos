@@ -14,6 +14,7 @@ import type { OrderMove, SpecialOrder } from "@/lib/special-orders";
 import type { FulfillmentStatus } from "@/lib/sales";
 import type { PaymentMethod } from "@/lib/payments";
 import { useLang } from "@/components/pos/LangToggle";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import "./orders.css";
 
 /**
@@ -165,6 +166,31 @@ export default function OrdersPage() {
     to: FulfillmentStatus;
   } | null>(null);
 
+  /**
+   * The move somebody has pressed but not yet agreed to.
+   *
+   * Every control on a card is asked about before it fires. A stage is a
+   * promise to a customer — "here, call them" against "waiting for pickup" is
+   * the difference between a phone call that is owed and one that was made —
+   * and the board is used at speed, on a tablet, by somebody holding a tire.
+   *
+   * Undo does NOT come through here. It is already the correction, and asking
+   * somebody to confirm that they meant to take back a thing they just said
+   * they did not mean is a dialog about a dialog.
+   */
+  const [pending, setPending] = useState<{
+    saleId: number;
+    saleNo: string;
+    from: FulfillmentStatus;
+    to: FulfillmentStatus;
+  } | null>(null);
+
+  function askMove(saleId: number, status: FulfillmentStatus) {
+    const o = data?.orders.find((x) => x.saleId === saleId);
+    if (!o) return;
+    setPending({ saleId, saleNo: o.saleNo, from: o.status, to: status });
+  }
+
   async function move(
     saleId: number,
     status: FulfillmentStatus,
@@ -185,6 +211,7 @@ export default function OrdersPage() {
       setError(d.error || "That didn't move");
       return;
     }
+    setPending(null);
     setLastMove(
       undoing || !wasAt
         ? null
@@ -192,6 +219,11 @@ export default function OrdersPage() {
     );
     await load();
   }
+
+  /** The card the pending move belongs to, so the dialog can name it. */
+  const pendingOrder = pending
+    ? (data?.orders.find((o) => o.saleId === pending.saleId) ?? null)
+    : null;
 
   const orders = useMemo(() => {
     if (!data) return [];
@@ -450,21 +482,45 @@ export default function OrdersPage() {
                 className="ord-card rounded-2xl shadow-sm px-4 py-3"
                 style={{ background: tone.bg, border: `1px solid ${tone.border}` }}
               >
-                {/* Details and money on one line, actions underneath. The
-                    controls used to sit BETWEEN the customer's details and the
-                    amount, which put the biggest, darkest thing on the card in
-                    the middle of the sentence somebody was reading. */}
+                {/* Details on the left, stage and money on the right, actions
+                    underneath. The controls used to sit BETWEEN the customer's
+                    details and the amount, which put the biggest, darkest thing
+                    on the card in the middle of the sentence being read. */}
                 <div className="ord-top">
                 <div className="flex-1 min-w-[16rem]">
+                  {/*
+                    WHO, first and biggest.
+
+                    This is the line the card exists for. Every stage on the
+                    board is some version of "somebody has to ring this person",
+                    so the name and the number are the thing being reached for
+                    — and they were the smallest, palest text on the card, three
+                    rows below a ticket number nobody dials.
+
+                    The ticket number is still here and still the way into the
+                    ticket. It has just stopped being the headline, because
+                    S-2026-000035 is how the computer refers to Germain Baca and
+                    the counter needs it the other way round.
+                  */}
+                  <div className="ord-who">
+                    {o.customerName ?? (
+                      <span className="text-brand-300">{tr("no name taken")}</span>
+                    )}
+                    {o.customerPhone && <span className="ord-phone">{o.customerPhone}</span>}
+                  </div>
+
                   <div className="flex items-baseline gap-2 flex-wrap">
                     <button
                       type="button"
-                      className="font-semibold underline decoration-black/20 hover:decoration-current"
+                      className="text-sm underline decoration-black/20 hover:decoration-current"
                       style={{ color: o.balanceCents > 0 ? "#b45309" : "#0a2540" }}
                       onClick={() => setOpenSaleId(o.saleId)}
                     >
                       {o.saleNo}
                     </button>
+                    {o.vehicle && (
+                      <span className="text-sm text-brand-400">{o.vehicle}</span>
+                    )}
                     {/* How long it has sat AT THIS STAGE, not since it was
                         rung. An order placed a month ago that arrived this
                         morning is not a month overdue, and a board that said so
@@ -472,54 +528,45 @@ export default function OrdersPage() {
                     <span className="text-xs text-brand-300">{waited(o.daysWaiting)}</span>
                   </div>
 
-                  {/*
-                    The stage, said properly.
-
-                    It used to be small grey-orange capitals wedged between the
-                    ticket number and the days — the same size and weight as
-                    everything around it, on a board whose entire job is to
-                    answer "which of these needs doing now" from across the
-                    counter. It is the one thing on the card that decides
-                    whether anybody touches it, so it gets the size and the
-                    colour to match.
-
-                    The colours come from `ORDER_PILLS`, shared with the
-                    Outstanding panel on Main, so a stage does not mean orange
-                    on one screen and something else on the next.
-                  */}
-                  <div className="ord-stage" style={pillOf(o.status)}>
-                    {FULFILLMENT_LABELS[o.status]}
-                  </div>
-
                   <div className="text-sm text-brand-500 mt-0.5">{o.what || "—"}</div>
-
-                  {/* The phone number is not decoration on this screen — on an
-                      arrived order it is the next action, so it is spelled out
-                      rather than hidden behind the ticket. */}
-                  <div className="text-sm text-brand-400">
-                    {o.customerName ?? (
-                      <span className="text-brand-300">no name taken</span>
-                    )}
-                    {o.customerPhone && ` · ${o.customerPhone}`}
-                    {o.vehicle && ` · ${o.vehicle}`}
-                  </div>
 
                   {o.notes && (
                     <div className="text-sm italic text-brand-300">{o.notes}</div>
                   )}
                 </div>
 
-                <div className="text-right">
-                  <div className="tabular-nums text-brand-500 font-semibold">
-                    {formatCents(o.totalCents)}
+                {/*
+                  The stage and the money, side by side at the right-hand end.
+
+                  Two facts about the same order that get read together — "what
+                  does this need, and is it paid for" — so they sit as a pair
+                  rather than one being buried in the details and the other
+                  floating alone.
+
+                  The stage is on the LEFT of the money, which puts it nearer
+                  the details it is about and leaves the amount hard against the
+                  edge where a column of amounts lines up down the board.
+
+                  The colours come from `ORDER_PILLS`, shared with the
+                  Outstanding panel on Main, so a stage does not mean orange on
+                  one screen and something else on the next.
+                */}
+                <div className="ord-right">
+                  <div className="ord-stage" style={pillOf(o.status)}>
+                    {FULFILLMENT_LABELS[o.status]}
                   </div>
-                  {o.balanceCents !== 0 ? (
-                    <div className="tabular-nums text-sm" style={{ color: "#b45309" }}>
-                      {formatCents(o.balanceCents)} owing
+                  <div className="text-right">
+                    <div className="ord-money tabular-nums text-brand-500">
+                      {formatCents(o.totalCents)}
                     </div>
-                  ) : (
-                    <div className="text-sm text-brand-300">paid</div>
-                  )}
+                    {o.balanceCents !== 0 ? (
+                      <div className="tabular-nums text-sm" style={{ color: "#b45309" }}>
+                        {formatCents(o.balanceCents)} owing
+                      </div>
+                    ) : (
+                      <div className="text-sm text-brand-300">paid</div>
+                    )}
+                  </div>
                 </div>
                 </div>
 
@@ -529,7 +576,7 @@ export default function OrdersPage() {
                       status={o.status}
                       busy={busy === o.saleId}
                       canReverse={can("reverseSpecialOrder")}
-                      onMove={(s) => void move(o.saleId, s)}
+                      onMove={(s) => askMove(o.saleId, s)}
                     />
                   </div>
                 )}
@@ -573,6 +620,45 @@ export default function OrdersPage() {
           })}
         </div>
       )}
+
+      {/*
+        Named in full, both ends of it. "Are you sure?" over a board of four
+        near-identical cards is a question nobody can answer — the whole risk
+        here is pressing the right button on the wrong row, and the only thing
+        that catches it is seeing the ticket number and the customer written
+        out before it happens.
+      */}
+      <ConfirmModal
+        open={pending !== null}
+        onCancel={() => setPending(null)}
+        onConfirm={() => pending && void move(pending.saleId, pending.to)}
+        busy={busy === pending?.saleId}
+        title={pending ? `Move ${pending.saleNo}?` : ""}
+        confirmLabel={
+          pending ? `Yes — ${FULFILLMENT_LABELS[pending.to]}` : "Yes"
+        }
+        cancelLabel="No, leave it"
+      >
+        {pending && (
+          <>
+            <p>
+              <strong className="text-brand-500">{pending.saleNo}</strong>
+              {pendingOrder?.customerName ? ` · ${pendingOrder.customerName}` : ""}
+              {pendingOrder?.what ? ` · ${pendingOrder.what}` : ""}
+            </p>
+            <p className="mt-2">
+              {tr("Now")}{" "}
+              <strong style={pillOf(pending.from)} className="ord-stage-inline">
+                {FULFILLMENT_LABELS[pending.from]}
+              </strong>{" "}
+              {tr("becomes")}{" "}
+              <strong style={pillOf(pending.to)} className="ord-stage-inline">
+                {FULFILLMENT_LABELS[pending.to]}
+              </strong>
+            </p>
+          </>
+        )}
+      </ConfirmModal>
 
       {openSaleId !== null && (
         <TicketDrawer
