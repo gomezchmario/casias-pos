@@ -72,6 +72,10 @@ export default function CloseoutV2Page() {
     goodsWithDiscounts > 0 ? (data.totals.discountsCents / goodsWithDiscounts) * 100 : 0;
   const refundCents = data.tickets.refunds.reduce((n, r) => n + Math.abs(r.amountCents), 0);
   const weekday = DAY_NAMES[new Date(`${data.businessDate}T12:00:00`).getDay()];
+  /** The day's first live register log that counted CASH — see below. */
+  const firstCashCheck =
+    data.drawer.checks.find((c) => !c.deleted && c.lines.some((l) => l.isCard === 0)) ?? null;
+  const showCash = can("skipBlindCount") || firstCashCheck !== null;
   const avgTicket =
     data.totals.saleCount > 0 ? Math.round(data.totals.goodsCents / data.totals.saleCount) : 0;
 
@@ -80,7 +84,7 @@ export default function CloseoutV2Page() {
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4 flex-wrap mb-4 rp-no-print">
         <div>
-          <h1 className="text-2xl font-semibold text-brand-500">{tr("Close-out V2")}</h1>
+          <h1 className="text-2xl font-semibold text-brand-500">{tr("Daily Report")}</h1>
           <p className="text-brand-400 text-sm">
             {tr("The whole day, read rather than worked. Counting and signing still live on")}{" "}
             <Link href="/pos/eod" className="underline">
@@ -113,7 +117,7 @@ export default function CloseoutV2Page() {
         <ShopLogo size={44} priority />
         <div>
           <div style={{ fontWeight: 700, fontSize: "13pt" }}>
-            Casias Muffler and Tire Shop · {tr("Close-out V2")}
+            Casias Muffler and Tire Shop · {tr("Daily Report")}
           </div>
           <div style={{ fontSize: "9pt" }}>
             {weekday} {data.businessDate} · {tr("printed")} {printedOn} · {user.name}
@@ -316,7 +320,14 @@ export default function CloseoutV2Page() {
         note={tr("What should physically be in it: the float, plus cash from customers, plus what moved in or out without being a sale.")}
       >
         <div className="rp-two">
-          <Panel title={tr("The arithmetic")}>
+          <Panel
+            title={tr("The arithmetic")}
+            note={
+              showCash
+                ? undefined
+                : tr("Cash is covered until the drawer has been counted on the close-out.")
+            }
+          >
             <table className="rp-table">
               <tbody>
                 <tr>
@@ -325,7 +336,15 @@ export default function CloseoutV2Page() {
                 </tr>
                 <tr>
                   <td>{tr("Cash from customers")}</td>
-                  <td className="r n">+{formatCents(data.drawer.cashSalesCents)}</td>
+                  <td className="r n">
+                    {showCash ? (
+                      <>+{formatCents(data.drawer.cashSalesCents)}</>
+                    ) : (
+                      <span className="text-brand-300" title={tr("Shown once the drawer has been counted")}>
+                        – – –
+                      </span>
+                    )}
+                  </td>
                 </tr>
                 <tr>
                   <td>{tr("Moved in / out")}</td>
@@ -335,12 +354,34 @@ export default function CloseoutV2Page() {
                   </td>
                 </tr>
                 <tr style={{ fontWeight: 700 }}>
-                  <td>{tr("Should be in the drawer")}</td>
+                  <td>
+                    {tr("Should be in the drawer")}
+                    {/* Said as a sentence with a TIME in it, not a bare
+                        figure. What a drawer "should hold" changes every time
+                        money moves, so an expectation with no moment attached
+                        is a number somebody will read an hour later and count
+                        against. This is the expectation frozen at the count
+                        that checked it. */}
+                    {!can("skipBlindCount") && firstCashCheck && (
+                      <div className="text-xs font-normal text-brand-400">
+                        {tr("as counted at")} {firstCashCheck.checkedAt.slice(11, 16)}
+                      </div>
+                    )}
+                  </td>
                   <td
                     className="r n"
                     style={data.drawer.expectedCents < 0 ? { color: "#b91c1c" } : undefined}
                   >
-                    {formatCents(data.drawer.expectedCents)}
+                    {showCash ? (
+                      formatCents(
+                        can("skipBlindCount")
+                          ? data.drawer.expectedCents
+                          : (firstCashCheck!.lines.find((l) => l.isCard === 0)?.expectedCents ??
+                             data.drawer.expectedCents),
+                      )
+                    ) : (
+                      <span className="text-brand-300">– – –</span>
+                    )}
                   </td>
                 </tr>
               </tbody>

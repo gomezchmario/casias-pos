@@ -345,6 +345,19 @@ export default function EntriesPage() {
   /** What the filtered view adds up to — the reason to filter it in the first
    *  place. Voided rows are left out of the sum even when they are on screen,
    *  because a struck-through row is money that did not move. */
+  /**
+   * Today's cash total, covered from whoever the blind count is a control on.
+   *
+   * Narrow the list to Cash on today's date and the "collected" figure becomes
+   * the number the drawer is supposed to hold — which is precisely what a
+   * cashier is meant not to see before committing a count.
+   */
+  const cashTodayHidden =
+    !can("skipBlindCount") &&
+    data?.paymentMethods.find((m) => m.label === method)?.kind === "cash" &&
+    (!date || date === data?.today) &&
+    (!ranged || !until || until === data?.today);
+
   const totals = useMemo(() => {
     const live = rows.filter((r) => !r.voided);
     return {
@@ -846,7 +859,22 @@ export default function EntriesPage() {
           )}
           {rows.length} {rows.length === 1 ? "entry" : "entries"} ·{" "}
           <span className="tabular-nums">{formatCents(totals.lines)}</span> rung ·{" "}
-          <span className="tabular-nums">{formatCents(totals.money)}</span>{tr("collected")}</div>
+          {/*
+            The one figure on this line that can give away a blind count: with
+            the list narrowed to cash and the range on today, this total IS the
+            drawer's expectation. Covered for everyone the count is a control
+            on; the owner sees it, as everywhere. Any other tender, or any past
+            day, shows normally — the count is over or was never at stake.
+          */}
+          {cashTodayHidden ? (
+            <span className="text-brand-300" title={tr("Shown once the drawer has been counted")}>
+              – – –
+            </span>
+          ) : (
+            <span className="tabular-nums">{formatCents(totals.money)}</span>
+          )}{" "}
+          {tr("collected")}
+        </div>
       </div>
 
       {error && (

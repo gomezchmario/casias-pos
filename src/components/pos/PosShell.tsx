@@ -60,7 +60,7 @@ const NAV: {
   { href: "/pos/reports", label: "Reports", capability: "viewBusinessReports" },
   // The day read rather than worked — view-only. Opened to managers by the
   // owner's explicit instruction, consequences deferred ("we will fix later").
-  { href: "/pos/closeout", label: "Close-out V2", capability: "viewReports" },
+  { href: "/pos/closeout", label: "Daily Report", capability: "viewReports" },
   // V3 took the name and the spot; the page everyone knew keeps working
   // under "(Old)" until the new one has survived a few real closes.
   { href: "/pos/closeout-v3", label: "Close-out", capability: "closeShift" },
