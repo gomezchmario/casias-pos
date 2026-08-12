@@ -81,8 +81,8 @@ export default function CloseoutV3Page() {
   }, [load]);
 
   // The nav already gates this; the render gate is for the URL typed by hand.
-  if (!can("manageSettings"))
-    return <div className="text-brand-400">Close-out V3 is still being built — owner only for now.</div>;
+  if (!can("closeShift"))
+    return <div className="text-brand-400">Your account doesn&apos;t close the day.</div>;
   if (error)
     return <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>;
   if (!data) return <div className="text-brand-300">Adding it up…</div>;
@@ -105,6 +105,78 @@ export default function CloseoutV3Page() {
   const cashLine = finalCheck?.lines.find((l) => l.isCard === 0) ?? null;
   const shortByExactlyTips =
     !!cashLine && data.totals.tipCents > 0 && cashLine.varianceCents === -data.totals.tipCents;
+
+  const [drawerKind, setDrawerKind] = useState<"withdrawal" | "deposit">("withdrawal");
+  const [drawerAmount, setDrawerAmount] = useState("");
+  const [drawerReason, setDrawerReason] = useState("");
+  const [drawerHidden, setDrawerHidden] = useState(false);
+
+  async function saveMovement(acknowledgeOverdraw = false) {
+    if (busy) return;
+    const cents = parseCents(drawerAmount);
+    if (cents === null || cents <= 0) {
+      setError("Enter how much cash is moving");
+      return;
+    }
+    if (!drawerReason.trim()) {
+      setError("Say what the money is for");
+      return;
+    }
+    setBusy(true);
+    const res = await fetch("/api/pos/drawer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        amountCents: cents,
+        kind: drawerKind,
+        reason: drawerReason.trim(),
+        hidden: drawerHidden,
+        acknowledgeOverdraw,
+      }),
+    });
+    const d = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) {
+      // The one refusal with a second question in it — see the old close-out.
+      if (d.overdraw && window.confirm(`${d.error}\n\nRecord it anyway?`)) {
+        void saveMovement(true);
+        return;
+      }
+      setError(d.error || "Could not record that");
+      return;
+    }
+    setError(null);
+    setDrawerAmount("");
+    setDrawerReason("");
+    setDrawerHidden(false);
+    // Any money moving re-covers the counts: the expectation just changed, so
+    // the next count is a fresh count.
+    setLogged(new Set());
+    await load();
+  }
+
+  async function undoMovement(id: number, amountCents: number) {
+    if (busy) return;
+    const why = window.prompt(
+      `Put ${formatCents(Math.abs(amountCents))} back? Say why:`,
+      "Entered by mistake",
+    );
+    if (!why?.trim()) return;
+    setBusy(true);
+    const res = await fetch("/api/pos/drawer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reverseId: id, reason: why.trim() }),
+    });
+    const d = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) {
+      setError(d.error || "Could not undo that");
+      return;
+    }
+    setLogged(new Set());
+    await load();
+  }
 
   async function logRegister() {
     if (busy) return;
@@ -242,6 +314,111 @@ export default function CloseoutV3Page() {
           >
             {busy ? "Working…" : "Log Register"}
           </button>
+        </div>
+
+        {/* ── Cash in / out of the drawer ────────────────────────────────
+            Not a numbered step: a drop to the safe or a gas run happens when
+            it happens, not in sequence. It lives between the count and the
+            verdict because the one honest time to remember a forgotten
+            movement is the moment the difference appears. Same endpoint, same
+            overdraw confirm, same owner-only hidden option as the old page. */}
+        <div className="cv3-step">
+          <div className="cv3-step-head">
+            <span className="cv3-step-no">$</span>
+            <span className="cv3-step-title">Cash in / out of the drawer</span>
+          </div>
+          {data.drawer.movements.length > 0 && (
+            <table className="rp-table mb-2">
+              <tbody>
+                {data.drawer.movements.map((m) => (
+                  <tr key={m.id}>
+                    <td className="n">{m.created_at.slice(11, 16)}</td>
+                    <td>{m.reason}</td>
+                    <td className="r n">
+                      {m.amount_cents >= 0 ? "+" : "−"}
+                      {formatCents(Math.abs(m.amount_cents))}
+                    </td>
+                    <td className="r">
+                      {!m.reversed_by_id && m.kind !== "reversal" && (
+                        <button
+                          type="button"
+                          className="text-xs underline text-brand-400"
+                          disabled={busy}
+                          onClick={() => void undoMovement(m.id, m.amount_cents)}
+                        >
+                          undo
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <div className="flex items-end gap-2 flex-wrap">
+            <label className="text-xs text-brand-400">
+              What happened
+              <select
+                className="input mt-1"
+                value={drawerKind}
+                onChange={(e) => setDrawerKind(e.target.value as "withdrawal" | "deposit")}
+              >
+                <option value="withdrawal">Cash out of the drawer</option>
+                <option value="deposit">Cash into the drawer</option>
+              </select>
+            </label>
+            {drawerKind === "deposit" && (
+              <div
+                className="text-xs text-amber-900 bg-amber-50 border border-amber-300 rounded-lg px-2 py-1"
+                style={{ maxWidth: 240 }}
+              >
+                The opening float is counted on its own when the shift opens — don&apos;t
+                record it here too.
+              </div>
+            )}
+            <label className="text-xs text-brand-400">
+              Amount
+              <input
+                className="input mt-1 w-28 text-right tabular-nums"
+                inputMode="decimal"
+                placeholder="0.00"
+                value={drawerAmount}
+                onChange={(e) => setDrawerAmount(e.target.value)}
+              />
+            </label>
+            <label className="text-xs text-brand-400 flex-1" style={{ minWidth: 180 }}>
+              What for
+              <input
+                className="input mt-1 w-full"
+                placeholder="To the bank, gas, change…"
+                value={drawerReason}
+                onChange={(e) => setDrawerReason(e.target.value)}
+              />
+            </label>
+            {can("hideDrawerMovement") && (
+              <label
+                className="text-xs flex items-center gap-1.5 cursor-pointer"
+                title="Recorded in full, but left out of the expected count and the sheet"
+              >
+                <input
+                  type="checkbox"
+                  checked={drawerHidden}
+                  onChange={(e) => setDrawerHidden(e.target.checked)}
+                />
+                <span className={drawerHidden ? "text-amber-800 font-semibold" : "text-brand-400"}>
+                  Keep off the sheet
+                </span>
+              </label>
+            )}
+            <button
+              type="button"
+              className="btn btn-outline"
+              disabled={busy}
+              onClick={() => void saveMovement()}
+            >
+              Record it
+            </button>
+          </div>
         </div>
 
         {/* ── Step 2 · The verdict ───────────────────────────────────────── */}
@@ -619,13 +796,16 @@ export default function CloseoutV3Page() {
             {formatCents(data.owed.outstandingTicketCents)} ({data.owed.outstandingTicketCount})
           </p>
 
-          {/* OWNER-ONLY BLOCK: must come off this sheet before V3 opens to the
-              floor — costs are the owner's book, and this printout will be in
-              a cashier's hands. */}
-          <h3 className="cv3-h3">Margin (owner copy only)</h3>
+          {/* THE PAPER IS THE OWNER'S. A cashier prints it, but it goes into
+              the owner's file — so it carries everything the day can say,
+              margin included. The owner decided this trade explicitly: a
+              complete document beats a censored one, and the screen (not the
+              sheet) is where floor-level secrecy lives. */}
+          <h3 className="cv3-h3">Margin</h3>
           <p className="rp-note">
             {data.margin.marginPct.toFixed(0)}% ({formatCents(data.margin.marginCents)}) on the{" "}
-            {data.margin.coveragePct}% of sales with a cost.
+            {data.margin.coveragePct}% of sales with a cost. Computed only over lines that
+            carry one — the coverage is the honesty figure beside it.
           </p>
         </div>
       </div>

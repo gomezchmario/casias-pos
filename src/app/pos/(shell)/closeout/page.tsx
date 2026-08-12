@@ -60,7 +60,7 @@ export default function CloseoutV2Page() {
     void load();
   }, [load]);
 
-  if (!can("viewBusinessReports"))
+  if (!can("viewReports"))
     return <div className="text-brand-400">{tr("Your account can't see the management reports.")}</div>;
   if (error)
     return <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>;

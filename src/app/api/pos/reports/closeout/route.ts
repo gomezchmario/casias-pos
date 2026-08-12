@@ -6,14 +6,14 @@ import { closeoutV2 } from "@/lib/day-report";
 /**
  * Close-out V2 — the whole day, read rather than worked.
  *
- * `viewBusinessReports`: the owner by rank, and anyone the owner has handed the
- * reports grant to by name. Deliberately NOT `closeShift` — the original
- * close-out is a procedure the floor performs, while this is the day's books
- * being read, and the two audiences are different people. Nothing here writes;
- * the tab is view-only by construction, not by discipline.
+ * `closeShift` since V3 became the working close-out: whoever closes the day
+ * needs this payload, which is everybody at the counter. Known and deferred by
+ * the owner's instruction: the payload still carries owner-grade figures
+ * (margin above all) to every caller — the page keeps them off the floor's
+ * PRINTOUT, but the JSON does not discriminate yet. On the fix-later list.
  */
 export async function GET(req: NextRequest) {
-  const auth = await requirePos("viewBusinessReports");
+  const auth = await requirePos("closeShift");
   if (!auth.ok) return auth.response;
 
   const asked = req.nextUrl.searchParams.get("date");

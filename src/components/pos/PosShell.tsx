@@ -58,13 +58,13 @@ const NAV: {
   // done before locking up, at which point it is being looked for deliberately
   // and its position on the row does not matter.
   { href: "/pos/reports", label: "Reports", capability: "viewBusinessReports" },
-  // The day read rather than worked — view-only, beside the close-out it reads.
-  { href: "/pos/closeout", label: "Close-out V2", capability: "viewBusinessReports" },
-  // The next close-out, being shaped. manageSettings as a stand-in for "owner
-  // only while under construction" — when it opens to the floor it takes over
-  // from /pos/eod and this gate drops to closeShift.
-  { href: "/pos/closeout-v3", label: "Close-out V3", capability: "manageSettings" },
-  { href: "/pos/eod", label: "Close-out", capability: "closeShift" },
+  // The day read rather than worked — view-only. Opened to managers by the
+  // owner's explicit instruction, consequences deferred ("we will fix later").
+  { href: "/pos/closeout", label: "Close-out V2", capability: "viewReports" },
+  // V3 took the name and the spot; the page everyone knew keeps working
+  // under "(Old)" until the new one has survived a few real closes.
+  { href: "/pos/closeout-v3", label: "Close-out", capability: "closeShift" },
+  { href: "/pos/eod", label: "Close-out (Old)", capability: "closeShift" },
   // Just the gear. The other tabs are places to do the day's work and are
   // named for the work; this one is setup, is opened rarely, and does not earn
   // a word next to them. It sits last so the eye reaches it only after the
