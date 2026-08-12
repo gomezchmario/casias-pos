@@ -257,15 +257,33 @@ export function PosShell({ children }: { children: React.ReactNode }) {
   return (
     <PosAuthContext.Provider value={auth}>
       <div className="min-h-screen flex flex-col" style={{ background: "#f4f6fa" }}>
+        {/*
+          Wraps, and its nav scrolls. Both are here because of the same bug on a
+          phone: a dozen nav links at their natural width made this row wider
+          than the screen, and a header is only ever painted as wide as the
+          viewport — so the page scrolled sideways and the Time Clock button
+          ended up sitting on the light page background past the end of the navy
+          bar, looking like it had fallen off.
+
+          `flex-wrap` lets the right-hand cluster drop to a second row rather
+          than push past the edge, and the bar grows to cover it. The nav gets
+          `min-w-0` so it is allowed to be narrower than its links — a flex item
+          refuses to shrink below its content otherwise, which is what made the
+          whole row too wide in the first place — and scrolls sideways inside
+          itself instead.
+        */}
         <header
-          className="flex items-center gap-4 px-5 py-3"
+          className="flex flex-wrap items-center gap-4 px-5 py-3"
           style={{
             background: "linear-gradient(180deg, #0a2540 0%, #07182c 100%)",
             color: "#f5f7fa",
           }}
         >
           <ShopLogo size={30} />
-          <nav className="flex gap-1 flex-1">
+          <nav
+            className="flex gap-1 flex-1 min-w-0 overflow-x-auto"
+            style={{ scrollbarWidth: "thin" }}
+          >
             {NAV.filter((n) => auth.can(n.capability)).map((n) => {
               const active =
                 n.href === "/pos" ? pathname === "/pos" : pathname.startsWith(n.href);
@@ -273,7 +291,10 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                 <Link
                   key={n.href}
                   href={n.href}
-                  className="px-3 py-2 rounded-lg text-sm transition-colors"
+                  // `flex-none` and no wrapping: inside a scroller a link must
+                  // keep its own width, or the labels squeeze into two lines
+                  // rather than the strip scrolling.
+                  className="px-3 py-2 rounded-lg text-sm transition-colors flex-none whitespace-nowrap"
                   style={{
                     background: active ? "rgba(255,200,61,0.18)" : "transparent",
                     color: active ? "#ffd35a" : "rgba(255,255,255,0.78)",
