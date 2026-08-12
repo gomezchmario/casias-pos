@@ -275,6 +275,32 @@ export function takePayment(
   // ticket's own technician when the caller didn't name one.
   const mechanicId = tip > 0 ? (args.mechanicId ?? soleMechanicOf(saleId)) : null;
 
+  /*
+    A TIP ALWAYS HAS SOMEBODY.
+
+    This used to let a tip through with nobody credited, and the register said
+    so out loud — "this tip won't count for anyone" — on the theory that a
+    truthful blank beats an invented name. It is truthful and it is still
+    wrong, because the money is real and somebody earned it. A tip credited to
+    nobody is not a gap in the record, it is a technician not being paid.
+
+    It happens more easily than it sounds. On S-2026-000424 the counter rang a
+    MOUNT & BALANCE with no technician on it, added a MOUNT under Franklin,
+    voided the MOUNT, then took $12 of tip: at that moment the only live line
+    had nobody on it, so there was nobody to infer, and the $12 went nowhere.
+    Franklin was put on the line two minutes later and the tip stayed orphaned.
+
+    Refused here rather than only on the screen, for the same reason the house
+    account is: the rule is about the money, not about the form, and the
+    register is one of several ways a payment reaches this function.
+  */
+  if (tip > 0 && mechanicId == null)
+    return {
+      ok: false,
+      error:
+        "A tip has to be credited to somebody. Put the technician on the ticket's lines, or name who the tip is for.",
+    };
+
   const method = getDb()
     .prepare("SELECT * FROM payment_methods WHERE id = ? AND active = 1")
     .get(args.methodId) as PaymentMethod | undefined;
@@ -474,7 +500,17 @@ export function addTipAdjustment(
       };
     shares = weights;
   } else {
-    shares = [{ mechanicId: args.mechanicId ?? soleMechanicOf(saleId), weight: 1 }];
+    const only = args.mechanicId ?? soleMechanicOf(saleId);
+    // The same rule as `takePayment`, and for the same reason: a tip that
+    // turns up a day late is still a tip somebody earned. The split path above
+    // already refuses when there is nobody on the lines to divide between.
+    if (only == null)
+      return {
+        ok: false,
+        error:
+          "A tip has to be credited to somebody. Put the technician on the ticket's lines, or name who the tip is for.",
+      };
+    shares = [{ mechanicId: only, weight: 1 }];
   }
 
   const defaultComm = defaultCommissionFor(args.tipCents);

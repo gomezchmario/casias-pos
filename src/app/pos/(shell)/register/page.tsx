@@ -1741,6 +1741,7 @@ export default function RegisterPage() {
                 sale={sale}
                 methods={data.paymentMethods}
                 mechanics={ticketMechanics}
+                roster={data.mechanics}
                 commPerCents={data.settings.tipCommPerCents}
                 commChargeCents={data.settings.tipCommChargeCents}
                 onTenderChange={setAccountTender}

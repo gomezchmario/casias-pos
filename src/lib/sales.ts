@@ -626,6 +626,48 @@ export function reassignMechanic(
       before: { mechanic_id: item.mechanic_id, mechanic_name: item.mechanic_name },
       after: { mechanic_id: mech.mechanicId, mechanic_name: mech.mechanicName },
     });
+
+    /*
+      A TIP LEFT BEHIND FOLLOWS THE TECHNICIAN.
+
+      `takePayment` now refuses a tip with nobody to credit, so this cannot
+      arise fresh. It can still arise the other way round: the tip was taken
+      while somebody WAS named, that person was taken off the line, and the
+      credit has been sitting on a payment row pointing at nobody ever since.
+      On S-2026-000424 it was the reverse order and cost Franklin $12.
+
+      Only when the ticket now has exactly one technician on it — which is the
+      same inference `soleMechanicOf` makes at the register, applied a few
+      minutes late. Two people on the ticket and there is a real question about
+      whose tip it is, so it stays orphaned and somebody has to say.
+
+      In the same transaction as the reassignment, because a tip that follows
+      the line only sometimes is worse than one that never does.
+    */
+    const now = db
+      .prepare(
+        `SELECT DISTINCT mechanic_id FROM sale_items
+          WHERE sale_id = ? AND voided = 0 AND mechanic_id IS NOT NULL`,
+      )
+      .all(item.sale_id) as { mechanic_id: number }[];
+    if (now.length === 1) {
+      const adopted = db
+        .prepare(
+          `UPDATE payments SET mechanic_id = ?
+            WHERE sale_id = ? AND tip_cents > 0 AND mechanic_id IS NULL`,
+        )
+        .run(now[0].mechanic_id, item.sale_id);
+      if (adopted.changes > 0)
+        logActorAudit(actorOf(user), {
+          action: "payment.correct",
+          targetType: "sale",
+          targetId: item.sale_id,
+          details: { tips_adopted: adopted.changes, reason: "line reassigned" },
+          before: { mechanic_id: null },
+          after: { mechanic_id: now[0].mechanic_id },
+        });
+    }
+
     return { ok: true as const };
   });
 }

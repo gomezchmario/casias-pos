@@ -286,6 +286,7 @@ export function TicketDrawer({
                 sale={detail.sale}
                 methods={methods}
                 mechanics={detail.mechanics}
+                roster={detail.roster}
                 commPerCents={commPerCents}
                 commChargeCents={commChargeCents}
                 onError={setError}
@@ -417,6 +418,7 @@ export function TicketDrawer({
             <TipAdjustment
               methods={methods}
               mechanics={detail.mechanics}
+              roster={detail.roster}
               commPerCents={commPerCents}
               commChargeCents={commChargeCents}
               busy={busy}
@@ -1090,6 +1092,7 @@ function Row({
 function TipAdjustment({
   methods,
   mechanics,
+  roster,
   commPerCents,
   commChargeCents,
   busy,
@@ -1097,6 +1100,12 @@ function TipAdjustment({
 }: {
   methods: PaymentMethod[];
   mechanics: TicketMechanic[];
+  /**
+   * The whole roster, offered only when the ticket names nobody. Names and ids
+   * only — a roster entry has no line count on this ticket by definition, and
+   * the splits that need one are not offered in that case.
+   */
+  roster?: { id: number; name: string }[];
   commPerCents: number;
   commChargeCents: number;
   busy: boolean;
@@ -1124,6 +1133,14 @@ function TipAdjustment({
 
   const tipCents = Math.max(0, parseCents(amount) ?? 0);
   const commCents = computeTipCommission(tipCents, commPerCents, commChargeCents);
+  /**
+   * Who a late tip can go to. The ticket's own people when it has any, the
+   * whole roster when it has none — because a tip credited to nobody is a
+   * technician not being paid, and the server refuses one. See `takePayment`.
+   */
+  const tipCandidates: { id: number; name: string }[] =
+    mechanics.length > 0 ? mechanics : (roster ?? []);
+  const tipNeedsAName = tipCents > 0 && goesTo === "";
   const split: TipSplit | null =
     goesTo === "equal" || goesTo === "lines" ? goesTo : null;
 
@@ -1177,7 +1194,7 @@ function TipAdjustment({
         <button
           type="button"
           className="btn btn-primary"
-          disabled={busy || tipCents <= 0}
+          disabled={busy || tipCents <= 0 || tipNeedsAName}
           onClick={async () => {
             if (
               await onAdd(
@@ -1193,25 +1210,39 @@ function TipAdjustment({
         >{tr("Add")}</button>
       </div>
 
-      {/* Same rule as the register: only asked when the ticket has more than
-          one technician on it and so cannot answer for itself. */}
-      {mechanics.length > 1 && (
-        <label className="text-xs text-brand-400 block mt-2">{tr("Tip goes to")}<select
+      {/* Same rule as the register: answered for them on the one-technician
+          ticket, asked on every other — including the ticket that names
+          nobody, where the list becomes the whole roster rather than an
+          apology. */}
+      {mechanics.length !== 1 && (
+        <label className="text-xs text-brand-400 block mt-2">
+          {mechanics.length === 0
+            ? tr("Nobody is on this ticket — who is the tip for?")
+            : tr("Tip goes to")}
+          <select
             className="input mt-1 w-full"
             value={goesTo}
+            style={tipNeedsAName ? { borderColor: "#f59e0b" } : undefined}
             onChange={(e) => setGoesTo(e.target.value)}
           >
-            <option value="">{tr("Nobody in particular")}</option>
+            <option value="">{tr("Choose somebody…")}</option>
             {/* The splits sit above the names, because when two people worked a
                 ticket a shared tip is the normal case and one person taking all
-                of it is the exception. */}
-            <option value="equal">Split equally between all {mechanics.length}</option>
-            <option value="lines">
-              Split by work done ({mechanics.map((m) => m.lineCount).join(" / ")} lines)
-            </option>
-            {mechanics.map((m) => (
+                of it is the exception. Offered only when the ticket actually
+                has people to split between — a split over the whole roster
+                would divide a tip among technicians who never touched the car. */}
+            {mechanics.length > 1 && (
+              <>
+                <option value="equal">Split equally between all {mechanics.length}</option>
+                <option value="lines">
+                  Split by work done ({mechanics.map((m) => m.lineCount).join(" / ")} lines)
+                </option>
+              </>
+            )}
+            {tipCandidates.map((m) => (
               <option key={m.id} value={String(m.id)}>
-                {m.name} — all of it
+                {m.name}
+                {mechanics.length > 1 ? " — all of it" : ""}
               </option>
             ))}
           </select>

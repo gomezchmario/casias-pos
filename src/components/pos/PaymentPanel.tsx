@@ -28,6 +28,7 @@ export function PaymentPanel({
   sale,
   methods,
   mechanics,
+  roster,
   commPerCents,
   commChargeCents,
   onTenderChange,
@@ -38,6 +39,16 @@ export function PaymentPanel({
   methods: PaymentMethod[];
   /** The technicians whose work is on this ticket, for attributing a tip. */
   mechanics: { id: number; name: string }[];
+  /**
+   * The whole roster, used only when the ticket names nobody.
+   *
+   * Kept separate from `mechanics` on purpose. Fifteen names offered on a
+   * ticket that already says who did the work is how the wrong one gets
+   * picked, so the short list wins whenever there is one; this is the fallback
+   * for the ticket that has nobody on it at all, where the alternative is a
+   * tip credited to nobody. See the guard in `takePayment`.
+   */
+  roster?: { id: number; name: string }[];
   commPerCents: number;
   commChargeCents: number;
   /** True while the house account is the chosen tender — see the register. */
@@ -91,6 +102,18 @@ export function PaymentPanel({
   }, [isAccount, onTenderChange]);
 
   const tipCents = Math.max(0, parseCents(tip) ?? 0);
+
+  /**
+   * Who this tip can go to: the ticket's own technicians, or the whole roster
+   * when the ticket names none.
+   */
+  const tipCandidates = mechanics.length > 0 ? mechanics : (roster ?? []);
+  /**
+   * A tip with nobody named cannot be taken — the server refuses it, so the
+   * button is disabled rather than letting somebody press it and read an error
+   * with a customer's card already in their hand.
+   */
+  const tipNeedsAName = tipCents > 0 && tipMechanicId === "";
   const commCents = useMemo(
     () => computeTipCommission(tipCents, commPerCents, commChargeCents),
     [tipCents, commPerCents, commChargeCents],
@@ -374,7 +397,7 @@ export function PaymentPanel({
           className="btn btn-primary w-full"
           style={{ height: 52, fontSize: 17 }}
           onClick={() => void complete()}
-          disabled={busy || allocatedCents <= 0 || remainingCents < 0}
+          disabled={busy || allocatedCents <= 0 || remainingCents < 0 || tipNeedsAName}
         >
           {busy
             ? "Working…"
@@ -430,16 +453,25 @@ export function PaymentPanel({
             and simply counts for nobody, which is the truth rather than a
             guess -- but it says so, so it is a choice and not an oversight.
           */}
-          {tipCents > 0 && mechanics.length > 1 && (
-            <label className="text-xs text-brand-400 block mb-2">{tr("Tip goes to")}<select
+          {/* One technician on the ticket and it is answered for them. Any
+              other number and it is asked, including none — where the list is
+              the whole roster, because "nobody" is not an answer the shop
+              accepts any more. */}
+          {tipCents > 0 && mechanics.length !== 1 && (
+            <label className="text-xs text-brand-400 block mb-2">
+              {mechanics.length === 0
+                ? tr("Nobody is on this ticket — who is the tip for?")
+                : tr("Tip goes to")}
+              <select
                 className="input mt-1 w-full"
                 value={tipMechanicId}
+                style={tipNeedsAName ? { borderColor: "#f59e0b" } : undefined}
                 onChange={(e) =>
                   setTipMechanicId(e.target.value === "" ? "" : Number(e.target.value))
                 }
               >
-                <option value="">{tr("Nobody in particular")}</option>
-                {mechanics.map((m) => (
+                <option value="">{tr("Choose somebody…")}</option>
+                {tipCandidates.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.name}
                   </option>
@@ -450,11 +482,6 @@ export function PaymentPanel({
           {tipCents > 0 && mechanics.length === 1 && (
             <p className="text-xs text-brand-300 mb-2">
               Tip goes to {mechanics[0].name}.
-            </p>
-          )}
-          {tipCents > 0 && mechanics.length === 0 && (
-            <p className="text-xs text-brand-300 mb-2">
-              No technician on this ticket — this tip won&apos;t count for anyone.
             </p>
           )}
 
@@ -486,7 +513,7 @@ export function PaymentPanel({
         className="btn btn-primary w-full"
         style={{ height: 52, fontSize: 17 }}
         onClick={() => void complete()}
-        disabled={busy || !method}
+        disabled={busy || !method || tipNeedsAName}
       >
         {busy ? "Working…" : splitting ? "Take both charges" : "Complete sale"}
       </button>
