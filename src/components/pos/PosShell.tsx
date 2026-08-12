@@ -58,6 +58,8 @@ const NAV: {
   // done before locking up, at which point it is being looked for deliberately
   // and its position on the row does not matter.
   { href: "/pos/reports", label: "Reports", capability: "viewBusinessReports" },
+  // The day read rather than worked — view-only, beside the close-out it reads.
+  { href: "/pos/closeout", label: "Close-out V2", capability: "viewBusinessReports" },
   { href: "/pos/eod", label: "Close-out", capability: "closeShift" },
   // Just the gear. The other tabs are places to do the day's work and are
   // named for the work; this one is setup, is opened rarely, and does not earn

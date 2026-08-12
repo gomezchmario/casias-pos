@@ -1,0 +1,73 @@
+/* Close-out V2's own few rules — everything else is the reports stylesheet,
+   imported alongside, so this page and Reports read as one family. */
+
+/* The clean-day line. Green and quiet: the whole point of putting the verdict
+   first is that on most nights this one sentence is the entire read. */
+.cv2-clean {
+  background: rgb(21 128 61 / 0.07);
+  border-left: 3px solid #15803d;
+  border-radius: 0 8px 8px 0;
+  padding: 10px 14px;
+  margin: 4px 0 14px;
+  font-size: 13.5px;
+  color: #14532d;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* The checklist: states the database verified, one line each. */
+.cv2-check {
+  margin-top: 12px;
+  border-top: 1px solid rgb(10 37 64 / 0.08);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cv2-check-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.cv2-check-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex: none;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.cv2-check-dot.is-done {
+  background: rgb(21 128 61 / 0.14);
+  color: #15803d;
+}
+
+.cv2-check-dot.is-open {
+  background: rgb(180 83 9 / 0.16);
+  color: #b45309;
+}
+
+.cv2-check-dot.is-na {
+  background: rgb(10 37 64 / 0.07);
+  color: rgb(10 37 64 / 0.45);
+}
+
+.cv2-check-label {
+  font-weight: 600;
+  color: #0a2540;
+  white-space: nowrap;
+}
+
+.cv2-check-detail {
+  color: rgb(10 37 64 / 0.55);
+  font-size: 12.5px;
+}
