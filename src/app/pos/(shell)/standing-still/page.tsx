@@ -44,15 +44,17 @@ export default function StandingStillPage() {
   const { t: tr } = useLang();
   const { can, user } = usePosAuth();
   const [data, setData] = useState<Data | null>(null);
+  /** How long a tire has to have sat before it counts as standing still. */
+  const [days, setDays] = useState(45);
   const [printedOn, setPrintedOn] = useState("");
 
   useEffect(() => setPrintedOn(new Date().toLocaleDateString()), []);
   useEffect(() => {
     void (async () => {
-      const res = await fetch("/api/pos/inventory/standing-still");
+      const res = await fetch(`/api/pos/inventory/standing-still?days=${days}`);
       if (res.ok) setData(await res.json());
     })();
-  }, []);
+  }, [days]);
 
   if (!can("viewReports"))
     return <div className="text-brand-400">{tr("Your account can't see this report.")}</div>;
@@ -65,13 +67,36 @@ export default function StandingStillPage() {
             {tr("Money standing still")}
           </h1>
           <p className="text-brand-400 text-sm">
-            {tr("Every size on the racks with no sale in 45 days — oldest sleeper first.")}
+            {data && data.days === 0
+              ? tr("Every size on the racks, whatever its last sale — longest-sitting first.")
+              : tr("Every size on the racks with no sale in the window — oldest sleeper first.")}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* The same list read at four depths. Which one is right depends on
+              what the reader is about to do: 45 days is "what is slow", 120 is
+              "what is not coming back", and all time finds the sizes that have
+              never sold at all — a different conversation with a supplier. */}
+          {[
+            { d: 45, label: tr("45 days") },
+            { d: 90, label: tr("90 days") },
+            { d: 120, label: tr("120 days") },
+            { d: 0, label: tr("All time") },
+          ].map((w) => (
+            <button
+              key={w.d}
+              type="button"
+              className={days === w.d ? "btn btn-primary" : "btn btn-outline"}
+              style={{ height: 34, fontSize: 13 }}
+              aria-pressed={days === w.d}
+              onClick={() => setDays(w.d)}
+            >
+              {w.label}
+            </button>
+          ))}
           <button
             type="button"
-            className="btn btn-primary"
+            className="btn btn-outline"
             disabled={!data}
             onClick={() => window.print()}
           >
@@ -91,7 +116,13 @@ export default function StandingStillPage() {
             {tr("Money standing still")} · Casias Muffler and Tire Shop
           </div>
           <div style={{ fontSize: "9pt" }}>
-            {data ? `${tr("as of")} ${data.asOf}` : ""} · {tr("printed")} {printedOn} ·{" "}
+            {data ? `${tr("as of")} ${data.asOf}` : ""} ·{" "}
+            {data
+              ? data.days === 0
+                ? tr("every age")
+                : `${tr("no sale in")} ${data.days} ${tr("days")}`
+              : ""}{" "}
+            · {tr("printed")} {printedOn} ·{" "}
             {tr("printed by")} {user.name}
           </div>
         </div>
@@ -113,7 +144,13 @@ export default function StandingStillPage() {
                 <> · {formatCents(data.totals.costCents)} {tr("at cost")}</>
               )}
             </strong>{" "}
-            {tr("with no sale in")} {data.days} {tr("days")}.
+            {data.days === 0 ? (
+              tr("on the racks, at every age.")
+            ) : (
+              <>
+                {tr("with no sale in")} {data.days} {tr("days")}.
+              </>
+            )}
           </p>
           <table className="w-full text-sm sst-table">
             <thead>
