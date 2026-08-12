@@ -167,6 +167,20 @@ export const CAPABILITIES = {
   // should never have existed, and it should take the person who owns the
   // consequences of getting that judgement wrong.
   deleteProduct: "owner",
+  /*
+    Removing a product that has NOTHING ON THE RACK.
+
+    A capability of its own, and a lower one, because the two acts carry
+    different risks rather than different amounts of the same risk. Deleting a
+    product that still holds stock throws away the shop's record of tires it
+    physically owns. Deleting an empty one only tidies a list: the row is
+    soft-deleted, so every ticket it ever sold, every movement and every report
+    still read exactly as before, and the owner can bring it back.
+
+    Making a manager fetch the owner to clear a sold-out size is how a
+    catalogue of six hundred rows becomes one nobody can read.
+  */
+  deleteEmptyProduct: "manager",
   // Correcting the customer book: a name, a phone number, a car. Manager,
   // because it is a correction rather than a decision — a misheard phone number
   // is found by whoever rings it, and making them ask an owner to fix it is how
@@ -404,6 +418,10 @@ export const CAPABILITY_INFO: Record<
   adjustInventory: { label: "Adjust stock counts", group: "Stock" },
   manageProducts: { label: "Add and edit products", group: "Stock" },
   deleteProduct: { label: "Remove a product from the list", group: "Stock" },
+  deleteEmptyProduct: {
+    label: "Remove a sold-out product from the list",
+    group: "Stock",
+  },
   manageCustomers: {
     label: "Correct a customer's details and their cars",
     group: "At the register",

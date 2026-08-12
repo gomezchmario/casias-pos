@@ -86,9 +86,12 @@ export function getProduct(id: number): Product | null {
 }
 
 export function listProducts(
-  opts: { includeInactive?: boolean; kind?: ProductKind } = {},
+  opts: { includeInactive?: boolean; includeDeleted?: boolean; kind?: ProductKind } = {},
 ): Product[] {
-  const where = ["deleted = 0"];
+  // Removed rows stay out unless somebody asks for them by name. The only
+  // caller that does is the owner's "Show removed" on the inventory page,
+  // which exists so a row deleted by mistake can be found again.
+  const where = opts.includeDeleted ? ["1 = 1"] : ["deleted = 0"];
   const params: unknown[] = [];
   if (!opts.includeInactive) where.push("active = 1");
   if (opts.kind) {
@@ -156,8 +159,12 @@ export type RimSection = {
   total: number;
 };
 
-export function inventoryBySize(opts: { includeOutOfStock?: boolean } = {}): SizeGroup[] {
-  const tires = withStock(listProducts({ kind: "tire" }));
+export function inventoryBySize(
+  opts: { includeOutOfStock?: boolean; includeDeleted?: boolean } = {},
+): SizeGroup[] {
+  const tires = withStock(
+    listProducts({ kind: "tire", includeDeleted: opts.includeDeleted }),
+  );
   const bySize = new Map<string, SizeGroup>();
 
   for (const t of tires) {
@@ -175,9 +182,14 @@ export function inventoryBySize(opts: { includeOutOfStock?: boolean } = {}): Siz
       bySize.set(size, g);
     }
     if (t.condition === "used") {
-      g.usedProductId = t.id;
-      g.usedProduct = t;
-      g.usedCount = t.on_hand;
+      // A live used row always wins the size's one used line. Two can only
+      // both be here while "Show removed" is on, and the count that belongs on
+      // the sheet is the one the racks actually answer to.
+      if (!g.usedProduct || (g.usedProduct.deleted && !t.deleted)) {
+        g.usedProductId = t.id;
+        g.usedProduct = t;
+        g.usedCount = t.on_hand;
+      }
     } else {
       g.newTires.push(t);
     }
@@ -186,7 +198,12 @@ export function inventoryBySize(opts: { includeOutOfStock?: boolean } = {}): Siz
   for (const g of bySize.values()) {
     /* Only exact zeroes are hidden, so an oversold row survives the filter and
        is always on the sheet — which is the behaviour the sort below depends on. */
-    if (!opts.includeOutOfStock) g.newTires = g.newTires.filter((t) => t.on_hand !== 0);
+    // A removed row is exempt: it was only fetched because somebody asked to
+    // see removed rows, and almost every one of them is at zero — which is
+    // usually why it was removed. Hiding it again would make the box do
+    // nothing on exactly the rows it exists for.
+    if (!opts.includeOutOfStock)
+      g.newTires = g.newTires.filter((t) => t.on_hand !== 0 || t.deleted);
 
     /* Oversold to the top of its own size, deepest first.
        The panel at the head of the page lists these too, but a list at the top
@@ -203,7 +220,13 @@ export function inventoryBySize(opts: { includeOutOfStock?: boolean } = {}): Siz
   }
 
   return [...bySize.values()]
-    .filter((g) => opts.includeOutOfStock || g.newTires.length > 0 || g.usedCount !== 0)
+    .filter(
+      (g) =>
+        opts.includeOutOfStock ||
+        g.newTires.length > 0 ||
+        g.usedCount !== 0 ||
+        !!g.usedProduct?.deleted,
+    )
     .sort((a, b) => a.size.localeCompare(b.size, undefined, { numeric: true }));
 }
 
@@ -219,7 +242,9 @@ export function inventoryBySize(opts: { includeOutOfStock?: boolean } = {}): Siz
  * their own. The real list has a handful (16-6 8-6.5, a mower tire) and one
  * junk-drawer section at the end beats six sections of one line each.
  */
-export function inventoryBySection(opts: { includeOutOfStock?: boolean } = {}): RimSection[] {
+export function inventoryBySection(
+  opts: { includeOutOfStock?: boolean; includeDeleted?: boolean } = {},
+): RimSection[] {
   const groups = inventoryBySize(opts);
 
   // Which sizes are specialty, decided across every product sharing the size.
@@ -285,23 +310,25 @@ export function inventoryBySection(opts: { includeOutOfStock?: boolean } = {}): 
  */
 function listShelf(
   categoryCode: string,
-  opts: { includeOutOfStock?: boolean } = {},
+  opts: { includeOutOfStock?: boolean; includeDeleted?: boolean } = {},
 ): ProductWithStock[] {
   const rows = withStock(
     getDb()
       .prepare(
         `SELECT p.* FROM products p
            JOIN service_categories c ON c.id = p.category_id
-          WHERE c.code = ? AND p.deleted = 0 AND p.active = 1
+          WHERE c.code = ? AND (p.deleted = 0 OR ?) AND p.active = 1
           ORDER BY p.price_cents DESC`,
       )
-      .all(categoryCode) as Product[],
+      .all(categoryCode, opts.includeDeleted ? 1 : 0) as Product[],
   );
-  return opts.includeOutOfStock ? rows : rows.filter((b) => b.on_hand !== 0);
+  // Removed rows are exempt from the sold-out hide for the reason given in
+  // `inventoryBySize`: they were asked for, and they are nearly all at zero.
+  return opts.includeOutOfStock ? rows : rows.filter((b) => b.on_hand !== 0 || b.deleted);
 }
 
 export function listBatteries(
-  opts: { includeOutOfStock?: boolean } = {},
+  opts: { includeOutOfStock?: boolean; includeDeleted?: boolean } = {},
 ): ProductWithStock[] {
   return listShelf("battery", opts);
 }
@@ -311,7 +338,7 @@ export function listBatteries(
  * joins them. Same shelf treatment; see `listShelf`.
  */
 export function listMisc(
-  opts: { includeOutOfStock?: boolean } = {},
+  opts: { includeOutOfStock?: boolean; includeDeleted?: boolean } = {},
 ): ProductWithStock[] {
   return listShelf("misc", opts);
 }
@@ -661,11 +688,32 @@ export function updateProduct(
  * a sale from last March must still be able to say what was sold.
  */
 export function deleteProduct(user: PosUser, id: number, reason: string): Result {
-  if (!can(user.role, "deleteProduct"))
-    return { ok: false, error: "Only the owner can remove a product" };
   const product = getProduct(id);
   if (!product) return { ok: false, error: "Product not found" };
   if (!reason.trim()) return { ok: false, error: "A reason is required" };
+
+  /*
+    Two doors to the same act, and which one is open depends on the rack.
+
+    The owner may remove anything. A manager may remove one that is EMPTY,
+    which is the tidying case — a size the shop has stopped carrying, sold out
+    and not coming back. See `deleteEmptyProduct` in roles.ts for why that is
+    the cheaper act.
+
+    The count is read here, at the moment of removing, rather than trusted from
+    whatever the screen said: a page loaded ten minutes ago does not know about
+    the four tires somebody just received onto that row.
+  */
+  if (!can(user.role, "deleteProduct")) {
+    if (!can(user.role, "deleteEmptyProduct"))
+      return { ok: false, error: "Only the owner can remove a product" };
+    const onHand = stockOnHandFor([id]).get(id) ?? 0;
+    if (onHand !== 0)
+      return {
+        ok: false,
+        error: `${product.name} still has ${onHand} on the rack. Only the owner can remove a product that is not sold out.`,
+      };
+  }
 
   return inTx(() => {
     getDb()
@@ -680,6 +728,49 @@ export function deleteProduct(user: PosUser, id: number, reason: string): Result
       details: { name: product.name, sku: product.sku, reason: reason.trim() },
       before: { deleted: 0 },
       after: { deleted: 1 },
+    });
+    return { ok: true as const };
+  });
+}
+
+/**
+ * Put a removed product back on the list.
+ *
+ * The reason removals are soft, made usable. Nothing but the flag is touched:
+ * the stock, the price, the lots and every ticket the row ever sold were left
+ * alone when it went, so it comes back exactly as it left.
+ *
+ * Owner only, on `deleteProduct` rather than `deleteEmptyProduct` — a manager
+ * who can clear a sold-out size cannot un-clear one, because the row they would
+ * be reaching for is one they cannot see. Restoring is the owner's correction
+ * of somebody else's decision, and it needs the person who can see both.
+ *
+ * Reads through the raw table rather than `getProduct`, which filters removed
+ * rows out by definition and would answer "not found" for every row this
+ * function exists to act on.
+ */
+export function restoreProduct(user: PosUser, id: number): Result {
+  if (!can(user.role, "deleteProduct"))
+    return { ok: false, error: "Only the owner can put a product back" };
+  const row = getDb().prepare("SELECT * FROM products WHERE id = ?").get(id) as
+    | Product
+    | undefined;
+  if (!row) return { ok: false, error: "Product not found" };
+  if (!row.deleted) return { ok: false, error: "That product is already on the list" };
+
+  return inTx(() => {
+    getDb()
+      .prepare(
+        "UPDATE products SET deleted = 0, deleted_by = NULL, deleted_at = NULL, deleted_reason = NULL, updated_at = ? WHERE id = ?",
+      )
+      .run(nowLocalIso(), id);
+    logActorAudit(actorOf(user), {
+      action: "product.update",
+      targetType: "product",
+      targetId: id,
+      details: { name: row.name, sku: row.sku, restored: true },
+      before: { deleted: 1 },
+      after: { deleted: 0 },
     });
     return { ok: true as const };
   });

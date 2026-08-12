@@ -106,6 +106,26 @@
   vertical-align: middle;
 }
 
+/* "Removed", on a row only the owner can see at all — see "Show removed" on
+   the inventory page. Grey rather than red: the row is not a problem, it is a
+   record. It carries `no-print` in the markup, because a removed size has no
+   business on a sheet somebody walks the racks with. */
+.inv-pill-gone {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
 .inv-pill-warn {
   display: inline-block;
   margin-left: 0.4rem;

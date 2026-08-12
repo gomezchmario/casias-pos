@@ -43,10 +43,22 @@ export async function GET(req: NextRequest) {
   const codeFor = (cents: number | null) =>
     showCode && cents ? costCode(cents) : null;
   const includeOutOfStock = req.nextUrl.searchParams.get("all") === "1";
+  /*
+    Removed rows, for the owner only.
+
+    Refused rather than filtered for anyone else: the page hides the box, but a
+    payload that carried the rows anyway would put on the wire exactly what the
+    screen is meant not to show, and JSON is one keystroke from visible.
+  */
+  const includeDeleted =
+    req.nextUrl.searchParams.get("deleted") === "1" &&
+    can(auth.user.role, "deleteProduct");
   const flat = req.nextUrl.searchParams.get("flat") === "1";
 
   if (flat) {
-    const products = withStock(listProducts({ includeInactive: true })).map((p) => ({
+    const products = withStock(
+      listProducts({ includeInactive: true, includeDeleted }),
+    ).map((p) => ({
       ...p,
       default_cost_cents: showCosts ? p.default_cost_cents : null,
     }));
@@ -55,7 +67,7 @@ export async function GET(req: NextRequest) {
 
   // Sections are rim diameters in rack order, with the eighteen-wheeler and
   // specialty block last. See `inventoryBySection`.
-  const sections = inventoryBySection({ includeOutOfStock }).map((s) => ({
+  const sections = inventoryBySection({ includeOutOfStock, includeDeleted }).map((s) => ({
     ...s,
     groups: s.groups.map((g) => ({
       ...g,
@@ -76,20 +88,23 @@ export async function GET(req: NextRequest) {
     // haggled over — it is Large, Medium or Small at a fixed shelf price. A code
     // there would be noise on the sheet at best, and at worst it trains people
     // to read the suffix as part of the product name.
-    batteries: listBatteries({ includeOutOfStock }).map((b) => ({
+    batteries: listBatteries({ includeOutOfStock, includeDeleted }).map((b) => ({
       ...b,
       default_cost_cents: showCosts ? b.default_cost_cents : null,
       cost_code: null,
     })),
     // The same shape and the same reasoning as batteries above -- a shelf that
     // is not a rim section. Rides on this endpoint for the same reason too.
-    misc: listMisc({ includeOutOfStock }).map((b) => ({
+    misc: listMisc({ includeOutOfStock, includeDeleted }).map((b) => ({
       ...b,
       default_cost_cents: showCosts ? b.default_cost_cents : null,
       cost_code: null,
     })),
     lastCheck: readInventoryCheck(),
     showCosts,
+    // Echoed back so the page knows the box was honoured rather than assuming
+    // it was, and can say "removed rows are showing" truthfully.
+    showingDeleted: includeDeleted,
     // Manager and up only, and computed here rather than derived in the browser
     // from the rows above — a cashier's copy of this payload must not contain
     // the answer at all, and `sections` has already had costs stripped out of

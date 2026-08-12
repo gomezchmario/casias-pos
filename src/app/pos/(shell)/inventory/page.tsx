@@ -49,6 +49,12 @@ type Tire = {
   /** Priced under cost on purpose — see 020_discount_flag.sql. */
   discounted: number;
   on_hand: number;
+  /**
+   * 1 when the row has been taken off the list. Only ever non-zero while the
+   * owner has "Show removed" ticked — for everybody else the server does not
+   * send these rows at all.
+   */
+  deleted?: number;
 };
 
 type SizeGroup = {
@@ -94,6 +100,8 @@ type Data = {
   misc: Tire[];
   lastCheck: InventoryCheck;
   showCosts: boolean;
+  /** The server's answer on whether removed rows are in this payload. */
+  showingDeleted?: boolean;
   /** Worst first, and including rows the sheet is currently hiding. */
   lowStock: LowStockFlag[];
   /** Below zero — deepest first. Its own list; see `listNegativeStock`. */
@@ -168,6 +176,9 @@ export default function InventoryPage() {
   const [data, setData] = useState<Data | null>(null);
   const [query, setQuery] = useState("");
   const [showEmpty, setShowEmpty] = useState(false);
+  // Owner only, and off every time the page loads: the normal state of this
+  // sheet is the racks as they are, not the racks plus their history.
+  const [showDeleted, setShowDeleted] = useState(false);
   const [sheet, setSheet] = useState<Sheet>(null);
   const [error, setError] = useState<string | null>(null);
   const [printedAt, setPrintedAt] = useState("");
@@ -244,14 +255,58 @@ export default function InventoryPage() {
   const [removing, setRemoving] = useState<Tire | null>(null);
   const [removeBusy, setRemoveBusy] = useState(false);
 
+  /**
+   * Whether this row can be taken off the list by the person looking at it.
+   *
+   * The owner may remove anything; a manager may remove a row with nothing on
+   * it. Mirrors `deleteProduct` in products.ts, which is where the rule is
+   * actually enforced — this only decides whether to draw the word, so that a
+   * manager is not offered a button that will come back refused. An already
+   * removed row offers nothing, because removing it twice is not a thing.
+   */
+  const [restoring, setRestoring] = useState<number | null>(null);
+
+  /**
+   * Undo a removal.
+   *
+   * The counterpart to `removeProduct`, and the reason removals are soft. It
+   * clears the flag and nothing else — the stock, the price and the history
+   * were never touched, so the row comes back exactly as it left. Owner only,
+   * on both sides.
+   */
+  async function restoreProduct(p: Tire) {
+    if (restoring !== null) return;
+    setRestoring(p.id);
+    setError(null);
+    const res = await fetch(`/api/pos/products/${p.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ restore: true }),
+    });
+    const d = await res.json().catch(() => ({}));
+    setRestoring(null);
+    if (!res.ok) {
+      setError(d.error || "Could not put that product back");
+      return;
+    }
+    await load();
+  }
+
+  const canRemove = (p: Tire | null | undefined) =>
+    !!p &&
+    !p.deleted &&
+    (can("deleteProduct") || (can("deleteEmptyProduct") && p.on_hand === 0));
+
   const load = useCallback(async () => {
-    const res = await fetch(`/api/pos/inventory?all=${showEmpty ? "1" : "0"}`);
+    const res = await fetch(
+      `/api/pos/inventory?all=${showEmpty ? "1" : "0"}&deleted=${showDeleted ? "1" : "0"}`,
+    );
     if (!res.ok) {
       setError("Could not load inventory");
       return;
     }
     setData(await res.json());
-  }, [showEmpty]);
+  }, [showEmpty, showDeleted]);
 
   useEffect(() => {
     void load();
@@ -380,6 +435,19 @@ export default function InventoryPage() {
               checked={showEmpty}
               onChange={(e) => setShowEmpty(e.target.checked)}
             />{tr("Show sold out")}</label>
+          {/*
+            Only the owner is offered this, and only the owner is served it —
+            see the `deleted` flag on the inventory route. It is how a row
+            removed by mistake gets found again.
+          */}
+          {can("deleteProduct") && (
+            <label className="flex items-center gap-2 text-sm text-brand-400 whitespace-nowrap">
+              <input
+                type="checkbox"
+                checked={showDeleted}
+                onChange={(e) => setShowDeleted(e.target.checked)}
+              />{tr("Show removed")}</label>
+          )}
           {/* `btn` on its own has a transparent background and a transparent
               border, so on this white page it rendered as a word rather than
               something to press. These two are real actions and are styled as
@@ -1156,6 +1224,18 @@ export default function InventoryPage() {
                             it. Both would be true and only one is worth reading:
                             "low" says order more, and ordering more is not the
                             answer to a count that is already wrong. */}
+                        {/* Only ever drawn while the owner has "Show removed"
+                            ticked; nobody else is sent these rows. Never
+                            printed — a removed size on a rack sheet is a size
+                            somebody goes looking for. */}
+                        {!!t.deleted && (
+                          <span
+                            className="inv-pill-gone no-print"
+                            title={tr("Taken off the stock list")}
+                          >
+                            {tr("removed")}
+                          </span>
+                        )}
                         {t.on_hand < 0 ? (
                           <span className="inv-pill-owed" title={tr("Sold more than the racks had")}>
                             {-t.on_hand} owed
@@ -1225,12 +1305,23 @@ export default function InventoryPage() {
                             onClick={() => setSheet({ mode: "count", product: t, size: g.size })}
                           >{tr("Count")}</button>
                         )}
-                        {can("deleteProduct") && (
+                        {canRemove(t) && (
                           <button
                             type="button"
                             className="text-xs text-red-600 hover:text-red-800 underline ml-3"
                             onClick={() => setRemoving(t)}
                           >{tr("Remove")}</button>
+                        )}
+                        {/* The way back. Offered only to the owner, and only on
+                            a row they had to tick "Show removed" to see at all,
+                            which is the whole reason that box exists. */}
+                        {!!t.deleted && can("deleteProduct") && (
+                          <button
+                            type="button"
+                            className="text-xs text-brand-400 hover:text-brand-500 underline ml-3"
+                            disabled={restoring === t.id}
+                            onClick={() => void restoreProduct(t)}
+                          >{tr("Put back")}</button>
                         )}
                       </td>
                     </tr>
@@ -1282,7 +1373,7 @@ export default function InventoryPage() {
                       }
                     >{tr("Count")}</button>
                   )}
-                  {g.usedProduct && can("deleteProduct") && (
+                  {canRemove(g.usedProduct) && (
                     <button
                       type="button"
                       className="text-xs text-red-600 hover:text-red-800 underline no-print"
@@ -1360,7 +1451,7 @@ export default function InventoryPage() {
                           onClick={() => setSheet({ mode: "count", product: b, size: b.name })}
                         >{tr("Count")}</button>
                       )}
-                      {can("deleteProduct") && (
+                      {canRemove(b) && (
                         <button
                           type="button"
                           className="text-xs text-red-600 hover:text-red-800 underline ml-3"
@@ -1433,7 +1524,7 @@ export default function InventoryPage() {
                           onClick={() => setSheet({ mode: "count", product: b, size: b.name })}
                         >{tr("Count")}</button>
                       )}
-                      {can("deleteProduct") && (
+                      {canRemove(b) && (
                         <button
                           type="button"
                           className="text-xs text-red-600 hover:text-red-800 underline ml-3"

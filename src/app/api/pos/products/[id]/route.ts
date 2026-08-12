@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jsonError, requirePos } from "@/lib/api-helpers";
-import { deleteProduct, getProduct, updateProduct } from "@/lib/products";
+import { deleteProduct, getProduct, restoreProduct, updateProduct } from "@/lib/products";
 import { listLots, listMovements, stockOnHand } from "@/lib/inventory";
 import { can } from "@/lib/roles";
 
@@ -47,11 +47,25 @@ export async function PATCH(
     specialized?: boolean;
     supplier?: string | null;
     discounted?: boolean;
+    /** Its own operation, not a field — see below. */
+    restore?: boolean;
   };
   try {
     body = await req.json();
   } catch {
     return jsonError("Invalid JSON");
+  }
+
+  /*
+    Putting a row back is handled first and on its own, because it is not an
+    edit. Everything below assumes a product that is ON the list — `getProduct`
+    will not even return a removed one — so a restore routed through
+    `updateProduct` would come back "not found" every time.
+  */
+  if (body.restore) {
+    const restored = restoreProduct(auth.user, id);
+    if (!restored.ok) return jsonError(restored.error, 403);
+    return NextResponse.json({ product: getProduct(id) });
   }
 
   // Cost is owner-only to read, so it is owner-only to write. A manager who
