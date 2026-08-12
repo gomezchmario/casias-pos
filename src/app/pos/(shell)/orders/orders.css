@@ -1,0 +1,62 @@
+/* The special-order board.
+   Read on a tablet, at the counter, usually with something in the other hand. */
+
+/* Details and money on one line; the controls get a line of their own beneath.
+   They used to sit between the customer's phone number and the amount, which
+   put the loudest thing on the card in the middle of the sentence somebody was
+   trying to read, and left the money pushed off to wherever there was room. */
+.ord-top {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.ord-actions {
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  /* A hairline, so the buttons read as a separate act rather than as more of
+     the customer's details. Colour comes from the card's own tone, so it stays
+     right on every stage. */
+  border-top: 1px solid rgba(0, 0, 0, 0.07);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/*
+  Enough room to be sure which card you are on.
+
+  Every button here moves a real ticket to a real stage, and the cards are
+  stacked with a couple of pixels between them — so a press meant for one row
+  landing on its neighbour is a phone call recorded against the wrong customer.
+  A comfortable target and real space around it is the cheapest guardrail there
+  is, and unlike a confirmation it costs the person who meant it nothing.
+*/
+.ord-actions .btn {
+  min-height: 40px;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.ord-actions select.input {
+  min-height: 40px;
+  /* Wide enough to look like a control rather than a stray glyph, and no wider:
+     it is the rare move, and it should not compete with the two answers beside
+     it. */
+  min-width: 92px;
+}
+
+/* On a phone the two answers stack rather than squeezing onto one line, and
+   each takes the full width — a half-width button beside another half-width
+   button is where the wrong one gets hit. */
+@media (max-width: 560px) {
+  .ord-actions {
+    align-items: stretch;
+  }
+
+  .ord-actions .btn {
+    flex: 1 1 100%;
+  }
+}

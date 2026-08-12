@@ -9,6 +9,7 @@ import type { OrderMove, SpecialOrder } from "@/lib/special-orders";
 import type { FulfillmentStatus } from "@/lib/sales";
 import type { PaymentMethod } from "@/lib/payments";
 import { useLang } from "@/components/pos/LangToggle";
+import "./orders.css";
 
 /**
  * The green and blue sheet.
@@ -130,7 +131,29 @@ export default function OrdersPage() {
     })();
   }, []);
 
-  async function move(saleId: number, status: FulfillmentStatus) {
+  /**
+   * What just happened, so it can be said out loud and taken back.
+   *
+   * A move on this board re-sorts and re-filters the whole list — the card
+   * leaves the position it was in, and often the screen. Pressed on purpose
+   * that is exactly right; pressed by accident, which on a tablet in a shop is
+   * a thumb landing on a card while scrolling, the row simply vanished and
+   * there was nothing on screen to say what had been done or to which ticket.
+   */
+  const [lastMove, setLastMove] = useState<{
+    saleId: number;
+    saleNo: string;
+    from: FulfillmentStatus;
+    to: FulfillmentStatus;
+  } | null>(null);
+
+  async function move(
+    saleId: number,
+    status: FulfillmentStatus,
+    /** Set when this IS the undo, so undoing an undo is not offered. */
+    undoing = false,
+  ) {
+    const wasAt = data?.orders.find((o) => o.saleId === saleId);
     setBusy(saleId);
     setError(null);
     const res = await fetch(`/api/pos/sales/${saleId}/fulfillment`, {
@@ -144,6 +167,11 @@ export default function OrdersPage() {
       setError(d.error || "That didn't move");
       return;
     }
+    setLastMove(
+      undoing || !wasAt
+        ? null
+        : { saleId, saleNo: wasAt.saleNo, from: wasAt.status, to: status },
+    );
     await load();
   }
 
@@ -350,6 +378,48 @@ export default function OrdersPage() {
         </div>
       )}
 
+      {/*
+        The receipt for the last move, and the way back from it.
+
+        Undo rather than a confirm dialog. Confirming every move would tax the
+        common case — a tire in one hand, moving an order forward by one — to
+        guard against the rare one, and a dialog pressed forty times a day stops
+        being read by the tenth. This costs nothing to whoever meant it and
+        gives whoever did not a way out, which is the right trade on a board
+        that is used at speed.
+
+        It stays until the next move rather than fading on a timer: a note that
+        disappears after four seconds is one somebody notices at the end of the
+        fifth.
+      */}
+      {lastMove && (
+        <div
+          className="mb-4 rounded-xl px-4 py-2.5 flex items-center gap-3 flex-wrap text-sm"
+          style={{ background: "#eef6ff", border: "1px solid #bfdbfe", color: "#1e3a5f" }}
+        >
+          <span>
+            <strong>{lastMove.saleNo}</strong> {tr("moved to")}{" "}
+            <strong>{FULFILLMENT_LABELS[lastMove.to]}</strong>
+          </span>
+          <button
+            type="button"
+            className="btn btn-outline"
+            style={{ height: 28, fontSize: 12, padding: "0 12px" }}
+            disabled={busy === lastMove.saleId}
+            onClick={() => void move(lastMove.saleId, lastMove.from, true)}
+          >
+            {tr("Undo")} — {tr("put it back to")} {FULFILLMENT_LABELS[lastMove.from]}
+          </button>
+          <button
+            type="button"
+            className="text-xs underline ml-auto"
+            onClick={() => setLastMove(null)}
+          >
+            {tr("Dismiss")}
+          </button>
+        </div>
+      )}
+
       {orders.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm px-4 py-12 text-center text-brand-300">{tr("Nothing on order.")}</div>
       ) : (
@@ -359,9 +429,14 @@ export default function OrdersPage() {
             return (
               <div
                 key={o.saleId}
-                className="rounded-2xl shadow-sm px-4 py-3 flex gap-4 items-start flex-wrap"
+                className="ord-card rounded-2xl shadow-sm px-4 py-3"
                 style={{ background: tone.bg, border: `1px solid ${tone.border}` }}
               >
+                {/* Details and money on one line, actions underneath. The
+                    controls used to sit BETWEEN the customer's details and the
+                    amount, which put the biggest, darkest thing on the card in
+                    the middle of the sentence somebody was reading. */}
+                <div className="ord-top">
                 <div className="flex-1 min-w-[16rem]">
                   <div className="flex items-baseline gap-2 flex-wrap">
                     <button
@@ -415,14 +490,17 @@ export default function OrdersPage() {
                     <div className="text-sm text-brand-300">paid</div>
                   )}
                 </div>
+                </div>
 
                 {can("manageSpecialOrders") && (
-                  <StageControl
-                    status={o.status}
-                    busy={busy === o.saleId}
-                    canReverse={can("reverseSpecialOrder")}
-                    onMove={(s) => void move(o.saleId, s)}
-                  />
+                  <div className="ord-actions">
+                    <StageControl
+                      status={o.status}
+                      busy={busy === o.saleId}
+                      canReverse={can("reverseSpecialOrder")}
+                      onMove={(s) => void move(o.saleId, s)}
+                    />
+                  </div>
                 )}
 
                 {/* The order's own history, folded away on every row of both
@@ -432,7 +510,7 @@ export default function OrdersPage() {
                     arrive" and "who rang them last" get asked at the counter
                     with the customer already on the phone. */}
                 {(
-                  <div style={{ flexBasis: "100%" }}>
+                  <div className="mt-1">
                     <button
                       type="button"
                       className="text-xs text-brand-300 hover:text-brand-500 underline"
@@ -481,12 +559,19 @@ export default function OrdersPage() {
 }
 
 /**
- * One big button for the next stage, and a small select for everything else.
+ * The moves worth making from where this order actually is.
  *
- * The overwhelming majority of moves on this board are forward by exactly one,
- * done by somebody with a tire in their other hand — so that move is a button
- * with the words on it and no menu to open. Anything else is rarer, is usually
- * a correction, and can afford a dropdown.
+ * It used to be "the next stage in the list, as one big button". That reads
+ * well until you notice what the list says comes after Here — call them: it is
+ * Called — no answer. So the biggest, darkest control on an arrived order —
+ * the one a thumb finds first — recorded a phone call that failed, and did it
+ * in one tap with the card then jumping out from under the finger.
+ *
+ * A phone call has two outcomes and neither of them is "the next one". So the
+ * two stages where the shop is holding the phone offer both, worded as what
+ * happened rather than as where the ticket goes, and the good outcome is the
+ * one that looks like the primary action. Everywhere else there genuinely is a
+ * single next step, and that stays one button.
  *
  * The dropdown offers backwards moves and cancel only to whoever may make them,
  * rather than offering them to everybody and refusing afterwards. A control
@@ -507,20 +592,49 @@ function StageControl({
   const i = (FULFILLMENT_STAGES as readonly string[]).indexOf(status);
   const next = i >= 0 && i < FULFILLMENT_STAGES.length - 1 ? FULFILLMENT_STAGES[i + 1] : null;
 
+  /*
+    On the phone-call stages the buttons are the two answers to "did you get
+    hold of them?". `no_answer` gets only the good one, because the ticket is
+    already sitting at no answer and a second button putting it back where it
+    is would do nothing but look pressable.
+  */
+  const onThePhone = status === "arrived" || status === "no_answer";
+  const primary: { to: FulfillmentStatus; label: string } | null = onThePhone
+    ? { to: "waiting_pickup", label: tr("They answered") }
+    : next
+      ? { to: next, label: FULFILLMENT_LABELS[next] }
+      : null;
+  const secondary: { to: FulfillmentStatus; label: string } | null =
+    status === "arrived" ? { to: "no_answer", label: tr("No answer") } : null;
+
+  const shown = [primary?.to, secondary?.to];
   const others = (FULFILLMENT_STAGES as readonly FulfillmentStatus[])
-    .filter((s) => s !== status && s !== next)
+    .filter((s) => s !== status && !shown.includes(s))
     .filter((s) => canReverse || (FULFILLMENT_STAGES as readonly string[]).indexOf(s) > i);
 
   return (
-    <div className="flex items-center gap-2">
-      {next && (
+    <div className="flex items-center gap-2 flex-wrap">
+      {primary && (
         <button
           type="button"
           className="btn btn-primary whitespace-nowrap"
           disabled={busy}
-          onClick={() => onMove(next)}
+          onClick={() => onMove(primary.to)}
         >
-          {FULFILLMENT_LABELS[next]}
+          {primary.label}
+        </button>
+      )}
+      {/* Quieter than the primary on purpose: both are real answers, but only
+          one of them is the one the shop is hoping for, and a failed call
+          should not be the easiest thing on the card to hit. */}
+      {secondary && (
+        <button
+          type="button"
+          className="btn btn-outline whitespace-nowrap"
+          disabled={busy}
+          onClick={() => onMove(secondary.to)}
+        >
+          {secondary.label}
         </button>
       )}
       <select
