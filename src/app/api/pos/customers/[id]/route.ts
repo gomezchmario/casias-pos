@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { jsonError, requirePos } from "@/lib/api-helpers";
 import { fleetMembers } from "@/lib/fleets";
 import {
+  updateCompanyDetails,
   customerTickets,
   deleteCustomer,
   getCustomer,
@@ -40,6 +41,11 @@ export async function GET(
       creditApproved: customer.credit_approved === 1,
       fleetId: customer.fleet_id,
       isFleet: customer.is_fleet === 1,
+      address: customer.address,
+      email: customer.email,
+      billingName: customer.billing_name,
+      billingPhone: customer.billing_phone,
+      billingEmail: customer.billing_email,
       since: customer.created_at,
     },
     /*
@@ -93,6 +99,11 @@ export async function PATCH(
     notes?: string | null;
     pinnedNote?: string | null;
     creditApproved?: boolean;
+    address?: string | null;
+    email?: string | null;
+    billingName?: string | null;
+    billingPhone?: string | null;
+    billingEmail?: string | null;
   };
   try {
     body = await req.json();
@@ -115,6 +126,25 @@ export async function PATCH(
       name: body.name,
       phone: body.phone,
       notes: body.notes,
+    });
+    if (!res.ok) return jsonError(res.error);
+  }
+
+  // The company block. Its own permission — see `updateCompanyDetails` — so
+  // a manager correcting a phone number cannot rewrite where an invoice goes.
+  if (
+    body.address !== undefined ||
+    body.email !== undefined ||
+    body.billingName !== undefined ||
+    body.billingPhone !== undefined ||
+    body.billingEmail !== undefined
+  ) {
+    const res = updateCompanyDetails(auth.user, id, {
+      address: body.address,
+      email: body.email,
+      billingName: body.billingName,
+      billingPhone: body.billingPhone,
+      billingEmail: body.billingEmail,
     });
     if (!res.ok) return jsonError(res.error);
   }

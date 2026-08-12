@@ -60,7 +60,19 @@ export type FleetCharge = {
 };
 
 export type FleetReport = {
-  fleet: { id: number; customerNo: string; name: string; phone: string | null; creditApproved: number };
+  fleet: {
+    id: number;
+    customerNo: string;
+    name: string;
+    phone: string | null;
+    creditApproved: number;
+    /** Where the statement goes and who settles it — see `034_company_details.sql`. */
+    address: string | null;
+    email: string | null;
+    billingName: string | null;
+    billingPhone: string | null;
+    billingEmail: string | null;
+  };
   from: string;
   to: string;
   members: FleetMember[];
@@ -257,7 +269,11 @@ export function fleetReport(fleetId: number, from: string, to: string): FleetRep
   const fleet = db
     .prepare(
       `SELECT id, customer_no AS customerNo, name, phone,
-              credit_approved AS creditApproved
+              credit_approved AS creditApproved,
+              address, email,
+              billing_name  AS billingName,
+              billing_phone AS billingPhone,
+              billing_email AS billingEmail
          FROM customers WHERE id = ? AND deleted = 0`,
     )
     .get(fleetId) as FleetReport["fleet"] | undefined;

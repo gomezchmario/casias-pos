@@ -49,6 +49,12 @@ export type Customer = {
   fleet_id: number | null;
   /** This customer IS a company others can be billed under. */
   is_fleet: number;
+  /** Company billing details — see `034_company_details.sql`. Empty for everyone else. */
+  address: string | null;
+  email: string | null;
+  billing_name: string | null;
+  billing_phone: string | null;
+  billing_email: string | null;
   created_at: string;
   updated_at: string;
   deleted: number;
@@ -536,6 +542,81 @@ export function createCustomer(
       },
     });
     return { ok: true as const, customer: getCustomer(id)! };
+  });
+}
+
+/**
+ * The billing details a company account needs: where the statement goes and
+ * who settles it.
+ *
+ * Its own function rather than more arguments on `updateCustomer`, because it
+ * answers a different question and is written by a different screen. That one
+ * corrects who somebody IS — a misheard name, a wrong number — and is used at
+ * the counter; this records how an invoice reaches a business, and belongs to
+ * whoever keeps the accounts.
+ *
+ * Every field is optional and every one is overwritten when supplied, including
+ * with a blank: this is a form somebody opened deliberately, so clearing a box
+ * means "we do not have this any more" rather than "I did not type it". That is
+ * the opposite of `attachToSale` and the same as `updateCustomer` — the rule
+ * follows the screen, not the table.
+ */
+export function updateCompanyDetails(
+  user: PosUser,
+  id: number,
+  args: {
+    address?: string | null;
+    email?: string | null;
+    billingName?: string | null;
+    billingPhone?: string | null;
+    billingEmail?: string | null;
+  },
+): Result<{ customer: Customer }> {
+  if (!can(user.role, "manageCreditAccounts"))
+    return { ok: false, error: "Only the owner or the accountant can change billing details" };
+
+  const before = getCustomer(id);
+  if (!before) return { ok: false, error: "Customer not found" };
+
+  const next = {
+    address: args.address !== undefined ? clean(args.address) : before.address,
+    email: args.email !== undefined ? clean(args.email) : before.email,
+    billing_name: args.billingName !== undefined ? clean(args.billingName) : before.billing_name,
+    billing_phone:
+      args.billingPhone !== undefined ? clean(args.billingPhone) : before.billing_phone,
+    billing_email:
+      args.billingEmail !== undefined ? clean(args.billingEmail) : before.billing_email,
+  };
+
+  return inTx(() => {
+    getDb()
+      .prepare(
+        `UPDATE customers
+            SET address = ?, email = ?, billing_name = ?, billing_phone = ?,
+                billing_email = ?, updated_at = ?
+          WHERE id = ?`,
+      )
+      .run(
+        next.address,
+        next.email,
+        next.billing_name,
+        next.billing_phone,
+        next.billing_email,
+        nowLocalIso(),
+        id,
+      );
+
+    const after = getCustomer(id)!;
+    const diff = diffRows(before, after);
+    logActorAudit(actorOf(user), {
+      action: "customer.update",
+      targetType: "customer",
+      targetId: id,
+      details: { customer_no: before.customer_no, name: before.name, billing: true },
+      before: diff?.before ?? null,
+      after: diff?.after ?? null,
+    });
+    return { ok: true as const, customer: after };
   });
 }
 

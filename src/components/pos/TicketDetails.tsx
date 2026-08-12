@@ -210,18 +210,23 @@ export function TicketDetails({
     are still untouched.
   */
   useEffect(() => {
-    if (!customerId || fields.name.trim() || known?.customer) return;
+    if (!customerId) return;
     let live = true;
     void (async () => {
       const res = await fetch(`/api/pos/customers/${customerId}`);
       if (!live || !res.ok) return;
       const d = await res.json();
+      // Only fills EMPTY boxes. A blank means "I did not type this", never
+      // "delete what you had" — the rule the whole capture path runs on.
       setFields((f) =>
         f.name.trim()
           ? f
           : { ...f, name: d.customer.name, phone: d.customer.phone ?? f.phone },
       );
       setCreditApproved(d.customer.creditApproved === true);
+      // Unconditional, unlike the prefill above. Who somebody is billed to is
+      // a fact about them; whether the cashier has typed their name into this
+      // box yet has nothing to do with it.
       setBilling({
         name: d.customer.name,
         fleetId: d.customer.fleetId ?? null,
@@ -232,10 +237,9 @@ export function TicketDetails({
     return () => {
       live = false;
     };
-    // Deliberately not depending on `fields.name`: this runs for the ticket,
-    // not for every keystroke, and the guard inside handles the rest.
+    // Runs for the TICKET, not for every keystroke — hence no `fields` here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customerId, known?.customer]);
+  }, [customerId]);
 
   /** The companies, for the picker. Only fetched when the account needs it. */
   useEffect(() => {
@@ -553,7 +557,7 @@ export function TicketDetails({
             about this customer lives — and only on the house account, which
             is the one tender where the question exists. A company on this
             ticket is not billed to anybody: it IS the account. */}
-        {requireCustomer && customerId && billing && !billing.isFleet && (
+        {requireCustomer && !billing?.isFleet && (
           <div
             className="mt-1 rounded-lg px-3 py-2"
             style={{ background: "rgba(31,122,140,0.08)" }}
@@ -562,12 +566,17 @@ export function TicketDetails({
               Billed to
             </div>
             <div className="flex items-center gap-2 flex-wrap text-sm">
-              <span className="text-brand-400">{billing.name} →</span>
+              <span className="text-brand-400">
+                {billing?.name ?? fields.name.trim() ?? ""} →
+              </span>
               <select
                 className="input"
                 style={{ height: 30, fontSize: 13, maxWidth: 200 }}
-                value={billing.fleetId ?? ""}
-                disabled={fleetBusy}
+                value={billing?.fleetId ?? ""}
+                // Nothing to bill to until the ticket points at a saved
+                // person. The panel saves as you type, so this is a moment,
+                // not a dead end — and the note underneath says so.
+                disabled={fleetBusy || !customerId}
                 onChange={async (e) => {
                   const fleetId = e.target.value ? Number(e.target.value) : null;
                   setFleetBusy(true);
@@ -602,11 +611,18 @@ export function TicketDetails({
                 ))}
               </select>
             </div>
-            {billing.fleetId !== null && (
+            {!customerId ? (
               <div className="text-xs mt-1" style={{ color: "#146070" }}>
-                This charge goes on {billing.fleetName ?? "the company"}&rsquo;s account,
-                with the driver&rsquo;s name on it.
+                Fill in the name and phone above first — then pick the company
+                this driver is billed to.
               </div>
+            ) : (
+              billing?.fleetId != null && (
+                <div className="text-xs mt-1" style={{ color: "#146070" }}>
+                  This charge goes on {billing.fleetName ?? "the company"}&rsquo;s
+                  account, with the driver&rsquo;s name on it.
+                </div>
+              )
             )}
           </div>
         )}

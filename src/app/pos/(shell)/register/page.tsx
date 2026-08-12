@@ -1546,7 +1546,7 @@ export default function RegisterPage() {
               screen belong to somebody else's job and adding to them by mistake
               is the one error this whole behaviour could cause. */}
           {resumed && sale && (
-            <div className="mb-3 rounded-xl px-3 py-2 text-xs" style={{ background: "#fff7ed", color: "#92400e" }}>{tr("Carrying on")}<strong>{resumed}</strong>, left unfinished on this
+            <div className="mb-3 rounded-xl px-3 py-2 text-xs" style={{ background: "#fff7ed", color: "#92400e" }}>{tr("Carrying on")}{" "}<strong>{resumed}</strong>, left unfinished on this
               register. Check the lines below are the ones you meant before
               adding to it.
             </div>

@@ -106,6 +106,41 @@ export default function FleetPage({ params }: { params: Promise<{ id: string }> 
         </div>
       </div>
 
+      {/* Where this goes and who settles it. On the sheet itself, because a
+          statement that has to be looked up in the system before it can be
+          posted is a statement that waits on a desk. */}
+      {(data.fleet.address || data.fleet.billingName || data.fleet.email) && (
+        <div className="bg-white rounded-2xl shadow-sm p-4 mb-4 flt-block flt-billto">
+          <div className="text-xs uppercase tracking-wider text-brand-300 mb-1">
+            {tr("Bill to")}
+          </div>
+          <div className="text-sm">
+            <div style={{ fontWeight: 600 }}>{data.fleet.name}</div>
+            {data.fleet.address && (
+              <div style={{ whiteSpace: "pre-line" }} className="text-brand-400">
+                {data.fleet.address}
+              </div>
+            )}
+            {(data.fleet.phone || data.fleet.email) && (
+              <div className="text-brand-400">
+                {[data.fleet.phone, data.fleet.email].filter(Boolean).join(" · ")}
+              </div>
+            )}
+            {data.fleet.billingName && (
+              <div className="mt-1">
+                {tr("Attn")}: {data.fleet.billingName}
+                {(data.fleet.billingPhone || data.fleet.billingEmail) && (
+                  <span className="text-brand-400">
+                    {" "}
+                    · {[data.fleet.billingPhone, data.fleet.billingEmail].filter(Boolean).join(" · ")}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* The four columns that reconcile, first — everything under them is the
           evidence for the last one. */}
       <div className="bg-white rounded-2xl shadow-sm p-4 mb-4 flt-block">

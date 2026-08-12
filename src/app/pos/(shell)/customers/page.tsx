@@ -67,6 +67,11 @@ type Detail = {
     creditApproved: boolean;
     fleetId: number | null;
     isFleet: boolean;
+    address: string | null;
+    email: string | null;
+    billingName: string | null;
+    billingPhone: string | null;
+    billingEmail: string | null;
     since: string;
   };
   fleet: { id: number; name: string; customerNo: string } | null;
@@ -131,6 +136,23 @@ export default function CustomersPage() {
   const [fleets, setFleets] = useState<
     { id: number; customerNo: string; name: string; creditApproved: number; members: number }[]
   >([]);
+  /**
+   * The company block's draft.
+   *
+   * Held as a draft and saved on a button rather than on every keystroke,
+   * unlike the rest of this panel. An address is typed in pieces — three lines
+   * and a zip — and a field that saved itself halfway through would write a
+   * half-address, then again, then again, filling the audit log with versions
+   * of a sentence nobody finished.
+   */
+  const [company, setCompany] = useState({
+    address: "",
+    email: "",
+    billingName: "",
+    billingPhone: "",
+    billingEmail: "",
+  });
+  const [companyDirty, setCompanyDirty] = useState(false);
   const [note, setNote] = useState("");
   const [editCar, setEditCar] = useState<Vehicle | null>(null);
   const [removingCar, setRemovingCar] = useState<Vehicle | null>(null);
@@ -173,6 +195,14 @@ export default function CustomersPage() {
       notes: d.customer.notes ?? "",
     });
     setNote(d.customer.pinnedNote ?? "");
+    setCompany({
+      address: d.customer.address ?? "",
+      email: d.customer.email ?? "",
+      billingName: d.customer.billingName ?? "",
+      billingPhone: d.customer.billingPhone ?? "",
+      billingEmail: d.customer.billingEmail ?? "",
+    });
+    setCompanyDirty(false);
   }, [picked, credit]);
 
   useEffect(() => {
@@ -698,6 +728,120 @@ export default function CustomersPage() {
                 setDraft={setNote}
                 onSave={(text) => patchCustomer({ pinnedNote: text || null })}
               />
+
+              {/* ── The company's billing details ───────────────────────
+                  Only on a company, and only for whoever keeps the accounts.
+                  A tab that gets invoiced needs somewhere to send the invoice
+                  and somebody to send it to — and the person who pays is
+                  rarely the person who hands over the keys, which is why the
+                  contact is separate from the drivers below. */}
+              {detail.customer.isFleet && can("manageCreditAccounts") && (
+                <div className="mt-4">
+                  <div className="text-xs uppercase tracking-wider text-brand-300 mb-1">
+                    {tr("Billing details")}
+                  </div>
+                  <p className="text-sm text-brand-400 mb-2">
+                    {tr("Where the statement goes, and who settles it. Printed on the company's statement.")}
+                  </p>
+                  <div className="grid gap-2">
+                    <textarea
+                      className="input w-full"
+                      rows={2}
+                      placeholder={tr("Street address")}
+                      value={company.address}
+                      onChange={(e) => {
+                        setCompany((c) => ({ ...c, address: e.target.value }));
+                        setCompanyDirty(true);
+                      }}
+                    />
+                    <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                      {/* The company's own number is the customer's phone —
+                          the one at the top of this panel. Not repeated here,
+                          because two boxes for one number is two answers the
+                          first time somebody changes only one of them. */}
+                      <input
+                        className="input"
+                        placeholder={tr("Company email")}
+                        inputMode="email"
+                        value={company.email}
+                        onChange={(e) => {
+                          setCompany((c) => ({ ...c, email: e.target.value }));
+                          setCompanyDirty(true);
+                        }}
+                      />
+                      <input
+                        className="input"
+                        placeholder={tr("Who to bill — name")}
+                        value={company.billingName}
+                        onChange={(e) => {
+                          setCompany((c) => ({ ...c, billingName: e.target.value }));
+                          setCompanyDirty(true);
+                        }}
+                      />
+                    </div>
+                    <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                      <input
+                        className="input"
+                        placeholder={tr("Their phone")}
+                        inputMode="tel"
+                        value={company.billingPhone}
+                        onChange={(e) => {
+                          setCompany((c) => ({ ...c, billingPhone: e.target.value }));
+                          setCompanyDirty(true);
+                        }}
+                      />
+                      <input
+                        className="input"
+                        placeholder={tr("Their email")}
+                        inputMode="email"
+                        value={company.billingEmail}
+                        onChange={(e) => {
+                          setCompany((c) => ({ ...c, billingEmail: e.target.value }));
+                          setCompanyDirty(true);
+                        }}
+                      />
+                    </div>
+                    {companyDirty && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          style={{ height: 32, fontSize: 13 }}
+                          disabled={busy}
+                          onClick={async () => {
+                            const ok = await patchCustomer({
+                              address: company.address.trim() || null,
+                              email: company.email.trim() || null,
+                              billingName: company.billingName.trim() || null,
+                              billingPhone: company.billingPhone.trim() || null,
+                              billingEmail: company.billingEmail.trim() || null,
+                            });
+                            if (ok) setCompanyDirty(false);
+                          }}
+                        >
+                          {tr("Save billing details")}
+                        </button>
+                        <button
+                          type="button"
+                          className="text-sm text-brand-400 underline"
+                          onClick={() => {
+                            setCompany({
+                              address: detail.customer.address ?? "",
+                              email: detail.customer.email ?? "",
+                              billingName: detail.customer.billingName ?? "",
+                              billingPhone: detail.customer.billingPhone ?? "",
+                              billingEmail: detail.customer.billingEmail ?? "",
+                            });
+                            setCompanyDirty(false);
+                          }}
+                        >
+                          {tr("Cancel")}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* ── Drivers on this company's account ───────────────────
                   Only on a fleet, and it answers the question the panel is
