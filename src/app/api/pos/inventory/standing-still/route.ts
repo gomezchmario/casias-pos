@@ -26,13 +26,18 @@ export async function GET(req: NextRequest) {
     with a supplier than a slow one. A fixed window would keep answering only
     the first of the three.
 
-    Zero means everything: deadStock takes days-since-sale, so a window of 0
-    catches every size whose last sale is any distance in the past, including
-    the ones that have never had one.
+    Zero is the fourth question and a different SHAPE of question: not "how
+    long since this sold" but "this has never sold at all". Those are the rows
+    with no last sale to measure from, and they are the hardest cases on the
+    rack — a size that has never moved a single unit is a buying mistake rather
+    than a slow season, and it is the list to take to a supplier.
   */
   const asked = Number(req.nextUrl.searchParams.get("days"));
   const days = [45, 90, 120, 0].includes(asked) ? asked : 45;
-  const rows = deadStock(today, days);
+  const rows =
+    days === 0
+      ? deadStock(today, 0).filter((r) => r.daysSinceSale === null)
+      : deadStock(today, days);
   const showCosts = can(auth.user.role, "viewCosts");
 
   return NextResponse.json({

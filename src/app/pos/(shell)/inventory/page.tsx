@@ -529,7 +529,14 @@ export default function InventoryPage() {
                 <Stat
                   label={tr("At the reorder point")}
                   value={String(insights.counts.reorderSizes)}
-                  sub={tr("sizes to order")}
+                  sub={
+                    <>
+                      {tr("sizes to order")} ·{" "}
+                      <Link href="/pos/to-order" className="underline">
+                        {tr("what to order")} →
+                      </Link>
+                    </>
+                  }
                   tone={insights.counts.reorderSizes > 0 ? "warn" : undefined}
                 />
                 <Stat

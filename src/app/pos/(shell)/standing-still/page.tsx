@@ -68,7 +68,7 @@ export default function StandingStillPage() {
           </h1>
           <p className="text-brand-400 text-sm">
             {data && data.days === 0
-              ? tr("Every size on the racks, whatever its last sale — longest-sitting first.")
+              ? tr("Sizes on the racks that have never sold a single unit — the hardest cases first.")
               : tr("Every size on the racks with no sale in the window — oldest sleeper first.")}
           </p>
         </div>
@@ -81,7 +81,7 @@ export default function StandingStillPage() {
             { d: 45, label: tr("45 days") },
             { d: 90, label: tr("90 days") },
             { d: 120, label: tr("120 days") },
-            { d: 0, label: tr("All time") },
+            { d: 0, label: tr("Never sold") },
           ].map((w) => (
             <button
               key={w.d}
@@ -119,7 +119,7 @@ export default function StandingStillPage() {
             {data ? `${tr("as of")} ${data.asOf}` : ""} ·{" "}
             {data
               ? data.days === 0
-                ? tr("every age")
+                ? tr("never sold")
                 : `${tr("no sale in")} ${data.days} ${tr("days")}`
               : ""}{" "}
             · {tr("printed")} {printedOn} ·{" "}
@@ -145,7 +145,7 @@ export default function StandingStillPage() {
               )}
             </strong>{" "}
             {data.days === 0 ? (
-              tr("on the racks, at every age.")
+              tr("that have never sold a unit.")
             ) : (
               <>
                 {tr("with no sale in")} {data.days} {tr("days")}.
