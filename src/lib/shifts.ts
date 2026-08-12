@@ -4,6 +4,7 @@ import { nowLocalIso } from "./time";
 import { currentBusinessDate } from "./business-date";
 import { nextShiftNo } from "./counters";
 import { getSetting } from "./settings";
+import { can } from "./roles";
 import { logActorAudit, type Actor } from "./audit";
 import type { PosUser } from "./pos-session";
 
@@ -18,6 +19,10 @@ export type Shift = {
   closed_by: number | null;
   closing_note: string | null;
   is_open: number;
+  /** When somebody actually counted the opening drawer — see `035_float_counted.sql`.
+   *  NULL means the float above is the standing figure, unverified today. */
+  float_counted_at: string | null;
+  float_counted_by: number | null;
   created_at: string;
   updated_at: string;
   /** Joined for display; not a column. */
@@ -318,6 +323,78 @@ export function expectedByMethodForDay(businessDate: string): MethodExpectation[
     floats.f,
     drawerAdjustFor("business_date = ?", businessDate),
   );
+}
+
+/**
+ * The morning count: what is actually in the drawer before the first ticket.
+ *
+ * THE FIRST TERM OF EVERY EXPECTATION THE DAY PRODUCES. Expected cash is float
+ * plus takings plus movements, so a float nobody verified puts its error into
+ * every count that follows — and the search for a shortfall at nine at night
+ * covers the whole day instead of the two minutes before opening.
+ *
+ * It adjusts the figure the shift already carries; it does NOT write a drawer
+ * movement. Recording the morning cash as a cash-in counts the same hundred
+ * dollars twice, once as the float and once as the movement, and reads a
+ * hundred short from then on. That happened here, cost hours, and is refused
+ * outright in `recordDrawerMovement` — this is the correct door for the same
+ * act.
+ *
+ * RE-COUNTING IS FREE UNTIL THE FIRST TICKET, then it takes a manager. Before
+ * any sale the figure is nobody's evidence and a typo should cost two seconds
+ * to fix; afterwards it is the base of an expectation that counts may already
+ * have been checked against, and moving it retroactively is a supervisor's
+ * call. Every version is audited either way.
+ */
+export function countOpeningFloat(
+  user: PosUser,
+  countedCents: number,
+): Result<{ shift: Shift }> {
+  if (!can(user.role, "closeShift"))
+    return { ok: false, error: "Your account doesn't count the drawer" };
+  if (!Number.isInteger(countedCents) || countedCents < 0)
+    return { ok: false, error: "That is not an amount" };
+
+  return inTx(() => {
+    const db = getDb();
+    const now = nowLocalIso();
+    const shift = ensureShift(user);
+
+    if (shift.float_counted_at) {
+      const rung = db
+        .prepare(
+          `SELECT COUNT(*) n FROM payments p WHERE p.shift_id = ?`,
+        )
+        .get(shift.id) as { n: number };
+      if (rung.n > 0 && !can(user.role, "drawerCash"))
+        return {
+          ok: false as const,
+          error:
+            "The opening count has already been recorded and the day has started — a manager has to change it now.",
+        };
+    }
+
+    db.prepare(
+      `UPDATE shifts
+          SET opening_float_cents = ?, float_counted_at = ?, float_counted_by = ?,
+              updated_at = ?
+        WHERE id = ?`,
+    ).run(countedCents, now, user.employeeId, now, shift.id);
+
+    logActorAudit(actorOf(user), {
+      action: "shift.open",
+      targetType: "shift",
+      targetId: shift.id,
+      details: { shift_no: shift.shift_no, counted: true },
+      before: {
+        opening_float_cents: shift.opening_float_cents,
+        float_counted_at: shift.float_counted_at,
+      },
+      after: { opening_float_cents: countedCents, float_counted_at: now },
+    });
+
+    return { ok: true as const, shift: getShift(shift.id)! };
+  });
 }
 
 export type MethodVariance = MethodExpectation & {

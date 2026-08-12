@@ -64,6 +64,7 @@ export default function CloseoutV3Page() {
   const [counts, setCounts] = useState<{ cash: string; cc: string }>({ cash: "", cc: "" });
   /** Codes whose count has been logged this sequence — the per-tender covers. */
   const [logged, setLogged] = useState<ReadonlySet<string>>(new Set());
+  const [floatCount, setFloatCount] = useState("");
   const [drawerKind, setDrawerKind] = useState<"withdrawal" | "deposit">("withdrawal");
   const [drawerAmount, setDrawerAmount] = useState("");
   const [drawerReason, setDrawerReason] = useState("");
@@ -109,6 +110,33 @@ export default function CloseoutV3Page() {
   const cashLine = finalCheck?.lines.find((l) => l.isCard === 0) ?? null;
   const shortByExactlyTips =
     !!cashLine && data.totals.tipCents > 0 && cashLine.varianceCents === -data.totals.tipCents;
+
+  async function saveFloat() {
+    if (busy) return;
+    const cents = parseCents(floatCount);
+    if (cents === null || cents < 0) {
+      setError("Type what you counted in the drawer");
+      return;
+    }
+    setBusy(true);
+    const res = await fetch("/api/pos/shifts/float", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ countedCents: cents }),
+    });
+    const d = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) {
+      setError(d.error || "Could not record the opening count");
+      return;
+    }
+    setError(null);
+    setFloatCount("");
+    // The float is the first term of every expectation the day produces, so
+    // changing it re-covers any count taken against the old one.
+    setLogged(new Set());
+    await load();
+  }
 
   async function saveMovement(acknowledgeOverdraw = false) {
     if (busy) return;
@@ -221,14 +249,69 @@ export default function CloseoutV3Page() {
             Close the day · {weekday} {data.businessDate}
           </h1>
           <p className="text-brand-400 text-sm">
-            Three steps, top to bottom. The printout is refused until the register is logged.
+            Step 1 in the morning, the rest at close. The printout is refused until the
+            register is logged.
           </p>
         </div>
 
-        {/* ── Step 1 · Count ─────────────────────────────────────────────── */}
+        {/* ── Step 1 · The morning count ─────────────────────────────────
+            First thing in the morning, before a single ticket. The float is
+            the first term of every expectation the day produces — expected =
+            float + takings + movements — so a drawer that actually opened
+            with $80 reads $20 short at nine at night, and the search covers
+            the whole day instead of the two minutes before opening.
+
+            Counting here does NOT create a cash-in movement. The shift
+            already carries the float; recording it as money arriving counts
+            the same hundred twice, which is a real morning this shop lost
+            hours to. See countOpeningFloat. */}
         <div className="cv3-step">
           <div className="cv3-step-head">
             <span className="cv3-step-no">1</span>
+            <span className="cv3-step-title">Count the opening drawer</span>
+          </div>
+          {data.drawer.floatCountedAt ? (
+            <div className="cv3-float-done">
+              ✓ {formatCents(data.drawer.floatCents)} counted at{" "}
+              {data.drawer.floatCountedAt.slice(11, 16)}
+              {data.drawer.floatCountedByName && ` by ${data.drawer.floatCountedByName}`}.
+            </div>
+          ) : (
+            <p className="text-sm text-brand-400 mb-2">
+              Nobody has counted the drawer today, so the day is running on the
+              standing float of {formatCents(data.drawer.floatCents)} — a figure, not a
+              fact. Count what is actually in there and type it in.
+            </p>
+          )}
+          <div className="flex items-end gap-2 flex-wrap">
+            <label className="text-xs text-brand-400">
+              Counted in the drawer
+              <input
+                className="input mt-1 w-32 text-right tabular-nums"
+                inputMode="decimal"
+                placeholder="100.00"
+                value={floatCount}
+                onChange={(e) => setFloatCount(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void saveFloat();
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              className={data.drawer.floatCountedAt ? "btn btn-outline" : "btn btn-primary"}
+              disabled={busy || !floatCount.trim()}
+              onClick={() => void saveFloat()}
+            >
+              {data.drawer.floatCountedAt ? "Correct it" : "Record the opening count"}
+            </button>
+          </div>
+        </div>
+
+        {/* ── Step 2 · Count the day ─────────────────────────────────────── */}
+        <div className="cv3-step">
+          <div className="cv3-step-head">
+            <span className="cv3-step-no">2</span>
             <span className="cv3-step-title">Count the drawer and the terminal</span>
           </div>
           <p className="text-sm text-brand-400 mb-2">
@@ -420,10 +503,10 @@ export default function CloseoutV3Page() {
           </div>
         </div>
 
-        {/* ── Step 2 · The verdict ───────────────────────────────────────── */}
+        {/* ── Step 3 · The verdict ───────────────────────────────────────── */}
         <div className={`cv3-step ${registerLogged ? "" : "cv3-step-waiting"}`}>
           <div className="cv3-step-head">
-            <span className="cv3-step-no">2</span>
+            <span className="cv3-step-no">3</span>
             <span className="cv3-step-title">Read the verdict</span>
           </div>
           {!registerLogged ? (
@@ -480,10 +563,10 @@ export default function CloseoutV3Page() {
           )}
         </div>
 
-        {/* ── Step 3 · Print and sign ────────────────────────────────────── */}
+        {/* ── Step 4 · Print and sign ────────────────────────────────────── */}
         <div className={`cv3-step ${registerLogged ? "" : "cv3-step-waiting"}`}>
           <div className="cv3-step-head">
-            <span className="cv3-step-no">3</span>
+            <span className="cv3-step-no">4</span>
             <span className="cv3-step-title">Print and sign</span>
           </div>
           <p className="text-sm text-brand-400 mb-2">
@@ -559,7 +642,14 @@ export default function CloseoutV3Page() {
           <table className="rp-table">
             <tbody>
               <tr>
-                <td>Opening float</td>
+                <td>
+                  Opening float
+                  <span style={{ fontSize: "9pt", color: "rgb(10 37 64 / 0.6)" }}>
+                    {data.drawer.floatCountedAt
+                      ? ` · counted ${data.drawer.floatCountedAt.slice(11, 16)}${data.drawer.floatCountedByName ? ` by ${data.drawer.floatCountedByName}` : ""}`
+                      : " · NOT COUNTED — standing figure"}
+                  </span>
+                </td>
                 <td className="r n">{formatCents(data.drawer.floatCents)}</td>
               </tr>
               <tr>

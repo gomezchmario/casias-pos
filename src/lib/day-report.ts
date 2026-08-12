@@ -109,6 +109,10 @@ export type CloseoutV2 = {
   tenders: MethodExpectation[];
   drawer: {
     floatCents: number;
+    /** When the opening drawer was counted, and by whom. Null = never counted
+     *  today, so the float above is the standing figure and nothing more. */
+    floatCountedAt: string | null;
+    floatCountedByName: string | null;
     cashSalesCents: number;
     movementsCents: number;
     expectedCents: number;
@@ -196,11 +200,22 @@ export function closeoutV2(businessDate: string): CloseoutV2 {
   const currentBp = Number(getSetting("tax_rate_bp"));
 
   // ── The drawer, decomposed the same way the sheet that explains it is ─────
-  const floatCents = listShifts(businessDate).reduce((n, s) => n + s.opening_float_cents, 0);
+  const shiftsToday = listShifts(businessDate);
+  const floatCents = shiftsToday.reduce((n, s) => n + s.opening_float_cents, 0);
+  // The FIRST shift's count is the morning one; a second shift opening later in
+  // the day is a handover, not the opening of the drawer.
+  const firstShift = shiftsToday[0] ?? null;
+  const floatCounter = firstShift?.float_counted_by
+    ? (db
+        .prepare("SELECT name FROM employees WHERE id = ?")
+        .get(firstShift.float_counted_by) as { name: string } | undefined)
+    : undefined;
   const cash = tenders.find((t) => t.kind === "cash");
   const movements = drawerMovementsForDay(businessDate, { includeHidden: false });
   const drawer = {
     floatCents,
+    floatCountedAt: firstShift?.float_counted_at ?? null,
+    floatCountedByName: floatCounter?.name ?? null,
     cashSalesCents: cash?.takingsCents ?? 0,
     movementsCents: cash?.drawerAdjustCents ?? 0,
     expectedCents: cash?.expectedCents ?? 0,
@@ -630,6 +645,14 @@ function buildChecklist(r: CloseoutV2): ChecklistItem[] {
   const cardLogged = liveChecks.some((c) => c.lines.some((l) => l.isCard === 1));
 
   return [
+    {
+      label: "Opening drawer counted",
+      done: r.drawer.floatCountedAt !== null,
+      detail:
+        r.drawer.floatCountedAt === null
+          ? `Nobody counted it — the ${(r.drawer.floatCents / 100).toFixed(2)} float is the standing figure, not a fact.`
+          : `${(r.drawer.floatCents / 100).toFixed(2)} counted at ${r.drawer.floatCountedAt.slice(11, 16)}${r.drawer.floatCountedByName ? ` by ${r.drawer.floatCountedByName}` : ""}.`,
+    },
     {
       label: "Every ticket closed or accounted for",
       done: r.tickets.open === 0,
