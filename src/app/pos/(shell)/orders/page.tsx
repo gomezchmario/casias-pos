@@ -4,7 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { TicketDrawer } from "@/components/pos/TicketDrawer";
 import { usePosAuth } from "@/components/pos/PosShell";
 import { formatCents } from "@/lib/money";
-import { FULFILLMENT_LABELS, FULFILLMENT_STAGES, OURS } from "@/lib/fulfillment";
+import {
+  FULFILLMENT_LABELS,
+  FULFILLMENT_STAGES,
+  ORDER_PILLS,
+  OURS,
+} from "@/lib/fulfillment";
 import type { OrderMove, SpecialOrder } from "@/lib/special-orders";
 import type { FulfillmentStatus } from "@/lib/sales";
 import type { PaymentMethod } from "@/lib/payments";
@@ -52,6 +57,19 @@ const TONE: Record<string, { bg: string; fg: string; border: string }> = {
   waiting: { bg: "#ffffff", fg: "rgba(10,37,64,0.55)", border: "rgba(0,0,0,0.06)" },
   done: { bg: "#ffffff", fg: "rgba(10,37,64,0.35)", border: "rgba(0,0,0,0.06)" },
 };
+
+/**
+ * A stage's colours, with a grey fallback.
+ *
+ * `ORDER_PILLS` is a Partial — 'none' has no entry, because an order is never
+ * at it — so the fallback exists to keep a card readable rather than to be
+ * used. A stage with no colour reads grey instead of rendering an unstyled
+ * word that looks like a bug.
+ */
+function pillOf(status: FulfillmentStatus) {
+  const c = ORDER_PILLS[status] ?? { bg: "#f1f5f9", fg: "#475569", border: "#cbd5e1" };
+  return { background: c.bg, color: c.fg, borderColor: c.border };
+}
 
 /** The two ends of the line: nothing more will happen to these on its own. */
 const CLOSED: FulfillmentStatus[] = ["delivered", "cancelled"];
@@ -447,17 +465,30 @@ export default function OrdersPage() {
                     >
                       {o.saleNo}
                     </button>
-                    <span
-                      className="text-xs uppercase tracking-wider font-semibold"
-                      style={{ color: tone.fg }}
-                    >
-                      {FULFILLMENT_LABELS[o.status]}
-                    </span>
                     {/* How long it has sat AT THIS STAGE, not since it was
                         rung. An order placed a month ago that arrived this
                         morning is not a month overdue, and a board that said so
                         would cry wolf until nobody looked at it. */}
                     <span className="text-xs text-brand-300">{waited(o.daysWaiting)}</span>
+                  </div>
+
+                  {/*
+                    The stage, said properly.
+
+                    It used to be small grey-orange capitals wedged between the
+                    ticket number and the days — the same size and weight as
+                    everything around it, on a board whose entire job is to
+                    answer "which of these needs doing now" from across the
+                    counter. It is the one thing on the card that decides
+                    whether anybody touches it, so it gets the size and the
+                    colour to match.
+
+                    The colours come from `ORDER_PILLS`, shared with the
+                    Outstanding panel on Main, so a stage does not mean orange
+                    on one screen and something else on the next.
+                  */}
+                  <div className="ord-stage" style={pillOf(o.status)}>
+                    {FULFILLMENT_LABELS[o.status]}
                   </div>
 
                   <div className="text-sm text-brand-500 mt-0.5">{o.what || "—"}</div>

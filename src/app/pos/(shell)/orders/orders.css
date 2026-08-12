@@ -60,3 +60,27 @@
     flex: 1 1 100%;
   }
 }
+
+/*
+  The stage, big and in its own colour.
+
+  This board's whole job is answering "which of these needs doing now" from
+  across the counter. The stage is what decides that, and it used to be small
+  capitals the same weight as the ticket number beside it — so the card told
+  you everything except the one thing you were looking for.
+
+  Its own line rather than inline with the ticket number: a coloured block
+  wedged mid-sentence pushes the days-waiting onto a second row on a narrow
+  screen and reads as a highlight on the number rather than as a state.
+*/
+.ord-stage {
+  display: inline-block;
+  margin-top: 0.35rem;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+}
