@@ -610,10 +610,19 @@ export default function CloseoutV2Page() {
           <Stat
             label={tr("Tires off the racks")}
             value={String(data.stock.unitsOut)}
-            tone={data.stock.unitsOut !== data.stock.unitsSoldOnTickets ? "bad" : "good"}
+            tone={
+              data.stock.unitsOut - data.stock.fulfilledForEarlierUnits !==
+              data.stock.unitsSoldOnTickets - data.stock.awaitingFulfillmentUnits
+                ? "bad"
+                : "good"
+            }
             sub={
-              data.stock.unitsOut === data.stock.unitsSoldOnTickets
-                ? tr("matches the tickets")
+              data.stock.unitsOut - data.stock.fulfilledForEarlierUnits ===
+              data.stock.unitsSoldOnTickets - data.stock.awaitingFulfillmentUnits
+                ? data.stock.fulfilledForEarlierUnits > 0 ||
+                  data.stock.awaitingFulfillmentUnits > 0
+                  ? tr("matches, counting the ordered tires")
+                  : tr("matches the tickets")
                 : tr("DOES NOT match the tickets")
             }
           />
@@ -628,6 +637,28 @@ export default function CloseoutV2Page() {
             tone={data.stock.unreviewedOversells > 0 ? "warn" : undefined}
           />
         </div>
+        {(data.stock.fulfilledForEarlierUnits > 0 ||
+          data.stock.awaitingFulfillmentUnits > 0) && (
+          <p className="rp-note">
+            {tr("Of the difference:")}{" "}
+            {data.stock.fulfilledForEarlierUnits > 0 && (
+              <>
+                {data.stock.fulfilledForEarlierUnits}{" "}
+                {tr("fitted today for tickets rung on earlier days")}
+              </>
+            )}
+            {data.stock.fulfilledForEarlierUnits > 0 &&
+              data.stock.awaitingFulfillmentUnits > 0 &&
+              " · "}
+            {data.stock.awaitingFulfillmentUnits > 0 && (
+              <>
+                {data.stock.awaitingFulfillmentUnits}{" "}
+                {tr("sold today as orders, not yet fitted")}
+              </>
+            )}
+            . {tr("That is the special-order cycle working, not stock walking.")}
+          </p>
+        )}
         {data.stock.adjustments > 0 && (
           <p className="rp-note">
             {data.stock.adjustments} {tr("manual stock adjustments today — each one is on the movements ledger with a name on it.")}

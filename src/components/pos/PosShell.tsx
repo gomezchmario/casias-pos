@@ -60,6 +60,10 @@ const NAV: {
   { href: "/pos/reports", label: "Reports", capability: "viewBusinessReports" },
   // The day read rather than worked — view-only, beside the close-out it reads.
   { href: "/pos/closeout", label: "Close-out V2", capability: "viewBusinessReports" },
+  // The next close-out, being shaped. manageSettings as a stand-in for "owner
+  // only while under construction" — when it opens to the floor it takes over
+  // from /pos/eod and this gate drops to closeShift.
+  { href: "/pos/closeout-v3", label: "Close-out V3", capability: "manageSettings" },
   { href: "/pos/eod", label: "Close-out", capability: "closeShift" },
   // Just the gear. The other tabs are places to do the day's work and are
   // named for the work; this one is setup, is opened rarely, and does not earn

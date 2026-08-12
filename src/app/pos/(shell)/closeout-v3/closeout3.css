@@ -1,0 +1,165 @@
+/* Close-out V3 — a three-step screen, and a printout whose first page is the
+   only page most people will ever read. */
+
+/* Screen shows the procedure; paper gets the document. The evidence block is
+   deliberately NOT on screen at all: the closing cashier's job is three steps,
+   and every extra table on screen is something to skim past the verdict. */
+.cv3-print {
+  display: none;
+}
+
+.cv3-step {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgb(10 37 64 / 0.05);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+/* Steps that are not yet the job fade back — one lit thing at a time. */
+.cv3-step-waiting {
+  opacity: 0.55;
+}
+
+.cv3-step-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.cv3-step-no {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #0a2540;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.cv3-step-title {
+  font-weight: 650;
+  font-size: 16px;
+  color: #0a2540;
+}
+
+/* The verdict: one line, unmissable, red or green and nothing in between. */
+.cv3-verdict {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  padding: 12px 16px;
+  border-radius: 10px;
+  margin: 6px 0 12px;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.cv3-verdict.is-good {
+  background: rgb(21 128 61 / 0.1);
+  color: #14532d;
+  border-left: 5px solid #15803d;
+}
+
+.cv3-verdict.is-bad {
+  background: rgb(185 28 28 / 0.08);
+  color: #7f1d1d;
+  border-left: 5px solid #b91c1c;
+}
+
+@media print {
+  /* The whole procedure leaves; the document arrives. */
+  .cv3-screen,
+  .pos-nav,
+  nav,
+  header {
+    display: none !important;
+  }
+
+  .cv3-print {
+    display: block;
+  }
+
+  @page {
+    size: letter;
+    margin: 14mm;
+  }
+
+  /* ── Page one: verdict, reconciliation, signatures — then the break. ── */
+  .cv3-page1 {
+    break-after: page;
+    display: flex;
+    flex-direction: column;
+    min-height: 240mm;
+  }
+
+  .cv3-letterhead {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 2.5pt solid #0a2540;
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+  }
+
+  .cv3-verdict {
+    font-size: 20pt;
+    margin: 4mm 0 6mm;
+  }
+
+  .cv3-recon {
+    font-size: 12pt;
+  }
+
+  .cv3-recon td,
+  .cv3-recon th {
+    padding-top: 3mm;
+    padding-bottom: 3mm;
+  }
+
+  .cv3-day {
+    margin-top: 6mm;
+  }
+
+  .cv3-manual-ticks {
+    margin-top: 8mm;
+    font-size: 12pt;
+    line-height: 2.1;
+  }
+
+  /* Signatures pinned to the bottom of page one, where a signature belongs —
+     under everything it certifies, with nothing after it on the page. */
+  .cv3-signatures {
+    margin-top: auto;
+    padding-top: 14mm;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20mm;
+    font-size: 10pt;
+    color: rgb(10 37 64 / 0.7);
+  }
+
+  .cv3-sigline {
+    border-bottom: 1.2pt solid #0a2540;
+    height: 14mm;
+    margin-bottom: 2mm;
+  }
+
+  .cv3-evidence h3.cv3-h3 {
+    font-size: 12pt;
+    font-weight: 650;
+    color: #0a2540;
+    margin: 6mm 0 2mm;
+    break-after: avoid;
+  }
+
+  .cv3-evidence table,
+  .cv3-evidence .rp-ranked {
+    break-inside: avoid;
+  }
+}

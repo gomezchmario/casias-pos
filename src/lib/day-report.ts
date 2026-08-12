@@ -140,11 +140,30 @@ export type CloseoutV2 = {
   stock: {
     /** Tire units that left the racks on sale movements today. */
     unitsOut: number;
-    /** New-tire units on today's completed sale LINES — should equal unitsOut. */
+    /** Tire units on today's completed sale LINES. */
     unitsSoldOnTickets: number;
+    /**
+     * The two legitimate reasons the counts differ, measured so the exception
+     * can subtract them before accusing anybody. An ordered tire is SOLD one
+     * day and FITTED another: on the fitting day it is a movement with no
+     * same-day line, and on the selling day it is a line with no same-day
+     * movement. Both are the special-order design working, not stock walking.
+     */
+    fulfilledForEarlierUnits: number;
+    awaitingFulfillmentUnits: number;
     received: StockReceived[];
     adjustments: number;
     unreviewedOversells: number;
+    /** The rows behind the count — which tire, which ticket, who rang it. A
+     *  warning that does not say WHERE is homework, not a warning. */
+    oversellRows: {
+      productName: string;
+      tireSize: string | null;
+      saleNo: string | null;
+      byName: string | null;
+      short: number;
+      onHand: number;
+    }[];
   };
   margin: {
     /** Ex-tax revenue on costed lines, minus their cost. */
@@ -333,6 +352,36 @@ export function closeoutV2(businessDate: string): CloseoutV2 {
     )
     .get(businessDate) as { units: number };
 
+  /*
+    The cross-day halves of the special-order cycle — see the type note. The
+    first is signed over all three sale-shaped reasons so a void or refund
+    return against an old ticket cancels out the same way it does in unitsOut.
+  */
+  const fulfilledForEarlier = db
+    .prepare(
+      `SELECT COALESCE(-SUM(m.qty_delta), 0) AS units
+         FROM inventory_movements m
+         JOIN products p ON p.id = m.product_id
+         JOIN sales s ON s.id = m.sale_id
+        WHERE m.business_date = ? AND p.kind = 'tire'
+          AND m.reason IN ('sale', 'void_return', 'refund_return')
+          AND s.business_date <> ?`,
+    )
+    .get(businessDate, businessDate) as { units: number };
+
+  const awaitingFulfillment = db
+    .prepare(
+      `SELECT COALESCE(SUM(i.qty), 0) AS units
+         FROM sale_items i
+         JOIN sales s ON s.id = i.sale_id
+         JOIN products p ON p.id = i.product_id
+        WHERE ${SALE} AND i.voided = 0 AND s.business_date = ?
+          AND p.kind = 'tire'
+          AND NOT EXISTS (SELECT 1 FROM inventory_movements m
+                           WHERE m.sale_id = s.id AND m.reason = 'sale')`,
+    )
+    .get(businessDate) as { units: number };
+
   const adjustments = db
     .prepare(
       `SELECT COUNT(*) AS n FROM inventory_movements
@@ -340,7 +389,8 @@ export function closeoutV2(businessDate: string): CloseoutV2 {
     )
     .get(businessDate) as { n: number };
 
-  const unreviewedOversells = listOversells(false).length;
+  const oversells = listOversells(false);
+  const unreviewedOversells = oversells.length;
 
   // ── Margin today, under the program's one margin rule ─────────────────────
   const costed = db
@@ -431,9 +481,21 @@ export function closeoutV2(businessDate: string): CloseoutV2 {
     stock: {
       unitsOut: stockOut.unitsOut,
       unitsSoldOnTickets: soldOnTickets.units,
+      fulfilledForEarlierUnits: fulfilledForEarlier.units,
+      awaitingFulfillmentUnits: awaitingFulfillment.units,
       received: stockReceivedForDay(businessDate),
       adjustments: adjustments.n,
       unreviewedOversells,
+      oversellRows: oversells.slice(0, 10).map((o) => ({
+        productName: o.product_name,
+        tireSize: o.tire_size,
+        saleNo: o.sale_no,
+        byName: o.employee_name,
+        // qty_delta is the signed stock movement; the overdraw is how far past
+        // zero it pushed, which is what the reviewer goes to look for.
+        short: Math.abs(o.qty_delta),
+        onHand: o.on_hand,
+      })),
     },
     margin: {
       marginCents,
@@ -487,17 +549,34 @@ function findExceptions(r: CloseoutV2): Exception[] {
       text: `${badChecks.length} register ${badChecks.length === 1 ? "log" : "logs"} today did not balance. The earliest imbalance is the fact worth chasing — everything after it inherits the problem.`,
     });
 
-  if (r.stock.unitsOut !== r.stock.unitsSoldOnTickets)
-    out.push({
-      severity: "serious",
-      text: `The racks and the tickets disagree: ${r.stock.unitsSoldOnTickets} tires on today's sale lines, ${r.stock.unitsOut} on the stock ledger. A tire moved without the other record hearing about it.`,
-    });
+  /*
+    Judged AFTER the special-order cycle is subtracted from both sides. The two
+    recorders legitimately disagree by exactly the ordered tires — fitted today
+    for an earlier ticket, or rung today and not yet fitted — and the first
+    live week produced precisely that: 19 on tickets, 25 off the racks, six of
+    them order fulfilments. An exception that fires on the system's own design
+    is an exception that gets ignored the week it matters.
+  */
+  {
+    const racksSameDay = r.stock.unitsOut - r.stock.fulfilledForEarlierUnits;
+    const ticketsSameDay = r.stock.unitsSoldOnTickets - r.stock.awaitingFulfillmentUnits;
+    if (racksSameDay !== ticketsSameDay)
+      out.push({
+        severity: "serious",
+        text: `The racks and the tickets disagree even after order fulfilments are set aside: ${ticketsSameDay} tires sold-and-fitted on today's lines, ${racksSameDay} off the racks. A tire moved without the other record hearing about it.`,
+      });
+  }
 
-  if (r.stock.unreviewedOversells > 0)
+  if (r.stock.unreviewedOversells > 0) {
+    const named = r.stock.oversellRows
+      .slice(0, 3)
+      .map((o) => `${o.productName}${o.saleNo ? ` on ${o.saleNo}` : ""}`)
+      .join("; ");
     out.push({
       severity: "watch",
-      text: `${r.stock.unreviewedOversells} oversell${r.stock.unreviewedOversells === 1 ? "" : "s"} awaiting review — stock the register sold that its count said was not there.`,
+      text: `${r.stock.unreviewedOversells} oversell${r.stock.unreviewedOversells === 1 ? "" : "s"} awaiting review — stock the register sold that its count said was not there: ${named}${r.stock.unreviewedOversells > 3 ? "; …" : ""}. Review on the Inventory tab.`,
     });
+  }
 
   if (r.tickets.unpaid.length > 0)
     out.push({
