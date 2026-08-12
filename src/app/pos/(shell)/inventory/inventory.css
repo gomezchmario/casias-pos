@@ -394,3 +394,18 @@
     break-inside: avoid;
   }
 }
+
+/* ── The public sheet, zebra'd ──────────────────────────────────────────
+   Only on the customer-facing page (`.inv-public`), which the POS inventory
+   shares this stylesheet with but should not inherit: back here the rows carry
+   buttons, badges and their own hover state, and banding underneath all that
+   is noise. Out front the page is one long list of sizes read from across a
+   counter or over somebody's shoulder, and a band is what keeps an eye on its
+   line between the size and the price.
+
+   Even rows rather than odd, so the first row of every table sits on white and
+   the header it follows still reads as a header. Printing keeps its own,
+   heavier rhythm — see the print block above. */
+.inv-public .inv-table tbody tr:nth-child(even) {
+  background: rgb(10 37 64 / 0.028);
+}

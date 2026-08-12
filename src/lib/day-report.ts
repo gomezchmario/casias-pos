@@ -638,8 +638,6 @@ function findExceptions(r: CloseoutV2): Exception[] {
  * it reports what is checkable.
  */
 function buildChecklist(r: CloseoutV2): ChecklistItem[] {
-  const shifts = listShifts(r.businessDate);
-  const openShifts = shifts.filter((s) => s.is_open === 1).length;
   const liveChecks = r.drawer.checks.filter((c) => !c.deleted);
   const cashLogged = liveChecks.some((c) => c.lines.some((l) => l.methodId && l.label === "Cash"));
   const cardLogged = liveChecks.some((c) => c.lines.some((l) => l.isCard === 1));
@@ -694,10 +692,11 @@ function buildChecklist(r: CloseoutV2): ChecklistItem[] {
           ? "Queue is empty."
           : `${r.stock.unreviewedOversells} waiting on the Inventory tab.`,
     },
-    {
-      label: "Shift closed",
-      done: openShifts === 0,
-      detail: openShifts === 0 ? "Closed." : "Still open — close it after the count.",
-    },
+    // "Shift closed" used to sit here and was removed on purpose. It is
+    // pending on every screen anybody looks at, because the shift is closed
+    // AFTER the close-out is read — so the line was permanently amber during
+    // the exact minutes the list is used, and a checklist with a box that is
+    // always ticked wrong teaches people to skip the boxes. The shift's state
+    // still drives the exceptions and the close-out itself.
   ];
 }

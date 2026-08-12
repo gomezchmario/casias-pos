@@ -930,6 +930,7 @@ function CostsCard({ onError }: { onError: (m: string | null) => void }) {
     coverage: { revenueCents: number; costedCents: number; pct: number; linesWithout: number };
     services: {
       key: string;
+      avgPriceCents: number;
       costCents: number | null;
       lines: number;
       revenueCents: number;
@@ -940,6 +941,23 @@ function CostsCard({ onError }: { onError: (m: string | null) => void }) {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  /**
+   * Typed margin percentages, by service.
+   *
+   * The stored truth is always a COST in cents — one number, one meaning, and
+   * every report already reads it. But a shop owner pricing a flat repair
+   * thinks "that's about eighty per cent margin", not "that's three dollars
+   * forty of patch and valve", so the row takes either and converts against
+   * what the service actually sells for. Typing in one box clears the other:
+   * two boxes that disagree about the same row is worse than one box.
+   */
+  const [pctDraft, setPctDraft] = useState<Record<string, string>>({});
+// Opened for you the first time it is worth opening. Below four fifths, the
+  // margin on every report is a fact about part of the shop dressed as a fact
+  // about the shop, and this is the only screen that fixes it.
+  useEffect(() => {
+    if (data && data.coverage.pct < 80) setOpen(true);
+  }, [data]);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/pos/costs");
@@ -960,13 +978,18 @@ function CostsCard({ onError }: { onError: (m: string | null) => void }) {
     void load();
   }, [load]);
 
-  async function save(key: string) {
+  /** Cost in cents from a margin percentage against the typical price. */
+  const costFromMargin = (pct: number, avgPriceCents: number) =>
+    Math.max(0, Math.round(avgPriceCents * (1 - pct / 100)));
+
+  async function save(key: string, explicitCents?: number) {
     const raw = draft[key] ?? "";
     // An empty box means "not answered", which is a different fact from zero.
     // Clearing one takes the answer away rather than recording that the job
     // consumes nothing.
-    const costCents = raw.trim() === "" ? null : parseCents(raw);
-    if (raw.trim() !== "" && costCents === null) {
+    const costCents =
+      explicitCents !== undefined ? explicitCents : raw.trim() === "" ? null : parseCents(raw);
+    if (explicitCents === undefined && raw.trim() !== "" && costCents === null) {
       onError(tr("That is not an amount"));
       return;
     }
@@ -1039,6 +1062,8 @@ function CostsCard({ onError }: { onError: (m: string | null) => void }) {
                 <th className="text-left py-2 font-medium">{tr("Service")}</th>
                 <th className="text-right py-2 font-medium pl-4">{tr("Times sold")}</th>
                 <th className="text-right py-2 font-medium pl-4">{tr("Brought in")}</th>
+                <th className="text-right py-2 font-medium pl-4">{tr("Sells for")}</th>
+                <th className="text-right py-2 font-medium pl-4">{tr("Margin %")}</th>
                 <th className="text-right py-2 font-medium pl-4">{tr("Costs us, each")}</th>
                 <th />
               </tr>
@@ -1050,6 +1075,46 @@ function CostsCard({ onError }: { onError: (m: string | null) => void }) {
                   <td className="py-1.5 pl-4 text-right tabular-nums text-brand-400">{s.lines}</td>
                   <td className="py-1.5 pl-4 text-right tabular-nums text-brand-400">
                     {formatCents(s.revenueCents)}
+                  </td>
+                  <td className="py-1.5 pl-4 text-right tabular-nums text-brand-400">
+                    {formatCents(s.avgPriceCents)}
+                  </td>
+                  {/* Either box fills the other. What gets STORED is always the
+                      cost — see the note on `pctDraft`. */}
+                  <td className="py-1.5 pl-4 text-right">
+                    <input
+                      className="input text-right tabular-nums"
+                      style={{ width: 70, height: 30 }}
+                      inputMode="decimal"
+                      placeholder="—"
+                      value={
+                        pctDraft[s.key] ??
+                        (s.costCents !== null && s.avgPriceCents > 0
+                          ? (((s.avgPriceCents - s.costCents) / s.avgPriceCents) * 100).toFixed(0)
+                          : "")
+                      }
+                      onChange={(e) => {
+                        setPctDraft((d) => ({ ...d, [s.key]: e.target.value }));
+                        setDraft((d) => ({ ...d, [s.key]: "" }));
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                      }}
+                      onBlur={() => {
+                        const raw = pctDraft[s.key];
+                        if (raw === undefined) return;
+                        const pct = Number(raw);
+                        if (raw.trim() === "" || !Number.isFinite(pct)) return;
+                        const cents = costFromMargin(pct, s.avgPriceCents);
+                        setDraft((d) => ({ ...d, [s.key]: (cents / 100).toFixed(2) }));
+                        setPctDraft((d) => {
+                          const n = { ...d };
+                          delete n[s.key];
+                          return n;
+                        });
+                        void save(s.key, cents);
+                      }}
+                    />
                   </td>
                   <td className="py-1.5 pl-4 text-right">
                     {/* Saved on leaving the box as well as on Enter. Thirty of

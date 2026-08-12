@@ -254,6 +254,28 @@ export default function CloseoutV3Page() {
           </p>
         </div>
 
+        {/* ── What needs attention, before anything else ─────────────────
+            At the top, above the first step, because a warning found after the
+            work is a warning found too late: the point of "one oversell to
+            review" or "the racks and the tickets disagree" is that somebody
+            walks over and looks BEFORE the drawer is counted and the day is
+            signed off. Underneath the steps it was a footnote to work already
+            finished. */}
+        {data.exceptions.length > 0 && (
+          <div className="rp-concerns mb-4">
+            {data.exceptions.map((x, i) => (
+              <div key={i} className={`rp-concern ${x.severity}`}>
+                <div className="rp-concern-head">
+                  <span className="rp-concern-tag">
+                    {x.severity === "serious" ? "Serious" : "Watch"}
+                  </span>
+                  <span className="rp-concern-find">{x.text}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* ── Step 1 · The morning count ─────────────────────────────────
             First thing in the morning, before a single ticket. The float is
             the first term of every expectation the day produces — expected =
@@ -544,20 +566,6 @@ export default function CloseoutV3Page() {
                     ))}
                   </tbody>
                 </table>
-              )}
-              {data.exceptions.length > 0 && (
-                <div className="rp-concerns mt-2">
-                  {data.exceptions.map((x, i) => (
-                    <div key={i} className={`rp-concern ${x.severity}`}>
-                      <div className="rp-concern-head">
-                        <span className="rp-concern-tag">
-                          {x.severity === "serious" ? "Serious" : "Watch"}
-                        </span>
-                        <span className="rp-concern-find">{x.text}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
               )}
             </>
           )}

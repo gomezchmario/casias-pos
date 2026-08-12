@@ -163,7 +163,7 @@ export default function PublicInventoryPage() {
 
   return (
     <div style={{ background: "#f4f6fa", minHeight: "100vh" }}>
-      <div className="inv max-w-5xl mx-auto p-6">
+      <div className="inv inv-public max-w-5xl mx-auto p-6">
         <div className="flex items-end justify-between mb-5 gap-4 flex-wrap no-print">
           <div>
             <h1 className="text-2xl font-semibold text-brand-500">Inventory</h1>

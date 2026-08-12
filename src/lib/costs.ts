@@ -76,6 +76,9 @@ export type ServiceCost = {
   /** What the shop has sold under this description, so the list ranks itself. */
   lines: number;
   revenueCents: number;
+  /** What one of these typically sells for — revenue ÷ lines. The figure a
+   *  margin percentage is meaningless without. */
+  avgPriceCents: number;
   setByName: string | null;
   setAt: string | null;
 };
@@ -98,6 +101,8 @@ export function serviceCosts(limit = 30): ServiceCost[] {
       `SELECT UPPER(TRIM(i.description))            AS key,
               COUNT(*)                              AS lines,
               COALESCE(SUM(i.line_total_cents), 0)  AS revenueCents,
+              CAST(COALESCE(SUM(i.line_total_cents), 0) /
+                   NULLIF(COUNT(*), 0) AS INTEGER)      AS avgPriceCents,
               sc.cost_cents                         AS costCents,
               sc.note                               AS note,
               e.name                                AS setByName,
