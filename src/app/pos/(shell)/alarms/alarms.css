@@ -1,0 +1,338 @@
+/* The alarm log. Screen chrome off on paper, letterhead on — the same print
+   discipline as the standing-still and demand reports. */
+
+.alm-print-head {
+  display: none;
+}
+
+.alm-wrap {
+  max-width: 1000px;
+}
+
+.alm-error {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  margin-bottom: 14px;
+}
+
+/* ── The four counts ───────────────────────────────────────────────────── */
+
+.alm-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.alm-tile {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  padding: 12px 14px;
+}
+
+/* Colour only where a number is a problem. A tile that is always orange is a
+   tile nobody reads, so a zero here stays as quiet as the rest of the page. */
+.alm-tile.is-open {
+  border-color: #fcd34d;
+  background: #fffbeb;
+}
+
+.alm-tile.is-serious {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.alm-tile-n {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.alm-tile-l {
+  font-size: 0.72rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 3px;
+}
+
+/* ── Blocks and tables ─────────────────────────────────────────────────── */
+
+.alm-block {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.alm-h2 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.alm-daycount {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.alm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.alm-table th {
+  text-align: left;
+  font-weight: 500;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 6px 0;
+}
+
+.alm-table td {
+  border-bottom: 1px solid #f1f5f9;
+  padding: 7px 0;
+  vertical-align: top;
+}
+
+.alm-table .r {
+  text-align: right;
+}
+
+/* Right-aligned cells only got padding from the .r rule, so two left-aligned
+   columns ran together into one word. See the same fix on the trends tables. */
+.alm-table th + th,
+.alm-table td + td {
+  padding-left: 14px;
+}
+
+.alm-red {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.alm-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  color: #475569;
+}
+
+.alm-standing-text {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin-top: 3px;
+  max-width: 62ch;
+}
+
+/* ── One alarm ─────────────────────────────────────────────────────────── */
+
+.alm-row {
+  border-left: 3px solid #fcd34d;
+  padding: 8px 0 8px 12px;
+  margin-bottom: 10px;
+}
+
+.alm-row.is-serious {
+  border-left-color: #dc2626;
+}
+
+/* Answered: greyed rather than hidden. An alarm somebody dealt with is the
+   evidence that they dealt with it, and hiding it would make a log that only
+   ever shows what nobody has got to yet. */
+.alm-row.is-done {
+  opacity: 0.62;
+  border-left-color: #cbd5e1;
+}
+
+.alm-row-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.alm-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  margin-top: 6px;
+  flex: none;
+}
+
+.alm-dot.is-serious {
+  background: #dc2626;
+}
+
+.alm-dot.is-watch {
+  background: #f59e0b;
+}
+
+.alm-text {
+  font-size: 0.85rem;
+  color: #1e293b;
+  line-height: 1.5;
+  max-width: 76ch;
+}
+
+.alm-answer {
+  font-size: 0.76rem;
+  color: #475569;
+  margin: 6px 0 0 16px;
+  padding-left: 10px;
+  border-left: 2px solid #e2e8f0;
+}
+
+.alm-note {
+  font-style: italic;
+  color: #334155;
+  margin-top: 2px;
+}
+
+.alm-nonote {
+  color: #94a3b8;
+  font-style: normal;
+}
+
+.alm-hist {
+  margin-top: 5px;
+}
+
+.alm-hist summary {
+  cursor: pointer;
+  color: #64748b;
+  font-size: 0.72rem;
+}
+
+.alm-hist-row {
+  margin-top: 5px;
+  padding-left: 8px;
+  border-left: 2px solid #f1f5f9;
+}
+
+.alm-row-actions {
+  margin: 6px 0 0 16px;
+}
+
+.alm-noting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.alm-clean {
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 0.85rem;
+}
+
+/* ── The range buttons ─────────────────────────────────────────────────── */
+
+.alm-seg {
+  display: inline-flex;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.alm-seg-btn {
+  padding: 0 12px;
+  height: 34px;
+  font-size: 13px;
+  background: #fff;
+  color: #475569;
+  border: none;
+  border-right: 1px solid #e2e8f0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.alm-seg-btn:last-child {
+  border-right: none;
+}
+
+.alm-seg-btn.is-on {
+  background: #0f172a;
+  color: #fff;
+}
+
+@media print {
+  .no-print,
+  .pos-nav,
+  nav,
+  header {
+    display: none !important;
+  }
+
+  .alm-print-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 2pt solid #0a2540;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+  }
+
+  .alm-wrap {
+    max-width: none;
+  }
+
+  .alm-block {
+    border: none;
+    padding: 0;
+    margin-bottom: 14px;
+    /* A day's alarms are read together or not at all, so a day is not split
+       across a page break where a printer can avoid it. */
+    break-inside: avoid;
+  }
+
+  .alm-tile,
+  .alm-row,
+  .alm-dot,
+  .alm-clean {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .alm-row {
+    break-inside: avoid;
+  }
+
+  /* On paper a folded-away history is a history that is not there, so the
+     closed <details> is forced open by revealing its children directly —
+     there is no way to set the `open` attribute from a stylesheet. */
+  .alm-hist:not([open]) > *:not(summary) {
+    display: block;
+  }
+
+  .alm-hist summary {
+    display: none;
+  }
+
+  .alm-table {
+    font-size: 9pt;
+  }
+
+  @page {
+    size: letter;
+    margin: 14mm;
+  }
+}

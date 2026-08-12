@@ -65,6 +65,19 @@ export default function CloseoutV3Page() {
   /** Codes whose count has been logged this sequence — the per-tender covers. */
   const [logged, setLogged] = useState<ReadonlySet<string>>(new Set());
   const [floatCount, setFloatCount] = useState("");
+  /**
+   * The clock, ticking, only so the float warning can expire on its own.
+   *
+   * Held in state rather than read inline because the warning has to go away
+   * while somebody is looking at the page — a note that only disappears on the
+   * next reload is a note that is still on screen at four in the afternoon,
+   * which is the whole complaint.
+   */
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
   /** Clock-out times being typed, by employee — defaulted to now on first edit. */
   const [outAt, setOutAt] = useState<Record<number, string>>({});
   /**
@@ -113,6 +126,30 @@ export default function CloseoutV3Page() {
   if (error)
     return <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>;
   if (!data) return <div className="text-brand-300">Adding it up…</div>;
+
+  /*
+    The "don't record the float here too" note, and the ten minutes it is worth
+    reading for.
+
+    The mistake it prevents is a real one and it happens once: first thing in
+    the morning, somebody counts the hundred in the drawer and books it a second
+    time as cash in. But the note was firing on every cash-in for the rest of
+    the day — at four in the afternoon, over a twenty-dollar float from a change
+    run — and a warning that is wrong nine times out of ten is a warning people
+    stop reading before the tenth.
+
+    So it lives for ten minutes from the day's FIRST cash-in, which is the only
+    window in which the confusion is live. Before any cash-in it stays up, since
+    that is the moment it is trying to catch. `now` ticks so it expires while
+    the page is open rather than at the next reload.
+  */
+  const firstCashIn = data.drawer.movements
+    .filter((m) => m.amount_cents > 0 && !m.reverses_id)
+    .map((m) => Date.parse(m.created_at))
+    .filter((t) => !isNaN(t))
+    .sort((a, b) => a - b)[0];
+  const floatWarningLive =
+    firstCashIn === undefined || now - firstCashIn < 10 * 60 * 1000;
 
   const weekday = DAY_NAMES[new Date(`${data.businessDate}T12:00:00`).getDay()];
   const liveChecks = data.drawer.checks.filter((c) => !c.deleted);
@@ -515,7 +552,7 @@ export default function CloseoutV3Page() {
                 <option value="deposit">Cash into the drawer</option>
               </select>
             </label>
-            {drawerKind === "deposit" && (
+            {drawerKind === "deposit" && floatWarningLive && (
               <div
                 className="text-xs text-amber-900 bg-amber-50 border border-amber-300 rounded-lg px-2 py-1"
                 style={{ maxWidth: 240 }}

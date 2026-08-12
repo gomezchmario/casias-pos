@@ -102,6 +102,20 @@ export default function CloseoutV2Page() {
             max={data.today}
             onChange={(e) => setDate(e.target.value)}
           />
+          {/* To the left of Print, because it is the other thing you do with
+              this page: read what it flagged, or go and see what it has been
+              flagging all week. The count is on the button so it is worth
+              pressing rather than worth remembering to press. */}
+          {can("reviewAlarms") && (
+            <a
+              className="btn btn-outline no-print"
+              style={{ height: 34, fontSize: 13, lineHeight: "34px", padding: "0 12px" }}
+              href={`/pos/alarms?date=${date || data.businessDate}`}
+            >
+              {tr("Alarms")}
+              {data.exceptions.length > 0 && ` (${data.exceptions.length})`}
+            </a>
+          )}
           <button
             type="button"
             className="btn btn-outline"

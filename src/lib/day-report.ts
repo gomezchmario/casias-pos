@@ -86,6 +86,30 @@ export type UnpaidRow = {
 export type TopLine = { label: string; qty: number; cents: number };
 
 export type Exception = {
+  /**
+   * The alarm's identity, stable for the life of the shop.
+   *
+   * The text is written for a person and gets reworded; the code is what a
+   * dismissal points at, so it must never be renamed once it has been used —
+   * renaming one un-dismisses every alarm anybody ever waved away under the old
+   * name. See `alarm_actions` in 036_alarms.sql.
+   */
+  code: string;
+  /**
+   * Whether this alarm is about THE DAY or about RIGHT NOW.
+   *
+   * Most are about the day: the tickets left open on it, the voids rung on it,
+   * the drawer counted at the end of it. Reopening a report for last Tuesday
+   * re-judges Tuesday, and the answer is a fact about Tuesday.
+   *
+   * Two are not. Oversells awaiting review and pricing warnings on the racks
+   * are conditions of the shop as it stands, and they are on this page because
+   * they are today's risk, not because they happened on the date at the top.
+   * On a single-day report that distinction costs nothing. In the alarm log it
+   * is the difference between an alarm and ninety copies of one — see
+   * `alarmBook`, which is what forced the field to exist.
+   */
+  scope: "day" | "standing";
   severity: "serious" | "watch";
   text: string;
 };
@@ -557,6 +581,8 @@ function findExceptions(r: CloseoutV2): Exception[] {
 
   if (r.drawer.expectedCents < 0)
     out.push({
+      code: "drawer-negative",
+      scope: "day",
       severity: "serious",
       text: `The drawer's books are negative (−${money(-r.drawer.expectedCents)}) — more cash recorded leaving than ever came in. A movement is too big or entered twice; fix it before counting.`,
     });
@@ -564,6 +590,8 @@ function findExceptions(r: CloseoutV2): Exception[] {
   const badChecks = r.drawer.checks.filter((c) => !c.balanced && !c.deleted);
   if (badChecks.length > 0)
     out.push({
+      code: "checks-unbalanced",
+      scope: "day",
       severity: "serious",
       text: `${badChecks.length} register ${badChecks.length === 1 ? "log" : "logs"} today did not balance. The earliest imbalance is the fact worth chasing — everything after it inherits the problem.`,
     });
@@ -581,7 +609,9 @@ function findExceptions(r: CloseoutV2): Exception[] {
     const ticketsSameDay = r.stock.unitsSoldOnTickets - r.stock.awaitingFulfillmentUnits;
     if (racksSameDay !== ticketsSameDay)
       out.push({
-        severity: "serious",
+        code: "racks-vs-tickets",
+      scope: "day",
+      severity: "serious",
         text: `The racks and the tickets disagree even after order fulfilments are set aside: ${ticketsSameDay} tires sold-and-fitted on today's lines, ${racksSameDay} off the racks. A tire moved without the other record hearing about it.`,
       });
   }
@@ -592,6 +622,8 @@ function findExceptions(r: CloseoutV2): Exception[] {
       .map((o) => `${o.productName}${o.saleNo ? ` on ${o.saleNo}` : ""}`)
       .join("; ");
     out.push({
+      code: "oversells",
+      scope: "standing",
       severity: "watch",
       text: `${r.stock.unreviewedOversells} oversell${r.stock.unreviewedOversells === 1 ? "" : "s"} awaiting review — stock the register sold that its count said was not there: ${named}${r.stock.unreviewedOversells > 3 ? "; …" : ""}. Review on the Inventory tab.`,
     });
@@ -599,18 +631,24 @@ function findExceptions(r: CloseoutV2): Exception[] {
 
   if (r.tickets.unpaid.length > 0)
     out.push({
+      code: "unpaid-balances",
+      scope: "day",
       severity: "watch",
       text: `${r.tickets.unpaid.length} completed ticket${r.tickets.unpaid.length === 1 ? "" : "s"} today still carr${r.tickets.unpaid.length === 1 ? "ies" : "y"} a balance (${money(r.tickets.unpaid.reduce((n, u) => n + u.balanceCents, 0))} in total). Deliberate for an ordered tire; worth a look otherwise.`,
     });
 
   if (r.tickets.open > 0)
     out.push({
+      code: "open-tickets",
+      scope: "day",
       severity: "watch",
       text: `${r.tickets.open} ticket${r.tickets.open === 1 ? "" : "s"} still open. An open ticket is not in any total on this page.`,
     });
 
   if (r.tickets.voided > 0)
     out.push({
+      code: "voids",
+      scope: "day",
       severity: "watch",
       text: `${r.tickets.voided} void${r.tickets.voided === 1 ? "" : "s"} today, listed below with who and why. Voids netting to zero is what the reversal design guarantees — the question is only whether each reason holds up.`,
     });
@@ -619,12 +657,16 @@ function findExceptions(r: CloseoutV2): Exception[] {
   const goods = r.totals.goodsCents + discountTotal;
   if (goods > 0 && discountTotal / goods > 0.05)
     out.push({
+      code: "discounts",
+      scope: "day",
       severity: "watch",
       text: `Discounts ran to ${((discountTotal / goods) * 100).toFixed(1)}% of the day's goods (${money(discountTotal)}). Over five percent is worth reading the list, not just the total.`,
     });
 
   if (r.hours.people.some((p) => p.onTheClock))
     out.push({
+      code: "on-the-clock",
+      scope: "day",
       severity: "watch",
       text: `${r.hours.people.filter((p) => p.onTheClock).length} still on the clock: ${r.hours.people
         .filter((p) => p.onTheClock)
@@ -635,6 +677,8 @@ function findExceptions(r: CloseoutV2): Exception[] {
   const flags = pricingFlagCount();
   if (flags > 0)
     out.push({
+      code: "pricing-flags",
+      scope: "standing",
       severity: "watch",
       text: `${flags} pricing warning${flags === 1 ? "" : "s"} on the racks — tires in stock with no price, or priced under cost. Not today's doing, but today's risk.`,
     });

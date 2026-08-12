@@ -296,6 +296,11 @@ export const CAPABILITIES = {
   // Knowing something is priced wrong is what you need in order to fix it.
   // Knowing the shop's margin on it is a different question.
   reviewPricing: "manager",
+  // The alarm book: what the Daily Report has flagged across a range of days,
+  // and the answers people have written against it. Manager, not owner —
+  // whoever runs the floor is the person who knows why the ticket at the top of
+  // Tuesday's list was left open, and an alarm log nobody can answer is a list.
+  reviewAlarms: "manager",
   // The "P140" on the end of a tire name: what the shop paid, disguised as a
   // spec code so it can sit on the counter facing the customer.
   //
@@ -454,6 +459,10 @@ export const CAPABILITY_INFO: Record<
   reviewPricing: {
     label: "See pricing warnings: in stock with no price, or priced below cost",
     group: "Stock",
+  },
+  reviewAlarms: {
+    label: "Read the alarm log, and dismiss an alarm with a note",
+    group: "Money and reports",
   },
   viewCostCode: {
     label: "See the coded cost on tire names (the “P140”), for haggling",
