@@ -67,6 +67,26 @@ export default function CloseoutV3Page() {
   const [floatCount, setFloatCount] = useState("");
   /** Clock-out times being typed, by employee — defaulted to now on first edit. */
   const [outAt, setOutAt] = useState<Record<number, string>>({});
+  /**
+   * Which sheet is going to the printer.
+   *
+   * The signature page is what gets printed every night and filed; the full
+   * report is the same page with the day's evidence behind it, wanted
+   * occasionally rather than nightly. Six pages coming out by default is how a
+   * printout stops being read and then stops being filed — so the default is
+   * the one page, and everything else is a second, deliberate press.
+   *
+   * The mode has to be committed to the DOM before the print dialog reads it,
+   * which is why the button sets state and an effect does the printing.
+   */
+  const [printMode, setPrintMode] = useState<"page1" | null>(null);
+  useEffect(() => {
+    if (!printMode) return;
+    const done = () => setPrintMode(null);
+    window.addEventListener("afterprint", done);
+    window.print();
+    return () => window.removeEventListener("afterprint", done);
+  }, [printMode]);
   const [drawerKind, setDrawerKind] = useState<"withdrawal" | "deposit">("withdrawal");
   const [drawerAmount, setDrawerAmount] = useState("");
   const [drawerReason, setDrawerReason] = useState("");
@@ -662,19 +682,43 @@ export default function CloseoutV3Page() {
             <span className="cv3-step-title">Print and sign</span>
           </div>
           <p className="text-sm text-brand-400 mb-2">
-            Page one is the verdict and the signatures; the full day rides behind it.
-            Settle the terminal batch before signing — the printed line for it is ticked
-            by hand, because paper is the only witness the terminal has.
+            The close-out is one page: the verdict, the reconciliation and the
+            signatures. Settle the terminal batch before signing — the printed line for
+            it is ticked by hand, because paper is the only witness the terminal has.
           </p>
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={!registerLogged}
-            title={registerLogged ? "Print the close-out" : "Log the register first"}
-            onClick={() => window.print()}
-          >
-            Print the close-out
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={!registerLogged}
+              title={registerLogged ? "Print the sheet that gets signed" : "Log the register first"}
+              onClick={() => setPrintMode("page1")}
+            >
+              Print the close-out
+            </button>
+            {/* The previous close-out's sheet, printed FROM the previous
+                close-out. Deliberately not a copy of that layout living here:
+                one printed document should have one source, and two copies
+                look identical the day they are made and disagree within a
+                month with nobody able to say which is the real one. That page
+                is off the nav but still runs; this opens it, it prints itself,
+                and it closes. */}
+            <button
+              type="button"
+              className="btn btn-outline"
+              disabled={!registerLogged}
+              title={
+                registerLogged
+                  ? "Print the previous close-out sheet"
+                  : "Log the register first"
+              }
+              onClick={() =>
+                window.open("/pos/eod?print=1", "_blank", "noopener,width=1100,height=800")
+              }
+            >
+              Print full report
+            </button>
+          </div>
         </div>
       </div>
 

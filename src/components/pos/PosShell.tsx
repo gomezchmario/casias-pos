@@ -64,7 +64,11 @@ const NAV: {
   // V3 took the name and the spot; the page everyone knew keeps working
   // under "(Old)" until the new one has survived a few real closes.
   { href: "/pos/closeout-v3", label: "Close-out", capability: "closeShift" },
-  { href: "/pos/eod", label: "Close-out (Old)", capability: "closeShift" },
+  // The old close-out is off the nav now that V3 is the close-out. The page
+  // itself still works and is still reachable by URL — hidden rather than
+  // deleted, so a night that goes wrong has somewhere to fall back to. Delete
+  // it once V3 has a couple of weeks of real closes behind it; two live
+  // procedures is how a shop ends up with two truths.
   // Just the gear. The other tabs are places to do the day's work and are
   // named for the work; this one is setup, is opened rarely, and does not earn
   // a word next to them. It sits last so the eye reaches it only after the

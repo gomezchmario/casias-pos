@@ -108,6 +108,16 @@ export default function EndOfDayPage() {
   const [date, setDate] = useState("");
   const [shiftId, setShiftId] = useState<number | "">("");
   const [data, setData] = useState<EodData | null>(null);
+  /**
+   * Opened by the new close-out purely to produce this sheet.
+   *
+   * The full report still lives here, and printing it from here rather than
+   * copying the layout into the new page is the whole point: one document, one
+   * source. Prints once the figures have landed — a print fired on mount puts
+   * an empty sheet in the tray — and closes afterwards, because this window
+   * exists only to reach the printer.
+   */
+  const printedOnce = useRef(false);
   const [counts, setCounts] = useState<Record<number, string>>({});
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -297,6 +307,20 @@ export default function EndOfDayPage() {
     },
     [date, shiftId, countsPayload],
   );
+
+  useEffect(() => {
+    if (printedOnce.current || !data) return;
+    if (new URLSearchParams(window.location.search).get("print") !== "1") return;
+    printedOnce.current = true;
+    const done = () => window.close();
+    window.addEventListener("afterprint", done);
+    // A beat, so the figures are painted before the dialog freezes the page.
+    const t = setTimeout(() => window.print(), 300);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("afterprint", done);
+    };
+  }, [data]);
 
   useEffect(() => {
     void load(false);

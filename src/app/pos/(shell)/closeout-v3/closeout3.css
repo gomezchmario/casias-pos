@@ -90,9 +90,21 @@
     margin: 14mm;
   }
 
-  /* ── Page one: verdict, reconciliation, signatures — then the break. ── */
+  /* The close-out prints as ONE page. A six-page nightly print is one nobody
+     reads and eventually nobody files, so the evidence block stays on paper's
+     side of the wall only in the sense that it never reaches it: the full
+     report is printed from the previous close-out page instead, which still
+     owns that layout. The markup stays here for the rebuild. */
+  .cv3-evidence {
+    display: none;
+  }
+
+  /* ── Page one: verdict, reconciliation, signatures. ── */
   .cv3-page1 {
-    break-after: page;
+    /* Only breaks when something follows it. On the one-page sheet a forced
+       break would eject a blank second page — the classic way a "one page"
+       printout comes out as two. */
+    break-after: auto;
     display: flex;
     flex-direction: column;
     min-height: 240mm;
