@@ -94,6 +94,18 @@ type LowStockFlag = {
   reorderPoint: number;
 };
 
+/** One flagged movement from the review queue — see `listOversells`. */
+type Oversell = {
+  id: number;
+  business_date: string;
+  qty_delta: number;
+  product_name: string;
+  tire_size: string | null;
+  sale_no: string | null;
+  employee_name: string | null;
+  on_hand: number;
+};
+
 type Data = {
   sections: RimSection[];
   batteries: Tire[];
@@ -250,6 +262,51 @@ export default function InventoryPage() {
     }
     setApplied((a) => ({ ...a, [productId]: reorderPoint }));
   }
+  /**
+   * Oversells nobody has looked at yet.
+   *
+   * Loaded separately from the sheet because it is a QUEUE, not a rack: a row
+   * sits here from the day it was rung until somebody clears it, so today's
+   * inventory has nothing to say about it. The close-out has been sending
+   * people to this tab to "review oversells" since it was written, and until
+   * now there was nothing on this page to press — the API existed and no screen
+   * called it.
+   */
+  const [oversells, setOversells] = useState<Oversell[]>([]);
+  const [reviewing, setReviewing] = useState<number | null>(null);
+
+  const loadOversells = useCallback(async () => {
+    if (!can("adjustInventory")) return;
+    const res = await fetch("/api/pos/inventory/oversells");
+    if (res.ok) setOversells((await res.json()).oversells);
+  }, [can]);
+
+  /**
+   * "A human looked at this."
+   *
+   * Deliberately does NOT touch stock — see the route. Somebody who decides the
+   * count was wrong writes an adjustment saying so, and that is a different
+   * fact worth keeping separate. Clearing the flag only records that the row
+   * was seen, which is exactly what the close-out checklist is asking for.
+   */
+  async function reviewOversell(id: number) {
+    if (reviewing !== null) return;
+    setReviewing(id);
+    setError(null);
+    const res = await fetch("/api/pos/inventory/oversells", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ movementId: id }),
+    });
+    setReviewing(null);
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      setError(d.error || "Could not clear that one");
+      return;
+    }
+    await loadOversells();
+  }
+
   const [quoting, setQuoting] = useState(false);
   // The row somebody is about to remove, held so the confirm can name it.
   const [removing, setRemoving] = useState<Tire | null>(null);
@@ -311,6 +368,10 @@ export default function InventoryPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    void loadOversells();
+  }, [loadOversells]);
 
   /**
    * Take a product off the list.
@@ -950,6 +1011,69 @@ export default function InventoryPage() {
         first, because everything else on the page is only as trustworthy as the
         worst row on it.
       */}
+      {/*
+        NEEDING REVIEW, AT THE TOP, IN AMBER.
+
+        An oversell is the register having sold stock the count said was not
+        there. The close-out asks for these to be reviewed and names them; this
+        is where that gets done, and it was missing — the row sat in the ledger
+        with no way to reach it short of the database.
+
+        Above the below-zero panel and below nothing, because it is the only
+        block on this page that is a queue of WORK rather than a statement about
+        the racks. The rest of the sheet describes what is there; this asks
+        somebody to do something and then goes away.
+
+        Not printed. Whoever is walking the racks with the sheet cannot clear a
+        flag from a piece of paper, and a row that cannot be acted on is a row
+        that teaches people to skim.
+      */}
+      {oversells.length > 0 && (
+        <div className="mb-4 rounded-lg border-2 border-amber-500 bg-amber-50 px-3 py-2 text-sm no-print">
+          <div className="font-semibold text-amber-900">
+            {oversells.length === 1
+              ? "1 oversell needs review"
+              : `${oversells.length} oversells need review`}
+            <span className="font-normal text-amber-800">
+              {" "}
+              · sold when the count said it was not there
+            </span>
+          </div>
+          <div className="mt-2 flex flex-col gap-1.5">
+            {oversells.map((o) => (
+              <div
+                key={o.id}
+                className="flex items-center gap-3 flex-wrap rounded-md border border-amber-300 bg-white px-2.5 py-1.5"
+              >
+                <span className="font-semibold text-brand-500">{o.product_name}</span>
+                <span className="text-amber-900">
+                  {Math.abs(o.qty_delta)} out
+                  {o.on_hand < 0 ? ` · ${-o.on_hand} owed to customers` : ""}
+                </span>
+                <span className="text-brand-400 text-xs">
+                  {o.business_date}
+                  {o.sale_no ? ` · ${o.sale_no}` : ""}
+                  {o.employee_name ? ` · ${o.employee_name}` : ""}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-outline ml-auto"
+                  style={{ height: 30, fontSize: 12 }}
+                  disabled={reviewing === o.id}
+                  onClick={() => void reviewOversell(o.id)}
+                >
+                  {tr("Reviewed")}
+                </button>
+              </div>
+            ))}
+          </div>
+          <p className="mt-1.5 text-amber-800 text-xs">
+            Reviewing records that somebody looked — it does not change the
+            count. If the number is wrong, use Count on the row to correct it.
+          </p>
+        </div>
+      )}
+
       {data && data.negativeStock.length > 0 && (
         <div className="mb-4 rounded-lg border-2 border-red-500 bg-red-50 px-3 py-2 text-sm">
           <div className="font-semibold text-red-900">

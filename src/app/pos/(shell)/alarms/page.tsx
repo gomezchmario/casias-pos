@@ -102,7 +102,16 @@ export default function AlarmsPage() {
    * far back to go.
    */
   const [to, setTo] = useState("");
-  const [range, setRange] = useState("7");
+  /**
+   * The day, not the week.
+   *
+   * This is reached from the Alarms button on the Daily Report, which hands
+   * over the day it was looking at — so opening on a week means the alarm you
+   * came here about arrives buried in six days of others. The week is one press
+   * away, and it is the answer to a second question ("has this been happening?")
+   * rather than the first.
+   */
+  const [range, setRange] = useState("day");
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
