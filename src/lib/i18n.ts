@@ -687,6 +687,9 @@ const ES: Record<string, string> = {
   Searches: "Búsquedas",
   "Your account can't see this report.": "Su cuenta no puede ver este reporte.",
 
+  "Everything so far": "Todo hasta ahora",
+  "One month": "Un mes",
+
   "The racks": "Los racks",
   "Stock on hand": "Existencia",
   "units, at cost": "unidades, a costo",

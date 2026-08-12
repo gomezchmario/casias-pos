@@ -49,6 +49,23 @@ function monthWords(month: string): string {
   return `${MONTHS[Number(m) - 1] ?? month} ${y}`;
 }
 
+/**
+ * The window the study is read over.
+ *
+ * Rolling windows first, then months. Ninety days is the default because that
+ * is the span a tire order is decided against — long enough that a size asked
+ * for twice is a pattern rather than a coincidence, short enough that it
+ * describes the shop as it is now. "Everything so far" is kept for the
+ * argument about whether a size has EVER been wanted, and the months are kept
+ * because "what did we miss in June" is a real question with a real answer.
+ */
+const WINDOWS = [
+  { key: "30", label: "Last 30 days", days: 30 },
+  { key: "90", label: "Last 90 days", days: 90 },
+  { key: "365", label: "Last 12 months", days: 365 },
+  { key: "all", label: "Everything so far", days: 0 },
+] as const;
+
 function recentMonths(from: string): string[] {
   const out: string[] = [];
   const d = new Date(`${from}-01T00:00:00Z`);
@@ -62,8 +79,8 @@ function recentMonths(from: string): string[] {
 export default function TireDemandPage() {
   const { t: tr } = useLang();
   const { can } = usePosAuth();
-  /** Empty means everything, which is the default — see the route. */
-  const [month, setMonth] = useState("");
+  /** A WINDOWS key, or a "2026-08" month. Ninety days on arrival. */
+  const [window_, setWindow] = useState<string>("90");
   const [data, setData] = useState<Data | null>(null);
   /** Whether the searched list shows the keystrokes too — off, like Reports. */
   const [showPartial, setShowPartial] = useState(false);
@@ -73,19 +90,25 @@ export default function TireDemandPage() {
 
   const load = useCallback(async () => {
     const sp = new URLSearchParams();
-    if (month) {
-      sp.set("from", `${month}-01`);
-      // Day zero of the next month is the last day of this one — no month-length
-      // table and no leap-year case.
-      const d = new Date(`${month}-01T00:00:00Z`);
+    const rolling = WINDOWS.find((w) => w.key === window_);
+    if (rolling && rolling.days > 0) {
+      const d = new Date();
+      d.setDate(d.getDate() - (rolling.days - 1));
+      sp.set("from", d.toISOString().slice(0, 10));
+    } else if (!rolling) {
+      // A month. Day zero of the next month is the last day of this one — no
+      // month-length table and no leap-year case.
+      sp.set("from", `${window_}-01`);
+      const d = new Date(`${window_}-01T00:00:00Z`);
       d.setUTCMonth(d.getUTCMonth() + 1);
       d.setUTCDate(0);
       sp.set("to", d.toISOString().slice(0, 10));
     }
+    // "all" sends nothing, and the route's own default is everything.
     const res = await fetch(`/api/pos/tire-demand?${sp}`);
     if (!res.ok) return;
     setData(await res.json());
-  }, [month]);
+  }, [window_]);
 
   useEffect(() => {
     void load();
@@ -94,7 +117,9 @@ export default function TireDemandPage() {
   if (!can("viewReports"))
     return <div className="text-brand-400">Your account can&apos;t see this report.</div>;
 
-  const span = month ? monthWords(month) : "everything recorded so far";
+  const span =
+    WINDOWS.find((w) => w.key === window_)?.label.toLowerCase() ??
+    monthWords(window_);
 
   return (
     <div className="max-w-5xl mx-auto tdr">
@@ -111,16 +136,22 @@ export default function TireDemandPage() {
         <div className="flex items-center gap-2">
           <select
             className="input"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            aria-label="Month"
+            value={window_}
+            onChange={(e) => setWindow(e.target.value)}
+            aria-label="Window"
           >
-            <option value="">Everything so far</option>
-            {recentMonths(new Date().toISOString().slice(0, 7)).map((m) => (
-              <option key={m} value={m}>
-                {monthWords(m)}
+            {WINDOWS.map((w) => (
+              <option key={w.key} value={w.key}>
+                {tr(w.label)}
               </option>
             ))}
+            <optgroup label={tr("One month")}>
+              {recentMonths(new Date().toISOString().slice(0, 7)).map((m) => (
+                <option key={m} value={m}>
+                  {monthWords(m)}
+                </option>
+              ))}
+            </optgroup>
           </select>
           <button
             type="button"
@@ -316,7 +347,13 @@ export default function TireDemandPage() {
             )}
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm p-4 mb-4 tdr-block">
+          {/* Screen only. The raw entries are what makes the study arguable —
+              a summary whose rows cannot be inspected is one nobody can check —
+              but the sheet that goes to a supplier is a buying document, and
+              seventy-six lines of "who wrote this down and when" behind the
+              two tables that answer the question is padding somebody has to
+              flip past. It stays on screen, where arguing happens. */}
+          <div className="bg-white rounded-2xl shadow-sm p-4 mb-4 tdr-block tdr-hide-on-print">
             <div className="text-xs uppercase tracking-wider text-brand-300 mb-2">
               Every one, as it was written
             </div>
