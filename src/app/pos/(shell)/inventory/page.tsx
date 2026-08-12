@@ -114,6 +114,42 @@ type Sheet =
   | { mode: "edit"; product: Tire; size: string }
   | null;
 
+/** The three rack questions, shaped by `/api/pos/inventory/insights`. */
+type Insights = {
+  from: string;
+  to: string;
+  dead: {
+    productId: number;
+    name: string;
+    size: string | null;
+    onHand: number;
+    costCents: number;
+    daysSinceSale: number | null;
+    daysOnShelf: number | null;
+  }[];
+  restock: {
+    productId: number;
+    name: string;
+    size: string | null;
+    onHand: number;
+    sold90: number;
+    overDays: number;
+    reorderPoint: number;
+    suggested: number;
+    daysOfCover: number | null;
+  }[];
+  lost: {
+    recorded: { size: string; tires: number; asks: number; onHand: number | null }[];
+    searched: {
+      size: string;
+      tires: number;
+      asks: number;
+      onHand: number | null;
+      complete: boolean;
+    }[];
+  };
+};
+
 export default function InventoryPage() {
   const { t: tr } = useLang();
   const { can, user } = usePosAuth();
@@ -128,6 +164,48 @@ export default function InventoryPage() {
   // Shut on arrival every time, deliberately not remembered. See the panel.
   const [pricingOpen, setPricingOpen] = useState(false);
   const [lowOpen, setLowOpen] = useState(false);
+  /**
+   * The rack questions fold — dead money, what to keep stocked, what walked
+   * out. Shut on arrival like the close-out's week, and for the same reason:
+   * this page is a counter tool first, and the person looking up one tire
+   * mid-sale should skip past a line, not scroll past three tables.
+   *
+   * Fetched only when opened. The three queries sweep the whole sales history,
+   * and the counter pays that cost never; the manager pays it on click.
+   */
+  const [insightsOpen, setInsightsOpen] = useState(false);
+  const [insights, setInsights] = useState<Insights | null>(null);
+  const [applying, setApplying] = useState<number | null>(null);
+  const [applied, setApplied] = useState<Record<number, number>>({});
+
+  async function toggleInsights() {
+    const opening = !insightsOpen;
+    setInsightsOpen(opening);
+    if (!opening || insights) return;
+    const res = await fetch("/api/pos/inventory/insights");
+    if (!res.ok) {
+      setError("Could not load the rack questions");
+      setInsightsOpen(false);
+      return;
+    }
+    setInsights(await res.json());
+  }
+
+  /** The same one-press reorder the Reports page has, against the same route. */
+  async function applyReorder(productId: number, reorderPoint: number) {
+    setApplying(productId);
+    const res = await fetch(`/api/pos/products/${productId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reorderPoint }),
+    });
+    setApplying(null);
+    if (!res.ok) {
+      setError("Could not set that reorder point");
+      return;
+    }
+    setApplied((a) => ({ ...a, [productId]: reorderPoint }));
+  }
   const [quoting, setQuoting] = useState(false);
   // The row somebody is about to remove, held so the confirm can name it.
   const [removing, setRemoving] = useState<Tire | null>(null);
@@ -320,6 +398,208 @@ export default function InventoryPage() {
         trust itself. "Counted three days ago" and "counted in March" are the
         same document otherwise, and only one of them is worth ordering from.
       */}
+      {/* ── The rack questions, folded away ─────────────────────────────────
+          The close-out's "How the week is going" pattern, borrowed on purpose:
+          a quiet rule with a chevron, skippable at a glance, holding the three
+          questions from the management reports that belong to whoever ORDERS
+          stock rather than whoever owns the shop — dead money, what to keep
+          stocked, and what walked out unsold. Managers and up. */}
+      {can("viewReports") && (
+        <>
+          <button
+            type="button"
+            className="inv-foldhead no-print"
+            aria-expanded={insightsOpen}
+            onClick={() => void toggleInsights()}
+          >
+            <span>{tr("The racks, worth a look")}</span>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              aria-hidden
+              style={{
+                transform: insightsOpen ? "rotate(180deg)" : undefined,
+                transition: "transform 120ms",
+              }}
+            >
+              <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            {!insightsOpen && (
+              <span className="inv-foldhead-hint">
+                {tr("money standing still, what to keep stocked, and what walked out")}
+              </span>
+            )}
+          </button>
+
+          {insightsOpen && !insights && (
+            <div className="text-brand-300 text-sm mb-4">{tr("Adding it up…")}</div>
+          )}
+
+          {insightsOpen && insights && (
+            <div className="grid gap-4 mb-4 no-print" style={{ gridTemplateColumns: "1fr" }}>
+              {/* ── Money standing still ── */}
+              <div className="bg-white rounded-2xl shadow-sm p-4">
+                <div className="text-xs uppercase tracking-wider text-brand-300 mb-1">
+                  {tr("Money standing still")}
+                </div>
+                <p className="text-sm text-brand-400 mb-2">
+                  {tr("On the racks with no sale in 45 days. Every one of these is cash parked on a shelf.")}
+                </p>
+                {insights.dead.length === 0 ? (
+                  <div className="text-sm text-brand-300">{tr("Nothing — the racks are moving.")}</div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-brand-300 uppercase text-xs tracking-wider">
+                        <th className="py-1 font-medium">{tr("Tire")}</th>
+                        <th className="py-1 font-medium text-right">{tr("On hand")}</th>
+                        {/* What it COST is the owner's book, not the floor's —
+                            same line viewCosts draws everywhere else. */}
+                        {can("viewCosts") && (
+                          <th className="py-1 font-medium text-right pl-4">{tr("Sitting there, at cost")}</th>
+                        )}
+                        <th className="py-1 font-medium text-right pl-4">{tr("Last sold")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {insights.dead.map((d) => (
+                        <tr key={d.productId} className="border-t border-black/5">
+                          <td className="py-1">{d.name}</td>
+                          <td className="py-1 text-right tabular-nums">{d.onHand}</td>
+                          {can("viewCosts") && (
+                            <td className="py-1 text-right tabular-nums pl-4">
+                              {formatCents(d.costCents)}
+                            </td>
+                          )}
+                          <td className="py-1 text-right tabular-nums pl-4 text-brand-400">
+                            {d.daysSinceSale === null
+                              ? tr("never")
+                              : `${d.daysSinceSale} ${tr("days ago")}`}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* ── Worth keeping in stock ── */}
+              <div className="bg-white rounded-2xl shadow-sm p-4">
+                <div className="text-xs uppercase tracking-wider text-brand-300 mb-1">
+                  {tr("Worth keeping in stock")}
+                </div>
+                <p className="text-sm text-brand-400 mb-2">
+                  {tr("What actually sells, against what is on the rack right now. Set puts the suggested level on the tire so the low-stock alarm watches it for you.")}
+                </p>
+                {insights.restock.length === 0 ? (
+                  <div className="text-sm text-brand-300">{tr("Nothing selling fast enough to advise on yet.")}</div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-brand-300 uppercase text-xs tracking-wider">
+                        <th className="py-1 font-medium">{tr("Tire")}</th>
+                        <th className="py-1 font-medium text-right">{tr("Sold")}</th>
+                        <th className="py-1 font-medium text-right pl-4">{tr("On hand")}</th>
+                        <th className="py-1 font-medium text-right pl-4">{tr("Keep")}</th>
+                        {can("manageProducts") && <th className="py-1" />}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {insights.restock.map((s) => {
+                        const done = applied[s.productId] === s.suggested || s.reorderPoint === s.suggested;
+                        return (
+                          <tr key={s.productId} className="border-t border-black/5">
+                            <td className="py-1">{s.name}</td>
+                            <td className="py-1 text-right tabular-nums text-brand-400">
+                              {s.sold90} / {s.overDays}d
+                            </td>
+                            <td
+                              className="py-1 text-right tabular-nums pl-4"
+                              style={s.onHand === 0 ? { color: "#b91c1c", fontWeight: 600 } : undefined}
+                            >
+                              {s.onHand}
+                            </td>
+                            <td className="py-1 text-right tabular-nums pl-4 font-semibold">
+                              {s.suggested}
+                            </td>
+                            {can("manageProducts") && (
+                              <td className="py-1 text-right pl-3">
+                                {done ? (
+                                  <span className="text-xs" style={{ color: "#15803d" }}>
+                                    ✓ {tr("set")}
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="btn btn-outline"
+                                    style={{ height: 26, fontSize: 12, padding: "0 10px" }}
+                                    disabled={applying === s.productId}
+                                    onClick={() => void applyReorder(s.productId, s.suggested)}
+                                  >
+                                    {tr("Set")}
+                                  </button>
+                                )}
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* ── What walked out ── */}
+              <div className="bg-white rounded-2xl shadow-sm p-4">
+                <div className="text-xs uppercase tracking-wider text-brand-300 mb-1">
+                  {tr("What walked out")}
+                </div>
+                <p className="text-sm text-brand-400 mb-2">
+                  {tr("Sizes asked for in the last month that the shop could not sell — from the counter's own study, and from searches that found nothing. Every row is a customer who left.")}
+                </p>
+                {insights.lost.recorded.length === 0 &&
+                insights.lost.searched.filter((s) => s.complete).length === 0 ? (
+                  <div className="text-sm text-brand-300">
+                    {tr("Nothing recorded walking out this month.")}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {insights.lost.recorded.map((l) => (
+                      <span
+                        key={`r${l.size}`}
+                        className="pos-grant"
+                        style={{ background: "rgba(216,68,76,0.12)", color: "#a71d24" }}
+                        title={`${l.asks} ${tr("asks")}`}
+                      >
+                        {l.size}
+                        <em style={{ fontStyle: "normal", opacity: 0.75 }}>×{l.tires}</em>
+                      </span>
+                    ))}
+                    {insights.lost.searched
+                      .filter((s) => s.complete && !insights.lost.recorded.some((r) => r.size === s.size))
+                      .slice(0, 12)
+                      .map((l) => (
+                        <span
+                          key={`s${l.size}`}
+                          className="pos-grant"
+                          title={tr("searched and not found")}
+                        >
+                          {l.size}
+                          <em style={{ fontStyle: "normal", opacity: 0.65 }}>×{l.asks}</em>
+                        </span>
+                      ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
       {data && (
         <div
           className="inv-check flex items-center justify-between gap-3 mb-4 rounded-lg px-3 py-2 text-sm"

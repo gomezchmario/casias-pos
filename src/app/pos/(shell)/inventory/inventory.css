@@ -325,3 +325,33 @@
     margin: 14mm;
   }
 }
+
+/* The fold above the physical-check line — the close-out's week heading,
+   borrowed deliberately so the two controls read as the same kind of thing:
+   a rule you skip past, not a panel you owe attention to. */
+.inv-foldhead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 6px 2px;
+  border-top: 1px solid rgb(10 37 64 / 0.08);
+  color: rgb(10 37 64 / 0.55);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+}
+
+.inv-foldhead:hover {
+  color: rgb(10 37 64 / 0.75);
+}
+
+.inv-foldhead-hint {
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: rgb(10 37 64 / 0.38);
+}
