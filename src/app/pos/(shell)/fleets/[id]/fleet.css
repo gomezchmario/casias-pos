@@ -1,0 +1,82 @@
+/* The fleet statement. Screen chrome off the paper, letterhead on it — the same
+   print discipline as the month statement and the demand study. */
+
+.flt-print-head {
+  display: none;
+}
+
+.flt-totals {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.flt-lab {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgb(10 37 64 / 0.5);
+}
+
+.flt-val {
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #0a2540;
+}
+
+/* The one figure the company actually reads. */
+.flt-closing {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+@media print {
+  .flt-hide-on-print,
+  .pos-nav,
+  nav,
+  header {
+    display: none !important;
+  }
+
+  .flt-print-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 2pt solid #0a2540;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+  }
+
+  .flt-block {
+    box-shadow: none;
+    border: none;
+    padding: 0;
+    margin-bottom: 6mm;
+    break-inside: avoid;
+  }
+
+  .flt-table {
+    font-size: 9pt;
+  }
+
+  .flt-table tr,
+  .flt-table td,
+  .flt-table th {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .flt-val {
+    font-size: 14pt;
+  }
+
+  .flt-closing {
+    font-size: 16pt;
+  }
+
+  @page {
+    size: letter;
+    margin: 14mm;
+  }
+}

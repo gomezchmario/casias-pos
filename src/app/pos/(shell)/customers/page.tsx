@@ -37,6 +37,10 @@ type Row = {
   lastVisit: string | null;
   hasNote: boolean;
   creditApproved: boolean;
+  fleetId: number | null;
+  fleetName: string | null;
+  isFleet: number;
+  fleetMembers: number;
 };
 
 type Vehicle = {
@@ -61,8 +65,20 @@ type Detail = {
     pinnedNoteBy: string | null;
     pinnedNoteAt: string | null;
     creditApproved: boolean;
+    fleetId: number | null;
+    isFleet: boolean;
     since: string;
   };
+  fleet: { id: number; name: string; customerNo: string } | null;
+  members: {
+    id: number;
+    customerNo: string;
+    name: string;
+    phone: string | null;
+    vehicles: number;
+    chargedCents: number;
+    lastVisit: string | null;
+  }[];
   vehicles: Vehicle[];
   tickets: {
     saleId: number;
@@ -110,7 +126,11 @@ export default function CustomersPage() {
    * takings.
    */
   const [adding, setAdding] = useState(false);
-  const [addForm, setAddForm] = useState({ name: "", phone: "", notes: "" });
+  const [addForm, setAddForm] = useState({ name: "", phone: "", notes: "", fleetId: "" });
+  /** Every company somebody can be billed to — for both pickers on this page. */
+  const [fleets, setFleets] = useState<
+    { id: number; customerNo: string; name: string; creditApproved: number; members: number }[]
+  >([]);
   const [note, setNote] = useState("");
   const [editCar, setEditCar] = useState<Vehicle | null>(null);
   const [removingCar, setRemovingCar] = useState<Vehicle | null>(null);
@@ -160,6 +180,14 @@ export default function CustomersPage() {
     void loadDetail();
   }, [loadDetail]);
 
+  const loadFleets = useCallback(async () => {
+    const res = await fetch("/api/pos/fleets");
+    if (res.ok) setFleets((await res.json()).fleets);
+  }, []);
+  useEffect(() => {
+    void loadFleets();
+  }, [loadFleets]);
+
   /** One writer for every change on this panel, so errors surface in one place. */
   async function send(url: string, init: RequestInit) {
     if (busy) return false;
@@ -196,6 +224,7 @@ export default function CustomersPage() {
         name: addForm.name,
         phone: addForm.phone.trim() || null,
         notes: addForm.notes.trim() || null,
+        fleetId: addForm.fleetId ? Number(addForm.fleetId) : null,
       }),
     });
     const d = await res.json().catch(() => ({}));
@@ -208,7 +237,7 @@ export default function CustomersPage() {
       return;
     }
     setAdding(false);
-    setAddForm({ name: "", phone: "", notes: "" });
+    setAddForm({ name: "", phone: "", notes: "", fleetId: "" });
     await load();
     setPicked(d.customer.id);
   }
@@ -303,6 +332,27 @@ export default function CustomersPage() {
                   if (e.key === "Enter") void addCustomer();
                 }}
               />
+            </label>
+            {/* The whole point of adding a driver from here: say who they
+                work for in the same breath. Their charges go on that company's
+                tab from the first ticket, so nobody has to remember to link
+                them afterwards. */}
+            <label className="text-sm text-brand-400">
+              {tr("Billed to")}
+              <select
+                className="input block mt-1"
+                style={{ width: 200 }}
+                value={addForm.fleetId}
+                onChange={(e) => setAddForm((f) => ({ ...f, fleetId: e.target.value }))}
+              >
+                <option value="">{tr("Themselves")}</option>
+                {fleets.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                    {f.creditApproved === 0 ? ` (${tr("not approved")})` : ""}
+                  </option>
+                ))}
+              </select>
             </label>
             <button
               type="button"
@@ -421,6 +471,12 @@ export default function CustomersPage() {
                     {c.creditTickets > 0 && (
                       <span className="text-brand-400">· account</span>
                     )}
+                    {c.isFleet === 1 && (
+                      <span className="cu-fleet-tag">
+                        {tr("company")} · {c.fleetMembers}
+                      </span>
+                    )}
+                    {c.fleetName && <span className="text-brand-400">· {c.fleetName}</span>}
                     {c.lastVisit && <span>last {c.lastVisit}</span>}
                   </div>
                 </button>
@@ -465,6 +521,85 @@ export default function CustomersPage() {
                     detail.customer.creditApproved && (
                       <div className="cu-approved mt-2">★ Store credit approved</div>
                     )
+                  )}
+
+                  {/* ── Fleet ────────────────────────────────────────────
+                      Two different rows depending on which side of the
+                      relationship this customer is on. A driver gets "billed
+                      to <company>" and a way to change it; a company gets its
+                      driver count and the door to its statement. */}
+                  {can("manageCustomers") && !detail.customer.isFleet && (
+                    <label className="flex items-center gap-1.5 mt-2 text-sm">
+                      <span className="text-brand-400">{tr("Billed to")}</span>
+                      <select
+                        className="input"
+                        style={{ height: 28, fontSize: 13, maxWidth: 220 }}
+                        value={detail.customer.fleetId ?? ""}
+                        disabled={busy}
+                        onChange={(e) =>
+                          void send("/api/pos/fleets", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              customerId: detail.customer.id,
+                              fleetId: e.target.value ? Number(e.target.value) : null,
+                            }),
+                          })
+                        }
+                      >
+                        <option value="">{tr("Themselves")}</option>
+                        {fleets.map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  {!can("manageCustomers") && detail.fleet && (
+                    <div className="mt-2 text-sm text-brand-400">
+                      {tr("Billed to")} <strong>{detail.fleet.name}</strong>
+                    </div>
+                  )}
+
+                  {detail.customer.isFleet && (
+                    <div className="mt-2 flex items-center gap-3 text-sm flex-wrap">
+                      <span className="cu-fleet">
+                        {tr("Company account")} · {detail.members.length}{" "}
+                        {detail.members.length === 1 ? tr("driver") : tr("drivers")}
+                      </span>
+                      {can("manageCreditAccounts") && (
+                        <Link href={`/pos/fleets/${detail.customer.id}`} className="underline text-brand-400">
+                          {tr("Statement")} →
+                        </Link>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Making somebody a company is a credit decision, so it
+                      follows the account permission rather than the one for
+                      correcting a phone number. */}
+                  {can("manageCreditAccounts") && !detail.customer.fleetId && (
+                    <label className="flex items-center gap-1.5 mt-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={detail.customer.isFleet}
+                        disabled={busy}
+                        onChange={(e) =>
+                          void send("/api/pos/fleets", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              customerId: detail.customer.id,
+                              isFleet: e.target.checked,
+                            }),
+                          })
+                        }
+                      />
+                      <span className="text-brand-400">
+                        {tr("This is a company others can be billed to")}
+                      </span>
+                    </label>
                   )}
                 </div>
                 <div className="flex items-center gap-3 text-sm">
@@ -563,6 +698,49 @@ export default function CustomersPage() {
                 setDraft={setNote}
                 onSave={(text) => patchCustomer({ pinnedNote: text || null })}
               />
+
+              {/* ── Drivers on this company's account ───────────────────
+                  Only on a fleet, and it answers the question the panel is
+                  usually opened with: who is allowed to put tires on this tab.
+                  Each row carries what that driver has run up all time,
+                  because "which of my drivers is spending" is the second
+                  question every single time. */}
+              {detail.customer.isFleet && detail.members.length > 0 && (
+                <div className="mt-4">
+                  <div className="text-xs uppercase tracking-wider text-brand-300 mb-1">
+                    {tr("Drivers on this account")}
+                  </div>
+                  <table className="w-full text-sm">
+                    <tbody>
+                      {detail.members.map((m) => (
+                        <tr key={m.id} className="border-t border-black/5">
+                          <td className="py-1.5">
+                            <button
+                              type="button"
+                              className="underline text-brand-500"
+                              onClick={() => setPicked(m.id)}
+                            >
+                              {m.name}
+                            </button>
+                            {m.phone && (
+                              <span className="text-brand-300 text-xs"> · {m.phone}</span>
+                            )}
+                          </td>
+                          <td className="py-1.5 text-right tabular-nums text-brand-400 whitespace-nowrap">
+                            {m.vehicles} {m.vehicles === 1 ? tr("vehicle") : tr("vehicles")}
+                          </td>
+                          <td className="py-1.5 pl-4 text-right tabular-nums whitespace-nowrap">
+                            {formatCents(m.chargedCents)}
+                          </td>
+                          <td className="py-1.5 pl-4 text-right tabular-nums text-brand-300 whitespace-nowrap">
+                            {m.lastVisit ?? "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
 
               <div className="mt-4">
                 <div className="text-xs uppercase tracking-wider text-brand-300 mb-1">Cars</div>

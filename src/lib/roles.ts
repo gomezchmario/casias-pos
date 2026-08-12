@@ -355,9 +355,12 @@ export const CAPABILITY_INFO: Record<
   editSeq: { label: "Edit the terminal SEQ", group: "At the register" },
   viewDay: { label: "See today's tickets", group: "At the register" },
   viewLog: { label: "See the day's full log", group: "Money and reports" },
-  discountSale: { label: "Take money off a ticket", group: "At the register" },
+  discountSale: {
+    label: "Give a discount, up to the counter limit",
+    group: "At the register",
+  },
   discountAnyAmount: {
-    label: "Take off more than the counter limit",
+    label: "Give a discount of any size, past the counter limit",
     group: "At the register",
   },
 

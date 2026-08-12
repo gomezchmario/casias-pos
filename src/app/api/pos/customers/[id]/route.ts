@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jsonError, requirePos } from "@/lib/api-helpers";
+import { fleetMembers } from "@/lib/fleets";
 import {
   customerTickets,
   deleteCustomer,
@@ -37,8 +38,23 @@ export async function GET(
       pinnedNoteBy: customer.pinned_note_by,
       pinnedNoteAt: customer.pinned_note_at,
       creditApproved: customer.credit_approved === 1,
+      fleetId: customer.fleet_id,
+      isFleet: customer.is_fleet === 1,
       since: customer.created_at,
     },
+    /*
+      Who this customer belongs to, and who belongs to them. Both sides are
+      sent because the panel shows one or the other and cannot know which until
+      the row arrives: a driver needs the company's name, a company needs its
+      drivers and the total they have run up.
+    */
+    fleet: customer.fleet_id
+      ? (() => {
+          const f = getCustomer(customer.fleet_id!);
+          return f ? { id: f.id, name: f.name, customerNo: f.customer_no } : null;
+        })()
+      : null,
+    members: customer.is_fleet === 1 ? fleetMembers(customer.id) : [],
     vehicles: listVehicles(id).map((v) => ({
       id: v.id,
       year: v.year,

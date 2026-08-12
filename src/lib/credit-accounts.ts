@@ -390,22 +390,31 @@ export function accountMonth(month: string): AccountMonth {
               -- The charge side, off the payment ledger exactly as the balance
               -- is. A voided ticket's reversal is in here as a negative, so it
               -- removes its own charge from whichever month it was undone in.
-              SELECT s.customer_id AS cid, s.business_date AS d,
+              -- Billed TO, not rung under. A driver under a fleet has no
+              -- statement of their own: their charges are the company's, and
+              -- the company's sheet names the driver on every line. See
+              -- BILL_TO in fleets.ts, which this must stay in step with.
+              SELECT COALESCE(c.fleet_id, c.id) AS cid, s.business_date AS d,
                      p.amount_cents AS charge, 0 AS paid
                 FROM payments p
                 JOIN sales s ON s.id = p.sale_id
                 JOIN payment_methods m ON m.id = p.method_id
+                JOIN customers c ON c.id = s.customer_id
                WHERE m.code = 'credit_account' AND s.deleted = 0
                  AND s.customer_id IS NOT NULL
                UNION ALL
-              SELECT a.customer_id, a.business_date, 0, a.amount_cents
+              SELECT COALESCE(c.fleet_id, c.id), a.business_date, 0, a.amount_cents
                 FROM account_payments a
+                JOIN customers c ON c.id = a.customer_id
             )
        SELECT c.id            AS customerId,
               c.customer_no   AS customerNo,
               c.name          AS name,
               c.phone         AS phone,
               c.credit_approved AS creditApproved,
+              c.is_fleet      AS isFleet,
+              (SELECT COUNT(*) FROM customers m
+                WHERE m.fleet_id = c.id AND m.deleted = 0) AS fleetMembers,
               SUM(CASE WHEN mv.d <  ? THEN mv.charge - mv.paid ELSE 0 END) AS openingCents,
               SUM(CASE WHEN mv.d >= ? AND mv.d <= ? THEN mv.charge ELSE 0 END) AS chargedCents,
               SUM(CASE WHEN mv.d >= ? AND mv.d <= ? THEN mv.paid   ELSE 0 END) AS paidCents,

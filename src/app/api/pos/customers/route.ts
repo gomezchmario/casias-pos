@@ -50,7 +50,13 @@ export async function POST(req: NextRequest) {
   const auth = await requirePos("manageCustomers");
   if (!auth.ok) return auth.response;
 
-  let body: { name?: string; phone?: string | null; notes?: string | null };
+  let body: {
+    name?: string;
+    phone?: string | null;
+    notes?: string | null;
+    fleetId?: number | null;
+    isFleet?: boolean;
+  };
   try {
     body = await req.json();
   } catch {
@@ -62,6 +68,8 @@ export async function POST(req: NextRequest) {
     name: body.name,
     phone: body.phone ?? null,
     notes: body.notes ?? null,
+    fleetId: body.fleetId ?? null,
+    isFleet: body.isFleet === true,
   });
   if (!made.ok) return jsonError(made.error);
 
@@ -72,6 +80,8 @@ export async function POST(req: NextRequest) {
       customerNo: made.customer.customer_no,
       name: made.customer.name,
       phone: made.customer.phone,
+      fleetId: made.customer.fleet_id,
+      isFleet: made.customer.is_fleet === 1,
     },
   });
 }

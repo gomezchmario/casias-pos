@@ -45,6 +45,10 @@ export type Customer = {
   pinned_note_at: string | null;
   /** The shop has agreed to carry this person — see `025_credit_approved.sql`. */
   credit_approved: number;
+  /** The company this person's tab is billed to — see `033_fleets.sql`. */
+  fleet_id: number | null;
+  /** This customer IS a company others can be billed under. */
+  is_fleet: number;
   created_at: string;
   updated_at: string;
   deleted: number;
@@ -170,6 +174,10 @@ export type CustomerRow = Customer & {
   creditTickets: number;
   /** What is still owed on the tab: charges less money paid against it. */
   accountBalanceCents: number;
+  fleetId: number | null;
+  fleetName: string | null;
+  isFleet: number;
+  fleetMembers: number;
 };
 
 /**
@@ -246,8 +254,17 @@ export function listCustomers(args?: {
               -- charges off the ledger, less money paid against the account —
               -- because two screens showing one customer's debt differently is
               -- how somebody ends up ringing the wrong person.
+              -- Rolled UP, not summed in place. A driver under Williams
+              -- Insulation has no tab of their own — their charges are the
+              -- company's — so the balance on a member row is the company's
+              -- balance and the member row says whose it is. See BILL_TO.
               COALESCE(cr.accountChargedCents, 0) - COALESCE(acp.paid, 0)
                                                                        AS accountBalanceCents,
+              c.fleet_id                                               AS fleetId,
+              (SELECT f.name FROM customers f WHERE f.id = c.fleet_id)  AS fleetName,
+              c.is_fleet                                               AS isFleet,
+              (SELECT COUNT(*) FROM customers m
+                WHERE m.fleet_id = c.id AND m.deleted = 0)             AS fleetMembers,
               t.lastVisit                                              AS lastVisit
          FROM customers c
     LEFT JOIN (
@@ -270,20 +287,25 @@ export function listCustomers(args?: {
                      COUNT(*)     AS creditTickets,
                      SUM(net)     AS accountChargedCents
                 FROM (
-                     SELECT s.customer_id, s.id AS sale_id,
+                     SELECT COALESCE(c.fleet_id, c.id) AS customer_id,
+                            s.id AS sale_id,
                             SUM(p.amount_cents) AS net
                        FROM payments p
                        JOIN sales s ON s.id = p.sale_id
                        JOIN payment_methods m ON m.id = p.method_id
+                       JOIN customers c ON c.id = s.customer_id
                       WHERE m.code = 'credit_account' AND s.deleted = 0
-                      GROUP BY s.customer_id, s.id
+                      GROUP BY s.id
                      HAVING net <> 0
                      )
                GROUP BY customer_id
               ) cr ON cr.customer_id = c.id
     LEFT JOIN (
-              SELECT customer_id, SUM(amount_cents) AS paid
-                FROM account_payments GROUP BY customer_id
+              SELECT COALESCE(c.fleet_id, c.id) AS customer_id,
+                     SUM(a.amount_cents) AS paid
+                FROM account_payments a
+                JOIN customers c ON c.id = a.customer_id
+               GROUP BY COALESCE(c.fleet_id, c.id)
               ) acp ON acp.customer_id = c.id
         WHERE ${where.join(" AND ")}
      ORDER BY t.lastVisit IS NULL, t.lastVisit DESC, c.name
@@ -443,7 +465,15 @@ export function updateCustomer(
  */
 export function createCustomer(
   user: PosUser,
-  args: { name: string; phone?: string | null; notes?: string | null },
+  args: {
+    name: string;
+    phone?: string | null;
+    notes?: string | null;
+    /** Bill this person to a company from the moment they exist. */
+    fleetId?: number | null;
+    /** This customer IS a company others can be billed under. */
+    isFleet?: boolean;
+  },
 ): Result<{ customer: Customer }> {
   if (!can(user.role, "manageCustomers"))
     return { ok: false, error: "Your account can't add to the customer book" };
@@ -476,16 +506,34 @@ export function createCustomer(
     const id = Number(
       getDb()
         .prepare(
-          `INSERT INTO customers (customer_no, name, phone, notes, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO customers (customer_no, name, phone, notes, fleet_id, is_fleet,
+                                  created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(customerNo, name, phone, notes, now, now).lastInsertRowid,
+        .run(
+          customerNo,
+          name,
+          phone,
+          notes,
+          // A fleet cannot itself be billed to one — the same rule setFleet
+          // enforces, applied here so the create path cannot slip past it.
+          args.isFleet ? null : (args.fleetId ?? null),
+          args.isFleet ? 1 : 0,
+          now,
+          now,
+        ).lastInsertRowid,
     );
     logActorAudit(actorOf(user), {
       action: "customer.create",
       targetType: "customer",
       targetId: id,
-      details: { customer_no: customerNo, name, phone },
+      details: {
+        customer_no: customerNo,
+        name,
+        phone,
+        fleet_id: args.isFleet ? null : (args.fleetId ?? null),
+        is_fleet: args.isFleet ? 1 : 0,
+      },
     });
     return { ok: true as const, customer: getCustomer(id)! };
   });

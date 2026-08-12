@@ -178,3 +178,21 @@
     display: none !important;
   }
 }
+
+/* A company account, and the drivers billed to it. Quiet by design: this is a
+   fact about the row rather than a warning, and the star already carries the
+   loud news (approved for credit). */
+.cu-fleet {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgb(31 122 140 / 0.12);
+  color: #146070;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cu-fleet-tag {
+  color: #146070;
+  font-weight: 600;
+}

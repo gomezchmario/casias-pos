@@ -1629,4 +1629,158 @@ export const POS_SECTIONS: Section[] = [
       },
     ],
   },
+  {
+    title: { es: "Cuentas de empresa (flotillas)", en: "Company accounts (fleets)" },
+    blocks: [
+      {
+        kind: "p",
+        text: {
+          es: "Una **empresa** es un cliente que paga la cuenta de varios choferes. Williams Insulation es una empresa; sus choferes llegan con las trocas de la compañía y lo que se cobra va a la cuenta de Williams, no a la de cada quien. Un chofer que tiene su propio crédito y no trabaja para nadie sigue igual que siempre — esto no lo cambia.",
+          en: "A **company** is a customer whose account several drivers charge to. Williams Insulation is a company; its drivers come in with company trucks and what they spend goes on the Williams account, not on their own. A driver with his own credit who works for nobody stays exactly as he is — none of this changes him.",
+        },
+      },
+      {
+        kind: "note",
+        title: { es: "La regla, en una línea", en: "The rule, in one line" },
+        body: [
+          {
+            es: "**Si un cliente está asignado a una empresa, todo lo que cargue a cuenta es de la empresa.** Por eso no hay que escoger nada al cobrar: se escoge una sola vez, cuando se da de alta al chofer. Un chofer que debe facturarse aparte simplemente NO se asigna a la empresa.",
+            en: "**If a customer is assigned to a company, everything they put on account belongs to the company.** That is why there is nothing to choose when you take payment: it is chosen once, when the driver is set up. A driver who must be billed separately is simply not assigned to a company.",
+          },
+        ],
+      },
+      { kind: "h3", text: { es: "Paso 1 · Marcar la empresa", en: "Step 1 · Mark the company" } },
+      {
+        kind: "steps",
+        items: [
+          { es: "Vaya a [[Customers]] y busque la empresa — por ejemplo *Williams Insulation*. Si todavía no existe (como *Carrillo Construction*), tóquele [[New customer]] y créela primero con el nombre de la compañía.", en: "Go to [[Customers]] and find the company — say *Williams Insulation*. If it does not exist yet (like *Carrillo Construction*), press [[New customer]] and create it first, under the company's name." },
+          { es: "Con la empresa abierta, palomee **[[This is a company others can be billed to]]**.", en: "With the company open, tick **[[This is a company others can be billed to]]**." },
+          { es: "Asegúrese de que tenga palomeado **[[Store credit approved]]**. Eso es lo que dice que el taller sí le fía a esa compañía.", en: "Make sure **[[Store credit approved]]** is ticked as well. That is what says the shop carries that company." },
+        ],
+      },
+      {
+        kind: "note",
+        title: { es: "Qué acaba de pasar", en: "What just happened" },
+        body: [
+          {
+            es: "Esa compañía ya aparece en la lista de **[[Billed to]]** en todas las pantallas donde se da de alta un cliente. Todavía no cambió ningún saldo — nada más quedó lista para recibir choferes.",
+            en: "That company now appears in the **[[Billed to]]** list on every screen where a customer is set up. No balance has changed yet — it is simply ready to take drivers." },
+        ],
+      },
+      { kind: "h3", text: { es: "Paso 2 · Dar de alta al chofer", en: "Step 2 · Add the driver" } },
+      {
+        kind: "p",
+        text: {
+          es: "Hay dos caminos y los dos dejan lo mismo. Use el que le quede a la mano en el momento.",
+          en: "There are two ways in and they leave the same result. Use whichever is in front of you at the time.",
+        },
+      },
+      {
+        kind: "steps",
+        items: [
+          { es: "**Desde el libro de clientes.** [[Customers]] → [[New customer]]. Escriba el nombre del chofer y su teléfono, y en **[[Billed to]]** escoja la empresa. Toque [[Add them]].", en: "**From the customer book.** [[Customers]] → [[New customer]]. Type the driver's name and phone, and under **[[Billed to]]** pick the company. Press [[Add them]]." },
+          { es: "**Desde una venta.** Cobre normal: ponga el nombre del chofer y su troca en el ticket, y al escoger **[[Credit Account]]** aparece un recuadro azul que dice [[Billed to]]. Escoja ahí la empresa. Se queda guardado para siempre — no hay que volver a hacerlo el mes que entra.", en: "**From a sale.** Ring it as normal: put the driver's name and truck on the ticket, and when you choose **[[Credit Account]]** a blue box appears saying [[Billed to]]. Pick the company there. It is remembered for good — you do not do it again next month." },
+        ],
+      },
+      {
+        kind: "note",
+        title: { es: "Qué acaba de pasar", en: "What just happened" },
+        body: [
+          {
+            es: "El chofer quedó **asignado a la empresa**. Desde ese momento cada cargo suyo a cuenta se suma al saldo de la compañía — y el ticket **sigue llevando el nombre del chofer y su troca**, que es lo que después permite decirle a la empresa exactamente quién gastó qué.",
+            en: "The driver is now **assigned to the company**. From that moment every account charge of his adds to the company's balance — and the ticket **still carries the driver's name and his truck**, which is what later lets you tell the company exactly who spent what.",
+          },
+        ],
+      },
+      {
+        kind: "note",
+        title: { es: "La troca también entra", en: "The truck comes with him" },
+        body: [
+          {
+            es: "El vehículo que se capture en el ticket del chofer aparece también en la hoja de la empresa. No hay que capturarlo dos veces ni darlo de alta aparte.",
+            en: "A vehicle captured on the driver's ticket also shows on the company's sheet. There is no second place to enter it and nothing to register separately.",
+          },
+        ],
+      },
+      { kind: "h3", text: { es: "Paso 3 · Cobrar como siempre", en: "Step 3 · Ring it as normal" } },
+      {
+        kind: "p",
+        text: {
+          es: "No hay ningún paso nuevo al cobrar. Se pone al chofer en el ticket, se escoge [[Credit Account]], y listo. El cargo se va solo a la cuenta de la empresa.",
+          en: "There is no new step when taking payment. Put the driver on the ticket, choose [[Credit Account]], and that is it. The charge goes to the company's account on its own.",
+        },
+      },
+      {
+        kind: "warn",
+        title: { es: "El saldo del chofer ya no es suyo", en: "The driver's balance is not his any more" },
+        body: [
+          {
+            es: "Si busca al chofer en [[Customers]], su renglón dice a qué empresa se le carga y **no muestra un saldo aparte** — porque no lo tiene. El dinero se ve en la empresa. Si alguien pide \"cuánto debe este chofer\", la respuesta honesta es cuánto ha cargado él a la cuenta de la compañía, y eso está en la hoja de la empresa, renglón por renglón.",
+            en: "If you look the driver up in [[Customers]], his row says which company he is billed to and **shows no separate balance** — because he has none. The money lives on the company. If somebody asks \"how much does this driver owe\", the honest answer is how much he has put on the company's account, and that is on the company's sheet, line by line.",
+          },
+        ],
+      },
+      { kind: "h3", text: { es: "Paso 4 · La hoja de la empresa", en: "Step 4 · The company's sheet" } },
+      {
+        kind: "steps",
+        items: [
+          { es: "[[Customers]] → busque la empresa → toque **[[Statement]] →**.", en: "[[Customers]] → find the company → press **[[Statement]] →**." },
+          { es: "Escoja el mes arriba a la derecha y toque [[Print]].", en: "Pick the month at the top right and press [[Print]]." },
+        ],
+      },
+      {
+        kind: "p",
+        text: {
+          es: "La hoja trae cuatro números que cuadran entre sí — **lo que debía al empezar, lo que se cargó, lo que pagó, lo que debe ahora** — y abajo cada cargo con la fecha, el ticket, **el chofer** y la troca. Un cargo hecho directo a nombre de la compañía dice *on the account* en lugar de un chofer.",
+          en: "The sheet carries four figures that reconcile — **owed at the start, charged, paid, owed now** — and under them every charge with its date, ticket, **driver** and truck. A charge rung on the company itself says *on the account* where a driver's name would be.",
+        },
+      },
+      {
+        kind: "note",
+        title: { es: "Para qué sirve la columna del chofer", en: "What the driver column is for" },
+        body: [
+          {
+            es: "Es la diferencia entre mandar un número y mandar un documento. Una empresa que recibe \"$4,200 de marzo\" tiene que confiar; una que recibe la lista con chofer, troca y ticket la puede checar contra sus propios papeles. Un pleito por un cargo se vuelve una consulta de cinco minutos.",
+            en: "It is the difference between sending a number and sending a document. A company that receives \"$4,200 for March\" has to take it on trust; one that receives the list with driver, truck and ticket can check it against their own records. An argument about a charge becomes a five-minute lookup.",
+          },
+        ],
+      },
+      { kind: "h3", text: { es: "Cosas que va a necesitar", en: "Things you will need" } },
+      {
+        kind: "table",
+        head: [
+          { es: "Situación", en: "Situation" },
+          { es: "Qué hacer", en: "What to do" },
+        ],
+        rows: [
+          [
+            { es: "El chofer se cambió de empresa", en: "The driver moved companies" },
+            { es: "Ábralo en [[Customers]] y cambie **[[Billed to]]**. Lo viejo NO se mueve: lo que ya cargó a la empresa anterior sigue siendo de ella, porque así fue.", en: "Open him in [[Customers]] and change **[[Billed to]]**. The past does NOT move: what he already charged to the old company stays theirs, because that is what happened." },
+          ],
+          [
+            { es: "El chofer se va y ahora paga él", en: "The driver leaves and now pays himself" },
+            { es: "Cambie **[[Billed to]]** a *Themselves* y palomee su propio [[Store credit approved]] si se le va a fiar.", en: "Change **[[Billed to]]** to *Themselves*, and tick his own [[Store credit approved]] if he is to be carried." },
+          ],
+          [
+            { es: "El dueño de la empresa viene en su carro particular", en: "The company's owner comes in his own car" },
+            { es: "Si su cuenta personal está asignada a la empresa, ese cargo también es de la empresa. Si quiere separarlos, haga dos clientes: la persona y la compañía.", en: "If his personal record is assigned to the company, that charge is the company's too. To keep them apart, make two customers: the person and the company." },
+          ],
+          [
+            { es: "La empresa paga", en: "The company pays" },
+            { es: "Se recibe en la cuenta de la **empresa**, igual que cualquier abono. Baja el saldo de todos sus choferes de un solo golpe, porque es un solo saldo.", en: "Take it against the **company's** account, like any other payment. It brings down the balance for all its drivers at once, because it is one balance." },
+          ],
+        ],
+      },
+      {
+        kind: "warn",
+        title: { es: "Una empresa no puede estar dentro de otra", en: "A company cannot sit inside another" },
+        body: [
+          {
+            es: "El sistema no lo deja, a propósito. Un solo nivel — empresa y sus choferes — es lo que hace que un saldo se pueda calcular sin ambigüedad. Si de verdad hace falta, hable con quien lleva el sistema antes de inventar un arreglo.",
+            en: "The system refuses it, on purpose. One level — a company and its drivers — is what keeps a balance unambiguous. If it is genuinely needed, raise it before inventing a workaround.",
+          },
+        ],
+      },
+    ],
+  },
 ];
