@@ -3,10 +3,11 @@ import Image from "next/image";
 /**
  * The shop's actual badge, wherever the drawn tire used to be.
  *
- * `TireMark` is still in the tree and still draws a generic tire in SVG — it is
- * what the lock screen spins, and a spinning company badge would look like a
- * page that had failed to load rather than one that was working. This is for
- * the places that are naming the business rather than decorating a wait.
+ * `TireMark` still draws a generic tire in SVG and is still the right thing for
+ * a spinner, where a company badge going round would read as a page that had
+ * failed to load rather than one that was working. It has no callers left now
+ * that the lock screen wears this badge instead — that one names the business,
+ * and TireMark decorates a wait.
  *
  * Served from `public/logo.png` rather than imported, so replacing the badge is
  * dropping a file in a folder rather than a code change. The file there is the

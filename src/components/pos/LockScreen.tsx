@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Keypad } from "@/components/kiosk/Keypad";
 import { PinDots } from "@/components/kiosk/PinDots";
-import { TireMark } from "@/components/ui/TireMark";
+import { ShopLogo } from "@/components/ui/ShopLogo";
 
 /**
  * What a locked register shows: a PIN pad that opens it again.
@@ -95,7 +95,13 @@ export function LockScreen({ onUnlocked }: { onUnlocked: () => void }) {
       // information, which is the half that matters.
       style={{ background: "#07182c", color: "#fff" }}
     >
-      <TireMark size={44} />
+      {/* The shop's own badge, not the drawn tire that used to sit here.
+          A locked register is the screen the counter looks at longest with
+          nobody using it — a customer waiting, an owner walking past — so it
+          is the wrong place for a generic wheel that could belong to anybody.
+          Large because there is nothing competing with it: the whole screen is
+          this, a PIN pad, and one link. */}
+      <ShopLogo size={112} priority />
       <div className="text-center">
         <div className="text-lg font-semibold">{t("Register locked")}</div>
         <p className="text-sm text-white/55 mt-1">
