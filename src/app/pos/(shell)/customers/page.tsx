@@ -50,6 +50,7 @@ type Vehicle = {
   model: string | null;
   color: string | null;
   plate: string | null;
+  vin: string | null;
   tireSize: string | null;
   notes: string | null;
 };
@@ -113,6 +114,8 @@ export default function CustomersPage() {
   const [notApproved, setNotApproved] = useState(false);
   /** Companies only — the ones other customers are billed to. */
   const [companies, setCompanies] = useState(false);
+  /** Which driver's tab is unfolded under a company. One at a time. */
+  const [openDriver, setOpenDriver] = useState<number | null>(null);
   const [rows, setRows] = useState<Row[] | null>(null);
 
   /*
@@ -198,6 +201,14 @@ export default function CustomersPage() {
   const [companyDirty, setCompanyDirty] = useState(false);
   const [note, setNote] = useState("");
   const [editCar, setEditCar] = useState<Vehicle | null>(null);
+  /**
+   * A car being added, as opposed to one being corrected.
+   *
+   * Held apart from `editCar` so an unsaved new car cannot be mistaken for an
+   * edit of the row above it — they use the same form and the same fields, and
+   * the only difference is whether there is an id to PATCH.
+   */
+  const [newCar, setNewCar] = useState<Vehicle | null>(null);
   const [removingCar, setRemovingCar] = useState<Vehicle | null>(null);
   const [removingCustomer, setRemovingCustomer] = useState(false);
   // Bumped when anything on the panel changes, so the account reloads with it.
@@ -955,8 +966,27 @@ export default function CustomersPage() {
                   <table className="w-full text-sm">
                     <tbody>
                       {detail.members.map((m) => (
-                        <tr key={m.id} className="border-t border-black/5">
+                        <React.Fragment key={m.id}>
+                        <tr className="border-t border-black/5">
                           <td className="py-1.5">
+                            {/*
+                              The total was all a driver's row said, and the
+                              total is the one thing nobody is asking about —
+                              "what did that truck have done" is. Opening the
+                              row shows the same tab the driver's own page
+                              shows, in the same shape, without leaving the
+                              company you are reading.
+                            */}
+                            <button
+                              type="button"
+                              className="cu-driver-toggle"
+                              aria-expanded={openDriver === m.id}
+                              onClick={() =>
+                                setOpenDriver((d) => (d === m.id ? null : m.id))
+                              }
+                            >
+                              {openDriver === m.id ? "▾" : "▸"}
+                            </button>
                             <button
                               type="button"
                               className="underline text-brand-500"
@@ -978,6 +1008,19 @@ export default function CustomersPage() {
                             {m.lastVisit ?? "—"}
                           </td>
                         </tr>
+                        {openDriver === m.id && (
+                          <tr>
+                            <td colSpan={4} className="pb-3 pl-6">
+                              <AccountPanel
+                                customerId={m.id}
+                                name={m.name}
+                                reload={accountReload}
+                                onError={setError}
+                              />
+                            </td>
+                          </tr>
+                        )}
+                        </React.Fragment>
                       ))}
                     </tbody>
                   </table>
@@ -985,9 +1028,48 @@ export default function CustomersPage() {
               )}
 
               <div className="mt-4">
-                <div className="text-xs uppercase tracking-wider text-brand-300 mb-1">Cars</div>
+                <div className="flex items-baseline justify-between gap-2 mb-1">
+                  <div className="text-xs uppercase tracking-wider text-brand-300">Cars</div>
+                  {/* Adding a car from here, rather than only as a side effect
+                      of ringing a ticket. A fleet manager entering eleven
+                      trucks before the first one arrives has no ticket to hang
+                      them off, and used to have to invent one. */}
+                  {can("manageCustomers") && !newCar && (
+                    <button
+                      type="button"
+                      className="text-xs underline text-brand-400 hover:text-brand-500"
+                      onClick={() =>
+                        setNewCar({
+                          id: 0, year: "", make: "", model: "", color: "",
+                          plate: "", vin: "", tireSize: "", notes: "",
+                        })
+                      }
+                    >+ {tr("Add a car")}</button>
+                  )}
+                </div>
+                {newCar && (
+                  <div className="mb-2">
+                    <CarForm
+                      car={newCar}
+                      busy={busy}
+                      onChange={setNewCar}
+                      onCancel={() => setNewCar(null)}
+                      onSave={async () => {
+                        const ok = await send(
+                          `/api/pos/customers/${detail.customer.id}/vehicles`,
+                          {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(newCar),
+                          },
+                        );
+                        if (ok) setNewCar(null);
+                      }}
+                    />
+                  </div>
+                )}
                 {detail.vehicles.length === 0 ? (
-                  <div className="text-sm text-brand-300">No car on file.</div>
+                  !newCar && <div className="text-sm text-brand-300">No car on file.</div>
                 ) : (
                   <div className="flex flex-col gap-1">
                     {detail.vehicles.map((v) =>
@@ -1844,6 +1926,11 @@ function CarForm({
       <div className="grid gap-2 mt-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
         {field("plate", "Plate", "ABC1234")}
         {field("tireSize", "Tire size", "265-70-17")}
+        {/* Spans both columns: seventeen characters in a half-width box is a
+            box nobody can check what they typed into. */}
+        <div style={{ gridColumn: "1 / -1" }}>
+          {field("vin", "VIN", "1FTFW1E50MFA12345")}
+        </div>
       </div>
       <div className="flex gap-2 mt-3">
         <button type="button" className="btn btn-primary" disabled={busy} onClick={onSave}>{tr("Save")}</button>

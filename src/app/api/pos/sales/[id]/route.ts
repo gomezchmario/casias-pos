@@ -78,7 +78,7 @@ export async function GET(
   const vehicle = sale.vehicle_id
     ? (getDb()
         .prepare(
-          "SELECT id, year, make, model, color, plate FROM vehicles WHERE id = ?",
+          "SELECT id, year, make, model, color, plate, vin FROM vehicles WHERE id = ?",
         )
         .get(sale.vehicle_id) as
         | {
@@ -88,6 +88,7 @@ export async function GET(
             model: string | null;
             color: string | null;
             plate: string | null;
+            vin: string | null;
           }
         | undefined) ?? null
     : null;

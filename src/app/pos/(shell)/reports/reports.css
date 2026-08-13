@@ -955,3 +955,21 @@
     display: block;
   }
 }
+
+/* The "still being built" banner at the top of Reports.
+   Red because it is about trusting numbers, which is the one thing on these
+   pages worth interrupting somebody over. It does not print — a warning belongs
+   where somebody decides whether to believe a figure, and on paper it would
+   outlive the reason for it. */
+.rp-experimental {
+  border: 2px solid #b91c1c;
+  background: #fef2f2;
+  color: #7f1d1d;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  max-width: 88ch;
+}
+.rp-experimental strong { color: #b91c1c; }

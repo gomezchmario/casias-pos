@@ -7,6 +7,7 @@ import type { PaymentMethod } from "@/lib/payments";
 import { useLang } from "@/components/pos/LangToggle";
 import { usePosAuth } from "@/components/pos/PosShell";
 import { DiscountTicket } from "@/components/pos/DiscountTicket";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 /*
  * NOTHING HERE TOUCHES SEQ, AND THAT IS THE DESIGN.
@@ -129,6 +130,41 @@ export function PaymentPanel({
     onTenderChange?.(isAccount);
   }, [isAccount, onTenderChange]);
 
+  /**
+   * The car on this ticket, fetched only when the house account is chosen.
+   *
+   * The panel does not otherwise care which car it is — it is taking money.
+   * The account is the exception: a company being billed for work on eleven
+   * trucks needs them told apart on the statement months later, and a plate
+   * changes hands where a VIN does not. Asked for at the one moment it matters
+   * rather than loaded on every ticket.
+   */
+  const [ticketVehicle, setTicketVehicle] = useState<
+    { id: number; vin: string | null; label: string } | null | undefined
+  >(undefined);
+  useEffect(() => {
+    if (!isAccount) return;
+    void (async () => {
+      const res = await fetch(`/api/pos/sales/${sale.id}`);
+      if (!res.ok) { setTicketVehicle(null); return; }
+      const d = await res.json();
+      const v = d.vehicle;
+      setTicketVehicle(
+        v
+          ? {
+              id: v.id,
+              vin: v.vin ?? null,
+              label: [v.year, v.make, v.model].filter(Boolean).join(" ") || v.plate || "the vehicle",
+            }
+          : null,
+      );
+    })();
+  }, [isAccount, sale.id]);
+
+  /** Asked once, before the charge goes on the tab. */
+  const [vinAsk, setVinAsk] = useState(false);
+  const [vinAcked, setVinAcked] = useState(false);
+
   const tipCents = Math.max(0, parseCents(tip) ?? 0);
 
   /**
@@ -174,6 +210,24 @@ export function PaymentPanel({
   async function complete() {
     if (busy) return;
     if (!splitTender && !method) return;
+
+    /*
+      A VIN IS NOT REQUIRED, AND IT IS ALMOST ALWAYS WANTED.
+
+      Only on the house account, because that is the tender where the shop is
+      going to have to say months later which of a company's eleven trucks the
+      work was on — and a plate changes hands while a VIN does not.
+
+      An ask rather than a refusal, and the reason is on the screen: this shop
+      tires lawnmowers, skid steers and trailers, and plenty of them have no VIN
+      to give. A rule that cannot be satisfied is a rule people learn to defeat.
+      So it stops once, says why, and takes yes for an answer.
+    */
+    if (isAccount && !vinAcked && ticketVehicle !== undefined && !ticketVehicle?.vin) {
+      setVinAsk(true);
+      return;
+    }
+
     onError(null);
     setBusy(true);
 
@@ -601,6 +655,35 @@ export function PaymentPanel({
           onClick={startSplit}
         >{tr("Split payment, or take only part of it")}</button>
       )}
+      <ConfirmModal
+        open={vinAsk}
+        onCancel={() => setVinAsk(false)}
+        onConfirm={() => {
+          setVinAsk(false);
+          setVinAcked(true);
+          void complete();
+        }}
+        title="No VIN on this vehicle"
+        confirmLabel="Put it on the account anyway"
+        cancelLabel="Go back and add it"
+        acknowledge="I know this charge will have no VIN against it"
+      >
+        <p>
+          {ticketVehicle
+            ? `There is no VIN recorded for ${ticketVehicle.label}.`
+            : "There is no vehicle on this ticket at all."}
+        </p>
+        <p className="mt-2">
+          On a company account this is the one thing that tells eleven trucks
+          apart on a statement months from now. A plate changes hands; a VIN does
+          not. <strong>If this is a fleet customer, go back and add it.</strong>
+        </p>
+        <p className="mt-2 text-brand-400">
+          Carry on if there is genuinely no VIN to give — a lawnmower, a trailer,
+          a skid steer.
+        </p>
+      </ConfirmModal>
+
     </div>
   );
 }

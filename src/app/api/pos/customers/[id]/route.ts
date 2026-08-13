@@ -68,6 +68,7 @@ export async function GET(
       model: v.model,
       color: v.color,
       plate: v.plate,
+      vin: v.vin,
       tireSize: v.tire_size,
       notes: v.notes,
     })),

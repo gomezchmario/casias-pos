@@ -36,6 +36,7 @@ type Match = {
     model: string | null;
     color: string | null;
     plate: string | null;
+    vin: string | null;
   }[];
 };
 
@@ -47,12 +48,13 @@ type Fields = {
   model: string;
   color: string;
   plate: string;
+  vin: string;
   po: string;
   notes: string;
 };
 
 const EMPTY: Fields = {
-  name: "", phone: "", year: "", make: "", model: "", color: "", plate: "", po: "", notes: "",
+  name: "", phone: "", year: "", make: "", model: "", color: "", plate: "", vin: "", po: "", notes: "",
 };
 
 /** What the ticket already knows, when it is being opened on an existing one. */
@@ -70,6 +72,7 @@ export type KnownDetails = {
     model: string | null;
     color: string | null;
     plate: string | null;
+    vin: string | null;
   } | null;
 };
 
@@ -136,6 +139,7 @@ export function TicketDetails({
     model: known?.vehicle?.model ?? "",
     color: known?.vehicle?.color ?? "",
     plate: known?.vehicle?.plate ?? "",
+    vin: known?.vehicle?.vin ?? "",
     po: sale.po ?? "",
     notes: sale.notes ?? "",
   });
@@ -299,6 +303,7 @@ export function TicketDetails({
       model: fields.model.trim() || null,
       color: fields.color.trim() || null,
       plate: fields.plate.trim() || null,
+      vin: fields.vin.trim() || null,
       po: fields.po.trim() || null,
       notes: fields.notes.trim() || null,
     };
@@ -348,6 +353,7 @@ export function TicketDetails({
       model: v?.model ?? "",
       color: v?.color ?? "",
       plate: v?.plate ?? "",
+      vin: v?.vin ?? "",
     });
     setShowMatches(false);
     setMatches([]);
@@ -549,6 +555,10 @@ export function TicketDetails({
               other finds nothing. */}
           {field("plate", "Plate", { caps: true, maxLength: 12 })}
         </div>
+        {/* Full width: it is seventeen characters, and a box that shows nine of
+            them is a box nobody can check what they typed into. Caps on the way
+            in — it is read off a windscreen by somebody holding a torch. */}
+        {field("vin", "VIN", { caps: true, maxLength: 24 })}
         {field("po", "P.O. number")}
         {field("notes", "Note", { maxLength: 500 })}
 

@@ -68,6 +68,15 @@ export type Vehicle = {
   model: string | null;
   color: string | null;
   plate: string | null;
+  /**
+   * The VIN, where the vehicle has one.
+   *
+   * Nullable and staying that way — this shop tires lawnmowers, skid steers and
+   * trailers, and a required column would either lock those out of the book or
+   * collect seventeen rows reading "NONE", which is worse than blank because
+   * blank is honestly unknown. See 040_vehicle_vin.sql.
+   */
+  vin: string | null;
   tire_size: string | null;
   notes: string | null;
   created_at: string;
@@ -779,6 +788,7 @@ export function updateVehicle(
     model?: string | null;
     color?: string | null;
     plate?: string | null;
+    vin?: string | null;
     tire_size?: string | null;
     notes?: string | null;
   },
@@ -798,6 +808,7 @@ export function updateVehicle(
     model: pick("model", before.model),
     color: pick("color", before.color),
     plate: args.plate !== undefined ? cleanPlate(args.plate) : before.plate,
+    vin: args.vin !== undefined ? cleanVin(args.vin) : before.vin,
     tire_size: pick("tire_size", before.tire_size),
     notes: pick("notes", before.notes),
   };
@@ -806,12 +817,12 @@ export function updateVehicle(
     getDb()
       .prepare(
         `UPDATE vehicles
-            SET year = ?, make = ?, model = ?, color = ?, plate = ?, tire_size = ?,
-                notes = ?, updated_at = ?
+            SET year = ?, make = ?, model = ?, color = ?, plate = ?, vin = ?,
+                tire_size = ?, notes = ?, updated_at = ?
           WHERE id = ?`,
       )
       .run(
-        next.year, next.make, next.model, next.color, next.plate,
+        next.year, next.make, next.model, next.color, next.plate, next.vin,
         next.tire_size, next.notes, nowLocalIso(), id,
       );
 
@@ -836,6 +847,85 @@ export function updateVehicle(
  * — sold, written off, traded — and the person who is told about it is standing
  * at the counter. Tickets that named it keep naming it; only the lookup goes.
  */
+/**
+ * Put a car on a customer, from the customer page.
+ *
+ * The register already creates vehicles as a side effect of ringing a ticket —
+ * see `attachToSale` — which is right at the counter and useless in the office.
+ * A fleet manager sitting down to enter eleven trucks before the first one
+ * arrives has no ticket to hang them off, and until now had to invent one.
+ *
+ * Nothing is required. A row that carries only a VIN, or only a plate, is a
+ * real thing somebody knows about a truck they have not seen yet, and refusing
+ * it would send them back to a notebook.
+ */
+export function createVehicle(
+  user: PosUser,
+  customerId: number,
+  args: {
+    year?: string | null;
+    make?: string | null;
+    model?: string | null;
+    color?: string | null;
+    plate?: string | null;
+    vin?: string | null;
+    tire_size?: string | null;
+    notes?: string | null;
+  },
+): Result<{ vehicle: Vehicle }> {
+  if (!can(user.role, "manageCustomers"))
+    return { ok: false, error: "Only a manager can add a car" };
+
+  const owner = getCustomer(customerId);
+  if (!owner) return { ok: false, error: "Customer not found" };
+
+  const next = {
+    year: clean(args.year),
+    make: clean(args.make),
+    model: clean(args.model),
+    color: clean(args.color),
+    plate: cleanPlate(args.plate),
+    vin: cleanVin(args.vin),
+    tire_size: clean(args.tire_size),
+    notes: clean(args.notes),
+  };
+
+  if (!next.year && !next.make && !next.model && !next.plate && !next.vin)
+    return { ok: false, error: "Say something about the car — a make, a plate or a VIN" };
+
+  // The VIN is the one field that can say "this is already here". Checked so a
+  // fleet entered twice does not become twenty-two trucks.
+  if (next.vin) {
+    const dupe = getDb()
+      .prepare("SELECT id FROM vehicles WHERE customer_id = ? AND deleted = 0 AND vin = ?")
+      .get(customerId, next.vin) as { id: number } | undefined;
+    if (dupe) return { ok: false, error: "That VIN is already on this customer" };
+  }
+
+  return inTx(() => {
+    const now = nowLocalIso();
+    const id = Number(
+      getDb()
+        .prepare(
+          `INSERT INTO vehicles (customer_id, year, make, model, color, plate, vin,
+                                 tire_size, notes, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          customerId, next.year, next.make, next.model, next.color, next.plate,
+          next.vin, next.tire_size, next.notes, now, now,
+        ).lastInsertRowid,
+    );
+    logActorAudit(actorOf(user), {
+      action: "vehicle.create",
+      targetType: "vehicle",
+      targetId: id,
+      details: { customer_id: customerId, ...next, via: "customer page" },
+    });
+    return { ok: true as const, vehicle: getVehicle(id)! };
+  });
+}
+
 export function deleteVehicle(user: PosUser, id: number, reason: string): Result {
   if (!can(user.role, "manageCustomers"))
     return { ok: false, error: "Only a manager can remove a car" };
@@ -893,11 +983,26 @@ export type TicketDetails = {
   model?: string | null;
   color?: string | null;
   plate?: string | null;
+  vin?: string | null;
   po?: string | null;
   notes?: string | null;
 };
 
 const clean = (v: string | null | undefined) => v?.trim() || null;
+/**
+ * A VIN as it is stamped: caps, no spaces, no hyphens.
+ *
+ * Read off a windscreen or a door jamb and typed by somebody who is holding a
+ * torch, so the spacing they add is theirs and not the number's. Not validated
+ * beyond that — a real VIN is 17 characters and excludes I, O and Q, but a
+ * trailer plate or an equipment serial is neither, and refusing those would
+ * refuse exactly the vehicles this shop sees most.
+ */
+function cleanVin(v: string | null | undefined): string | null {
+  const t = (v ?? "").replace(/[\s-]/g, "").toUpperCase().trim();
+  return t.length ? t : null;
+}
+
 /** Plates are written in caps on the plate, so they are stored in caps here. */
 const cleanPlate = (v: string | null | undefined) =>
   v?.trim().toUpperCase().replace(/\s+/g, "") || null;
@@ -938,11 +1043,12 @@ export function attachToSale(
   const make = clean(d.make);
   const model = clean(d.model);
   const color = clean(d.color);
+  const vin = cleanVin(d.vin);
 
   const po = clean(d.po);
   const notes = clean(d.notes);
 
-  const hasVehicle = !!(plate || year || make || model || color);
+  const hasVehicle = !!(plate || year || make || model || color || vin);
   const hasCustomer = !!(name || phone || d.customerId);
   const hasSaleField = d.po !== undefined || d.notes !== undefined;
 
@@ -1063,6 +1169,21 @@ export function attachToSale(
       }
     }
 
+    /*
+      A VIN beats everything else at saying which car this is.
+
+      Year, make and model describe a kind of vehicle; two white 2019 F-250s on
+      one fleet account are the same description and different trucks. So when a
+      VIN is typed and the shop already knows it, that row IS the car — checked
+      before the looser match below has a chance to pick the wrong one.
+    */
+    if (!vehicle && vin && customer) {
+      vehicle =
+        (db
+          .prepare("SELECT * FROM vehicles WHERE customer_id = ? AND deleted = 0 AND vin = ? LIMIT 1")
+          .get(customer.id, vin) as Vehicle | undefined) ?? null;
+    }
+
     if (vehicle) {
       const next = {
         year: year ?? vehicle.year,
@@ -1070,13 +1191,17 @@ export function attachToSale(
         model: model ?? vehicle.model,
         color: color ?? vehicle.color,
         plate: plate ?? vehicle.plate,
+        // Filled where it was blank, never blanked. A car entered without one
+        // gets it the day somebody reads it off the windscreen.
+        vin: vin ?? vehicle.vin,
       };
       const diff = diffRows(vehicle as unknown as Record<string, unknown>, next);
       if (diff) {
         db.prepare(
-          `UPDATE vehicles SET year = ?, make = ?, model = ?, color = ?, plate = ?, updated_at = ?
+          `UPDATE vehicles SET year = ?, make = ?, model = ?, color = ?, plate = ?, vin = ?,
+                  updated_at = ?
             WHERE id = ?`,
-        ).run(next.year, next.make, next.model, next.color, next.plate, now, vehicle.id);
+        ).run(next.year, next.make, next.model, next.color, next.plate, next.vin, now, vehicle.id);
         logActorAudit(actorOf(user), {
           action: "vehicle.update",
           targetType: "vehicle",
@@ -1090,16 +1215,17 @@ export function attachToSale(
       const id = Number(
         db
           .prepare(
-            `INSERT INTO vehicles (customer_id, year, make, model, color, plate, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO vehicles (customer_id, year, make, model, color, plate, vin,
+                                   created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
-          .run(customer.id, year, make, model, color, plate, now, now).lastInsertRowid,
+          .run(customer.id, year, make, model, color, plate, vin, now, now).lastInsertRowid,
       );
       logActorAudit(actorOf(user), {
         action: "vehicle.create",
         targetType: "vehicle",
         targetId: id,
-        details: { customer_id: customer.id, year, make, model, color, plate, sale_id: saleId },
+        details: { customer_id: customer.id, year, make, model, color, plate, vin, sale_id: saleId },
       });
       vehicle = getVehicle(id);
     }

@@ -24,6 +24,7 @@ export async function PATCH(
     model?: string | null;
     color?: string | null;
     plate?: string | null;
+    vin?: string | null;
     tireSize?: string | null;
     notes?: string | null;
   };
@@ -39,6 +40,7 @@ export async function PATCH(
     model: body.model,
     color: body.color,
     plate: body.plate,
+    vin: body.vin,
     tire_size: body.tireSize,
     notes: body.notes,
   });

@@ -295,6 +295,25 @@ export default function ReportsPage() {
 
   return (
     <div className="max-w-6xl mx-auto rp">
+      {/*
+        SAID OUT LOUD, at the top, before any figure is read.
+
+        These pages are being built and their numbers move as the cost data
+        underneath them fills in — the margin alone changed twice this week. A
+        figure carrying no warning is a figure somebody quotes to an accountant,
+        and the cost of that is much higher than the cost of a red box.
+
+        Not printed. A warning belongs on the screen where somebody is deciding
+        whether to trust what they are reading, and on paper it would outlive
+        the reason for it.
+      */}
+      <div className="rp-experimental rp-no-print" role="status">
+        <strong>{tr("Reports are still being built.")}</strong>{" "}
+        {tr(
+          "The figures on these pages are experimental and still moving as the shop’s costs are filled in. They are here for the development team to check against reality — do not quote them to anybody, and do not close the month on them.",
+        )}
+      </div>
+
       {/* ── The window, and the way out of it ───────────────────────────── */}
       <div className="flex items-start justify-between gap-4 flex-wrap mb-4 rp-no-print">
         <div>
