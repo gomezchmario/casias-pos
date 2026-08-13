@@ -205,7 +205,12 @@ export function categoryMix(from: string, to: string): CategoryRow[] {
          ${COST_JOINS}
     LEFT JOIN service_categories c ON c.id = i.category_id
         WHERE ${SALE} AND i.voided = 0 AND s.business_date BETWEEN ? AND ?
-     GROUP BY code
+     -- The EXPRESSION, not the bare name. SQLite binds a lone code to the real
+     -- column in preference to the output alias, so lines with no category
+     -- grouped apart from lines whose category IS other — and both printed as
+     -- "other", two rows deep in the same table. Same trap that once collapsed
+     -- the trends chart; see the note on part in trends.ts.
+     GROUP BY COALESCE(c.code, 'other')
      ORDER BY revenueCents DESC`,
     )
     .all(from, to)

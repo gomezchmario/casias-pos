@@ -68,8 +68,7 @@ export const UNIT_COST_SQL = `
 export const COST_JOINS = `
   LEFT JOIN products p ON p.id = i.product_id
   LEFT JOIN service_costs sc
-         ON sc.description_key = UPPER(TRIM(i.description))
-  LEFT JOIN service_categories cc ON cc.id = i.category_id`;
+         ON sc.description_key = UPPER(TRIM(i.description))`;
 
 /**
  * The same cost, with a floor under the tires nobody priced.
@@ -102,7 +101,15 @@ export function assumedCostSql(): string {
       NULLIF(i.unit_cost_cents, 0),
       NULLIF(p.default_cost_cents, 0),
       sc.cost_cents,
-      CASE WHEN cc.code IN ('new_tire', 'used_tire') AND i.unit_price_cents > 0
+      -- Looked up rather than joined. A join here would put a second
+      -- service_categories in scope for every caller, and several of them
+      -- already join their own as c and then GROUP BY a bare code — which
+      -- SQLite cannot resolve once there are two. It took the whole Reports
+      -- page down exactly that way. A correlated read on a primary key costs
+      -- nothing and cannot collide with anything the caller has named.
+      CASE WHEN (SELECT k.code FROM service_categories k WHERE k.id = i.category_id)
+                  IN ('new_tire', 'used_tire')
+                AND i.unit_price_cents > 0
            THEN CAST(i.unit_price_cents * 10000.0 / ${10000 + bp} AS INTEGER)
       END
     )`;
