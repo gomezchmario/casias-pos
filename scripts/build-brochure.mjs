@@ -89,25 +89,34 @@ function buildAt(zoom) {
 }
 
 /*
-  Measured, not guessed — and legibility wins the tie.
+  Measured, not guessed — and legibility wins every tie.
 
-  Squeezing all nine spreads onto nine sheets needs zoom 0.6, which puts the
-  body text near seven point. This is a document handed to a shop owner across
-  a counter, and one they cannot read is worth less than one that runs to a few
-  more sheets. So the target is the LARGEST zoom that still keeps the whole
-  thing inside a sensible sheet count, with the blocks above kept unbroken.
+  Each spread ends with a forced break, so the sheet count can never go below
+  the number of spreads; past a point, shrinking the type buys nothing but
+  smaller type. So the floor is measured first, and the largest zoom that still
+  reaches it is the one that ships. When shrinking genuinely does save sheets
+  the walk finds that too — it just refuses to pay for a saving that isn't
+  there, which is what a fixed guess did when it printed the whole brochure at
+  0.55 for no benefit at all.
 */
-const MAX_SHEETS = 13;
-let chosen = null;
-for (const z of [0.85, 0.8, 0.75, 0.72, 0.7, 0.65, 0.6, 0.55]) {
+const ZOOMS = [0.9, 0.85, 0.8, 0.75, 0.72, 0.7, 0.65, 0.6, 0.55];
+
+const floorPages = buildAt(ZOOMS[ZOOMS.length - 1]);
+console.log(`  floor: ${floorPages} sheets, however small the type goes`);
+
+let chosen = ZOOMS[ZOOMS.length - 1];
+let chosenPages = floorPages;
+for (const z of ZOOMS) {
   const pages = buildAt(z);
   console.log(`  zoom ${z} → ${pages} sheets`);
-  if (pages <= MAX_SHEETS) { chosen = z; break; }
+  if (pages === floorPages) { chosen = z; chosenPages = pages; break; }
 }
 
+// The chosen zoom was not necessarily the last one rendered.
+if (chosen !== ZOOMS[ZOOMS.length - 1]) buildAt(chosen);
 fs.unlinkSync(tmp);
-if (chosen === null) {
-  console.log("Could not fit nine sheets — left at the smallest zoom tried.");
-} else {
-  console.log(`\nwrote ${pdf} at zoom ${chosen} (${Math.round(fs.statSync(pdf).size / 1024)} KB)`);
-}
+
+console.log(
+  `\nwrote ${pdf} — ${chosenPages} sheets at zoom ${chosen} ` +
+    `(${Math.round(fs.statSync(pdf).size / 1024)} KB)`,
+);

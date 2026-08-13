@@ -1049,31 +1049,83 @@ body.editing [data-edit]:focus { outline: 2px solid var(--amber); outline-offset
     second password, no card nobody can find on a Monday morning.
   </p>
 
-  <div class="app">
-    <div class="app-bar">
-      <svg class="logo" viewBox="0 0 40 40"><rect x="2" y="2" width="36" height="36" rx="9" fill="#ffc83d"/><rect x="9" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="17.75" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="26.5" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="9" y="9" width="22" height="4.5" rx="2" fill="#0a2540"/></svg>
-      <nav class="app-nav"><span class="on">Time Clock</span></nav>
-      <div class="lang"><b>EN</b><span>ES</span></div>
-    </div>
+  <!--
+    TWO SCREENS, AND THE SEPARATION IS THE POINT.
 
-    <div class="app-body" style="display:grid;grid-template-columns:minmax(0,340px) 1fr;gap:14px">
-      <div class="panel" style="text-align:center">
-        <div class="panel-h" style="text-align:left">Punch in</div>
-        <div style="font-family:var(--mono);font-size:34px;font-weight:700;letter-spacing:-0.02em">07:58</div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Thursday 13 August</div>
-        <div class="keys" style="grid-template-columns:repeat(3,1fr);max-width:210px;margin:0 auto 12px">
-          <div class="key">1</div><div class="key">2</div><div class="key">3</div>
-          <div class="key">4</div><div class="key">5</div><div class="key">6</div>
-          <div class="key">7</div><div class="key">8</div><div class="key">9</div>
-          <div class="key">←</div><div class="key">0</div><div class="key">✓</div>
+    These were drawn as one window, side by side, which put the week's
+    timesheet on the wall next to the keypad for anybody walking past to read.
+    That is not what the product does — the kiosk shows a keypad and nothing
+    else, and greets one person by name only after their own PIN — and a
+    brochure that draws a leak the software does not have is selling a fault.
+  -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;align-items:start">
+
+    <figure style="margin:0">
+      <figcaption style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">
+        On the wall · anybody can see this
+      </figcaption>
+      <div class="app">
+        <div class="app-bar">
+          <svg class="logo" viewBox="0 0 40 40"><rect x="2" y="2" width="36" height="36" rx="9" fill="#ffc83d"/><rect x="9" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="17.75" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="26.5" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="9" y="9" width="22" height="4.5" rx="2" fill="#0a2540"/></svg>
+          <nav class="app-nav"><span class="on">Time Clock</span></nav>
+          <div class="lang"><b>EN</b><span>ES</span></div>
         </div>
-        <div style="font-family:var(--mono);font-size:24px;letter-spacing:.5em">● ● ● ○</div>
-        <div style="font-size:11.5px;color:var(--muted);margin-top:10px">
-          A photo is taken as you punch, so a PIN passed to a friend<br>is a PIN with somebody else's face against it.
+        <div class="app-body" style="text-align:center">
+          <div style="font-family:var(--mono);font-size:38px;font-weight:700;letter-spacing:-0.02em">07:58</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Thursday 13 August</div>
+          <div style="font-family:var(--mono);font-size:26px;letter-spacing:.5em;margin-bottom:12px">● ● ● ○</div>
+          <div class="keys" style="grid-template-columns:repeat(3,1fr);max-width:230px;margin:0 auto">
+            <div class="key">1</div><div class="key">2</div><div class="key">3</div>
+            <div class="key">4</div><div class="key">5</div><div class="key">6</div>
+            <div class="key">7</div><div class="key">8</div><div class="key">9</div>
+            <div class="key">←</div><div class="key">0</div><div class="key">✓</div>
+          </div>
+          <div style="font-size:11.5px;color:var(--muted);margin-top:14px;max-width:34ch;margin-left:auto;margin-right:auto">
+            A keypad and the time. No names, no roster, no hours —
+            nothing a customer in the waiting room can read.
+          </div>
         </div>
       </div>
+    </figure>
 
-      <div>
+    <figure style="margin:0">
+      <figcaption style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">
+        After a correct PIN · that one person, for a moment
+      </figcaption>
+      <div class="app">
+        <div class="app-bar">
+          <svg class="logo" viewBox="0 0 40 40"><rect x="2" y="2" width="36" height="36" rx="9" fill="#ffc83d"/><rect x="9" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="17.75" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="26.5" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="9" y="9" width="22" height="4.5" rx="2" fill="#0a2540"/></svg>
+          <nav class="app-nav"><span class="on">Time Clock</span></nav>
+          <div class="lang"><b>EN</b><span>ES</span></div>
+        </div>
+        <div class="app-body" style="text-align:center">
+          <div style="font-size:24px;font-weight:700;margin-bottom:3px">Hi, Travis</div>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:16px">You're currently working.</div>
+          <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:14px">
+            <span class="btn amber" style="padding:12px 20px">Punch out</span>
+            <span class="btn" style="padding:12px 20px">Start a break</span>
+          </div>
+          <div style="font-size:11.5px;color:var(--muted);max-width:34ch;margin:0 auto">
+            A photo is taken as you punch, so a PIN passed to a friend
+            is a PIN with somebody else's face against it.
+          </div>
+        </div>
+      </div>
+    </figure>
+  </div>
+
+  <figure style="margin:26px 0 0">
+    <figcaption style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">
+      In the office · behind a manager's sign-in
+    </figcaption>
+    <div class="app">
+      <div class="app-bar">
+        <svg class="logo" viewBox="0 0 40 40"><rect x="2" y="2" width="36" height="36" rx="9" fill="#ffc83d"/><rect x="9" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="17.75" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="26.5" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="9" y="9" width="22" height="4.5" rx="2" fill="#0a2540"/></svg>
+        <nav class="app-nav"><span>Main</span><span>New sale</span><span class="on">Timesheets</span><span>Reports</span></nav>
+        <div class="app-who"><b>Dale Prentiss</b><i>OWNER</i></div>
+        <div class="lang"><b>EN</b><span>ES</span></div>
+      </div>
+      <div class="app-body">
         <div class="panel" style="margin-bottom:12px">
           <div class="panel-h">On the clock right now</div>
           <table class="mock">
@@ -1083,7 +1135,6 @@ body.editing [data-edit]:focus { outline: 2px solid var(--amber); outline-offset
             <tr><td>Marisol Vega</td><td class="n">—</td><td class="r"><span class="pill grey">not in</span></td><td class="r n">—</td></tr>
           </table>
         </div>
-
         <div class="panel">
           <div class="panel-h">This week's timesheet · ready for payroll</div>
           <table class="mock">
@@ -1099,9 +1150,10 @@ body.editing [data-edit]:focus { outline: 2px solid var(--amber); outline-offset
         </div>
       </div>
     </div>
-  </div>
+  </figure>
 
   <div class="explain">
+    <div><h4>The wall screen says nothing</h4><p>A keypad and the clock. Who is in, who is late and what anybody earns lives behind a sign-in, not on a screen a customer can read from the waiting room.</p></div>
     <div><h4>One PIN, both jobs</h4><p>Punch in at the kiosk, then open the register from the same screen without signing in twice. Walk away and it locks itself.</p></div>
     <div><h4>A forgotten punch-out is flagged, not guessed</h4><p>The shift closes at nine and says so. Hours nobody confirmed are marked as assumed rather than quietly counted as worked.</p></div>
     <div><h4>Corrections are signed</h4><p>A manager can fix a time, and the original stays underneath with who changed it and why. Payroll you can defend.</p></div>
