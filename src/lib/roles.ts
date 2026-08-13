@@ -88,6 +88,7 @@ export const VIEWER_MAY: ReadonlySet<Capability> = new Set<Capability>([
   "reviewPricing",
   "reviewAlarms",
   "viewCloseout",
+  "manageDirectory",
 ]);
 
 /**
@@ -142,6 +143,12 @@ const GRANTED: Partial<Record<PosRole, readonly Capability[]>> = {
     // she is the one ringing it.
     "manageCustomers",
     "deleteCustomer",
+    // The company directory. She keeps the house accounts, so she is the one
+    // who ends up on the phone to a company's office about a statement — and
+    // handing that office its own page is the same job. A MANAGER IS
+    // DELIBERATELY NOT HERE: this screen mints the credential that opens a
+    // company's balance from outside the shop, and the floor has no part in it.
+    "manageDirectory",
     // House accounts. Owner and accountant, nobody else — not even a manager,
     // who runs the floor and has no part in what a customer owes over a month.
     "manageCreditAccounts",
@@ -296,6 +303,10 @@ export const CAPABILITIES = {
     it — this splits a capability rather than raising a bar.
   */
   viewCloseout: "cashier",
+  // Handing a company the keys to its own page. Owner and accountant only —
+  // see the note on GRANTED.accountant. Set at owner so that RANK alone never
+  // grants it, and lifted for the accountant by name.
+  manageDirectory: "owner",
   // Removing a midday register log. Owner, and deliberately far above the
   // capability to take one: the whole value of a timeline of counts is that
   // nobody on the floor can quietly drop the one that came out short.
@@ -505,6 +516,10 @@ export const CAPABILITY_INFO: Record<
     group: "At the register",
   },
   deleteCustomer: { label: "Remove a customer from the book", group: "At the register" },
+  manageDirectory: {
+    label: "Give a company its own page",
+    group: "Money and reports",
+  },
   manageCreditAccounts: {
     label: "See and settle what customers owe on account",
     group: "Money and reports",

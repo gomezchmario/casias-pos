@@ -1197,6 +1197,18 @@ export type TireMonthRow = {
    * received side, where it is always 0.
    */
   ordered: number;
+  /**
+   * Who the stock came from and the invoice it came on. RECEIVED SIDE ONLY —
+   * null on sold and disposal, where there is no supplier to name.
+   *
+   * Read off the lot rather than the movement, because that is where receiving
+   * already writes them: a lot is one delivery of one product at one cost, and
+   * the supplier and the paper reference are properties of the delivery. Adding
+   * columns to the movement would have made a second place to write the same
+   * two facts, and the second place is the one that ends up empty.
+   */
+  supplier: string | null;
+  invoice: string | null;
 };
 
 export type TireMonthReport = {
@@ -1287,6 +1299,7 @@ export function tireMonth(
                     i.line_total_cents         AS grossCents,
                     0                          AS ordered,
                     COALESCE(s.tax_rate_bp, ?) AS taxRateBp
+                    , NULL AS supplier, NULL AS invoice
                FROM sale_items i
                JOIN sales s ON s.id = i.sale_id
           LEFT JOIN employees e ON e.id = i.mechanic_id
@@ -1308,6 +1321,8 @@ export function tireMonth(
                     e.name                     AS byName,
                     i.line_total_cents         AS grossCents,
                     s.is_special_order         AS ordered,
+                    NULL                       AS supplier,
+                    NULL                       AS invoice,
                     COALESCE(s.tax_rate_bp, ?) AS taxRateBp
                FROM sale_items i
                JOIN sales s ON s.id = i.sale_id
@@ -1333,9 +1348,17 @@ export function tireMonth(
                     -- named customer. receiveOrderedStock is what puts the sale
                     -- on the movement, so the flag is already here.
                     COALESCE(s.is_special_order, 0) AS ordered,
+                    -- The delivery this movement belongs to. LEFT, because the
+                    -- opening count was entered before lots existed for some
+                    -- rows and a row with no lot is still a receipt that
+                    -- happened; an inner join would drop it off the sheet and
+                    -- quietly change the month's total.
+                    l.supplier            AS supplier,
+                    l.reference           AS invoice,
                     ?                     AS taxRateBp
                FROM inventory_movements m
                JOIN products p ON p.id = m.product_id
+          LEFT JOIN inventory_lots l ON l.id = m.lot_id
           LEFT JOIN employees e ON e.id = m.created_by
           LEFT JOIN sales s ON s.id = m.sale_id
               WHERE m.business_date LIKE ?

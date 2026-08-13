@@ -409,6 +409,32 @@ export default function CloseoutV3Page() {
           </p>
         </div>
 
+        {/* ── The day in three figures ───────────────────────────────────
+            New tires and disposals, and NOTHING ELSE. This is not a summary of
+            the day — the printed sheet already carries takings, service lines,
+            attachment and the rest, and repeating them here would bury the
+            three the shop actually counts against.
+
+            The money is JUST the new tires: the line totals of new-tire lines
+            only, not the tickets those tires were on. A ticket for a tire plus
+            a mount plus a disposal is one number on the takings and three
+            different jobs, and "how much of today was tires" cannot be answered
+            by a figure that includes the mounting. */}
+        <div className="cv3-tires">
+          <div className="cv3-tire-fig">
+            <strong>{data.sold.newTires.units}</strong>
+            <span>new {data.sold.newTires.units === 1 ? "tire" : "tires"} sold</span>
+          </div>
+          <div className="cv3-tire-fig">
+            <strong>{formatCents(data.sold.newTires.cents)}</strong>
+            <span>in new tires alone</span>
+          </div>
+          <div className="cv3-tire-fig">
+            <strong>{data.sold.disposalUnits}</strong>
+            <span>{data.sold.disposalUnits === 1 ? "disposal" : "disposals"}</span>
+          </div>
+        </div>
+
         {/* ── What needs attention, before anything else ─────────────────
             At the top, above the first step, because a warning found after the
             work is a warning found too late: the point of "one oversell to
@@ -481,14 +507,6 @@ export default function CloseoutV3Page() {
               ✓ {formatCents(data.drawer.floatCents)} counted at{" "}
               {data.drawer.floatCountedAt.slice(11, 16)}
               {data.drawer.floatCountedByName && ` by ${data.drawer.floatCountedByName}`}.
-              {/* Said out loud, because this is the whole point of the step: the
-                  figure that was COUNTED is now the figure the day is measured
-                  against. Somebody who counted $80 into a shop that normally
-                  floats $100 needs to see that the $80 took. */}
-              <div className="text-xs mt-1" style={{ opacity: 0.85 }}>
-                Every expectation today starts from this figure, not the
-                standing float.
-              </div>
             </div>
           ) : (
             <p className="text-sm text-brand-400 mb-2">
@@ -743,7 +761,7 @@ export default function CloseoutV3Page() {
             </div>
             <p className="text-sm text-brand-400 mb-2">
               Clock them out at the time they actually left. Anyone left on will be
-              auto-closed at 9pm tonight, and their hours will be a guess.
+              auto-closed at 9pm tonight.
             </p>
             <table className="rp-table">
               <tbody>
@@ -838,8 +856,7 @@ export default function CloseoutV3Page() {
           </div>
           <p className="text-sm text-brand-400 mb-2">
             The close-out is one page: the verdict, the reconciliation and the
-            signatures. Settle the terminal batch before signing — the printed line for
-            it is ticked by hand, because paper is the only witness the terminal has.
+            signatures. Settle the terminal batch before signing.
           </p>
           <div className="flex items-center gap-2 flex-wrap">
             <button
@@ -1148,6 +1165,7 @@ export default function CloseoutV3Page() {
             New tires {data.sold.newTires.units} ({formatCents(data.sold.newTires.cents)}) ·
             used {data.sold.usedTires.units} ({formatCents(data.sold.usedTires.cents)}) ·
             service lines {data.sold.service.lines} ({formatCents(data.sold.service.cents)}) ·
+            disposals {data.sold.disposalUnits} ({formatCents(data.sold.disposalCents)}) ·
             tire attachment {data.sold.attachmentPct.toFixed(0)}%
           </p>
           <RankedBars

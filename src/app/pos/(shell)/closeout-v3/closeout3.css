@@ -188,3 +188,50 @@
   font-size: 13.5px;
   color: #14532d;
 }
+
+/*
+ * The day in three figures: new tires out, what those tires alone brought in,
+ * and disposals.
+ *
+ * Screen only. The printed sheet says all of this inside "What sold" alongside
+ * used tires, service lines and attachment, and a second copy on paper would be
+ * two places to read the same number from — which is how two numbers eventually
+ * disagree. Here it is a glance before the counting starts.
+ */
+.cv3-tires {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.cv3-tire-fig {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  background: #fff;
+  min-width: 0;
+}
+.cv3-tire-fig strong {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  color: var(--color-brand-500, #0a2540);
+}
+.cv3-tire-fig span {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-brand-300, #4f6e8e);
+}
+
+@media print {
+  .cv3-tires { display: none; }
+}
+
+@media (max-width: 34rem) {
+  .cv3-tires { grid-template-columns: 1fr; }
+}

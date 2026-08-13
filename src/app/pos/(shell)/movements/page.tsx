@@ -74,6 +74,9 @@ type MonthReport = {
     byName: string | null;
     grossCents: number;
     ordered: number;
+    /** Received sheet only — null on the sold and disposal sheets. */
+    supplier: string | null;
+    invoice: string | null;
   }[];
   qty: number;
   grossCents: number;
@@ -332,6 +335,15 @@ export default function MovementsPage() {
                     <th className="py-1 font-medium pl-4">
                       {report.kind === "received" ? "Received by" : "Ticket"}
                     </th>
+                    {/* Only on the stocked sheet. A sold tire has no supplier
+                        and no invoice, and two columns of dashes on every row
+                        of the other two sheets is two columns of nothing. */}
+                    {report.kind === "received" && (
+                      <>
+                        <th className="py-1 font-medium pl-4">Supplier</th>
+                        <th className="py-1 font-medium pl-4">Invoice</th>
+                      </>
+                    )}
                     <th className="py-1 font-medium text-right pl-4">
                       {report.kind === "received" ? "Paid" : "Charged"}
                     </th>
@@ -360,6 +372,14 @@ export default function MovementsPage() {
                       <td className="py-1 pl-4 whitespace-nowrap text-brand-400">
                         {report.kind === "received" ? (r.byName ?? "—") : (r.saleNo ?? "—")}
                       </td>
+                      {report.kind === "received" && (
+                        <>
+                          <td className="py-1 pl-4 text-brand-400">{r.supplier ?? "—"}</td>
+                          <td className="py-1 pl-4 whitespace-nowrap text-brand-400 tabular-nums">
+                            {r.invoice ?? "—"}
+                          </td>
+                        </>
+                      )}
                       <td className="py-1 pl-4 text-right tabular-nums">
                         {formatCents(r.grossCents)}
                       </td>

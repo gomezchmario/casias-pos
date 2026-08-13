@@ -1313,6 +1313,24 @@ export default function CustomersPage() {
           </p>
         )}
       </ConfirmModal>
+
+      {/*
+        The only way into the company directory, and deliberately the quietest
+        thing on the page.
+
+        That screen mints the code that opens a company's balance from outside
+        this building, so it should be somewhere you go on purpose — not a
+        button somebody presses while looking for something else. Owner and
+        accountant only; the server refuses everybody else regardless, and this
+        line simply does not offer it to people it would refuse.
+      */}
+      {can("manageDirectory") && (
+        <div className="mt-1.5 text-center">
+          <Link href="/dir/customers" className="text-xs text-brand-200 hover:text-brand-400 hover:underline">
+            Directory
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

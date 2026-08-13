@@ -86,6 +86,13 @@ export type AuditAction =
   | "pos_entry.restore"
   // A tire the shop was asked for and could not sell.
   | "tire_demand.record"
+  // The company directory: a fleet's own window on its own account. Setting
+  // and clearing the code are the shop's acts; the logins are the company's.
+  | "dir.pin_set"
+  | "dir.pin_clear"
+  | "dir.login"
+  | "dir.login_failed"
+  | "dir.session_revoke"
   | "vehicle.create"
   | "vehicle.update"
   | "vehicle.delete"
@@ -96,12 +103,26 @@ export type AuditAction =
 export type Actor =
   | { type: "admin"; adminId: number; username: string }
   | { type: "employee"; employeeId: number; name: string; role: PosRole }
+  /**
+   * A company, signed into its own directory page with its own code.
+   *
+   * The fourth kind of actor, and the first that does not work here. A fleet
+   * keeping its drivers and trucks straight is doing real work on real rows,
+   * and the log has to be able to say so: "Williams Insulation corrected the
+   * VIN" is the truth, where attributing it to whichever employee's session
+   * happened to be handy would be a lie written into the one record kept
+   * precisely so nobody has to take somebody's word for it.
+   *
+   * `customerId` rather than a name because names get corrected — including,
+   * now, by the company itself.
+   */
+  | { type: "customer"; customerId: number; name: string }
   | { type: "system" };
 
 export function logAudit(args: {
   adminId?: number | null;
   adminUsername?: string | null;
-  actorType?: "admin" | "employee" | "system";
+  actorType?: "admin" | "employee" | "customer" | "system";
   employeeId?: number | null;
   employeeName?: string | null;
   employeeRole?: string | null;
@@ -164,7 +185,17 @@ export function logActorAudit(
     adminId: actor.type === "admin" ? actor.adminId : null,
     adminUsername: actor.type === "admin" ? actor.username : null,
     employeeId: actor.type === "employee" ? actor.employeeId : null,
-    employeeName: actor.type === "employee" ? actor.name : null,
+    /*
+      A company writes its name into employee_name and nothing into
+      employee_id. The column is misnamed for this actor and the row is still
+      honest, because actor_type says 'customer' beside it and the log screen
+      reads the pair — where inventing an employee id, or leaving the name
+      blank, would each produce a row that cannot be read back to anybody.
+      Renaming the column would rewrite every audit row the shop has ever
+      written in order to fix a word, which is the worse trade.
+    */
+    employeeName:
+      actor.type === "employee" || actor.type === "customer" ? actor.name : null,
     employeeRole: actor.type === "employee" ? actor.role : null,
   });
 }
