@@ -309,9 +309,7 @@ export default function ReportsPage() {
       */}
       <div className="rp-experimental rp-no-print" role="status">
         <strong>{tr("Reports are still being built.")}</strong>{" "}
-        {tr(
-          "The figures on these pages are experimental and still moving as the shop’s costs are filled in. They are here for the development team to check against reality — do not quote them to anybody, and do not close the month on them.",
-        )}
+        {tr("These figures are experimental and for the development team.")}
       </div>
 
       {/* ── The window, and the way out of it ───────────────────────────── */}
