@@ -114,8 +114,15 @@ export default function CustomersPage() {
   const [notApproved, setNotApproved] = useState(false);
   /** Companies only — the ones other customers are billed to. */
   const [companies, setCompanies] = useState(false);
-  /** Which driver's tab is unfolded under a company. One at a time. */
-  const [openDriver, setOpenDriver] = useState<number | null>(null);
+  /**
+   * Which drivers are unfolded under a company. Several at once.
+   *
+   * One at a time was a limit with nothing behind it — the whole reason to
+   * unfold two drivers is to compare what each of them had done, and closing
+   * the first to open the second makes that a memory test.
+   */
+  const [openDrivers, setOpenDrivers] = useState<ReadonlySet<number>>(new Set());
+
   const [rows, setRows] = useState<Row[] | null>(null);
 
   /*
@@ -213,6 +220,36 @@ export default function CustomersPage() {
   const [removingCustomer, setRemovingCustomer] = useState(false);
   // Bumped when anything on the panel changes, so the account reloads with it.
   const [accountReload] = useState(0);
+
+  /**
+   * Every charge on this company, by driver.
+   *
+   * Read from the company's own statement rather than from each driver, and
+   * that is the point: A DRIVER HAS NO TAB. The charges are the company's, the
+   * balance is the company's, and the money is settled once, on the company.
+   * Fetching per driver would have implied otherwise before a line was drawn.
+   */
+  const [fleetCharges, setFleetCharges] = useState<
+    { saleId: number; saleNo: string; businessDate: string; driverId: number | null;
+      vehicle: string | null; what: string | null; amountCents: number }[] | null
+  >(null);
+  useEffect(() => {
+    if (!detail?.customer.isFleet || !can("manageCreditAccounts")) {
+      setFleetCharges(null);
+      return;
+    }
+    void (async () => {
+      // Everything, not this month: the question under a driver is "what has
+      // this truck had done", and an invoice window would answer it only for
+      // whichever weeks happen to be in the current one.
+      const res = await fetch(
+        `/api/pos/fleets/${detail.customer.id}?from=2000-01-01`,
+      );
+      if (!res.ok) { setFleetCharges([]); return; }
+      const d = await res.json();
+      setFleetCharges(d.charges ?? []);
+    })();
+  }, [detail?.customer.id, detail?.customer.isFleet, accountReload, can]);
 
   const load = useCallback(async () => {
     const sp = new URLSearchParams();
@@ -977,16 +1014,28 @@ export default function CustomersPage() {
                               shows, in the same shape, without leaving the
                               company you are reading.
                             */}
+                            {/* Only where the account is readable at all — the
+                                charges come from the statement route, which is
+                                the accountant's and the owner's. Offered to
+                                anybody else it would answer "nothing charged"
+                                to a permission problem, which is a lie. */}
+                            {can("manageCreditAccounts") && (
                             <button
                               type="button"
                               className="cu-driver-toggle"
-                              aria-expanded={openDriver === m.id}
+                              aria-expanded={openDrivers.has(m.id)}
                               onClick={() =>
-                                setOpenDriver((d) => (d === m.id ? null : m.id))
+                                setOpenDrivers((set) => {
+                                  const next = new Set(set);
+                                  if (next.has(m.id)) next.delete(m.id);
+                                  else next.add(m.id);
+                                  return next;
+                                })
                               }
                             >
-                              {openDriver === m.id ? "▾" : "▸"}
+                              {openDrivers.has(m.id) ? "▾" : "▸"}
                             </button>
+                            )}
                             <button
                               type="button"
                               className="underline text-brand-500"
@@ -1008,14 +1057,24 @@ export default function CustomersPage() {
                             {m.lastVisit ?? "—"}
                           </td>
                         </tr>
-                        {openDriver === m.id && (
+                        {openDrivers.has(m.id) && (
                           <tr>
-                            <td colSpan={4} className="pb-3 pl-6">
-                              <AccountPanel
-                                customerId={m.id}
-                                name={m.name}
-                                reload={accountReload}
-                                onError={setError}
+                            <td colSpan={4} className="pl-6 pb-3">
+                              {/*
+                                WHAT THEY HAD DONE, NOT WHAT THEY OWE.
+
+                                A driver assigned to a company has no tab: the
+                                charges roll up and the company carries the debt
+                                and settles it once. This used to open the
+                                driver's own account panel, which gave every one
+                                of them a balance and a Record a payment button
+                                — an invitation to settle a debt that is not
+                                theirs, in a place where doing so would leave
+                                the company's statement disagreeing with itself.
+                              */}
+                              <DriverWork
+                                rows={(fleetCharges ?? []).filter((c) => c.driverId === m.id)}
+                                loading={fleetCharges === null}
                               />
                             </td>
                           </tr>
@@ -1305,6 +1364,64 @@ type AccountData = {
  * which job that settles — forcing an allocation would invent a fact the shop
  * does not have.
  */
+/**
+ * One driver's work under the company that pays for it.
+ *
+ * Read-only by design. There is no balance and no way to take money here,
+ * because a driver on a fleet does not owe anything — the company does, and it
+ * settles once on its own panel. Everything the shop is asked about at the
+ * counter is here: which ticket, which day, which truck, and what was done.
+ */
+function DriverWork({
+  rows,
+  loading,
+}: {
+  rows: { saleId: number; saleNo: string; businessDate: string; vehicle: string | null;
+          what: string | null; amountCents: number }[];
+  loading: boolean;
+}) {
+  const { t: tr } = useLang();
+  if (loading) return <div className="text-xs text-brand-300 py-1">{tr("Reading the account…")}</div>;
+  if (rows.length === 0)
+    return <div className="text-xs text-brand-300 py-1">{tr("Nothing charged for this driver.")}</div>;
+
+  const total = rows.reduce((n, r) => n + r.amountCents, 0);
+  return (
+    <div className="cu-driver-work">
+      <table className="w-full text-xs">
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.saleId} className="border-t border-black/5 align-top">
+              <td className="py-1.5 whitespace-nowrap">
+                <Link href={`/pos/sale/${r.saleId}/receipt`} className="hover:underline text-brand-500">
+                  {r.saleNo}
+                </Link>
+                <div className="text-brand-300 tabular-nums">{r.businessDate}</div>
+              </td>
+              <td className="py-1.5 pl-3 text-brand-400">
+                {r.what ?? "—"}
+                {r.vehicle && <div className="text-brand-300">{r.vehicle}</div>}
+              </td>
+              <td className="py-1.5 pl-3 text-right tabular-nums whitespace-nowrap">
+                {formatCents(r.amountCents)}
+              </td>
+            </tr>
+          ))}
+          <tr className="border-t border-black/10">
+            <td className="py-1.5 text-brand-400" colSpan={2}>
+              {rows.length} {rows.length === 1 ? tr("charge") : tr("charges")} ·{" "}
+              <span className="text-brand-300">{tr("billed to the company")}</span>
+            </td>
+            <td className="py-1.5 pl-3 text-right tabular-nums font-semibold">
+              {formatCents(total)}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function AccountPanel({
   customerId,
   name,
