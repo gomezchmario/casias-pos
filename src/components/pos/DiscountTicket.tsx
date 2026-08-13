@@ -49,7 +49,10 @@ export function DiscountTicket({
     return (
       <button
         type="button"
-        className="text-sm text-brand-400 hover:text-brand-500 underline self-center"
+        /* block + mx-auto rather than self-center alone: self-center only does
+           anything inside a flex parent, and on the register this sits in a
+           plain div, where it was hugging the left edge. */
+        className="block mx-auto text-sm text-brand-400 hover:text-brand-500 underline self-center"
         onClick={() => {
           setAmount(currentCents ? (currentCents / 100).toFixed(2) : "");
           setReason("");

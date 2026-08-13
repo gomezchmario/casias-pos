@@ -464,12 +464,23 @@ export default function CloseoutV3Page() {
               ✓ {formatCents(data.drawer.floatCents)} counted at{" "}
               {data.drawer.floatCountedAt.slice(11, 16)}
               {data.drawer.floatCountedByName && ` by ${data.drawer.floatCountedByName}`}.
+              {/* Said out loud, because this is the whole point of the step: the
+                  figure that was COUNTED is now the figure the day is measured
+                  against. Somebody who counted $80 into a shop that normally
+                  floats $100 needs to see that the $80 took. */}
+              <div className="text-xs mt-1" style={{ opacity: 0.85 }}>
+                Every expectation today starts from this figure, not the
+                standing float.
+              </div>
             </div>
           ) : (
             <p className="text-sm text-brand-400 mb-2">
               Nobody has counted the drawer today, so the day is running on the
               standing float of {formatCents(data.drawer.floatCents)} — a figure, not a
-              fact. Count what is actually in there and type it in.
+              fact. Count what is actually in there and type it in:{" "}
+              <strong>whatever you type becomes the drawer&apos;s opening
+              figure for the whole day</strong>, and every expectation is
+              measured from it. If there is $80 in there this morning, type 80.
             </p>
           )}
           <div className="flex items-end gap-2 flex-wrap">
@@ -478,7 +489,11 @@ export default function CloseoutV3Page() {
               <input
                 className="input mt-1 w-32 text-right tabular-nums"
                 inputMode="decimal"
-                placeholder="100.00"
+                /* NOT the standing float. A box pre-filled with the answer is a
+                   box somebody agrees with instead of counting — which is how a
+                   drawer that opened with $80 was recorded as $100 and put the
+                   day $200 out. */
+                placeholder="0.00"
                 value={floatCount}
                 onChange={(e) => setFloatCount(e.target.value)}
                 onKeyDown={(e) => {
