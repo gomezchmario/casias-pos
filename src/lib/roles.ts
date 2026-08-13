@@ -52,7 +52,7 @@ export const ROLE_LABELS: Record<PosRole, string> = {
   accountant: "Accountant",
   manager: "Manager",
   owner: "Owner",
-  viewer: "Viewer — sees everything, changes nothing",
+  viewer: "Viewer",
 };
 
 /**
