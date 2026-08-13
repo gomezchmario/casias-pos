@@ -48,14 +48,29 @@ export function buildWeeklyReport(args: {
   employeeId?: number;
 }): WeeklyReport {
   const db = getDb();
+  /*
+    Deactivated employees are off this report, with one exception that is the
+    whole reason this is not just "WHERE active = 1".
+
+    SOMEBODY WHO WORKED IN THE WEEK IS ON IT WHETHER OR NOT THEY STILL WORK
+    HERE. A person who quits on Wednesday is deactivated on Wednesday and paid
+    on Friday, and a payroll sheet that silently dropped their Monday to
+    Wednesday would be short by exactly the hours nobody is left to complain
+    about. So the flag decides whether an EMPTY row is worth printing, and the
+    entries decide whether the person is on the sheet at all.
+
+    Asking for one employee by id still returns them regardless. That is a
+    deliberate lookup of a named person — usually precisely because they have
+    left and somebody is settling up.
+  */
   const empSql = args.employeeId
-    ? "SELECT id, name FROM employees WHERE id = ? ORDER BY name"
-    : "SELECT id, name FROM employees ORDER BY active DESC, name";
+    ? "SELECT id, name, active FROM employees WHERE id = ? ORDER BY name"
+    : "SELECT id, name, active FROM employees ORDER BY active DESC, name";
   const employees = (
     args.employeeId
       ? db.prepare(empSql).all(args.employeeId)
       : db.prepare(empSql).all()
-  ) as { id: number; name: string }[];
+  ) as { id: number; name: string; active: number }[];
 
   const rangeStart = `${args.startDate}T00:00:00`;
   const rangeEnd = `${args.endDate}T23:59:59`;
@@ -75,6 +90,9 @@ export function buildWeeklyReport(args: {
     }[];
 
     if (entries.length === 0) {
+      // Nothing worked, and no longer here: not a row, just a name taking up a
+      // line on a sheet somebody is reading to pay people.
+      if (!emp.active && !args.employeeId) continue;
       rows.push(emptyRow(emp.id, emp.name, args.startDate, args.endDate));
       continue;
     }
