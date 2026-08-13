@@ -81,6 +81,16 @@ export function userCan(
   // The role's answer first, which already applies WITHHELD and the role-wide
   // grants. A yes here costs no database read at all, which is the common case.
   if (can(user.role, capability)) return true;
+  /*
+    A VIEWER'S ANSWER IS FINAL.
+
+    Everything below this line can turn a no into a yes, and for this one role
+    that must never happen: the account exists to be unable to change anything,
+    and an account that is read-only until somebody ticks a box on the
+    permissions screen is not read-only. Its list lives in `VIEWER_MAY` and is
+    the whole of what it may do.
+  */
+  if (user.role === "viewer") return false;
   // A personal grant cannot revive something the role is denied by name.
   if (deniedOutright(user.role, capability)) return false;
   return grantsFor(user.employeeId).has(capability);

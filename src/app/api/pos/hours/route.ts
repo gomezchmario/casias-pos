@@ -11,7 +11,7 @@ import { clockOut, hoursForDay } from "@/lib/hours";
  * guess. See `clockOut` for why this is deliberately not self-service.
  */
 export async function GET(req: NextRequest) {
-  const auth = await requirePos("closeShift");
+  const auth = await requirePos("viewCloseout");
   if (!auth.ok) return auth.response;
   const asked = req.nextUrl.searchParams.get("date");
   const date = asked && /^\d{4}-\d{2}-\d{2}$/.test(asked) ? asked : currentBusinessDate();

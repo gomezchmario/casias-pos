@@ -63,7 +63,9 @@ const NAV: {
   { href: "/pos/closeout", label: "Daily Report", capability: "viewReports" },
   // V3 took the name and the spot; the page everyone knew keeps working
   // under "(Old)" until the new one has survived a few real closes.
-  { href: "/pos/closeout-v3", label: "Close-out", capability: "closeShift" },
+  // Gated on READING it, not on closing it — a viewer opens the page and is
+  // refused by every button on it. See viewCloseout.
+  { href: "/pos/closeout-v3", label: "Close-out", capability: "viewCloseout" },
   // The old close-out is off the nav now that V3 is the close-out. The page
   // itself still works and is still reachable by URL — hidden rather than
   // deleted, so a night that goes wrong has somewhere to fall back to. Delete
@@ -338,6 +340,35 @@ export function PosShell({ children }: { children: React.ReactNode }) {
             {t("Time Clock")}
           </Link>
         </header>
+
+        {/*
+          A standing reminder, because every control on every screen still
+          looks live.
+
+          The alternative was greying out every button this account cannot use,
+          which would mean auditing fifty screens and would still be wrong the
+          first time one was missed — and a greyed-out register is also a poor
+          way to show somebody how the register works, which is half of what
+          this account is for. So the buttons stay, the server refuses, and the
+          bar says plainly which of those two you are looking at.
+
+          Amber rather than red: nothing is wrong. This is what the account is.
+        */}
+        {auth.user.role === "viewer" && (
+          <div
+            className="px-5 py-2 text-sm no-print"
+            style={{
+              background: "linear-gradient(180deg,#ffd35a,#e0a91d)",
+              color: "#0a2540",
+              borderBottom: "1px solid rgba(10,37,64,0.18)",
+            }}
+          >
+            <strong>{t("Looking only.")}</strong>{" "}
+            {t(
+              "You can open anything and try anything on this account. Nothing you do is saved.",
+            )}
+          </div>
+        )}
 
         <main className="flex-1 p-6">{children}</main>
       </div>

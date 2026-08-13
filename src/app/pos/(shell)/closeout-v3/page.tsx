@@ -121,7 +121,7 @@ export default function CloseoutV3Page() {
   }, [load]);
 
   // The nav already gates this; the render gate is for the URL typed by hand.
-  if (!can("closeShift"))
+  if (!can("viewCloseout"))
     return <div className="text-brand-400">Your account doesn&apos;t close the day.</div>;
   if (error)
     return <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>;

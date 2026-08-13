@@ -27,6 +27,8 @@ const ROLE_SUMMARY: Record<PosRole, string> = {
     "Keeps the customer book and the house accounts. Register like a cashier.",
   manager: "Fixes mistakes and handles stock — voids, refunds, receiving.",
   owner: "Everything, including what the shop paid and payroll.",
+  viewer:
+    "Opens every screen an owner can, and nothing it does is saved. For an accountant, a partner, or anybody who needs to look without being able to touch.",
 };
 
 /**

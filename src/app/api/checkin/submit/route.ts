@@ -47,6 +47,25 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  /*
+    A viewer does not work shifts.
+
+    This route never passes through `requirePos` — it is the time clock, and it
+    takes a PIN rather than a session — so the read-only rule has to be stated
+    here as well. Punching a clock writes a row like anything else, and an
+    account whose whole promise is that nothing it does is saved must not be
+    able to put itself on the payroll's hours.
+  */
+  if (employee.pos_role === "viewer") {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "This account can look at everything and change nothing — including the clock.",
+      },
+      { status: 403 },
+    );
+  }
+
   const stateInfo = getEmployeeState(employee.id);
   const allowed = ALLOWED_NEXT[stateInfo.state] ?? [];
   if (!allowed.includes(action)) {

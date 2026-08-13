@@ -22,6 +22,7 @@ const POS_ROLE_HINT: Record<PosRole, string> = {
   accountant: "Customer book and house accounts; register like a cashier",
   manager: "Void, refund, edit completed sales, receive stock",
   owner: "Everything, including costs and payroll",
+  viewer: "Sees every screen an owner sees. Cannot change a thing.",
 };
 
 function PosRoleSelect({

@@ -15,7 +15,18 @@ export type EmployeeRow = {
   id: number;
   name: string;
   pin_hash: string;
+  /** The free-text job title on the time clock — NOT a permission. */
   role: string | null;
+  /**
+   * The POS role, which IS a permission.
+   *
+   * Selected all along — every query here is `SELECT *` — and simply missing
+   * from this type, so the one route that needed to ask about it could not.
+   * Typed as a plain string rather than `PosRole` because it comes off the
+   * database and nothing has validated it yet; `isPosRole` is how it becomes
+   * one.
+   */
+  pos_role: string;
   active: number;
   created_at: string;
   updated_at: string;

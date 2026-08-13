@@ -13,7 +13,7 @@ import { closeoutV2 } from "@/lib/day-report";
  * PRINTOUT, but the JSON does not discriminate yet. On the fix-later list.
  */
 export async function GET(req: NextRequest) {
-  const auth = await requirePos("closeShift");
+  const auth = await requirePos("viewCloseout");
   if (!auth.ok) return auth.response;
 
   const asked = req.nextUrl.searchParams.get("date");

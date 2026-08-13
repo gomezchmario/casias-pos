@@ -31,7 +31,18 @@ export async function POST(req: Request) {
     return jsonError(result.error, 401);
   }
 
-  if (!can(result.user.role, "ringSale")) {
+  /*
+    A VIEWER GETS IN WITHOUT BEING ABLE TO RING.
+
+    The gate asked whether the account can ring a sale, which is the right
+    question for every role that existed when it was written and exactly the
+    wrong one for this account: a viewer cannot ring anything by design, so it
+    would have been refused at the door and the role would have been unusable
+    without anybody noticing why. Getting in is not a permission to do
+    anything — every screen it reaches still refuses it — it is only permission
+    to look.
+  */
+  if (!can(result.user.role, "ringSale") && result.user.role !== "viewer") {
     logAudit({
       actorType: "employee",
       employeeId: result.user.employeeId,

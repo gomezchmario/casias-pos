@@ -5,6 +5,7 @@ export const POS_ROLES = [
   "accountant",
   "manager",
   "owner",
+  "viewer",
 ] as const;
 export type PosRole = (typeof POS_ROLES)[number];
 
@@ -33,6 +34,15 @@ const RANK: Record<PosRole, number> = {
   accountant: 1,
   manager: 2,
   owner: 3,
+  /*
+    Owner's rank, so every screen an owner can open opens for a viewer too —
+    and then everything that writes is taken away again by name. See
+    `VIEWER_MAY`, which is the half that matters.
+
+    Rank alone would make this account an owner. It is the allowlist below that
+    makes it an audience.
+  */
+  viewer: 3,
 };
 
 export const ROLE_LABELS: Record<PosRole, string> = {
@@ -42,7 +52,43 @@ export const ROLE_LABELS: Record<PosRole, string> = {
   accountant: "Accountant",
   manager: "Manager",
   owner: "Owner",
+  viewer: "Viewer — sees everything, changes nothing",
 };
+
+/**
+ * What a VIEWER may do, listed by name.
+ *
+ * An allowlist and not a blocklist, and that is the whole design. A blocklist
+ * of everything that writes would be correct on the day it was written and
+ * wrong the first time somebody adds a capability — the new one would default
+ * to ALLOWED, and the account that is supposed to be unable to touch anything
+ * would quietly be able to touch the newest thing in the program. Listed this
+ * way round, a capability nobody has thought about is refused, and the failure
+ * is somebody asking why they cannot see a new report rather than a read-only
+ * account voiding a ticket.
+ *
+ * Everything here answers a question. Nothing here changes an answer.
+ *
+ * Note what is deliberately absent even though it only "looks": closeShift
+ * counts a drawer and writes the count; skipBlindCount decides what a counter
+ * is allowed to see before counting, which is a control over somebody else's
+ * work. A viewer needs neither.
+ */
+export const VIEWER_MAY: ReadonlySet<Capability> = new Set<Capability>([
+  "viewInventory",
+  "searchProducts",
+  "viewBusinessReports",
+  "viewDay",
+  "viewLog",
+  "viewReports",
+  "viewTechIncomeCash",
+  "viewCosts",
+  "viewCostCode",
+  "quoteTire",
+  "reviewPricing",
+  "reviewAlarms",
+  "viewCloseout",
+]);
 
 /**
  * Capabilities a role does NOT get, whatever its rank says.
@@ -238,6 +284,18 @@ export const CAPABILITIES = {
   // Counting down the drawer is the job of whoever is handing it over, which is
   // usually the cashier going home rather than a manager who has already left.
   closeShift: "cashier",
+  /*
+    READING the close-out, as opposed to doing it.
+
+    These were one capability, so the page showing the day's figures and the
+    button logging a drawer count were guarded by the same word. Fine while
+    everybody who could read it could also close it; wrong the moment an
+    account existed that should read everything and close nothing.
+
+    Same rung as closeShift, so nobody who could open the page yesterday lost
+    it — this splits a capability rather than raising a bar.
+  */
+  viewCloseout: "cashier",
   // Removing a midday register log. Owner, and deliberately far above the
   // capability to take one: the whole value of a timeline of counts is that
   // nobody on the floor can quietly drop the one that came out short.
@@ -337,6 +395,17 @@ export const CAPABILITIES = {
 export type Capability = keyof typeof CAPABILITIES;
 
 export function can(role: PosRole, capability: Capability): boolean {
+  /*
+    The viewer is decided here and nowhere else.
+
+    First, before rank, before WITHHELD, before GRANTED — and before any
+    per-employee grant, because `userCan` calls this and a personal grant that
+    could hand a viewer the ability to void a ticket would defeat the entire
+    point of the account. There is no route through this function that says yes
+    to a viewer for anything outside the list.
+  */
+  if (role === "viewer") return VIEWER_MAY.has(capability);
+
   // Withheld beats rank, always. A denial that a high enough rank could override
   // would not be a denial. See `WITHHELD`.
   if (WITHHELD[role]?.includes(capability)) return false;
@@ -401,6 +470,10 @@ export const CAPABILITY_INFO: Record<
   refund: { label: "Give a refund", group: "Fixing mistakes" },
   overrideCommission: { label: "Override commission", group: "Fixing mistakes" },
   closeShift: { label: "Count the drawer and close a shift", group: "Fixing mistakes" },
+  viewCloseout: {
+    label: "Read the close-out and the day's figures",
+    group: "Money and reports",
+  },
   deleteRegisterCheck: {
     label: "Remove a midday register log",
     group: "Money and reports",

@@ -252,7 +252,7 @@ function build(
 }
 
 export async function GET(req: NextRequest) {
-  const auth = await requirePos("closeShift");
+  const auth = await requirePos("viewCloseout");
   if (!auth.ok) return auth.response;
 
   const shiftIdRaw = req.nextUrl.searchParams.get("shiftId");
