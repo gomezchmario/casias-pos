@@ -1,0 +1,1501 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Treadline — The Complete Tire Shop System</title>
+<style>
+/* ─────────────────────────────────────────────────────────────────────────
+   TREADLINE — sales brochure
+   Palette taken from the product itself: the navy is the app's header
+   gradient, the amber is its accent. A brochure that used different colours
+   from the software it sells would be the first thing a prospect noticed.
+   ───────────────────────────────────────────────────────────────────────── */
+:root {
+  --ink:        #0a2540;   /* the app's brand navy */
+  --ink-deep:   #07182c;   /* its header gradient end */
+  --amber:      #ffc83d;
+  --amber-deep: #e0a91d;
+  --paper:      #f4f6fa;   /* the app's page ground */
+  --card:       #ffffff;
+  --rule:       rgba(10, 37, 64, 0.12);
+  --text:       #0f2033;
+  --muted:      #5b6b7f;   /* slate, biased navy — not a default grey */
+  --alarm:      #b91c1c;
+  --good:       #15803d;
+  --warn-bg:    #fff7ed;
+  --warn-line:  rgba(180, 83, 9, 0.32);
+  --warn-text:  #b45309;
+
+  --display: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --body:    system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:    ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* Dark viewers get darker paper, not an inverted brand: the navy and the
+   amber are the product's identity and stay exactly as they are. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0d1620;
+    --card:  #141f2c;
+    --rule:  rgba(255, 255, 255, 0.12);
+    --text:  #e8eef5;
+    --muted: #93a5b8;
+    --warn-bg: #2a1f12;
+    --good:  #4ade80;
+    --alarm: #f87171;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0d1620;
+  --card:  #141f2c;
+  --rule:  rgba(255, 255, 255, 0.12);
+  --text:  #e8eef5;
+  --muted: #93a5b8;
+  --warn-bg: #2a1f12;
+  --good:  #4ade80;
+  --alarm: #f87171;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Page scaffold ─────────────────────────────────────────────────────── */
+.page {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 72px 40px 88px;
+  border-bottom: 1px solid var(--rule);
+}
+.page:last-child { border-bottom: none; }
+
+.folio {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 40px;
+}
+
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; }
+
+h2 {
+  font-size: clamp(34px, 5vw, 54px);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.04;
+  margin-bottom: 18px;
+}
+
+h3 {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+
+.lede {
+  font-size: 20px;
+  line-height: 1.55;
+  color: var(--muted);
+  max-width: 62ch;
+  margin: 0 0 36px;
+}
+
+p { max-width: 66ch; }
+
+/* ── Cover ─────────────────────────────────────────────────────────────── */
+.cover {
+  background: linear-gradient(168deg, var(--ink) 0%, var(--ink-deep) 100%);
+  color: #fff;
+  max-width: none;
+  padding: 0;
+  border-bottom: none;
+}
+.cover-inner { max-width: 1080px; margin: 0 auto; padding: 76px 40px 84px; }
+
+.brandmark { display: flex; align-items: center; gap: 16px; margin-bottom: 64px; }
+.brandmark svg { display: block; }
+.brandmark .wordmark {
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+}
+
+.cover h1 {
+  font-size: clamp(46px, 8vw, 92px);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 0.98;
+  max-width: 16ch;
+  margin-bottom: 26px;
+}
+.cover .kicker {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--amber);
+  margin-bottom: 22px;
+}
+.cover .sub {
+  font-size: 21px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.76);
+  max-width: 50ch;
+  margin: 0 0 52px;
+}
+.cover-foot {
+  margin-top: 56px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+/* ── The app window: the product's own chrome, rebuilt ─────────────────── */
+.app {
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--card);
+  box-shadow: 0 24px 60px rgba(7, 24, 44, 0.28), 0 2px 6px rgba(7, 24, 44, 0.16);
+  border: 1px solid var(--rule);
+  container-type: inline-size;
+}
+.cover .app { box-shadow: 0 40px 90px rgba(0, 0, 0, 0.45); border: none; }
+
+.app-bar {
+  background: linear-gradient(180deg, #0a2540 0%, #07182c 100%);
+  color: #f5f7fa;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 16px;
+  flex-wrap: wrap;
+}
+.app-bar .logo { width: 22px; height: 22px; flex: none; }
+.app-nav { display: flex; gap: 3px; flex: 1; min-width: 0; overflow: hidden; }
+.app-nav span {
+  font-size: 12.5px;
+  padding: 5px 9px;
+  border-radius: 7px;
+  color: rgba(255, 255, 255, 0.74);
+  white-space: nowrap;
+}
+.app-nav span.on { background: rgba(255, 200, 61, 0.18); color: var(--amber); }
+.app-who { font-size: 11px; text-align: right; line-height: 1.25; white-space: nowrap; }
+.app-who b { display: block; font-size: 12.5px; }
+.app-who i { font-style: normal; color: var(--amber); letter-spacing: 0.1em; font-size: 9.5px; }
+.lang {
+  font-family: var(--mono); font-size: 10px; border: 1px solid rgba(255,255,255,.25);
+  border-radius: 6px; overflow: hidden; display: flex; flex: none;
+}
+.lang b { background: var(--amber); color: var(--ink); padding: 3px 6px; }
+.lang span { padding: 3px 6px; color: rgba(255,255,255,.7); }
+.clock-pill {
+  background: linear-gradient(180deg, #ffd35a, #e0a91d);
+  color: var(--ink); font-size: 12px; font-weight: 700;
+  padding: 6px 12px; border-radius: 8px; white-space: nowrap; flex: none;
+}
+
+.app-body { padding: 18px; background: var(--paper); }
+
+/* ── Mockup primitives ─────────────────────────────────────────────────── */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.tile {
+  background: var(--card); border: 1px solid var(--rule);
+  border-radius: 10px; padding: 11px 13px;
+}
+.tile .n { font-family: var(--mono); font-size: 25px; font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; }
+.tile .l { font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); margin-top: 3px; }
+.tile .d { font-size: 11px; margin-top: 3px; }
+.up { color: var(--good); } .down { color: var(--alarm); }
+
+.panel {
+  background: var(--card); border: 1px solid var(--rule);
+  border-radius: 10px; padding: 14px;
+}
+.panel + .panel { margin-top: 12px; }
+.panel-h {
+  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 10px;
+}
+
+table.mock { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+table.mock th {
+  text-align: left; font-weight: 500; font-size: 9.5px; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--muted);
+  padding: 0 0 7px; border-bottom: 1px solid var(--rule);
+}
+table.mock td { padding: 7px 0; border-bottom: 1px solid var(--rule); }
+table.mock th + th, table.mock td + td { padding-left: 14px; }
+table.mock .r { text-align: right; }
+table.mock .n { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+table.mock tr:last-child td { border-bottom: none; }
+
+.pill {
+  display: inline-block; padding: 3px 9px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em;
+  text-transform: uppercase; white-space: nowrap;
+}
+.pill.amber { background: #ffedd5; color: #9a3412; border: 1px solid #fdba74; }
+.pill.green { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+.pill.blue  { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+.pill.grey  { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+
+.btn {
+  display: inline-block; border-radius: 8px; font-size: 12px; font-weight: 600;
+  padding: 8px 14px; border: 1px solid var(--rule); background: var(--card); color: var(--text);
+}
+.btn.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+.btn.amber { background: linear-gradient(180deg, #ffd35a, #e0a91d); color: var(--ink); border: none; }
+
+.keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+.key {
+  background: var(--card); border: 1px solid var(--rule); border-radius: 9px;
+  padding: 13px 6px; text-align: center; font-family: var(--mono);
+  font-size: 14px; font-weight: 700;
+}
+.key.wide { grid-column: span 2; font-size: 11.5px; letter-spacing: 0.04em; }
+
+.field {
+  background: var(--card); border: 1px solid var(--rule); border-radius: 8px;
+  padding: 9px 11px; font-size: 12.5px; color: var(--muted);
+}
+
+.covered {
+  background: repeating-linear-gradient(135deg, #cbd5e1 0 6px, #e2e8f0 6px 12px);
+  border-radius: 5px; color: transparent; display: inline-block;
+  min-width: 74px; height: 15px; vertical-align: middle;
+}
+
+.alarmbar {
+  background: var(--warn-bg); border: 2px solid var(--warn-line);
+  border-radius: 10px; padding: 11px 13px; font-size: 12.5px; color: var(--warn-text);
+}
+.alarmbar b { display: block; margin-bottom: 6px; }
+.alarmrow {
+  background: var(--card); border: 1px solid var(--warn-line); border-radius: 7px;
+  padding: 8px 10px; display: flex; gap: 10px; align-items: center;
+  flex-wrap: wrap; color: var(--text); font-size: 12px;
+}
+
+.bars { display: flex; flex-direction: column; gap: 5px; }
+.bar { display: flex; align-items: center; gap: 9px; font-size: 11px; color: var(--muted); }
+.bar i { font-style: normal; font-family: var(--mono); width: 30px; flex: none; }
+.bar u {
+  text-decoration: none; height: 13px; border-radius: 3px; display: block;
+  background: linear-gradient(90deg, var(--ink), #2c5b8a);
+}
+.bar.peak u { background: linear-gradient(90deg, var(--amber-deep), var(--amber)); }
+
+.ordercard {
+  background: var(--card); border: 1px solid var(--rule); border-radius: 11px; padding: 12px 14px;
+}
+.ordercard + .ordercard { margin-top: 9px; }
+.oc-top { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+.oc-who { font-size: 17px; font-weight: 700; line-height: 1.25; flex: 1; min-width: 200px; }
+.oc-who em { font-style: normal; font-family: var(--mono); font-weight: 600; margin-left: 8px; }
+.oc-right { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+.oc-money { text-align: right; font-family: var(--mono); font-size: 17px; font-weight: 700; }
+.oc-money small { display: block; font-size: 11px; font-weight: 400; font-family: var(--body); }
+.oc-meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.oc-act {
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--rule);
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+}
+
+/* ── Editorial furniture ───────────────────────────────────────────────── */
+.callout {
+  border-left: 4px solid var(--amber);
+  background: var(--card);
+  border-radius: 0 10px 10px 0;
+  padding: 18px 22px;
+  margin: 34px 0 0;
+  max-width: 68ch;
+}
+.callout b {
+  display: block; font-family: var(--display); font-size: 19px;
+  letter-spacing: -0.015em; margin-bottom: 7px;
+}
+.callout p { margin: 0; color: var(--muted); font-size: 15px; }
+
+.explain { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 26px; margin-top: 34px; }
+.explain h4 { font-family: var(--display); font-size: 15px; margin: 0 0 5px; letter-spacing: -0.01em; }
+.explain p { margin: 0; font-size: 14.5px; color: var(--muted); }
+
+.compare { display: flex; flex-direction: column; gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; }
+.crow { display: grid; grid-template-columns: 1fr 1.25fr; gap: 1px; background: var(--rule); }
+.crow > div { background: var(--card); padding: 15px 18px; }
+.crow .was { color: var(--muted); }
+.crow .was b { display: block; color: var(--text); font-size: 14px; margin-bottom: 3px; }
+.crow .now b { display: block; color: var(--good); font-size: 14px; margin-bottom: 3px; }
+.crow p { margin: 0; font-size: 13.5px; }
+.chead { display: grid; grid-template-columns: 1fr 1.25fr; gap: 1px; background: var(--rule); }
+.chead > div {
+  background: var(--ink); color: rgba(255,255,255,.72); padding: 9px 18px;
+  font-size: 10px; letter-spacing: 0.13em; text-transform: uppercase;
+}
+
+.plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+.plan { background: var(--card); border: 1px solid var(--rule); border-radius: 12px; padding: 20px; }
+.plan.pick { border: 2px solid var(--amber); }
+.plan h4 { font-family: var(--display); font-size: 20px; margin: 0 0 3px; letter-spacing: -0.01em; }
+.plan .tagline { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+.plan ul { margin: 0; padding-left: 17px; font-size: 14px; color: var(--muted); }
+.plan li { margin-bottom: 5px; }
+.plan .price { font-family: var(--mono); font-size: 26px; font-weight: 700; margin-top: 16px; }
+
+.swatches { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 26px; }
+.sw { border-radius: 9px; padding: 12px; width: 148px; border: 1px solid var(--rule); }
+.sw .chip { height: 40px; border-radius: 6px; margin-bottom: 9px; }
+.sw b { font-size: 12.5px; display: block; }
+.sw code { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 18px; }
+.step { border-top: 3px solid var(--ink); padding-top: 13px; }
+.step b { font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; color: var(--muted); display: block; margin-bottom: 6px; }
+.step p { margin: 0; font-size: 14.5px; }
+
+.placeholder {
+  border: 2px dashed var(--rule); border-radius: 11px; padding: 20px;
+  color: var(--muted); font-size: 14.5px; max-width: 68ch;
+}
+
+.endcard {
+  background: linear-gradient(168deg, var(--ink), var(--ink-deep));
+  color: #fff; border-radius: 14px; padding: 40px; margin-top: 44px;
+}
+.endcard h3 { color: var(--amber); }
+.endcard p { color: rgba(255,255,255,.8); font-size: 17px; max-width: 54ch; }
+.endcard .contact { font-family: var(--mono); font-size: 13px; color: rgba(255,255,255,.66); margin-top: 24px; }
+
+@container (max-width: 640px) {
+  .app-nav span:nth-child(n+5) { display: none; }
+  .keys { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ── Printing ──────────────────────────────────────────────────────────────
+   This is how most people will get a PDF of it: open the page, print, save.
+   So the print rules are here rather than only in the build script — a page
+   that only prints properly through a script on one machine is a page that
+   prints badly everywhere else. */
+/* ── Edit mode ─────────────────────────────────────────────────────────────
+   A brochure is written by argument, not in one pass, and the person with the
+   argument is holding a phone. So the words can be changed in the page itself
+   and handed back as a list, rather than needing an editor and a repository. */
+.editbar {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px;
+  z-index: 50; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  justify-content: center; padding: 9px 12px; border-radius: 999px;
+  background: var(--ink); color: #fff;
+  box-shadow: 0 10px 30px rgba(7, 24, 44, 0.4);
+  font-size: 13px; max-width: calc(100vw - 24px);
+}
+.editbar button {
+  font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap;
+  border-radius: 999px; padding: 7px 14px; border: 1px solid rgba(255,255,255,.28);
+  background: transparent; color: #fff;
+}
+.editbar button:hover { background: rgba(255,255,255,.12); }
+.editbar button.on { background: linear-gradient(180deg,#ffd35a,#e0a91d); color: var(--ink); border-color: transparent; }
+.editbar button:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.editbar .count { font-family: var(--mono); font-size: 12px; color: rgba(255,255,255,.66); }
+
+/* Only while editing: a dotted hint that a block is yours to change, and a
+   solid amber edge on the one being typed into. Nothing shifts — the outline
+   sits outside the box so a word never reflows when you tap it. */
+body.editing [data-edit] { outline: 1px dashed rgba(180,140,20,.55); outline-offset: 3px; border-radius: 3px; }
+body.editing [data-edit]:focus { outline: 2px solid var(--amber); outline-offset: 3px; background: rgba(255,200,61,.10); }
+[data-edit].changed { background: rgba(255,200,61,.16); }
+
+@media print {
+  .editbar { display: none !important; }
+  [data-edit], [data-edit].changed { outline: none !important; background: none !important; }
+
+  /* The navy cover and the amber accents ARE the brand. A printer that
+     helpfully drops backgrounds hands back a different document. */
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+  @page { size: letter; margin: 0; }
+
+  html { background: #fff; }
+  /* Forced light: the palette is a brand, not a preference, and a brochure
+     printed in dark mode wastes a cartridge and looks like a mistake. */
+  body {
+    background: #fff;
+    --paper: #f4f6fa; --card: #ffffff; --text: #0f2033; --muted: #5b6b7f;
+    --rule: rgba(10,37,64,.12); --warn-bg: #fff7ed; --good: #15803d; --alarm: #b91c1c;
+    /* Set so a spread lands on one or two sheets rather than four. Larger
+       than the tightest fit on purpose — body text below about eight point
+       is not readable across a counter, which is where this gets handed over. */
+    zoom: 0.72;
+  }
+
+  .page { padding: 40px 44px 48px; border-bottom: none; page-break-after: always; }
+  .cover-inner { padding: 48px 44px 52px; }
+  .cover { page-break-after: always; }
+  .page:last-child { page-break-after: auto; }
+
+  .app { box-shadow: none; }
+
+  /* A spread running onto a second sheet is fine. A break through the middle
+     of a mockup is not — it turns the one thing on the page that is doing the
+     selling into two halves of nothing. */
+  .app, .callout, .compare, .ordercard, .plan, .endcard, .placeholder,
+  .explain > div, .steps > div, .tile, .sw {
+    break-inside: avoid; page-break-inside: avoid;
+  }
+  h2 { break-after: avoid; page-break-after: avoid; }
+}
+</style>
+
+<!-- ══════════════════════════════ 1 · COVER ══════════════════════════════ -->
+<section class="cover">
+  <div class="cover-inner">
+
+    <div class="brandmark">
+      <!-- The mark: a contact patch with three grooves, the middle one
+           extending to form the crossbar of a T. -->
+      <svg width="40" height="40" viewBox="0 0 40 40" aria-label="Treadline">
+        <rect x="2" y="2" width="36" height="36" rx="9" fill="#ffc83d"/>
+        <rect x="9"  y="9" width="4.5" height="22" rx="2" fill="#0a2540"/>
+        <rect x="17.75" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/>
+        <rect x="26.5" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/>
+        <rect x="9" y="9" width="22" height="4.5" rx="2" fill="#0a2540"/>
+      </svg>
+      <span class="wordmark">Treadline</span>
+    </div>
+
+    <div class="kicker">Point of sale · Inventory · Cash control</div>
+    <h1>The complete tire shop system.</h1>
+    <p class="sub">
+      Ring a flat in four taps. Know what's on the rack without walking it.
+      Close the drawer knowing it's right — and knowing who to ask if it isn't.
+      Clock the crew in on the same screen, if you want it.
+    </p>
+
+    <div class="app">
+      <div class="app-bar">
+        <svg class="logo" viewBox="0 0 40 40"><rect x="2" y="2" width="36" height="36" rx="9" fill="#ffc83d"/><rect x="9" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="17.75" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="26.5" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="9" y="9" width="22" height="4.5" rx="2" fill="#0a2540"/></svg>
+        <nav class="app-nav">
+          <span class="on">Main</span><span>New sale</span><span>Logs</span>
+          <span>Inventory</span><span>Reports</span><span>Daily Report</span><span>Close-out</span>
+        </nav>
+        <div class="app-who"><b>Mario</b><i>OWNER</i></div>
+        <div class="lang"><b>EN</b><span>ES</span></div>
+        <div class="clock-pill">🕒 Time Clock</div>
+      </div>
+
+      <div class="app-body">
+        <div class="tiles" style="margin-bottom:12px">
+          <div class="tile"><div class="n">48</div><div class="l">Tickets today</div><div class="d up">▲ 6 vs Tuesday</div></div>
+          <div class="tile"><div class="n">$2,775</div><div class="l">Taken</div><div class="d up">▲ 11% vs last Wed</div></div>
+          <div class="tile"><div class="n">19</div><div class="l">Tires out</div><div class="d down">▼ 2</div></div>
+          <div class="tile"><div class="n">$411</div><div class="l">Expected in drawer</div><div class="d">float + takings</div></div>
+        </div>
+
+        <div class="panel" style="margin-bottom:12px">
+          <div class="panel-h">How the day is running</div>
+          <div class="bars">
+            <div class="bar"><i>9a</i><u style="width:22%"></u>7</div>
+            <div class="bar"><i>10a</i><u style="width:40%"></u>12</div>
+            <div class="bar"><i>11a</i><u style="width:55%"></u>17</div>
+            <div class="bar peak"><i>12p</i><u style="width:78%"></u>24 · busiest</div>
+            <div class="bar"><i>1p</i><u style="width:48%"></u>15</div>
+            <div class="bar"><i>2p</i><u style="width:30%"></u>9</div>
+          </div>
+        </div>
+
+        <div class="alarmbar">
+          <b>⚠ Two things need a person</b>
+          <div class="alarmrow" style="margin-bottom:6px">
+            <span>1 oversell awaiting review — <b>VANTAGE A/S 91H 195-65-15</b> on S-2026-000345</span>
+            <span class="btn" style="margin-left:auto">Reviewed</span>
+          </div>
+          <div class="alarmrow">
+            <span>4 special orders are waiting on <b>us</b> — the shop owes a phone call</span>
+            <span class="btn" style="margin-left:auto">Open the board</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cover-foot">
+      <span>Built in a working tire shop · San Antonio, Texas</span>
+      <span>treadline.shop</span>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════ 2 · WHY ═══════════════════════════════ -->
+<section class="page">
+  <div class="folio"><span>02 — Why Treadline</span><span>Treadline</span></div>
+
+  <h2>Your shop already works.<br>It just can't prove it.</h2>
+  <p class="lede">
+    Most tire shops run on three things: a cash drawer, a spreadsheet and one
+    person who remembers everything. That works right up until the morning it doesn't.
+  </p>
+
+  <div class="compare">
+    <div class="chead"><div>What happens now</div><div>What Treadline does</div></div>
+
+    <div class="crow">
+      <div class="was"><b>Handwritten tickets</b><p>Illegible, lost, or in somebody's back pocket.</p></div>
+      <div class="now"><b>Rung in four taps, kept forever</b><p>Searchable by name, phone, plate or tire size. Printed on thermal or letter paper.</p></div>
+    </div>
+
+    <div class="crow">
+      <div class="was"><b>"Do we have a 205-65-16?"</b><p>Somebody walks the racks. Twice. And still guesses.</p></div>
+      <div class="now"><b>A live count on every screen</b><p>Type the size however it comes out of your mouth — 205-65-16, 205/65R16, 2056516.</p></div>
+    </div>
+
+    <div class="crow">
+      <div class="was"><b>The ordered tire nobody called about</b><p>Came in Thursday. Sat three weeks. Customer went elsewhere.</p></div>
+      <div class="now"><b>A board with the phone number on the card</b><p>Who's owed a call, how long they've waited, and what was said last time.</p></div>
+    </div>
+
+    <div class="crow">
+      <div class="was"><b>The drawer is short</b><p>Nobody knows when, or by how much, or who was on it.</p></div>
+      <div class="now"><b>A blind count, then the verdict</b><p>The expected figure stays covered until you've typed yours. A count is a count, not a copy.</p></div>
+    </div>
+
+    <div class="crow">
+      <div class="was"><b>Who actually did the work?</b><p>Payroll from memory, and an argument on Friday.</p></div>
+      <div class="now"><b>Credit sits on the line, not the ticket</b><p>Two techs on one job, both paid right. Tips and commission handled at the register.</p></div>
+    </div>
+
+    <div class="crow">
+      <div class="was"><b>"How did last month go?"</b><p>Add up the notebook. Or don't, and hope.</p></div>
+      <div class="now"><b>Margin, movers, dead stock, lost sales</b><p>On screen, on paper, in English or Spanish, ready before you've finished your coffee.</p></div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <b>Every screen here exists because a shop lost money without it</b>
+    <p>
+      The close-out was written the week a drawer came up $200 short and nobody could
+      say when. The order board was written after a customer waited three weeks for a
+      tire that was already in the corner. This is not a generic POS with a tire skin
+      on it.
+    </p>
+  </div>
+</section>
+
+<!-- ═════════════════════════════ 3 · REGISTER ═══════════════════════════ -->
+<section class="page">
+  <div class="folio"><span>03 — The register</span><span>Treadline</span></div>
+
+  <h2>Four taps and the car is moving.</h2>
+  <p class="lede">
+    Most tickets in a tire shop are under twenty dollars and take under a minute.
+    A register slower than a notepad has already failed.
+  </p>
+
+  <div class="app">
+    <div class="app-bar">
+      <svg class="logo" viewBox="0 0 40 40"><rect x="2" y="2" width="36" height="36" rx="9" fill="#ffc83d"/><rect x="9" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="17.75" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="26.5" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="9" y="9" width="22" height="4.5" rx="2" fill="#0a2540"/></svg>
+      <nav class="app-nav"><span>Main</span><span class="on">New sale</span><span>Logs</span><span>Inventory</span><span>Reports</span></nav>
+      <div class="app-who"><b>Marisol Vega</b><i>CASHIER</i></div>
+      <div class="lang"><b>EN</b><span>ES</span></div>
+    </div>
+
+    <div class="app-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div>
+        <div class="keys" style="margin-bottom:9px">
+          <div class="key">$10</div><div class="key">$15</div><div class="key">$20</div><div class="key">$25</div>
+          <div class="key">$30</div><div class="key">$35</div><div class="key">$40</div><div class="key">$45</div>
+          <div class="key wide">FLAT</div><div class="key wide">MOUNT&nbsp;&amp;&nbsp;B</div>
+          <div class="key wide">ROTACION</div><div class="key wide">TIRE CHK</div>
+          <div class="key wide">DISPOSAL</div><div class="key wide">OIL</div>
+        </div>
+        <div class="field" style="margin-bottom:8px">🔍&nbsp; 205-65-16</div>
+        <div class="panel" style="padding:9px">
+          <table class="mock">
+            <tr><td>LANDSAIL LS588 <b>P82</b></td><td class="r n">4</td></tr>
+            <tr><td>VANTAGE A/S 91H <b>P95</b></td><td class="r n">2</td></tr>
+            <tr><td>Used 205-65-16</td><td class="r n">6</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h">Ticket S-2026-000447</div>
+        <table class="mock">
+          <tr><td>MOUNT &amp; BALANCE<br><span style="color:var(--muted);font-size:11px">tech · Omar E.</span></td><td class="r n">×3</td><td class="r n">$75.00</td></tr>
+          <tr><td>FLAT<br><span style="color:var(--muted);font-size:11px">tech · Travis K.</span></td><td class="r n">×1</td><td class="r n">$15.00</td></tr>
+          <tr><td>NEW 205-65-16 LANDSAIL<br><span style="color:var(--muted);font-size:11px">tech · Omar E.</span></td><td class="r n">×2</td><td class="r n">$260.00</td></tr>
+        </table>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:9px">
+          <span>Tax included · 8.25%</span><span class="n">$26.67</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:21px;font-weight:700;margin:6px 0 12px">
+          <span>TOTAL</span><span>$350.00</span>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+          <span class="btn">Cash</span><span class="btn primary">Card</span>
+          <span class="btn">Split</span><span class="btn">Account</span>
+        </div>
+        <div class="field" style="margin-bottom:8px">Tip goes to · <b>Omar E.</b> ▾</div>
+        <div class="btn amber" style="display:block;text-align:center;padding:12px">Complete sale · $350.00</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="explain">
+    <div><h4>The grid is yours</h4><p>The prices and services this shop rings all day, as buttons. Change them yourself — no support call, no software update.</p></div>
+    <div><h4>Search that speaks tire</h4><p>Any format you'd say out loud. The count is live off the racks, so the answer is the racks' answer.</p></div>
+    <div><h4>Credit on every line</h4><p>Omar mounted the tires, Travis did the flat. Both are on the ticket, and both are on Friday's numbers.</p></div>
+  </div>
+
+</section>
+
+<!-- ════════════════════════════ 4 · INVENTORY ═══════════════════════════ -->
+<section class="page">
+  <div class="folio"><span>04 — Inventory</span><span>Treadline</span></div>
+
+  <h2>It counts tires. Not "items."</h2>
+  <p class="lede">
+    Generic software makes you invent a product for every tire, then treats a used
+    tire and a new one as the same kind of thing. They aren't.
+  </p>
+
+  <div class="app">
+    <div class="app-bar">
+      <svg class="logo" viewBox="0 0 40 40"><rect x="2" y="2" width="36" height="36" rx="9" fill="#ffc83d"/><rect x="9" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="17.75" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="26.5" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="9" y="9" width="22" height="4.5" rx="2" fill="#0a2540"/></svg>
+      <nav class="app-nav"><span>Main</span><span>New sale</span><span>Logs</span><span class="on">Inventory</span><span>Reports</span></nav>
+      <div class="app-who"><b>Dale Prentiss</b><i>OWNER</i></div>
+      <div class="lang"><b>EN</b><span>ES</span></div>
+    </div>
+
+    <div class="app-body">
+      <div class="alarmbar" style="margin-bottom:12px">
+        <b>⚠ 1 oversell needs review · sold when the count said it wasn't there</b>
+        <div class="alarmrow">
+          <b>VANTAGE A/S 91H 195-65-15</b>
+          <span>1 out · 2 owed to customers</span>
+          <span style="color:var(--muted)">2026-08-10 · S-2026-000345 · Marisol</span>
+          <span class="btn" style="margin-left:auto">Reviewed</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h">Rim 16 · 34 on hand</div>
+        <table class="mock">
+          <thead><tr><th>205-65-16</th><th class="r">Cost</th><th class="r">Price</th><th class="r">On hand</th><th></th></tr></thead>
+          <tr><td>LANDSAIL LS588</td><td class="r n">P82</td><td class="r n">$130.00</td><td class="r n">4</td><td class="r"></td></tr>
+          <tr><td>VANTAGE A/S 91H</td><td class="r n">P95</td><td class="r n">$145.00</td><td class="r n">2</td><td class="r"><span class="pill amber">low</span></td></tr>
+          <tr><td>Used</td><td class="r">—</td><td class="r">at the counter</td><td class="r n">6</td><td></td></tr>
+        </table>
+        <table class="mock" style="margin-top:12px">
+          <thead><tr><th>225-60-16</th><th class="r">Cost</th><th class="r">Price</th><th class="r">On hand</th><th></th></tr></thead>
+          <tr><td>FORTUNE 10 PLY</td><td class="r n">P110</td><td class="r n">$175.00</td><td class="r n" style="color:var(--alarm)">0</td><td class="r"><span class="pill amber">2 owed</span></td></tr>
+          <tr><td>Used</td><td class="r">—</td><td class="r">at the counter</td><td class="r n">3</td><td></td></tr>
+        </table>
+      </div>
+
+      <div class="tiles" style="margin-top:12px">
+        <div class="tile"><div class="n">133</div><div class="l">Sizes standing still</div><div class="d">no sale in 45 days · $18,400 asleep</div></div>
+        <div class="tile"><div class="n">27</div><div class="l">Worth restocking</div><div class="d">from your own rate of sale</div></div>
+        <div class="tile"><div class="n">41</div><div class="l">Walked out</div><div class="d">asked for, not on the rack</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="explain">
+    <div><h4>Grouped by rim, like the racks</h4><p>Somebody counting stock walks one rim at a time. A sheet sorted any other way sends them back and forth all afternoon.</p></div>
+    <div><h4>Used can be collapsed to a count</h4><p>No brand, no model, no cost — a used tire can be collapsed so that it has none. One line: <em>Size — Used · 6</em>. Priced at the counter, where it's decided.</p></div>
+    <div><h4>Oversells surface, they don't hide</h4><p>You sold two you didn't have. The sale went through — the customer was standing there — and the row sits at the top until a manager reviews it.</p></div>
+    <div><h4>Press a tire for its whole life</h4><p>Every receive, sale, void and count, with the ticket number and who did it. "Where did the other six go" has an answer.</p></div>
+  </div>
+
+  <div class="callout">
+    <b>Three questions no notebook can answer</b>
+    <p>
+      <b>What's asleep?</b> Sizes with your money in them and no sale in 45, 90 or 120 days.
+      <b>What should I order?</b> Levels worked out from your own rate of sale — and editable, because you know things the numbers don't.
+      <b>What did I turn away?</b> Every size a customer asked for that wasn't on the rack.
+    </p>
+  </div>
+</section>
+
+<!-- ═════════════════════════ 5 · SPECIAL ORDERS ═════════════════════════ -->
+<section class="page">
+  <div class="folio"><span>05 — Special orders</span><span>Treadline</span></div>
+
+  <h2>The tire that came in on Thursday.</h2>
+  <p class="lede">
+    Ordered Monday. Arrived Thursday. Nobody called. The customer rings the following
+    Tuesday, angry. This is the job that reliably falls through — so it gets a board.
+  </p>
+
+  <div class="app">
+    <div class="app-bar">
+      <svg class="logo" viewBox="0 0 40 40"><rect x="2" y="2" width="36" height="36" rx="9" fill="#ffc83d"/><rect x="9" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="17.75" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="26.5" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="9" y="9" width="22" height="4.5" rx="2" fill="#0a2540"/></svg>
+      <nav class="app-nav"><span>Main</span><span>New sale</span><span class="on">Orders</span><span>Inventory</span><span>Reports</span></nav>
+      <div class="app-who"><b>Marisol Vega</b><i>CASHIER</i></div>
+      <div class="lang"><b>EN</b><span>ES</span></div>
+    </div>
+
+    <div class="app-body">
+      <div class="tiles" style="margin-bottom:12px;grid-template-columns:repeat(2,minmax(0,220px))">
+        <div class="tile"><div class="n" style="color:var(--warn-text)">4</div><div class="l">Waiting on us</div></div>
+        <div class="tile"><div class="n">$195.00</div><div class="l">Still owed on orders</div></div>
+      </div>
+
+      <div class="ordercard">
+        <div class="oc-top">
+          <div class="oc-who">Warren Feltz <em>210-555-0117</em>
+            <div class="oc-meta">S-2026-000035 · Ford F-150 · 4 days</div>
+          </div>
+          <div class="oc-right">
+            <span class="pill amber">Here — call them</span>
+            <div class="oc-money">$180.00<small style="color:var(--muted)">paid</small></div>
+          </div>
+        </div>
+        <div class="oc-meta">NEW LT245/70/17 LANDSAIL · <em>GREEN F-150. LEFT RIM HERE.</em></div>
+        <div class="oc-act">
+          <span class="btn primary">They answered</span>
+          <span class="btn">No answer</span>
+          <span class="btn">…</span>
+          <span style="margin-left:auto;font-size:12px;color:var(--muted);text-decoration:underline">How it got here · 7</span>
+        </div>
+      </div>
+
+      <div class="ordercard">
+        <div class="oc-top">
+          <div class="oc-who">Adela Sorrentino <em>512-555-0164</em>
+            <div class="oc-meta">S-2026-000206 · 2 days</div>
+          </div>
+          <div class="oc-right">
+            <span class="pill amber">Called — no answer</span>
+            <div class="oc-money">$240.00<small style="color:var(--warn-text)">$120.00 owing</small></div>
+          </div>
+        </div>
+        <div class="oc-meta">2× TRANSEAGLE ST II RADIAL 205-75-14</div>
+        <div class="oc-act">
+          <span class="btn primary">They answered</span>
+          <span class="btn">…</span>
+          <span style="margin-left:auto;font-size:12px;color:var(--muted);text-decoration:underline">How it got here · 3</span>
+        </div>
+      </div>
+
+      <div class="ordercard">
+        <div class="oc-top">
+          <div class="oc-who">Kimberly Trask <em>210-555-0193</em>
+            <div class="oc-meta">S-2026-000264 · Jeep Wrangler · today</div>
+          </div>
+          <div class="oc-right">
+            <span class="pill green">Waiting for pickup</span>
+            <div class="oc-money">$560.00<small style="color:var(--muted)">paid</small></div>
+          </div>
+        </div>
+        <div class="oc-meta">4× LANDSAIL 235-55-18</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="explain">
+    <div><h4>The customer is the headline</h4><p>Every stage on this board is a version of <em>somebody has to ring this person</em>. The name and number come first; the ticket number is there, one size down.</p></div>
+    <div><h4>The stage is a colour</h4><p>Orange means the shop owes a call. Green means it's the customer's turn and nothing here can hurry it.</p></div>
+    <div><h4>Two answers, not "next"</h4><p>A phone call has two outcomes. Both are on the card, worded as what happened — and the good one is the one that looks like the button.</p></div>
+    <div><h4>Confirm, and undo</h4><p>Every move names the customer before it happens, and can be taken back. Four near-identical cards is exactly where the wrong row gets pressed.</p></div>
+  </div>
+
+  <div class="callout">
+    <b>"Nobody ever called me" — answered with a date</b>
+    <p>
+      <em>How it got here</em> opens the whole life of the order: ordered when, arrived
+      when, who rang, and how many days it sat at each stage while somebody's customer
+      waited. Read from the beginning, because it's a story.
+    </p>
+  </div>
+</section>
+
+<!-- ═════════════════════════ 6 · CUSTOMERS & FLEETS ═════════════════════ -->
+<section class="page">
+  <div class="folio"><span>06 — Customers &amp; fleets</span><span>Treadline</span></div>
+
+  <h2>The company that sends you eleven trucks.</h2>
+  <p class="lede">
+    Fleet work is the best money in the shop and the worst paperwork. Treadline bills
+    the company for every driver who comes in, and prints one statement.
+  </p>
+
+  <div class="app">
+    <div class="app-bar">
+      <svg class="logo" viewBox="0 0 40 40"><rect x="2" y="2" width="36" height="36" rx="9" fill="#ffc83d"/><rect x="9" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="17.75" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="26.5" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="9" y="9" width="22" height="4.5" rx="2" fill="#0a2540"/></svg>
+      <nav class="app-nav"><span>Main</span><span>New sale</span><span class="on">Customers</span><span>Inventory</span><span>Reports</span></nav>
+      <div class="app-who"><b>Dale Prentiss</b><i>OWNER</i></div>
+      <div class="lang"><b>EN</b><span>ES</span></div>
+    </div>
+
+    <div class="app-body">
+      <div class="panel">
+        <div class="panel-h">Bridgeport Landscaping · billed to this company</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;font-size:12.5px;margin-bottom:14px">
+          <div><span style="color:var(--muted)">Address</span><br>2210 Rittiman Rd, San Antonio TX</div>
+          <div><span style="color:var(--muted)">Phone</span><br class="n">210-555-0126</div>
+          <div><span style="color:var(--muted)">Pays</span><br>Hal Bridgeport · 210-555-0127</div>
+        </div>
+        <table class="mock">
+          <thead><tr><th>Driver</th><th>Vehicle</th><th class="r">Tickets</th><th class="r">This month</th><th class="r">Outstanding</th></tr></thead>
+          <tr><td>Hal Bridgeport</td><td>F-250 · 8841</td><td class="r n">6</td><td class="r n">$940.00</td><td class="r n" style="color:var(--warn-text)">$240.00</td></tr>
+          <tr><td>Duane Ricks</td><td>Ram 3500 · 2207</td><td class="r n">4</td><td class="r n">$615.00</td><td class="r n">$0.00</td></tr>
+          <tr><td>Yard truck</td><td>Dually · 1180</td><td class="r n">3</td><td class="r n">$410.00</td><td class="r n" style="color:var(--warn-text)">$410.00</td></tr>
+          <tr style="font-weight:700"><td>3 drivers</td><td></td><td class="r n">13</td><td class="r n">$1,965.00</td><td class="r n">$650.00</td></tr>
+        </table>
+        <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+          <span class="btn primary">Print statement</span>
+          <span class="btn">Take a payment</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="explain">
+    <div><h4>One company, many drivers</h4><p>Each driver is a customer in their own right, with their own history and their own truck. The money rolls up to the company.</p></div>
+    <div><h4>A tab has to be collectable</h4><p>Treadline refuses a charge on account without a name and a number attached. An unnamed tab is money you've given away.</p></div>
+    <div><h4>The statement prints</h4><p>On letterhead, itemised by driver and vehicle, ready for accounts payable — not a screenshot of a screen.</p></div>
+    <div><h4>Every ticket remembers the car</h4><p>When the same F-250 comes back with a vibration, the counter can see you balanced it in March.</p></div>
+  </div>
+</section>
+
+<!-- ═════════════════════════════ 7 · CLOSE-OUT ══════════════════════════ -->
+<section class="page">
+  <div class="folio"><span>07 — The close-out</span><span>Treadline</span></div>
+
+  <h2>The screen that pays for the software.</h2>
+  <p class="lede">
+    At the end of every day somebody counts the drawer. Treadline is what makes that
+    count mean something.
+  </p>
+
+  <div class="app">
+    <div class="app-bar">
+      <svg class="logo" viewBox="0 0 40 40"><rect x="2" y="2" width="36" height="36" rx="9" fill="#ffc83d"/><rect x="9" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="17.75" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="26.5" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="9" y="9" width="22" height="4.5" rx="2" fill="#0a2540"/></svg>
+      <nav class="app-nav"><span>Main</span><span>New sale</span><span>Logs</span><span>Inventory</span><span class="on">Close-out</span></nav>
+      <div class="app-who"><b>Marisol Vega</b><i>CASHIER</i></div>
+      <div class="lang"><b>EN</b><span>ES</span></div>
+    </div>
+
+    <div class="app-body">
+      <div class="panel">
+        <div class="panel-h">① Morning · count what's in the drawer</div>
+        <div style="font-size:13px;color:var(--good)">✓ $100.00 counted at 08:11 by Marisol</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h">② Count the drawer and the terminal</div>
+        <table class="mock">
+          <thead><tr><th>Tender</th><th class="r">You counted</th><th class="r">Expected</th></tr></thead>
+          <tr><td>Cash</td><td class="r"><span class="field" style="display:inline-block;padding:4px 10px" class="n">411.00</span></td><td class="r"><span class="covered"></span> <span style="font-size:11px;color:var(--muted)">covered</span></td></tr>
+          <tr><td>Credit card</td><td class="r"><span class="field" style="display:inline-block;padding:4px 10px">1609.00</span></td><td class="r"><span class="covered"></span> <span style="font-size:11px;color:var(--muted)">covered</span></td></tr>
+          <tr><td>Credit account</td><td class="r" style="color:var(--muted);font-size:11.5px">not counted</td><td class="r n">$240.00</td></tr>
+        </table>
+        <div class="btn primary" style="display:block;text-align:center;margin-top:12px;padding:11px">Log the register</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h">③ The verdict</div>
+        <table class="mock">
+          <tr><td><b>Cash</b></td><td class="r n">counted $411.00</td><td class="r n">expected $411.00</td><td class="r"><span class="pill green">Balanced</span></td></tr>
+          <tr><td><b>Credit card</b></td><td class="r n">counted $1,609.00</td><td class="r n">expected $1,609.00</td><td class="r"><span class="pill green">Balanced</span></td></tr>
+        </table>
+        <div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px">
+          float $100.00 &nbsp;+&nbsp; cash sales $311.00 &nbsp;+&nbsp; movements $0.00 &nbsp;=&nbsp; <b style="color:var(--text)">$411.00</b>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        <span class="btn amber">Print page one &amp; sign</span>
+        <span class="btn">Print the full report</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="explain">
+    <div><h4>Blind, and blind per tender</h4><p>The expected figure stays covered until you've typed <em>that</em> tender's count. Type the card total and the cash figure stays hidden. The owner can skip the cover; nobody else can.</p></div>
+    <div><h4>It stops the mistake happening</h4><p>Try to cash in exactly the float first thing in the morning and it stops you: <em>the drawer already carries the float — entering it here counts the same money twice.</em></p></div>
+    <div><h4>Page one is the product</h4><p>The verdict, the reconciliation, the tips line and two signatures. That's the sheet that goes in the folder. Everything else prints behind it.</p></div>
+    <div><h4>The card batch is never wrong</h4><p>Treadline treats the terminal as ground truth and the register as the suspect — so a mistyped tender shows up as a mismatch instead of hiding in a net that happens to balance.</p></div>
+  </div>
+
+  <div class="callout">
+    <b>Why "covered" matters more than it sounds</b>
+    <p>
+      A count you can see the answer to is not a count — it's a copy. Every shop that
+      has ever been quietly skimmed was skimmed by somebody who could see the number
+      they were supposed to hit before they counted.
+    </p>
+  </div>
+</section>
+
+<!-- ═════════════════════ 8 · REPORTS & ACCOUNTABILITY ═══════════════════ -->
+<section class="page">
+  <div class="folio"><span>08 — Reports &amp; accountability</span><span>Treadline</span></div>
+
+  <h2>Friday's payroll, settled on Wednesday.</h2>
+  <p class="lede">
+    Not a wall of charts. The handful of numbers that change what you do this week —
+    and the sentences that say what they mean.
+  </p>
+
+  <div class="app">
+    <div class="app-bar">
+      <svg class="logo" viewBox="0 0 40 40"><rect x="2" y="2" width="36" height="36" rx="9" fill="#ffc83d"/><rect x="9" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="17.75" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="26.5" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="9" y="9" width="22" height="4.5" rx="2" fill="#0a2540"/></svg>
+      <nav class="app-nav"><span>Main</span><span>New sale</span><span>Logs</span><span>Inventory</span><span class="on">Reports</span></nav>
+      <div class="app-who"><b>Dale Prentiss</b><i>OWNER</i></div>
+      <div class="lang"><b>EN</b><span>ES</span></div>
+    </div>
+
+    <div class="app-body">
+      <div class="panel">
+        <div class="panel-h">This week, by technician</div>
+        <table class="mock">
+          <thead><tr><th>Technician</th><th class="r">New tires</th><th class="r">Used</th><th class="r">Other work</th><th class="r">Tickets</th><th class="r">Tips</th><th class="r">Brought in</th></tr></thead>
+          <tr><td>Travis K.</td><td class="r n">14</td><td class="r n">9</td><td class="r n">76</td><td class="r n">71</td><td class="r n">$38.00</td><td class="r n">$4,120.00</td></tr>
+          <tr><td>Nina B.</td><td class="r n">9</td><td class="r n">11</td><td class="r n">56</td><td class="r n">58</td><td class="r n">$22.00</td><td class="r n">$3,015.00</td></tr>
+          <tr><td>Omar E.</td><td class="r n">11</td><td class="r n">4</td><td class="r n">14</td><td class="r n">22</td><td class="r n">$27.00</td><td class="r n">$2,240.00</td></tr>
+        </table>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:12px">
+        <div class="panel">
+          <div class="panel-h">Gross margin</div>
+          <div style="font-family:var(--mono);font-size:36px;font-weight:700;letter-spacing:-0.03em">38.2%</div>
+          <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px">64% of takings can be costed</div>
+          <div style="height:9px;border-radius:5px;background:var(--rule);overflow:hidden">
+            <div style="width:64%;height:100%;background:linear-gradient(90deg,var(--ink),#2c5b8a)"></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-h">Best sellers · 90 days</div>
+          <table class="mock">
+            <tr><td>FLAT</td><td class="r n">1,240</td><td class="r n">$18.6k</td></tr>
+            <tr><td>MOUNT &amp; BALANCE</td><td class="r n">418</td><td class="r n">$14.2k</td></tr>
+            <tr><td>USED 205-65-16</td><td class="r n">121</td><td class="r n">$8.4k</td></tr>
+            <tr><td>ROTACION</td><td class="r n">310</td><td class="r n">$4.7k</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="alarmbar" style="margin-top:12px">
+        <b>What's worrying</b>
+        <div style="font-size:12.5px;line-height:1.7;color:var(--text)">
+          ● Tickets carrying a tire fell from <b>23% to 14%</b> over six months — while the average
+          price per tire didn't move. That's a supply problem, not a demand problem.<br>
+          ● <b>133 sizes</b> haven't sold in 45 days — $18,400 standing still.<br>
+          ● <b>41 sizes</b> were asked for this month and weren't on the rack.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="explain">
+    <div><h4>Nothing is ever deleted</h4><p>A void writes a reversing entry; it doesn't erase the original. A refund is its own row. The books can't be quietly rewritten — by anyone, including the owner.</p></div>
+    <div><h4>Every change is signed</h4><p>Who voided it, who discounted it, who moved the stock, who took cash out of the drawer — with a timestamp and a reason, permanently.</p></div>
+    <div><h4>The alarm log remembers</h4><p>Every exception the system has raised, who waved it away, when, and what they wrote. Dismissing an alarm doesn't silence it — it signs it.</p></div>
+    <div><h4>Payroll weeks freeze</h4><p>Once a week is paid it's locked. A correction made in August books into August, instead of quietly rewriting a July payout you've already handed out.</p></div>
+  </div>
+
+  <div class="callout">
+    <b>It tells you what's wrong, not just what happened</b>
+    <p>
+      Most reporting hands you a chart and wishes you luck. Treadline reads your own
+      numbers and writes the sentence: <em>tire attachment fell nine points while the
+      price per tire held flat — you're not losing customers, you're running out of
+      stock.</em>
+    </p>
+  </div>
+</section>
+
+
+<!-- ══════════════════ 9 · TIME CLOCK (OPTIONAL) ════════════════════════ -->
+<section class="page">
+  <div class="folio"><span>09 — Time clock &amp; timesheets</span><span>Optional add-on</span></div>
+
+  <h2>Who was here, and for how long.</h2>
+  <p class="lede">
+    The same PIN that opens the register punches the clock. No second device, no
+    second password, no card nobody can find on a Monday morning.
+  </p>
+
+  <!--
+    TWO SCREENS, AND THE SEPARATION IS THE POINT.
+
+    These were drawn as one window, side by side, which put the week's
+    timesheet on the wall next to the keypad for anybody walking past to read.
+    That is not what the product does — the kiosk shows a keypad and nothing
+    else, and greets one person by name only after their own PIN — and a
+    brochure that draws a leak the software does not have is selling a fault.
+  -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;align-items:start">
+
+    <figure style="margin:0">
+      <figcaption style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">
+        On the wall · anybody can see this
+      </figcaption>
+      <div class="app">
+        <div class="app-bar">
+          <svg class="logo" viewBox="0 0 40 40"><rect x="2" y="2" width="36" height="36" rx="9" fill="#ffc83d"/><rect x="9" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="17.75" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="26.5" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="9" y="9" width="22" height="4.5" rx="2" fill="#0a2540"/></svg>
+          <nav class="app-nav"><span class="on">Time Clock</span></nav>
+          <div class="lang"><b>EN</b><span>ES</span></div>
+        </div>
+        <div class="app-body" style="text-align:center">
+          <div style="font-family:var(--mono);font-size:38px;font-weight:700;letter-spacing:-0.02em">07:58</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Thursday 13 August</div>
+          <div style="font-family:var(--mono);font-size:26px;letter-spacing:.5em;margin-bottom:12px">● ● ● ○</div>
+          <div class="keys" style="grid-template-columns:repeat(3,1fr);max-width:230px;margin:0 auto">
+            <div class="key">1</div><div class="key">2</div><div class="key">3</div>
+            <div class="key">4</div><div class="key">5</div><div class="key">6</div>
+            <div class="key">7</div><div class="key">8</div><div class="key">9</div>
+            <div class="key">←</div><div class="key">0</div><div class="key">✓</div>
+          </div>
+          <div style="font-size:11.5px;color:var(--muted);margin-top:14px;max-width:34ch;margin-left:auto;margin-right:auto">
+            A keypad and the time. No names, no roster, no hours —
+            nothing a customer in the waiting room can read.
+          </div>
+        </div>
+      </div>
+    </figure>
+
+    <figure style="margin:0">
+      <figcaption style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">
+        After a correct PIN · that one person, for a moment
+      </figcaption>
+      <div class="app">
+        <div class="app-bar">
+          <svg class="logo" viewBox="0 0 40 40"><rect x="2" y="2" width="36" height="36" rx="9" fill="#ffc83d"/><rect x="9" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="17.75" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="26.5" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="9" y="9" width="22" height="4.5" rx="2" fill="#0a2540"/></svg>
+          <nav class="app-nav"><span class="on">Time Clock</span></nav>
+          <div class="lang"><b>EN</b><span>ES</span></div>
+        </div>
+        <div class="app-body" style="text-align:center">
+          <div style="font-size:24px;font-weight:700;margin-bottom:3px">Hi, Travis</div>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:16px">You're currently working.</div>
+          <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:14px">
+            <span class="btn amber" style="padding:12px 20px">Punch out</span>
+            <span class="btn" style="padding:12px 20px">Start a break</span>
+          </div>
+          <div style="font-size:11.5px;color:var(--muted);max-width:34ch;margin:0 auto">
+            A photo is taken as you punch, so a PIN passed to a friend
+            is a PIN with somebody else's face against it.
+          </div>
+        </div>
+      </div>
+    </figure>
+  </div>
+
+  <figure style="margin:26px 0 0">
+    <figcaption style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">
+      In the office · behind a manager's sign-in
+    </figcaption>
+    <div class="app">
+      <div class="app-bar">
+        <svg class="logo" viewBox="0 0 40 40"><rect x="2" y="2" width="36" height="36" rx="9" fill="#ffc83d"/><rect x="9" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="17.75" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="26.5" y="9" width="4.5" height="22" rx="2" fill="#0a2540"/><rect x="9" y="9" width="22" height="4.5" rx="2" fill="#0a2540"/></svg>
+        <nav class="app-nav"><span>Main</span><span>New sale</span><span class="on">Timesheets</span><span>Reports</span></nav>
+        <div class="app-who"><b>Dale Prentiss</b><i>OWNER</i></div>
+        <div class="lang"><b>EN</b><span>ES</span></div>
+      </div>
+      <div class="app-body">
+        <div class="panel" style="margin-bottom:12px">
+          <div class="panel-h">On the clock right now</div>
+          <table class="mock">
+            <tr><td>Travis K.</td><td class="n">in 07:46</td><td class="r"><span class="pill green">working</span></td><td class="r n">4h 12m</td></tr>
+            <tr><td>Omar E.</td><td class="n">in 08:02</td><td class="r"><span class="pill green">working</span></td><td class="r n">3h 56m</td></tr>
+            <tr><td>Nina B.</td><td class="n">in 08:00</td><td class="r"><span class="pill amber">on break</span></td><td class="r n">3h 21m</td></tr>
+            <tr><td>Marisol Vega</td><td class="n">—</td><td class="r"><span class="pill grey">not in</span></td><td class="r n">—</td></tr>
+          </table>
+        </div>
+        <div class="panel">
+          <div class="panel-h">This week's timesheet · ready for payroll</div>
+          <table class="mock">
+            <thead><tr><th>Name</th><th class="r">Mon</th><th class="r">Tue</th><th class="r">Wed</th><th class="r">Thu</th><th class="r">Hours</th></tr></thead>
+            <tr><td>Travis K.</td><td class="r n">9.1</td><td class="r n">8.7</td><td class="r n">9.4</td><td class="r n">4.2</td><td class="r n"><b>31.4</b></td></tr>
+            <tr><td>Omar E.</td><td class="r n">8.9</td><td class="r n">9.0</td><td class="r n">8.6</td><td class="r n">3.9</td><td class="r n"><b>30.4</b></td></tr>
+            <tr><td>Nina B.</td><td class="r n">—</td><td class="r n">8.2</td><td class="r n">8.8</td><td class="r n">3.4</td><td class="r n"><b>20.4</b></td></tr>
+          </table>
+          <div class="alarmrow" style="margin-top:11px">
+            <span>⚠ <b>Tue</b> — Omar E. never punched out. Closed automatically at 21:00 and flagged.</span>
+            <span class="btn" style="margin-left:auto">Fix the time</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+  <div class="explain">
+    <div><h4>The wall screen says nothing</h4><p>A keypad and the clock. Who is in, who is late and what anybody earns lives behind a sign-in, not on a sheet anyone can read from the waiting room.</p></div>
+    <div><h4>One PIN, both jobs</h4><p>Punch in at the kiosk, then open the register from the same screen without signing in twice. Walk away and it locks itself.</p></div>
+    <div><h4>A forgotten punch-out is flagged, not guessed</h4><p>The shift closes at nine and says so. Hours nobody confirmed are marked as assumed rather than quietly counted as worked.</p></div>
+    <div><h4>Corrections are signed</h4><p>A manager can fix a time, and the original stays underneath with who changed it and why. Payroll you can defend.</p></div>
+    <div><h4>Clock out from the close-out</h4><p>Whoever shuts the day sees who is still on the clock and can punch them out there — which is where somebody actually notices.</p></div>
+  </div>
+
+  <div class="callout">
+    <b>Sold separately, and honestly so</b>
+    <p>
+      Plenty of shops already have a time clock they like. This one is $49 a month
+      on top of Shop, included with Multi-bay, and switching it off changes nothing
+      else — the register, the racks and the drawer carry on exactly as they were.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════ 10 · PRICING, GETTING STARTED ═════════════════════════ -->
+<section class="page">
+  <div class="folio"><span>10 — Pricing &amp; getting started</span><span>Treadline</span></div>
+
+  <h2>Everything else.</h2>
+
+  <!--
+    THE BRAND SECTION IS HIDDEN, NOT DELETED.
+
+    A prospect does not need to be told what the logo means; it is a page about
+    us on a document about them. Kept here in full so it can go back for a
+    partner deck or a printer's spec sheet without being rewritten.
+
+  <h3 style="margin-top:36px">The brand</h3>
+  <p style="margin-bottom:22px">
+    <b>Treadline</b> — the tread on the tire, and the line at the bottom of the page.
+    The mark is a contact patch: a rounded square with three grooves cut through it,
+    the middle groove extending to form the crossbar of a <b>T</b>. One colour, no
+    gradient, legible at 16px on a browser tab and at three feet on a shop wall.
+  </p>
+
+  <div class="swatches">
+    <div class="sw"><div class="chip" style="background:#0a2540"></div><b>Ink Navy</b><code>#0A2540</code></div>
+    <div class="sw"><div class="chip" style="background:#07182c"></div><b>Deep</b><code>#07182C</code></div>
+    <div class="sw"><div class="chip" style="background:linear-gradient(180deg,#ffd35a,#e0a91d)"></div><b>Signal Amber</b><code>#FFC83D</code></div>
+    <div class="sw"><div class="chip" style="background:#f4f6fa;border:1px solid var(—rule)"></div><b>Chalk</b><code>#F4F6FA</code></div>
+    <div class="sw"><div class="chip" style="background:#5b6b7f"></div><b>Slate</b><code>#5B6B7F</code></div>
+    <div class="sw"><div class="chip" style="background:#b91c1c"></div><b>Torque Red</b><code>#B91C1C</code></div>
+  </div>
+  <p style="color:var(—muted);font-size:14.5px">
+    Amber is the only loud colour and it's spent on one thing: <em>something needs a
+    person</em>. Red is reserved for money that doesn't balance and appears nowhere
+    else — not on a heading, not on a border, never as decoration. Everything else
+    stays quiet so those two mean something.
+  </p>
+
+  -->
+
+  <h3 style="margin-top:40px">What it costs</h3>
+  <div class="plans" style="grid-template-columns:repeat(auto-fit,minmax(250px,1fr))">
+    <div class="plan pick">
+      <h4>Shop</h4>
+      <div class="tagline">★ Most shops · up to 20 staff</div>
+      <ul>
+        <li>Register, receipts and split tenders</li>
+        <li>Inventory built for tires</li>
+        <li>Special orders board</li>
+        <li>Fleet accounts &amp; statements</li>
+        <li>Close-out and the alarm log</li>
+        <li>Full reports and trends</li>
+      </ul>
+      <div class="price">$199<span style="font-size:13px;color:var(--muted)"> /mo</span></div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--rule);font-size:13.5px;color:var(--muted)">
+        <b style="color:var(--text)">+ $49 /mo</b> — add the time clock and timesheets
+      </div>
+    </div>
+    <div class="plan">
+      <h4>Multi-bay</h4>
+      <div class="tagline">More than one location</div>
+      <ul>
+        <li>Everything in Shop</li>
+        <li>Time clock included</li>
+        <li>Stock across locations</li>
+        <li>Group reporting</li>
+        <li>Priority support</li>
+      </ul>
+      <div class="price">$299<span style="font-size:13px;color:var(--muted)"> /mo</span></div>
+    </div>
+  </div>
+
+  <h3 style="margin-top:34px">Getting set up</h3>
+  <div class="plans" style="grid-template-columns:repeat(auto-fit,minmax(250px,1fr))">
+    <div class="plan pick">
+      <h4>Full setup <span style="font-family:var(--mono);font-size:19px">$250</span></h4>
+      <div class="tagline">One payment · what most shops take</div>
+      <ul>
+        <li>Set up around how <em>your</em> shop rings — your buttons, your prices, your words</li>
+        <li>Your tire inventory loaded and counted in before you open on it</li>
+        <li>Your customers and fleets brought across</li>
+        <li><b style="color:var(--text)">Quarterly reports free for the first year</b> — we read your numbers and tell you what they say</li>
+      </ul>
+    </div>
+    <div class="plan">
+      <h4>As it comes <span style="font-family:var(--mono);font-size:19px">$99</span></h4>
+      <div class="tagline">One payment · set it up yourself</div>
+      <ul>
+        <li>Installed and running, with the standard setup</li>
+        <li>You add your own tires, prices and customers</li>
+        <li>Same software, same support</li>
+      </ul>
+    </div>
+  </div>
+
+  <p style="color:var(--muted);font-size:14.5px;margin-top:16px">
+    <b style="color:var(--text)">Every plan:</b> setup and import from your current
+    spreadsheet · training for your counter staff · English and Spanish throughout ·
+    every report printable · your data exportable, always. No contract, and no
+    hardware to buy — it runs on the computer, phone or tablet you already have,
+    with the printer you already own.
+  </p>
+
+  <h3 style="margin-top:40px">Getting started</h3>
+  <div class="steps">
+    <div class="step"><b>WEEK ONE</b><p>We import your tire list, your customers and your prices. You keep working exactly as you are.</p></div>
+    <div class="step"><b>WEEK TWO</b><p>Ring alongside your current method for a week. Nothing at risk, and you can compare the totals yourself every night.</p></div>
+    <div class="step"><b>WEEK THREE</b><p>The notebook goes in the drawer. Within a few days you stop opening it.</p></div>
+  </div>
+
+  <div class="placeholder" style="margin-top:36px">
+    <b style="color:var(--text)">[ Customer quote — to be filled ]</b><br>
+    Reserved for a real quote from a real shop once the first customers are live.
+    Do not print invented praise: a tire shop owner can smell it, and it costs more
+    trust than it buys.
+  </div>
+
+  <div class="endcard">
+    <h3>See it running in your own shop</h3>
+    <p>
+      We'll bring a laptop, ring your next twenty tickets on it, and leave. If it isn't
+      faster than what you do now, we'll tell you so ourselves.
+    </p>
+    <div class="contact">
+      treadline.shop &nbsp;·&nbsp; hello@treadline.shop &nbsp;·&nbsp; San Antonio, Texas
+    </div>
+  </div>
+</section>
+
+<div class="editbar" role="toolbar" aria-label="Brochure editing">
+  <button id="edit-toggle" aria-pressed="false">✎ Edit the words</button>
+  <button id="edit-copy">Copy my changes</button>
+  <button id="edit-reset">Undo all</button>
+  <span class="count" id="edit-count">no changes</span>
+</div>
+
+<script>
+/*
+  Editing the copy in the page itself.
+
+  The brochure is written by argument and the person with the argument is
+  usually holding a phone, a long way from an editor. So the words are editable
+  where they are read, the changes survive a reload, and "Copy my changes"
+  produces a list — old line, new line, and which page — that can be pasted
+  straight back into a conversation. The page is the draft; the list is the
+  handoff.
+
+  Only prose is editable. The mockups are the product's own screens and their
+  figures have to keep agreeing with each other, so they are deliberately left
+  alone: a brochure whose sample drawer no longer adds up is worse than one
+  with a clumsy sentence in it.
+*/
+(function () {
+  "use strict";
+
+  var SELECTOR = [
+    "h1", "h2", "h3", "h4",
+    ".lede", ".cover .sub", ".cover .kicker",
+    ".callout b", ".callout p",
+    ".explain p", ".crow b", ".crow p",
+    ".step p", ".plan h4", ".plan .tagline", ".plan li",
+    ".endcard p", ".swatches + p", ".plans + p",
+    "section > p"
+  ].join(",");
+
+  /*
+    v2 — ids are hashed from the text, not counted along the page.
+
+    They used to be "e" plus the block's index, which meant inserting a page
+    slid every id after it one block along: a saved edit came back attached to
+    its neighbour. It happened in real use — a rewrite of the every-plan line
+    reappeared as the Multi-bay tagline, one block below where it was typed.
+
+    Hashing the original words instead means a block keeps its id wherever it
+    moves to, and loses it only when its words change — which is exactly when
+    an old edit should stop applying, because it was written against a sentence
+    that no longer exists.
+
+    The version bump retires v1's positional ids rather than letting them
+    reattach to the wrong blocks one last time.
+  */
+  var KEY = "treadline-brochure-edits-v2";
+  var nodes = [];
+  var original = {};
+  var edits = {};
+
+  /* localStorage is unavailable in some embedded frames. Editing still works
+     for the session; only the surviving-a-reload part is lost, so it fails
+     quietly rather than taking the whole toolbar down with it. */
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { return {}; }
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(edits)); } catch (e) { /* session only */ }
+  }
+
+  /* Which brochure page a node sits on, for the handoff list. Read off the
+     folio the page already prints rather than a second numbering that could
+     drift away from it. */
+  function pageOf(el) {
+    var sec = el.closest("section");
+    if (!sec) return "";
+    if (sec.classList.contains("cover")) return "Page 1 · Cover";
+    var folio = sec.querySelector(".folio span");
+    return folio ? "Page " + folio.textContent.trim() : "";
+  }
+
+  /** A short, stable key for a block, taken from the words it starts with. */
+  function keyOf(html) {
+    var h = 5381;
+    for (var i = 0; i < html.length; i++) h = ((h * 33) ^ html.charCodeAt(i)) >>> 0;
+    return "t" + h.toString(36);
+  }
+
+  var used = {};
+  document.querySelectorAll(SELECTOR).forEach(function (el) {
+    if (el.closest(".editbar") || el.closest(".app")) return;
+    var id = keyOf(el.innerHTML);
+    // Two blocks with identical words are rare but real — a repeated tagline,
+    // say. The second one takes a suffix so they cannot overwrite each other.
+    if (used[id]) id = id + "-" + used[id]++;
+    else used[id] = 1;
+    el.setAttribute("data-edit", id);
+    original[id] = el.innerHTML;
+    nodes.push(el);
+  });
+
+  edits = load();
+  Object.keys(edits).forEach(function (id) {
+    var el = document.querySelector('[data-edit="' + id + '"]');
+    if (el && original[id] !== undefined) {
+      el.innerHTML = edits[id];
+      el.classList.add("changed");
+    }
+  });
+
+  var bar    = document.querySelector(".editbar");
+  var toggle = document.getElementById("edit-toggle");
+  var copyBtn = document.getElementById("edit-copy");
+  var resetBtn = document.getElementById("edit-reset");
+  var countEl = document.getElementById("edit-count");
+  var editing = false;
+
+  function n() { return Object.keys(edits).length; }
+  function refresh() {
+    var c = n();
+    countEl.textContent = c === 0 ? "no changes" : c + (c === 1 ? " change" : " changes");
+  }
+
+  function setEditing(on) {
+    editing = on;
+    document.body.classList.toggle("editing", on);
+    toggle.classList.toggle("on", on);
+    toggle.setAttribute("aria-pressed", String(on));
+    toggle.textContent = on ? "✓ Done editing" : "✎ Edit the words";
+    nodes.forEach(function (el) {
+      el.contentEditable = on ? "true" : "false";
+      if (on) el.spellcheck = true;
+    });
+  }
+
+  document.addEventListener("input", function (ev) {
+    var el = ev.target.closest && ev.target.closest("[data-edit]");
+    if (!el) return;
+    var id = el.getAttribute("data-edit");
+    if (el.innerHTML === original[id]) {
+      delete edits[id];
+      el.classList.remove("changed");
+    } else {
+      edits[id] = el.innerHTML;
+      el.classList.add("changed");
+    }
+    save();
+    refresh();
+  });
+
+  var strip = function (html) {
+    var d = document.createElement("div");
+    d.innerHTML = html;
+    return (d.textContent || "").replace(/\s+/g, " ").trim();
+  };
+
+  copyBtn.addEventListener("click", function () {
+    if (n() === 0) { countEl.textContent = "nothing changed yet"; return; }
+    var out = ["Brochure edits — " + n() + " change" + (n() === 1 ? "" : "s"), ""];
+    nodes.forEach(function (el) {
+      var id = el.getAttribute("data-edit");
+      if (!edits[id]) return;
+      out.push(pageOf(el));
+      out.push("  WAS: " + strip(original[id]));
+      out.push("  NOW: " + strip(edits[id]));
+      out.push("");
+    });
+    var text = out.join("\n");
+
+    function done() { countEl.textContent = "copied — paste it to me"; setTimeout(refresh, 2600); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, fallback);
+    } else { fallback(); }
+
+    /* No clipboard permission — put the list on screen and select it, which is
+       the one thing that always works on a phone. */
+    function fallback() {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("style", "position:fixed;inset:8% 6%;z-index:60;width:88%;height:70%;font:13px ui-monospace,monospace;padding:12px;border-radius:10px;border:2px solid #0a2540");
+      document.body.appendChild(ta);
+      ta.select();
+      ta.addEventListener("blur", function () { ta.remove(); });
+      countEl.textContent = "select and copy";
+    }
+  });
+
+  resetBtn.addEventListener("click", function () {
+    if (n() === 0) return;
+    if (!window.confirm("Put every sentence back the way it was? " + n() + " change" + (n() === 1 ? "" : "s") + " will be lost.")) return;
+    nodes.forEach(function (el) {
+      var id = el.getAttribute("data-edit");
+      if (edits[id]) { el.innerHTML = original[id]; el.classList.remove("changed"); }
+    });
+    edits = {};
+    save();
+    refresh();
+  });
+
+  toggle.addEventListener("click", function () { setEditing(!editing); });
+  setEditing(false);
+  refresh();
+})();
+</script>
+
+</body>
+</html>

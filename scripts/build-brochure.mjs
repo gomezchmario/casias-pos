@@ -60,6 +60,31 @@ ${body}
 </body>
 </html>`;
 
+/*
+  The copy the shop's own server hands out, at /info.
+
+  Same source, wrapped as a whole document — the brochure is written as a body
+  fragment because that is what the artifact host wants, and a browser asked
+  for it directly needs the <html> and <head> around it. No print zoom here:
+  that is a concession to fitting sheets, and somebody reading this on a phone
+  should get it at full size. Its own print rules still apply if they print it.
+*/
+fs.writeFileSync(
+  path.join(root, "public", "info.html"),
+  `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+${body}
+</body>
+</html>`,
+  "utf8",
+);
+console.log("wrote public/info.html — served at /info");
+
 const CHROME = [
   "C:/Program Files/Google/Chrome/Application/chrome.exe",
   "C:/Program Files (x86)/Google/Chrome/Application/chrome.exe",

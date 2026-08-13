@@ -42,6 +42,25 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+
+  /**
+   * The sales brochure, on a URL somebody can type.
+   *
+   * It is a whole standalone document with its own type, colours and print
+   * rules, so it is served as a file out of `public/` rather than rebuilt as a
+   * page inside the app shell — a brochure wrapped in the register's navigation
+   * would be a brochure with the product's menu bar across the top of it.
+   *
+   * The rewrite is only so the address is `/info` and not `/info.html`: it is
+   * read out over a phone to somebody standing in another shop, and the four
+   * characters matter more than they look.
+   *
+   * `scripts/build-brochure.mjs` writes the file. Editing the source alone
+   * changes nothing here until that has been run.
+   */
+  async rewrites() {
+    return [{ source: "/info", destination: "/info.html" }];
+  },
 };
 
 export default nextConfig;
