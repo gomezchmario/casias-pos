@@ -198,7 +198,18 @@ export default function FleetPage({ params }: { params: Promise<{ id: string }> 
                       <span className="text-brand-300">{tr("on the account")}</span>
                     )}
                   </td>
-                  <td className="py-1.5 text-brand-400">{c.vehicle ?? "—"}</td>
+                  <td className="py-1.5 text-brand-400">
+                    {c.vehicle ?? "—"}
+                    {/* Under the vehicle rather than in a column of its own:
+                        it is a sentence of variable length, and a column sized
+                        for "4× LANDSAIL 235-55-18, MOUNT & BALANCE, DISPOSAL"
+                        would leave the rest of the table in a gutter. Shown
+                        always — this is the sheet that gets posted, and a
+                        detail somebody has to ask for is a phone call. */}
+                    {c.what && (
+                      <div className="text-xs text-brand-300 mt-0.5">{c.what}</div>
+                    )}
+                  </td>
                   <td className="py-1.5 pl-4 text-right tabular-nums">
                     {formatCents(c.amountCents)}
                   </td>

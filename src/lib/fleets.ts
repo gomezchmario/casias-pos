@@ -56,6 +56,15 @@ export type FleetCharge = {
   driverId: number | null;
   driverName: string | null;
   vehicle: string | null;
+  /**
+   * What was actually done, as one line — "4× LANDSAIL 235-55-18, MOUNT & B".
+   *
+   * The statement used to say a driver was charged an amount and stop there,
+   * which answers the only question the shop already knew and none of the ones
+   * accounts payable asks. A company querying a $440 line wants to read what it
+   * bought, not ring up to be told.
+   */
+  what: string | null;
   amountCents: number;
 };
 
@@ -287,8 +296,21 @@ export function fleetReport(fleetId: number, from: string, to: string): FleetRep
               CASE WHEN v.id IS NULL THEN NULL ELSE
                 TRIM(COALESCE(v.year,'') || ' ' || COALESCE(v.make,'') || ' ' ||
                      COALESCE(v.model,'') ||
-                     CASE WHEN v.plate IS NULL THEN '' ELSE ' · ' || v.plate END)
+                     CASE WHEN v.plate IS NULL THEN '' ELSE ' · ' || v.plate END ||
+                     -- The VIN, which is the whole reason it is recorded: two
+                     -- white F-250s on one account are one description and two
+                     -- trucks, and the statement is where that has to be told
+                     -- apart months after anybody remembers.
+                     CASE WHEN v.vin IS NULL THEN '' ELSE ' · VIN ' || v.vin END)
               END AS vehicle,
+              -- The lines themselves. Struck rows are left out: a line taken
+              -- off the log is not part of what was sold, and a statement is
+              -- exactly where that distinction is worth money.
+              (SELECT GROUP_CONCAT(
+                        CASE WHEN i.qty > 1 THEN i.qty || '× ' || i.description
+                             ELSE i.description END, ', ')
+                 FROM sale_items i
+                WHERE i.sale_id = s.id AND i.voided = 0) AS what,
               SUM(p.amount_cents) AS amountCents
          FROM payments p
          JOIN sales s ON s.id = p.sale_id
