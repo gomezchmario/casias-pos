@@ -173,6 +173,23 @@ export default function CloseoutV3Page() {
   const show = (code: string) => !blind || logged.has(code);
 
   const registerLogged = liveChecks.length > 0;
+  /*
+    Whether PRINTING is allowed, which is not the same question.
+
+    Print is held back until the register is logged because an unsigned sheet
+    that certifies nothing is worse than no sheet — a cashier who can print
+    before counting has a piece of paper that looks like a close-out and is not
+    one.
+
+    The owner is exempt, for the same reason the blind count exempts them: this
+    control exists to make sure the count happens before the paperwork, and the
+    owner is who that reports TO rather than who it is aimed at. Wanting the
+    day's sheet at four in the afternoon to take to the accountant is a normal
+    thing for an owner to want, and the verdict line above already says in
+    capitals when the register has not been logged, so nothing printed this way
+    can pretend otherwise.
+  */
+  const mayPrint = registerLogged || can("skipBlindCount");
   const outBy = finalCheck
     ? finalCheck.lines.reduce(
         (n, l) => n + Math.abs(shownVariance(l.varianceCents, l.isCard)),
@@ -814,7 +831,7 @@ export default function CloseoutV3Page() {
         </div>
 
         {/* ── Step 4 · Print and sign ────────────────────────────────────── */}
-        <div className={`cv3-step ${registerLogged ? "" : "cv3-step-waiting"}`}>
+        <div className={`cv3-step ${mayPrint ? "" : "cv3-step-waiting"}`}>
           <div className="cv3-step-head">
             <span className="cv3-step-no">4</span>
             <span className="cv3-step-title">Print and sign</span>
@@ -828,8 +845,14 @@ export default function CloseoutV3Page() {
             <button
               type="button"
               className="btn btn-primary"
-              disabled={!registerLogged}
-              title={registerLogged ? "Print the sheet that gets signed" : "Log the register first"}
+              disabled={!mayPrint}
+              title={
+                registerLogged
+                  ? "Print the sheet that gets signed"
+                  : mayPrint
+                    ? "The register is not logged — this sheet will say so"
+                    : "Log the register first"
+              }
               onClick={() => setPrintMode("page1")}
             >
               Print the close-out
@@ -844,11 +867,13 @@ export default function CloseoutV3Page() {
             <button
               type="button"
               className="btn btn-outline"
-              disabled={!registerLogged}
+              disabled={!mayPrint}
               title={
                 registerLogged
                   ? "Print the previous close-out sheet"
-                  : "Log the register first"
+                  : mayPrint
+                    ? "The register is not logged — this sheet will say so"
+                    : "Log the register first"
               }
               onClick={() =>
                 window.open("/pos/eod?print=1", "_blank", "noopener,width=1100,height=800")
