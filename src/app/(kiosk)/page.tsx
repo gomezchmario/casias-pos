@@ -96,6 +96,20 @@ export default function KioskPage() {
     if (pin.length === 4 && phase === "idle") doLookup(pin);
   }, [pin, phase]);
 
+  /**
+   * Seconds left on a lockout, counted down on screen.
+   *
+   * Held here rather than read from the clock on each render so the pad can be
+   * dead for exactly as long as the server says it is, and come back on its own
+   * without anybody reloading the page.
+   */
+  const [lockedFor, setLockedFor] = useState(0);
+  useEffect(() => {
+    if (lockedFor <= 0) return;
+    const t = setInterval(() => setLockedFor((n) => Math.max(0, n - 1)), 1000);
+    return () => clearInterval(t);
+  }, [lockedFor]);
+
   async function doLookup(pinValue: string) {
     setPhase("looking_up");
     try {
@@ -106,6 +120,7 @@ export default function KioskPage() {
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
+        if (typeof data.lockedForSeconds === "number") setLockedFor(data.lockedForSeconds);
         setPinInvalid(true);
         setToast({
           kind: "error",
@@ -205,8 +220,13 @@ export default function KioskPage() {
 
   const showActions = phase === "ready" || phase === "submitting";
   const showToast = toast !== null;
-  const keypadDisabled = phase !== "idle";
-  const canSubmitPin = pin.length === 4 && phase === "idle";
+  /* Dead while the lockout runs, and back on its own when it expires — the
+     countdown above ticks to zero and the pad simply works again, without
+     anybody reloading the page or being told to. The server refuses either
+     way; this is so nobody spends five minutes pressing a pad that cannot
+     answer them. */
+  const keypadDisabled = phase !== "idle" || lockedFor > 0;
+  const canSubmitPin = pin.length === 4 && phase === "idle" && lockedFor === 0;
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-6 kiosk-bg" style={{ position: "relative" }}>
@@ -239,11 +259,13 @@ export default function KioskPage() {
             <>
               <PinDots filled={pin.length} invalid={pinInvalid} />
               <div className="mt-3 text-sm text-white/70">
-                {pinInvalid
-                  ? "PIN not recognized — try again"
-                  : phase === "looking_up"
-                    ? "Looking up…"
-                    : "Enter your 4-digit PIN"}
+                {lockedFor > 0
+                  ? `Too many wrong PINs — try again in ${Math.floor(lockedFor / 60)}:${String(lockedFor % 60).padStart(2, "0")}`
+                  : pinInvalid
+                    ? "PIN not recognized — try again"
+                    : phase === "looking_up"
+                      ? "Looking up…"
+                      : "Enter your 4-digit PIN"}
               </div>
             </>
           ) : (
