@@ -829,6 +829,18 @@ export default function RegisterPage() {
 
   const liveItems = items.filter((i) => !i.voided);
 
+  /*
+    What the customer owes for the goods — the subtotal LESS any discount.
+
+    Every figure on this screen labelled Total, or "customer owes", used to be
+    sale.subtotal_cents, which is what the goods cost before anything came off.
+    On a discounted ticket that is not what anybody owes, and it read as the
+    real number in the place people check the real number. Same fault, and the
+    same fix, as goodsCents in PaymentPanel — see the note there for the
+    ticket it was found on.
+  */
+  const owedCents = sale ? sale.subtotal_cents - sale.discount_cents : 0;
+
   // Buying, not selling. Everything in the left-hand column is priced to sell —
   // the shelf prices, the service grid, the stock search — and none of it means
   // anything when the shop is the one handing money over. It comes off the
@@ -1656,6 +1668,14 @@ export default function RegisterPage() {
           {sale && (
             <div className="mt-3 pt-3 border-t border-black/10 flex justify-between text-lg font-semibold text-brand-500">
               <span>{tr("Total")}</span>
+              <span className="tabular-nums">{formatCents(owedCents)}</span>
+            </div>
+          )}
+          {/* The discount, named where the total changed, so a total that is
+              lower than the lines above it explains itself. */}
+          {sale && sale.discount_cents > 0 && (
+            <div className="flex justify-between text-xs text-brand-300 mt-0.5">
+              <span>{tr("after discount of")} {formatCents(sale.discount_cents)}</span>
               <span className="tabular-nums">{formatCents(sale.subtotal_cents)}</span>
             </div>
           )}
@@ -1806,14 +1826,14 @@ export default function RegisterPage() {
               >
                 {writing
                   ? "Create Ticket"
-                  : `Close it unpaid — customer owes ${formatCents(sale.subtotal_cents)}`}
+                  : `Close it unpaid — customer owes ${formatCents(owedCents)}`}
               </button>
               {writing && (
                 <div
                   className="text-center mt-1 font-semibold tabular-nums"
                   style={{ color: "#a71d24", fontSize: 14 }}
                 >
-                  {formatCents(sale.subtotal_cents)} to pay at cashier
+                  {formatCents(owedCents)} to pay at cashier
                 </div>
               )}
             </div>
@@ -1894,7 +1914,7 @@ export default function RegisterPage() {
       >
         <p>
           The ticket is finished at{" "}
-          <strong>{sale ? formatCents(sale.subtotal_cents) : ""}</strong> with
+          <strong>{sale ? formatCents(owedCents) : ""}</strong> with
           nothing collected — the customer pays at the cashier later. Any tires
           on it come off the racks now.
         </p>

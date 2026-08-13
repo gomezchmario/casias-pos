@@ -183,14 +183,30 @@ export function PaymentPanel({
     [tipCents, commPerCents, commChargeCents],
   );
 
+  /*
+    WHAT THE CUSTOMER OWES FOR THE GOODS, WHICH IS NOT THE SUBTOTAL.
+
+    This panel charged sale.subtotal_cents — the price before any discount — so
+    a discount was recorded on the ticket and then simply not taken off the
+    money. S-2026-000497 was rung at $160, discounted to $140, and charged
+    $160: the customer paid full price, and the ticket was left reading $20
+    overpaid because the payment exceeded a total that had come down.
+
+    Not total_cents either, which already includes the tip and the commission —
+    this panel adds those itself a line below, and using it would charge the tip
+    twice. The goods are the subtotal less the discount, and every figure on
+    this panel that means "the ticket" is that number.
+  */
+  const goodsCents = sale.subtotal_cents - sale.discount_cents;
+
   // Running the tip separately means the card is charged twice: the goods
   // first, then the tip plus its fee. The ticket total is the same either way.
   const splitting = splitTip && tipCents > 0 && !splitTender;
-  const firstChargeCents = sale.subtotal_cents + (splitting ? 0 : tipCents + commCents);
+  const firstChargeCents = goodsCents + (splitting ? 0 : tipCents + commCents);
   const secondChargeCents = splitting ? tipCents + commCents : 0;
 
   const allocatedCents = lines.reduce((s, l) => s + Math.max(0, parseCents(l.amount) ?? 0), 0);
-  const remainingCents = sale.subtotal_cents - allocatedCents;
+  const remainingCents = goodsCents - allocatedCents;
 
   function startSplit() {
     setSplitTender(true);
@@ -241,10 +257,14 @@ export function PaymentPanel({
       return;
     }
 
-    // Charge against the subtotal the server just froze, not the copy this
+    // Charge against the figure the server just froze, not the copy this
     // component rendered from — those are the same number only if nothing
     // changed underneath us, and the ledger has to match the frozen one.
-    const frozenSubtotal = (completed.sale as Sale).subtotal_cents;
+    //
+    // Less the discount, for the reason given at goodsCents: the frozen
+    // subtotal is what the goods cost, not what is owed for them.
+    const frozen = completed.sale as Sale;
+    const frozenSubtotal = frozen.subtotal_cents - frozen.discount_cents;
 
     if (splitTender) {
       /*
@@ -439,8 +459,16 @@ export function PaymentPanel({
 
         <div className="flex justify-between text-sm text-brand-400 mt-2">
           <span>{tr("Ticket")}</span>
-          <span className="tabular-nums">{formatCents(sale.subtotal_cents)}</span>
+          <span className="tabular-nums">{formatCents(goodsCents)}</span>
         </div>
+        {/* Named out loud when there is one. A ticket that silently reads less
+            than the lines above it is a ticket somebody re-adds by hand. */}
+        {sale.discount_cents > 0 && (
+          <div className="flex justify-between text-xs text-brand-300">
+            <span>{tr("after discount of")} {formatCents(sale.discount_cents)}</span>
+            <span className="tabular-nums">{formatCents(sale.subtotal_cents)}</span>
+          </div>
+        )}
         {/*
           Three states, and the short one is not an error.
 
