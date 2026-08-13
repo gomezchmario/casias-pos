@@ -675,13 +675,6 @@ export default function DayPage() {
                     </button>
                   </td>
                   <td className="py-1.5">
-                    <button
-                      type="button"
-                      className="font-medium text-amber-900 underline decoration-amber-900/30 hover:decoration-current"
-                      onClick={() => setOpenSaleId(o.saleId)}
-                    >
-                      {o.saleNo}
-                    </button>
                     {/*
                       THE TIRE IS ALREADY HERE.
 
@@ -701,13 +694,20 @@ export default function DayPage() {
                       (o.fulfillmentStatus === "pending" ||
                         o.fulfillmentStatus === "ordered") && (
                         <span
-                          className="ml-1.5"
+                          className="mr-1.5"
                           title="This tire is on the rack now — it can be fitted today without ordering"
                           aria-label="Tire in stock"
                         >
                           🛞
                         </span>
                       )}
+                    <button
+                      type="button"
+                      className="font-medium text-amber-900 underline decoration-amber-900/30 hover:decoration-current"
+                      onClick={() => setOpenSaleId(o.saleId)}
+                    >
+                      {o.saleNo}
+                    </button>
                   </td>
                   {/* Nameless until big-boy mode fills these in — and it says so
                       rather than leaving the column blank, because "who is this"
