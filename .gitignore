@@ -62,6 +62,11 @@ docs/*
 !docs/Manual-del-Reloj.html
 !docs/Manual-del-Reloj.pdf
 !docs/Manual-del-Sistema.html
+# The sales brochure is written, not rendered, so the source is named back in
+# like the manuals. Its PDF is NOT: `scripts/build-brochure.mjs` produces it
+# from this file on demand, and a 600KB binary that a script rebuilds in eight
+# seconds is a merge conflict waiting to happen rather than a document.
+!docs/treadline-brochure.html
 !docs/Manual-del-Sistema.pdf
 !docs/Shop-System-Manual.html
 !docs/Shop-System-Manual.pdf
