@@ -1750,6 +1750,8 @@ export default function InventoryPage() {
             setSheet(null);
             void load();
           }}
+          // Same refresh, window left standing — see `keepOpen`.
+          onReceived={() => void load()}
         />
       )}
       {sheet?.mode === "edit" && (
@@ -1941,6 +1943,7 @@ function ReceiveModal({
   quoteDefaults,
   onClose,
   onSaved,
+  onReceived,
 }: {
   initialSize?: string;
   usedOnly?: boolean;
@@ -1949,6 +1952,13 @@ function ReceiveModal({
   quoteDefaults: QuoteDefaults | null;
   onClose: () => void;
   onSaved: () => void;
+  /**
+   * A delivery landed but the window is staying open.
+   *
+   * Separate from `onSaved`, which closes: the sheet behind needs to be right
+   * either way, and the only difference is whether this window survives it.
+   */
+  onReceived?: () => void;
 }) {
   const { t: tr } = useLang();
   // New is the default. Most receiving is a delivery of new tires off an
@@ -1964,6 +1974,22 @@ function ReceiveModal({
   const [reference, setReference] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  /**
+   * One invoice, many tires.
+   *
+   * A delivery is twelve lines off one piece of paper, and the window used to
+   * shut on every one of them — so the supplier and the invoice number were
+   * retyped twelve times, and a typo on the eighth quietly split one delivery
+   * into two. Ticked, the window stays open and keeps the two fields that
+   * belong to the PAPER while clearing everything that belongs to the TIRE.
+   *
+   * Off by default. Receiving one tire is still the common case, and a window
+   * that refuses to close is worse than one that closes too eagerly.
+   */
+  const [keepOpen, setKeepOpen] = useState(false);
+  /** What has gone in on this invoice, so the count is not held in a head. */
+  const [runningIn, setRunningIn] = useState<{ what: string; qty: number }[]>([]);
 
   // The tire being received, once found. Held whole rather than as an id so the
   // form can show what was picked — size, price, what is already on the rack —
@@ -2059,7 +2085,43 @@ function ReceiveModal({
       setError((await res.json().catch(() => ({}))).error || "Could not receive");
       return;
     }
-    onSaved();
+
+    if (!keepOpen) {
+      onSaved();
+      return;
+    }
+
+    /*
+      Everything about the TIRE goes; everything about the PAPER stays.
+
+      Supplier and invoice belong to the delivery and are the same on every
+      line of it. The tire, the count and the cost are the line, and leaving
+      any of them behind is how the second tire on an invoice gets received at
+      the first one's price — which is worse than retyping, because it is
+      wrong rather than slow.
+    */
+    setRunningIn((rows) => [
+      ...rows,
+      {
+        what: tab === "used" ? `Used ${size.trim()}` : adding
+          ? [newBrand.trim(), newModel.trim(), newSize.trim()].filter(Boolean).join(" ")
+          : (picked?.name ?? "tire"),
+        qty: n,
+      },
+    ]);
+    setSize(initialSize ?? "");
+    setQty("1");
+    setCost("");
+    setSpecialized(false);
+    setPicked(null);
+    setAdding(false);
+    setNewBrand("");
+    setNewModel("");
+    setNewSize("");
+    setNewPrice("");
+    setError(null);
+    // The racks behind have changed even though the window has not moved.
+    onReceived?.();
   }
 
   return (
@@ -2069,14 +2131,44 @@ function ReceiveModal({
       title={tr("Receive stock")}
       footer={
         <>
-          <button type="button" className="btn btn-ghost" onClick={onClose}>{tr("Cancel")}</button>
+          {/* Beside the button it changes, because it is a decision about what
+              that button does and nowhere else on the form is about that. */}
+          <label className="flex items-center gap-2 text-sm text-brand-400 mr-auto">
+            <input
+              type="checkbox"
+              checked={keepOpen}
+              onChange={(e) => setKeepOpen(e.target.checked)}
+            />
+            {tr("More from this invoice")}
+          </label>
+          <button type="button" className="btn btn-ghost" onClick={onClose}>
+            {runningIn.length > 0 ? tr("Done") : tr("Cancel")}
+          </button>
           <button type="button" className="btn btn-primary" onClick={submit} disabled={busy}>
-            {busy ? "Saving…" : "Receive"}
+            {busy ? "Saving…" : keepOpen ? tr("Receive & next") : tr("Receive")}
           </button>
         </>
       }
     >
       <div className="flex flex-col gap-3">
+        {/* What has already gone in under this invoice. Twelve lines off one
+            delivery is exactly the situation where somebody loses their place,
+            and a running list is cheaper than a recount. */}
+        {runningIn.length > 0 && (
+          <div
+            className="rounded-lg px-3 py-2 text-sm"
+            style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534" }}
+          >
+            <b>
+              {runningIn.reduce((n, r) => n + r.qty, 0)} {tr("received on this invoice")}
+              {reference.trim() ? ` · ${reference.trim()}` : ""}
+            </b>
+            <div className="text-xs mt-0.5" style={{ color: "#15803d" }}>
+              {runningIn.map((r) => `${r.qty}× ${r.what}`).join(" · ")}
+            </div>
+          </div>
+        )}
+
         {!usedOnly && (
           <div className="flex gap-1">
             {(["used", "new"] as const).map((t) => (
