@@ -73,3 +73,6 @@ docs/*
 !docs/Shop-System-Manual.pdf
 !docs/Time-Clock-Manual.html
 !docs/Time-Clock-Manual.pdf
+
+# The shop's own photographs, served at /web. Committed: they are the site.
+!public/photos/

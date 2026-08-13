@@ -177,16 +177,60 @@ h2 {
 .addr + p { color: var(--muted); }
 
 /* ── Photo slots ──────────────────────────────────────────────────────── */
+/*
+  A frame that works empty and works full.
+
+  The photograph sits on top of a placeholder; if the file is not there yet the
+  image hides itself and the placeholder shows through, naming the file that
+  belongs in it. So the page is presentable before any photography has been
+  done, and dropping four files into /photos is the whole of the work — no
+  markup changes, no rebuild of anything but this page.
+*/
+/*
+  The frontage is a panorama — the whole lot in one strip — so it gets a band
+  rather than a square. Cropped into a 4:3 tile it would show one door out of
+  six and stop being the thing it is for, which is somebody recognising the
+  place at 40mph.
+*/
+.frontage {
+  border-radius: 14px; overflow: hidden; margin-bottom: 14px;
+  border: 1px solid var(--line); position: relative;
+}
+.frontage img { width: 100%; height: auto; display: block; }
+.frontage figcaption {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 26px 16px 12px; color: #fff; font-size: 15px; font-weight: 700;
+  background: linear-gradient(180deg, transparent, rgba(10,20,32,.8));
+}
+@media (max-width: 640px) {
+  /* On a phone the strip is 40px tall and says nothing. Cropped to a window
+     around the middle it at least reads as a building. */
+  .frontage { max-height: 190px; }
+  .frontage img { height: 190px; object-fit: cover; object-position: 62% center; }
+}
+
 .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
 .shot {
-  aspect-ratio: 4 / 3; border-radius: 14px; border: 2px dashed var(--line);
+  position: relative; aspect-ratio: 4 / 3; border-radius: 14px; overflow: hidden;
+  border: 1px solid var(--line);
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   text-align: center; padding: 18px; color: var(--muted); font-size: 14px;
   background:
     repeating-linear-gradient(45deg,
       rgba(30,58,95,.035) 0 10px, transparent 10px 20px);
 }
-.shot b { display: block; color: var(--ink); font-size: 15px; margin-bottom: 4px; }
+.shot img {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; border-radius: 12px;
+}
+
+.shot figcaption {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
+  padding: 22px 14px 11px; color: #fff; font-size: 14px; font-weight: 600;
+  text-align: left; line-height: 1.3;
+  background: linear-gradient(180deg, transparent, rgba(10,20,32,.82));
+}
+
 
 /* ── Footer ───────────────────────────────────────────────────────────── */
 footer { background: var(--navy); color: rgba(255,255,255,.78); padding: 34px 0; font-size: 15px; }
@@ -380,21 +424,58 @@ body.es [lang-es] { display: revert; }
     <h2><span lang-en>The shop</span><span lang-es>El taller</span></h2>
     <p class="sub">
       <span lang-en>
-        Photos go here. Four of your own are worth more than any stock picture:
-        the building from the road so people recognise it, the bays, the tire
-        racks, and the crew.
+        Six bays, a full tire rack and somewhere cool to sit while you wait.
       </span>
       <span lang-es>
-        Aquí van las fotos. Cuatro fotos suyas valen más que cualquier imagen de
-        catálogo: el frente desde la calle para que lo reconozcan, las rampas,
-        los estantes de llantas, y el equipo.
+        Seis bahías, un buen surtido de llantas, y un lugar fresco donde sentarse
+        mientras espera.
       </span>
     </p>
+    <figure class="frontage" style="margin:0">
+      <img src="/photos/front.webp"
+           alt="Casias Tire and Muffler Shop from Grissom Road — the whole lot, with the yellow service signs across the front">
+      <figcaption>
+        <span lang-en>8715 Grissom Rd — look for the yellow signs</span>
+        <span lang-es>8715 Grissom Rd — busque los letreros amarillos</span>
+      </figcaption>
+    </figure>
+
     <div class="shots">
-      <div class="shot"><b>photo-front.jpg</b><span lang-en>The building from Grissom Rd</span><span lang-es>El frente desde Grissom Rd</span></div>
-      <div class="shot"><b>photo-bay.jpg</b><span lang-en>A car up on the lift</span><span lang-es>Un carro en la rampa</span></div>
-      <div class="shot"><b>photo-racks.jpg</b><span lang-en>The tire racks</span><span lang-es>Los estantes de llantas</span></div>
-      <div class="shot"><b>photo-crew.jpg</b><span lang-en>The people who do the work</span><span lang-es>La gente que hace el trabajo</span></div>
+      <figure class="shot" style="margin:0">
+        <img src="/photos/lift.jpg"
+             alt="A 4Runner raised on the lift with a technician working underneath">
+        <figcaption>
+          <span lang-en>Trucks and SUVs on the lift</span>
+          <span lang-es>Trocas y camionetas en la rampa</span>
+        </figcaption>
+      </figure>
+
+      <figure class="shot" style="margin:0">
+        <img src="/photos/bay.webp"
+             alt="The tire bay: wheels on the wall, the balancer, stacks of tires and the floor jacks">
+        <figcaption>
+          <span lang-en>Mounted and balanced on the spot</span>
+          <span lang-es>Montadas y balanceadas al momento</span>
+        </figcaption>
+      </figure>
+
+      <figure class="shot" style="margin:0">
+        <img src="/photos/canopy.png"
+             alt="Cars under the covered service bays beneath the alignment and brakes signs">
+        <figcaption>
+          <span lang-en>Alignment, brakes, oil — under cover</span>
+          <span lang-es>Alineación, frenos, aceite — bajo techo</span>
+        </figcaption>
+      </figure>
+
+      <figure class="shot" style="margin:0">
+        <img src="/photos/waiting.jpg"
+             alt="The waiting room: seats, air conditioning, a television and the front counter">
+        <figcaption>
+          <span lang-en>Somewhere cool to wait</span>
+          <span lang-es>Un lugar fresco para esperar</span>
+        </figcaption>
+      </figure>
     </div>
   </div>
 </section>
