@@ -59,7 +59,12 @@ const nextConfig: NextConfig = {
    * changes nothing here until that has been run.
    */
   async rewrites() {
-    return [{ source: "/info", destination: "/info.html" }];
+    return [
+      { source: "/info", destination: "/info.html" },
+      // The shop's own website. Same reasoning as /info: a whole standalone
+      // document served as a file, on an address short enough to say out loud.
+      { source: "/web", destination: "/web.html" },
+    ];
   },
 };
 

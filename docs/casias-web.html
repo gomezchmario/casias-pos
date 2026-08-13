@@ -1,0 +1,487 @@
+<title>Casias Tire and Muffler Shop — Grissom Rd, San Antonio</title>
+<style>
+/* ─────────────────────────────────────────────────────────────────────────
+   Casias Tire and Muffler Shop
+   The palette is read off the shop's own badge: navy body, gold rim, the
+   cream ring around the outside, steel for the tread. A website in different
+   colours from the sign over the door is the first thing a customer notices.
+   ───────────────────────────────────────────────────────────────────────── */
+:root {
+  --navy:    #1e3a5f;
+  --navy-d:  #152a45;
+  --gold:    #f5c518;
+  --gold-d:  #d9a908;
+  --cream:   #f7f3e8;
+  --steel:   #5a6b7d;
+  --asphalt: #14181c;
+  --ink:     #16212e;
+  --muted:   #5b6b7d;
+  --card:    #ffffff;
+  --line:    rgba(30, 58, 95, 0.14);
+  --open:    #1a7f4b;
+  --shut:    #b3261e;
+
+  --display: "Arial Black", "Helvetica Neue", Impact, system-ui, sans-serif;
+  --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --cream: #10151c;
+    --card:  #18202b;
+    --ink:   #eef2f7;
+    --muted: #9aabbd;
+    --line:  rgba(255, 255, 255, 0.14);
+    --open:  #4ade80;
+    --shut:  #fca5a5;
+  }
+}
+:root[data-theme="dark"] {
+  --cream: #10151c;
+  --card:  #18202b;
+  --ink:   #eef2f7;
+  --muted: #9aabbd;
+  --line:  rgba(255, 255, 255, 0.14);
+  --open:  #4ade80;
+  --shut:  #fca5a5;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 17px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+img { max-width: 100%; display: block; }
+a { color: inherit; }
+
+.wrap { max-width: 1060px; margin: 0 auto; padding: 0 20px; }
+
+/* ── The tread band, drawn rather than photographed ────────────────────── */
+.tread {
+  height: 14px;
+  background:
+    repeating-linear-gradient(
+      115deg,
+      var(--navy) 0 14px,
+      var(--navy-d) 14px 22px,
+      var(--navy) 22px 30px
+    );
+  border-bottom: 4px solid var(--gold);
+}
+
+/* ── Header ───────────────────────────────────────────────────────────── */
+header { background: var(--navy); color: #fff; }
+.bar {
+  display: flex; align-items: center; gap: 16px;
+  padding: 14px 0; flex-wrap: wrap;
+}
+.bar img { width: 62px; height: 62px; flex: none; }
+.bar .name { flex: 1; min-width: 180px; }
+.bar .name b {
+  display: block; font-family: var(--display); font-size: 21px;
+  letter-spacing: 0.01em; line-height: 1.05; text-transform: uppercase;
+}
+.bar .name span { font-size: 13px; color: rgba(255,255,255,.74); letter-spacing: .06em; }
+
+.call {
+  display: inline-flex; align-items: center; gap: 9px;
+  background: linear-gradient(180deg, var(--gold), var(--gold-d));
+  color: var(--navy-d); font-weight: 800; text-decoration: none;
+  padding: 12px 20px; border-radius: 999px; white-space: nowrap;
+  font-size: 18px; letter-spacing: .01em;
+  box-shadow: 0 3px 0 rgba(0,0,0,.22);
+}
+.call:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,.22); }
+
+.lang {
+  display: flex; border: 1px solid rgba(255,255,255,.3);
+  border-radius: 999px; overflow: hidden; font-size: 13px; flex: none;
+}
+.lang button {
+  font: inherit; font-weight: 700; border: 0; cursor: pointer;
+  padding: 7px 13px; background: transparent; color: rgba(255,255,255,.75);
+}
+.lang button.on { background: var(--gold); color: var(--navy-d); }
+
+/* ── Hero ─────────────────────────────────────────────────────────────── */
+.hero { background: var(--navy-d); color: #fff; padding: 40px 0 46px; }
+.hero h1 {
+  font-family: var(--display); text-transform: uppercase;
+  font-size: clamp(34px, 7vw, 62px); line-height: 0.98;
+  letter-spacing: -0.01em; margin: 0 0 14px; text-wrap: balance;
+}
+.hero h1 em { font-style: normal; color: var(--gold); }
+.hero p { font-size: 19px; color: rgba(255,255,255,.8); max-width: 46ch; margin: 0 0 26px; }
+.hero-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.ghost {
+  display: inline-block; text-decoration: none; font-weight: 700;
+  padding: 12px 20px; border-radius: 999px;
+  border: 2px solid rgba(255,255,255,.35); color: #fff;
+}
+
+.status {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 15px; font-weight: 700; margin-bottom: 18px;
+  background: rgba(255,255,255,.08); padding: 7px 14px; border-radius: 999px;
+}
+.dot { width: 10px; height: 10px; border-radius: 999px; background: var(--open); }
+.status.shut .dot { background: var(--shut); }
+
+/* ── Sections ─────────────────────────────────────────────────────────── */
+section { padding: 54px 0; }
+h2 {
+  font-family: var(--display); text-transform: uppercase;
+  font-size: clamp(26px, 4.4vw, 38px); line-height: 1.05;
+  margin: 0 0 8px; letter-spacing: -0.005em;
+}
+.sub { color: var(--muted); margin: 0 0 30px; max-width: 56ch; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
+.card {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 14px; padding: 22px;
+}
+.card h3 {
+  font-family: var(--display); text-transform: uppercase; font-size: 18px;
+  margin: 0 0 6px; letter-spacing: .01em;
+}
+.card p { margin: 0; color: var(--muted); font-size: 15.5px; }
+.card .mark { color: var(--gold-d); font-size: 26px; line-height: 1; margin-bottom: 10px; }
+
+/* ── Hours ────────────────────────────────────────────────────────────── */
+.hours { width: 100%; border-collapse: collapse; font-size: 17px; max-width: 460px; }
+.hours td { padding: 11px 0; border-bottom: 1px solid var(--line); }
+.hours td:last-child { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.hours tr.today td { color: var(--gold-d); font-weight: 800; }
+.hours tr.today td:first-child::after { content: " ←"; }
+
+.split { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 34px; }
+
+.addr { font-size: 19px; line-height: 1.5; font-weight: 600; }
+.addr + p { color: var(--muted); }
+
+/* ── Photo slots ──────────────────────────────────────────────────────── */
+.shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.shot {
+  aspect-ratio: 4 / 3; border-radius: 14px; border: 2px dashed var(--line);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 18px; color: var(--muted); font-size: 14px;
+  background:
+    repeating-linear-gradient(45deg,
+      rgba(30,58,95,.035) 0 10px, transparent 10px 20px);
+}
+.shot b { display: block; color: var(--ink); font-size: 15px; margin-bottom: 4px; }
+
+/* ── Footer ───────────────────────────────────────────────────────────── */
+footer { background: var(--navy); color: rgba(255,255,255,.78); padding: 34px 0; font-size: 15px; }
+footer a { color: var(--gold); }
+.foot { display: flex; gap: 26px; flex-wrap: wrap; justify-content: space-between; }
+
+/* The thumb rail: on a phone the phone number is the whole point of the site. */
+.rail { display: none; }
+@media (max-width: 720px) {
+  .rail {
+    display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    background: var(--navy); border-top: 3px solid var(--gold); padding: 10px 14px;
+  }
+  .rail .call { width: 100%; justify-content: center; }
+  body { padding-bottom: 84px; }
+  .bar .call { display: none; }
+}
+
+[lang-es] { display: none; }
+body.es [lang-en] { display: none; }
+body.es [lang-es] { display: revert; }
+</style>
+
+<div class="tread"></div>
+
+<header>
+  <div class="wrap bar">
+    <img src="/logo-256.png" alt="Casias Tire Shop" width="62" height="62">
+    <div class="name">
+      <b>Casias Tire<br>&amp; Muffler Shop</b>
+      <span>Auto Service &amp; Repair · Grissom Rd</span>
+    </div>
+    <div class="lang" role="group" aria-label="Language">
+      <button id="en" class="on" aria-pressed="true">EN</button>
+      <button id="es" aria-pressed="false">ES</button>
+    </div>
+    <a class="call" href="tel:+12105430909">☎ (210) 543-0909</a>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="wrap">
+    <div class="status" id="status"><span class="dot"></span><span id="statusText">Checking…</span></div>
+
+    <h1>
+      <span lang-en>New and used tires,<br>fitted while you <em>wait</em>.</span>
+      <span lang-es>Llantas nuevas y usadas,<br>instaladas <em>al momento</em>.</span>
+    </h1>
+
+    <p>
+      <span lang-en>
+        Family-run on Grissom Road. Flats, mounting and balancing, rotations,
+        mufflers and exhaust, oil changes — seven days a week, no appointment.
+      </span>
+      <span lang-es>
+        Negocio familiar en Grissom Road. Ponchaduras, montaje y balanceo,
+        rotaciones, mofles y escapes, cambios de aceite — siete días a la
+        semana, sin cita.
+      </span>
+    </p>
+
+    <div class="hero-actions">
+      <a class="call" href="tel:+12105430909">☎ (210) 543-0909</a>
+      <a class="ghost" href="#find">
+        <span lang-en>Get directions</span><span lang-es>Cómo llegar</span>
+      </a>
+    </div>
+  </div>
+</div>
+
+<section>
+  <div class="wrap">
+    <h2><span lang-en>What we do</span><span lang-es>Lo que hacemos</span></h2>
+    <p class="sub">
+      <span lang-en>Most jobs are done the same day, and most while you wait.</span>
+      <span lang-es>La mayoría de los trabajos se hacen el mismo día, y casi todos mientras espera.</span>
+    </p>
+
+    <div class="grid">
+      <div class="card">
+        <div class="mark">◉</div>
+        <h3><span lang-en>New tires</span><span lang-es>Llantas nuevas</span></h3>
+        <p>
+          <span lang-en>All the common sizes on the rack, and anything else ordered in — usually next day.</span>
+          <span lang-es>Todas las medidas comunes en existencia, y cualquier otra por pedido — normalmente al día siguiente.</span>
+        </p>
+      </div>
+      <div class="card">
+        <div class="mark">◎</div>
+        <h3><span lang-en>Used tires</span><span lang-es>Llantas usadas</span></h3>
+        <p>
+          <span lang-en>Good tread at a fair price, checked before it goes on your car.</span>
+          <span lang-es>Buen dibujo a precio justo, revisadas antes de ponerlas en su carro.</span>
+        </p>
+      </div>
+      <div class="card">
+        <div class="mark">⊘</div>
+        <h3><span lang-en>Flat repair</span><span lang-es>Ponchaduras</span></h3>
+        <p>
+          <span lang-en>Patched properly from the inside, not plugged from the outside. Minutes, not hours.</span>
+          <span lang-es>Parchadas por dentro, no tapadas por fuera. Minutos, no horas.</span>
+        </p>
+      </div>
+      <div class="card">
+        <div class="mark">⊞</div>
+        <h3><span lang-en>Mount &amp; balance</span><span lang-es>Montaje y balanceo</span></h3>
+        <p>
+          <span lang-en>Balanced on the machine every time — a shake at seventy is a balance problem.</span>
+          <span lang-es>Balanceadas en máquina siempre — una vibración a setenta es falta de balanceo.</span>
+        </p>
+      </div>
+      <div class="card">
+        <div class="mark">↻</div>
+        <h3><span lang-en>Rotation</span><span lang-es>Rotación</span></h3>
+        <p>
+          <span lang-en>Every few thousand miles is what gets you the mileage you paid for.</span>
+          <span lang-es>Cada pocos miles de millas es lo que le da el rendimiento que pagó.</span>
+        </p>
+      </div>
+      <div class="card">
+        <div class="mark">≋</div>
+        <h3><span lang-en>Mufflers &amp; exhaust</span><span lang-es>Mofles y escapes</span></h3>
+        <p>
+          <span lang-en>Loud, blowing or hanging — come by and we will put it on the lift and look.</span>
+          <span lang-es>Ruidoso, soplando o colgando — pase y lo subimos a la rampa para revisarlo.</span>
+        </p>
+      </div>
+      <div class="card">
+        <div class="mark">◍</div>
+        <h3><span lang-en>Oil change</span><span lang-es>Cambio de aceite</span></h3>
+        <p>
+          <span lang-en>Conventional, blend or full synthetic, with the filter.</span>
+          <span lang-es>Convencional, semisintético o sintético, con filtro.</span>
+        </p>
+      </div>
+      <div class="card">
+        <div class="mark">◈</div>
+        <h3><span lang-en>Tire check</span><span lang-es>Revisión de llantas</span></h3>
+        <p>
+          <span lang-en>Pressures, tread and a look for damage. Free — pull in and ask.</span>
+          <span lang-es>Presión, dibujo y revisión de daños. Gratis — pase y pregunte.</span>
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section style="background: var(--card); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);">
+  <div class="wrap split" id="find">
+    <div>
+      <h2><span lang-en>Come by</span><span lang-es>Visítenos</span></h2>
+      <p class="addr">
+        8715 Grissom Rd<br>
+        San Antonio, TX 78251
+      </p>
+      <p>
+        <span lang-en>Northwest side, on Grissom just off Culebra. Plenty of room to pull in.</span>
+        <span lang-es>Al noroeste, sobre Grissom cerca de Culebra. Hay espacio de sobra para estacionarse.</span>
+      </p>
+      <div class="hero-actions" style="margin-top:18px">
+        <a class="call" href="tel:+12105430909">☎ (210) 543-0909</a>
+        <a class="ghost" style="border-color: var(--line); color: var(--ink)"
+           href="https://maps.google.com/?q=8715+Grissom+Rd,+San+Antonio,+TX+78251"
+           target="_blank" rel="noopener">
+          <span lang-en>Open in Maps</span><span lang-es>Abrir en Maps</span>
+        </a>
+      </div>
+    </div>
+
+    <div>
+      <h2><span lang-en>Hours</span><span lang-es>Horario</span></h2>
+      <p class="sub" style="margin-bottom:14px">
+        <span lang-en>Open every day. No appointment needed.</span>
+        <span lang-es>Abierto todos los días. No necesita cita.</span>
+      </p>
+      <table class="hours" id="hours">
+        <tr data-day="1"><td><span lang-en>Monday</span><span lang-es>Lunes</span></td><td>8:00 – 6:30</td></tr>
+        <tr data-day="2"><td><span lang-en>Tuesday</span><span lang-es>Martes</span></td><td>8:00 – 6:30</td></tr>
+        <tr data-day="3"><td><span lang-en>Wednesday</span><span lang-es>Miércoles</span></td><td>8:00 – 6:30</td></tr>
+        <tr data-day="4"><td><span lang-en>Thursday</span><span lang-es>Jueves</span></td><td>8:00 – 6:30</td></tr>
+        <tr data-day="5"><td><span lang-en>Friday</span><span lang-es>Viernes</span></td><td>8:00 – 6:30</td></tr>
+        <tr data-day="6"><td><span lang-en>Saturday</span><span lang-es>Sábado</span></td><td>8:00 – 6:30</td></tr>
+        <tr data-day="0"><td><span lang-en>Sunday</span><span lang-es>Domingo</span></td><td>8:00 – 5:30</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2><span lang-en>The shop</span><span lang-es>El taller</span></h2>
+    <p class="sub">
+      <span lang-en>
+        Photos go here. Four of your own are worth more than any stock picture:
+        the building from the road so people recognise it, the bays, the tire
+        racks, and the crew.
+      </span>
+      <span lang-es>
+        Aquí van las fotos. Cuatro fotos suyas valen más que cualquier imagen de
+        catálogo: el frente desde la calle para que lo reconozcan, las rampas,
+        los estantes de llantas, y el equipo.
+      </span>
+    </p>
+    <div class="shots">
+      <div class="shot"><b>photo-front.jpg</b><span lang-en>The building from Grissom Rd</span><span lang-es>El frente desde Grissom Rd</span></div>
+      <div class="shot"><b>photo-bay.jpg</b><span lang-en>A car up on the lift</span><span lang-es>Un carro en la rampa</span></div>
+      <div class="shot"><b>photo-racks.jpg</b><span lang-en>The tire racks</span><span lang-es>Los estantes de llantas</span></div>
+      <div class="shot"><b>photo-crew.jpg</b><span lang-en>The people who do the work</span><span lang-es>La gente que hace el trabajo</span></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot">
+    <div>
+      <strong style="color:#fff">Casias Tire and Muffler Shop</strong><br>
+      8715 Grissom Rd, San Antonio, TX 78251<br>
+      <a href="tel:+12105430909">(210) 543-0909</a>
+    </div>
+    <div>
+      <span lang-en>Mon–Sat 8:00 – 6:30<br>Sunday 8:00 – 5:30</span>
+      <span lang-es>Lun–Sáb 8:00 – 6:30<br>Domingo 8:00 – 5:30</span>
+    </div>
+  </div>
+</footer>
+
+<div class="rail"><a class="call" href="tel:+12105430909">☎ (210) 543-0909</a></div>
+
+<script>
+/*
+  Two small things, both about the question a customer actually has.
+
+  ARE THEY OPEN RIGHT NOW. Every shop website lists hours and makes the reader
+  do the arithmetic against their own clock. This says the answer.
+
+  WHAT DAY IS IT. The row for today is marked, so somebody scanning the table
+  at 6:15 on a Sunday sees the line that applies to them rather than counting
+  down seven.
+*/
+(function () {
+  "use strict";
+
+  // Minutes from midnight, indexed by getDay() — Sunday is 0.
+  var CLOSE = [17.5 * 60, 18.5 * 60, 18.5 * 60, 18.5 * 60, 18.5 * 60, 18.5 * 60, 18.5 * 60];
+  var OPEN = 8 * 60;
+
+  var COPY = {
+    en: { open: "Open now — closes at ", shut: "Closed — opens at 8:00 AM", until: "" },
+    es: { open: "Abierto ahora — cierra a las ", shut: "Cerrado — abre a las 8:00 AM", until: "" },
+  };
+
+  function pretty(mins) {
+    var h = Math.floor(mins / 60), m = mins % 60;
+    var ampm = h >= 12 ? "PM" : "AM";
+    var h12 = h % 12 === 0 ? 12 : h % 12;
+    return h12 + ":" + String(m).padStart(2, "0") + " " + ampm;
+  }
+
+  function paint() {
+    var lang = document.body.classList.contains("es") ? "es" : "en";
+    var now = new Date();
+    var day = now.getDay();
+    var mins = now.getHours() * 60 + now.getMinutes();
+    var open = mins >= OPEN && mins < CLOSE[day];
+
+    var box = document.getElementById("status");
+    var text = document.getElementById("statusText");
+    box.classList.toggle("shut", !open);
+    text.textContent = open
+      ? COPY[lang].open + pretty(CLOSE[day])
+      : COPY[lang].shut;
+
+    var rows = document.querySelectorAll("#hours tr");
+    for (var i = 0; i < rows.length; i++) {
+      rows[i].classList.toggle("today", Number(rows[i].dataset.day) === day);
+    }
+  }
+
+  function setLang(lang) {
+    document.body.classList.toggle("es", lang === "es");
+    document.documentElement.lang = lang;
+    var en = document.getElementById("en"), es = document.getElementById("es");
+    en.classList.toggle("on", lang === "en");
+    es.classList.toggle("on", lang === "es");
+    en.setAttribute("aria-pressed", String(lang === "en"));
+    es.setAttribute("aria-pressed", String(lang === "es"));
+    try { localStorage.setItem("casias-lang", lang); } catch (e) { /* session only */ }
+    paint();
+  }
+
+  document.getElementById("en").addEventListener("click", function () { setLang("en"); });
+  document.getElementById("es").addEventListener("click", function () { setLang("es"); });
+
+  /* Spanish first for a browser that asks for it — this is a San Antonio shop
+     and half the people reading it would otherwise have to find the button. */
+  var saved = null;
+  try { saved = localStorage.getItem("casias-lang"); } catch (e) { /* ignore */ }
+  var fromBrowser = (navigator.language || "en").slice(0, 2) === "es" ? "es" : "en";
+  // Parenthesised deliberately: `saved || x === "es" ? ... ` reads as
+  // `(saved || x === "es") ? ...`, which hands Spanish to everybody who has
+  // ever chosen English. A saved choice wins outright; the browser only
+  // decides for somebody who has not chosen yet.
+  setLang(saved === "es" || saved === "en" ? saved : fromBrowser);
+
+  paint();
+  setInterval(paint, 60000);
+})();
+</script>
