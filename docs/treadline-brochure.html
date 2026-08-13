@@ -552,7 +552,7 @@ body.editing [data-edit]:focus { outline: 2px solid var(--amber); outline-offset
 
   <h2>Your shop already works.<br>It just can't prove it.</h2>
   <p class="lede">
-    Most tire shops run on three things: a cash drawer, a spiral notebook, and one
+    Most tire shops run on three things: a cash drawer, a spreadsheet and one
     person who remembers everything. That works right up until the morning it doesn't.
   </p>
 
@@ -664,18 +664,9 @@ body.editing [data-edit]:focus { outline: 2px solid var(--amber); outline-offset
   <div class="explain">
     <div><h4>The grid is yours</h4><p>The prices and services this shop rings all day, as buttons. Change them yourself — no support call, no software update.</p></div>
     <div><h4>Search that speaks tire</h4><p>Any format you'd say out loud. The count is live off the racks, so the answer is the racks' answer.</p></div>
-    <div><h4>P82 is your cost, disguised</h4><p>Your buying floor, on the counter sheet, readable by your staff and meaningless to the customer reading upside down.</p></div>
     <div><h4>Credit on every line</h4><p>Omar mounted the tires, Travis did the flat. Both are on the ticket, and both are on Friday's numbers.</p></div>
   </div>
 
-  <div class="callout">
-    <b>A tip always has somebody's name on it</b>
-    <p>
-      Treadline refuses to take a tip credited to nobody. Half cash and half card is
-      one ticket, not two. A tip that turns up a day later is booked against the
-      original ticket, not invented as a phantom sale.
-    </p>
-  </div>
 </section>
 
 <!-- ════════════════════════════ 4 · INVENTORY ═══════════════════════════ -->
@@ -732,7 +723,7 @@ body.editing [data-edit]:focus { outline: 2px solid var(--amber); outline-offset
 
   <div class="explain">
     <div><h4>Grouped by rim, like the racks</h4><p>Somebody counting stock walks one rim at a time. A sheet sorted any other way sends them back and forth all afternoon.</p></div>
-    <div><h4>Used collapses to a count</h4><p>No brand, no model, no cost — a used tire has none. One line: <em>Used · 6</em>. Priced at the counter, where it's decided.</p></div>
+    <div><h4>Used can be collapsed to a count</h4><p>No brand, no model, no cost — a used tire can be collapsed so that it has none. One line: <em>Size — Used · 6</em>. Priced at the counter, where it's decided.</p></div>
     <div><h4>Oversells surface, they don't hide</h4><p>You sold two you didn't have. The sale went through — the customer was standing there — and the row sits at the top until a manager reviews it.</p></div>
     <div><h4>Press a tire for its whole life</h4><p>Every receive, sale, void and count, with the ticket number and who did it. "Where did the other six go" has an answer.</p></div>
   </div>
@@ -1153,7 +1144,7 @@ body.editing [data-edit]:focus { outline: 2px solid var(--amber); outline-offset
   </figure>
 
   <div class="explain">
-    <div><h4>The wall screen says nothing</h4><p>A keypad and the clock. Who is in, who is late and what anybody earns lives behind a sign-in, not on a screen a customer can read from the waiting room.</p></div>
+    <div><h4>The wall screen says nothing</h4><p>A keypad and the clock. Who is in, who is late and what anybody earns lives behind a sign-in, not on a sheet anyone can read from the waiting room.</p></div>
     <div><h4>One PIN, both jobs</h4><p>Punch in at the kiosk, then open the register from the same screen without signing in twice. Walk away and it locks itself.</p></div>
     <div><h4>A forgotten punch-out is flagged, not guessed</h4><p>The shift closes at nine and says so. Hours nobody confirmed are marked as assumed rather than quietly counted as worked.</p></div>
     <div><h4>Corrections are signed</h4><p>A manager can fix a time, and the original stays underneath with who changed it and why. Payroll you can defend.</p></div>
@@ -1263,6 +1254,14 @@ body.editing [data-edit]:focus { outline: 2px solid var(--amber); outline-offset
     </div>
   </div>
 
+  <p style="color:var(--muted);font-size:14.5px;margin-top:16px">
+    <b style="color:var(--text)">Every plan:</b> setup and import from your current
+    spreadsheet · training for your counter staff · English and Spanish throughout ·
+    every report printable · your data exportable, always. No contract, and no
+    hardware to buy — it runs on the computer, phone or tablet you already have,
+    with the printer you already own.
+  </p>
+
   <h3 style="margin-top:40px">Getting started</h3>
   <div class="steps">
     <div class="step"><b>WEEK ONE</b><p>We import your tire list, your customers and your prices. You keep working exactly as you are.</p></div>
@@ -1325,7 +1324,23 @@ body.editing [data-edit]:focus { outline: 2px solid var(--amber); outline-offset
     "section > p"
   ].join(",");
 
-  var KEY = "treadline-brochure-edits-v1";
+  /*
+    v2 — ids are hashed from the text, not counted along the page.
+
+    They used to be "e" plus the block's index, which meant inserting a page
+    slid every id after it one block along: a saved edit came back attached to
+    its neighbour. It happened in real use — a rewrite of the every-plan line
+    reappeared as the Multi-bay tagline, one block below where it was typed.
+
+    Hashing the original words instead means a block keeps its id wherever it
+    moves to, and loses it only when its words change — which is exactly when
+    an old edit should stop applying, because it was written against a sentence
+    that no longer exists.
+
+    The version bump retires v1's positional ids rather than letting them
+    reattach to the wrong blocks one last time.
+  */
+  var KEY = "treadline-brochure-edits-v2";
   var nodes = [];
   var original = {};
   var edits = {};
@@ -1351,9 +1366,21 @@ body.editing [data-edit]:focus { outline: 2px solid var(--amber); outline-offset
     return folio ? "Page " + folio.textContent.trim() : "";
   }
 
-  document.querySelectorAll(SELECTOR).forEach(function (el, i) {
+  /** A short, stable key for a block, taken from the words it starts with. */
+  function keyOf(html) {
+    var h = 5381;
+    for (var i = 0; i < html.length; i++) h = ((h * 33) ^ html.charCodeAt(i)) >>> 0;
+    return "t" + h.toString(36);
+  }
+
+  var used = {};
+  document.querySelectorAll(SELECTOR).forEach(function (el) {
     if (el.closest(".editbar") || el.closest(".app")) return;
-    var id = "e" + i;
+    var id = keyOf(el.innerHTML);
+    // Two blocks with identical words are rare but real — a repeated tagline,
+    // say. The second one takes a suffix so they cannot overwrite each other.
+    if (used[id]) id = id + "-" + used[id]++;
+    else used[id] = 1;
     el.setAttribute("data-edit", id);
     original[id] = el.innerHTML;
     nodes.push(el);
