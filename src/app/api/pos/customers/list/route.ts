@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
     owing: sp.get("owing") === "1",
     credit: sp.get("credit") === "1",
     notApproved: sp.get("notApproved") === "1",
+    companies: sp.get("companies") === "1",
     limit: 500,
   });
 

@@ -111,6 +111,8 @@ export default function CustomersPage() {
   const [owing, setOwing] = useState(false);
   const [credit, setCredit] = useState(false);
   const [notApproved, setNotApproved] = useState(false);
+  /** Companies only — the ones other customers are billed to. */
+  const [companies, setCompanies] = useState(false);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [picked, setPicked] = useState<number | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
@@ -166,6 +168,7 @@ export default function CustomersPage() {
     if (owing) sp.set("owing", "1");
     if (credit) sp.set("credit", "1");
     if (notApproved) sp.set("notApproved", "1");
+    if (companies) sp.set("companies", "1");
     const res = await fetch(`/api/pos/customers/list?${sp}`);
     if (!res.ok) {
       setError("Could not load the customer list");
@@ -173,7 +176,7 @@ export default function CustomersPage() {
     }
     setRows((await res.json()).customers);
     setError(null);
-  }, [q, owing, credit, notApproved]);
+  }, [q, owing, credit, notApproved, companies]);
 
   useEffect(() => {
     const t = setTimeout(() => void load(), 250);
@@ -430,13 +433,23 @@ export default function CustomersPage() {
                 <span className={notApproved ? "text-red-700 font-semibold" : undefined}>{tr("Not approved")}</span>
               </label>
             )}
+            {/* A narrowing rather than a sort. "Show me the companies" is eight
+                rows among six hundred people, and sorting them to the top still
+                leaves somebody scrolling the rest to be sure they have seen
+                them all. */}
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={companies}
+                onChange={(e) => setCompanies(e.target.checked)}
+              />{tr("Companies")}</label>
           </div>
           <div className="overflow-y-auto" style={{ maxHeight: 620 }}>
             {rows === null ? (
               <div className="text-brand-300 p-2">{tr("Loading…")}</div>
             ) : rows.length === 0 ? (
               <div className="text-brand-300 p-2">
-                {owing || credit || notApproved
+                {owing || credit || notApproved || companies
                   ? "Nobody matches those."
                   : "Nobody by that name."}
               </div>

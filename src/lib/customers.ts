@@ -215,6 +215,15 @@ export function listCustomers(args?: {
    * handful that matter.
    */
   notApproved?: boolean;
+  /**
+   * Companies only — the ones other customers are billed to.
+   *
+   * Its own narrowing rather than a sort, because "show me the companies" is
+   * a list of eight among six hundred people: sorting them to the top still
+   * leaves the reader scrolling past the rest to be sure they have seen them
+   * all.
+   */
+  companies?: boolean;
   limit?: number;
 }): CustomerRow[] {
   const q = args?.q?.trim() ?? "";
@@ -243,6 +252,7 @@ export function listCustomers(args?: {
   if (args?.owing) where.push("COALESCE(t.owedCents, 0) > 0");
   if (args?.credit || args?.notApproved) where.push("COALESCE(cr.creditTickets, 0) > 0");
   if (args?.notApproved) where.push("c.credit_approved = 0");
+  if (args?.companies) where.push("c.is_fleet = 1");
 
   params.push(args?.limit ?? 500);
 
