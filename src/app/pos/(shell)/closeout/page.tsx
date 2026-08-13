@@ -99,7 +99,7 @@ export default function CloseoutV2Page() {
         <div>
           <h1 className="text-2xl font-semibold text-brand-500">{tr("Daily Report")}</h1>
           <p className="text-brand-400 text-sm">
-            {tr("The whole day, read rather than worked. Counting and signing still live on")}{" "}
+            {tr("The whole day, read rather than worked. Counting and signing are at")}{" "}
             <Link href="/pos/eod" className="underline">
               {tr("Close-out")}
             </Link>
