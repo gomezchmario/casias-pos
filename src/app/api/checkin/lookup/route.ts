@@ -111,6 +111,19 @@ export async function POST(req: NextRequest) {
   )?.pos_role;
   const posRole = isPosRole(posRoleRaw) ? posRoleRaw : "technician";
 
+  /*
+    A viewer is offered no clock buttons at all.
+
+    The submit endpoint has always refused this account — punching a clock
+    writes a row, and an account whose whole promise is that nothing it does is
+    saved must not put itself on the payroll's hours. But the kiosk was still
+    drawing a Check In button above that refusal, so the promise was kept by a
+    403 that arrived only after somebody had pressed it. A button that cannot
+    work is worse than no button: it is the screen telling you something the
+    server is about to deny.
+  */
+  const clocks = posRole !== "viewer";
+
   return NextResponse.json({
     ok: true,
     employee: {
@@ -118,11 +131,25 @@ export async function POST(req: NextRequest) {
       name: employee.name,
       role: employee.role,
       posRole,
-      canRegister: can(posRole, "ringSale"),
+      // browseRegister, not ringSale. The question this button asks is "is
+      // there anything for you through here", and for the read-only account
+      // the answer is yes — it may open every screen and write to none of
+      // them. Asking ringSale hid the register from the one account whose
+      // entire purpose is looking at it.
+      canRegister: can(posRole, "browseRegister"),
     },
     state: stateInfo.state,
     lastEventAt: stateInfo.lastEventAt,
     lastEventType: stateInfo.lastEventType,
-    actions,
+    actions: clocks ? actions : [],
+    /*
+      Said out loud rather than leaving an empty space where the buttons were.
+      Somebody who types a PIN and gets a card with nothing on it assumes the
+      screen is broken; this is a real account behaving exactly as intended,
+      and one line is the difference between those two readings.
+    */
+    noClockReason: clocks
+      ? null
+      : "This account is for looking at the shop, so it does not clock in or out.",
   });
 }

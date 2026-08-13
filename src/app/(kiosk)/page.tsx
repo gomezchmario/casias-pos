@@ -23,6 +23,8 @@ type LookupResult = {
   };
   state: "checked_out" | "checked_in" | "on_break";
   actions: EntryType[];
+  /** Set when this account has no clock buttons at all — see the lookup route. */
+  noClockReason?: string | null;
 };
 
 type Phase = "idle" | "looking_up" | "ready" | "submitting" | "result";
@@ -295,11 +297,28 @@ export default function KioskPage() {
             />
           ) : (
             <div className="flex flex-col gap-4">
-              <ActionButtons
-                actions={lookup?.actions ?? []}
-                onPick={handleAction}
-                busy={phase === "submitting"}
-              />
+              {lookup?.noClockReason ? (
+                <div
+                  className="text-center animate-pop-in"
+                  style={{
+                    padding: "0.9rem 1rem",
+                    borderRadius: "0.75rem",
+                    background: "rgba(255, 211, 90, 0.10)",
+                    border: "1px solid rgba(255, 211, 90, 0.45)",
+                    color: "rgba(255, 255, 255, 0.86)",
+                    fontSize: "0.95rem",
+                    lineHeight: 1.45,
+                  }}
+                >
+                  {lookup.noClockReason}
+                </div>
+              ) : (
+                <ActionButtons
+                  actions={lookup?.actions ?? []}
+                  onPick={handleAction}
+                  busy={phase === "submitting"}
+                />
+              )}
 
               {/* Deliberately the same shape as Check In and Take a Break
                   rather than a full-width bar under them. Opening the register
