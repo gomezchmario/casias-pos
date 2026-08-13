@@ -5,6 +5,8 @@ import { computeTipCommission, formatCents, parseCents } from "@/lib/money";
 import type { Sale } from "@/lib/sales";
 import type { PaymentMethod } from "@/lib/payments";
 import { useLang } from "@/components/pos/LangToggle";
+import { usePosAuth } from "@/components/pos/PosShell";
+import { DiscountTicket } from "@/components/pos/DiscountTicket";
 
 /*
  * NOTHING HERE TOUCHES SEQ, AND THAT IS THE DESIGN.
@@ -34,6 +36,7 @@ export function PaymentPanel({
   onTenderChange,
   onError,
   onDone,
+  onSaleChanged,
 }: {
   sale: Sale;
   methods: PaymentMethod[];
@@ -55,8 +58,18 @@ export function PaymentPanel({
   onTenderChange?: (isAccount: boolean) => void;
   onError: (msg: string | null) => void;
   onDone: (saleId: number) => void;
+  /**
+   * The ticket changed underneath the panel — a discount came off it.
+   *
+   * The total on this panel is the number the payment is taken against, so it
+   * cannot be allowed to go stale by even one render: a cashier who takes a
+   * discount off and then presses a Complete button still showing the old
+   * figure has charged the customer the undiscounted price.
+   */
+  onSaleChanged?: (sale: Sale) => void;
 }) {
   const { t: tr } = useLang();
+  const { can } = usePosAuth();
   /**
    * Nothing is chosen until somebody chooses it.
    *
@@ -74,6 +87,21 @@ export function PaymentPanel({
    * was always meant to be deliberate.
    */
   const [methodId, setMethodId] = useState<number | null>(null);
+  /**
+   * The cashier's ceiling on a discount, or null for somebody who has none.
+   *
+   * `undefined` while it is being asked for, which is why the control waits
+   * for it: rendering a discount box before the ceiling is known would offer a
+   * limit of nothing and then refuse whatever was typed into it.
+   */
+  const [discountMax, setDiscountMax] = useState<number | null | undefined>(undefined);
+  useEffect(() => {
+    if (!can("discountSale")) return;
+    void (async () => {
+      const res = await fetch(`/api/pos/sales/${sale.id}/discount`);
+      if (res.ok) setDiscountMax((await res.json()).maxCents ?? null);
+    })();
+  }, [can, sale.id]);
   const [tip, setTip] = useState("");
   const [splitTip, setSplitTip] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -484,6 +512,48 @@ export function PaymentPanel({
               Tip goes to {mechanics[0].name}.
             </p>
           )}
+
+          {/*
+            THE DISCOUNT LIVES BEHIND "OTHER".
+
+            It had no home on the register at all — the only way to take money
+            off a ticket was to open it again from Logs afterwards, which is
+            both slower and a different screen from the one the customer is
+            standing at. It sits under Other rather than beside every tender
+            because a discount is not a way of paying: putting it next to Cash
+            and Card would make it look like one, and the tender row is the one
+            place on this panel that must not gain a fourth meaning.
+
+            Applying one re-reads the ticket, so the total the Complete button
+            charges against is the discounted one.
+          */}
+          {method?.code === "other" &&
+            can("discountSale") &&
+            discountMax !== undefined && (
+              <div className="mb-2">
+                <DiscountTicket
+                  subtotalCents={sale.subtotal_cents}
+                  currentCents={sale.discount_cents}
+                  maxCents={discountMax}
+                  busy={busy}
+                  onSet={async (amountCents, reason) => {
+                    const res = await fetch(`/api/pos/sales/${sale.id}/discount`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ amountCents, reason }),
+                    });
+                    const d = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                      onError(d.error || "Could not take that off");
+                      return false;
+                    }
+                    onError(null);
+                    if (d.sale) onSaleChanged?.(d.sale);
+                    return true;
+                  }}
+                />
+              </div>
+            )}
 
           {tipCents > 0 && method?.is_card === 1 && (
             <label className="flex items-center gap-2 text-xs text-brand-400 mb-2">

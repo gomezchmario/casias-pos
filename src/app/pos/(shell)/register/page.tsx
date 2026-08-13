@@ -1512,8 +1512,13 @@ export default function RegisterPage() {
               Not on a cashback ticket. The shop buying a used tire off somebody
               has no vehicle and no P.O., and the one field that would apply —
               who it came from — is not what this panel is for. */}
+          {/* The wrapper is flush with the panel, not indented into it. The
+              button inside is already full-width; a padding here made it full
+              width of something narrower than everything around it, so it sat
+              short of the ticket's own edge and read as a smaller control than
+              the one it is. */}
           {sale && sale.kind !== "purchase" && (
-            <div className="mb-3 pl-3">
+            <div className="mb-3">
               <TicketDetails
                 // Keyed on the ticket so a new one starts with empty boxes
                 // rather than inheriting the last customer's name — which is
@@ -1742,6 +1747,7 @@ export default function RegisterPage() {
                 methods={data.paymentMethods}
                 mechanics={ticketMechanics}
                 roster={data.mechanics}
+                onSaleChanged={setSale}
                 commPerCents={data.settings.tipCommPerCents}
                 commChargeCents={data.settings.tipCommChargeCents}
                 onTenderChange={setAccountTender}
