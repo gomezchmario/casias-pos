@@ -1991,6 +1991,38 @@ function ReceiveModal({
   /** What has gone in on this invoice, so the count is not held in a head. */
   const [runningIn, setRunningIn] = useState<{ what: string; qty: number }[]>([]);
 
+  /**
+   * The last tires received, on demand.
+   *
+   * The running list above only knows about THIS window. The question this
+   * answers is the other one — "where had I got to?" — asked after somebody
+   * was called away halfway through a delivery and the window was closed, or
+   * the tab was, or the day was. It reads the ledger rather than any state
+   * held here, so it is true regardless of what happened in between.
+   *
+   * Shown in place rather than by opening the Movements tab: leaving this
+   * window mid-delivery would throw away a half-typed line, which is the exact
+   * interruption this is meant to help with.
+   */
+  const [logOpen, setLogOpen] = useState(false);
+  const [logRows, setLogRows] = useState<
+    { id: number; productName: string; qtyDelta: number; note: string | null; byName: string | null; at: string; businessDate: string }[] | null
+  >(null);
+
+  useEffect(() => {
+    if (!logOpen || logRows) return;
+    void (async () => {
+      const res = await fetch("/api/pos/inventory/movements?limit=300");
+      if (!res.ok) { setLogRows([]); return; }
+      const d = await res.json();
+      setLogRows(
+        (d.movements ?? [])
+          .filter((m: { reason: string }) => m.reason === "receive")
+          .slice(0, 25),
+      );
+    })();
+  }, [logOpen, logRows]);
+
   // The tire being received, once found. Held whole rather than as an id so the
   // form can show what was picked — size, price, what is already on the rack —
   // without a second lookup. Confirming you grabbed the right one out of five
@@ -2120,6 +2152,8 @@ function ReceiveModal({
     setNewSize("");
     setNewPrice("");
     setError(null);
+    // Both the racks behind and the log above are now a line out of date.
+    setLogRows(null);
     // The racks behind have changed even though the window has not moved.
     onReceived?.();
   }
@@ -2128,7 +2162,22 @@ function ReceiveModal({
     <Modal
       open
       onClose={onClose}
-      title={tr("Receive stock")}
+      title={
+        <span className="flex items-baseline gap-3 w-full">
+          <span>{tr("Receive stock")}</span>
+          {/* Quiet on purpose. It is not part of receiving anything — it is
+              there for the one morning somebody is called away mid-delivery
+              and comes back not knowing what they had already put in. */}
+          <button
+            type="button"
+            className="ml-auto text-xs font-normal underline text-brand-300 hover:text-brand-500"
+            aria-expanded={logOpen}
+            onClick={() => setLogOpen((v) => !v)}
+          >
+            {logOpen ? tr("Hide log") : tr("Log")}
+          </button>
+        </span>
+      }
       footer={
         <>
           {/* Beside the button it changes, because it is a decision about what
@@ -2151,6 +2200,45 @@ function ReceiveModal({
       }
     >
       <div className="flex flex-col gap-3">
+        {logOpen && (
+          <div
+            className="rounded-lg text-sm"
+            style={{ border: "1px solid rgba(10,37,64,0.12)", background: "rgba(10,37,64,0.02)" }}
+          >
+            <div className="px-3 pt-2 pb-1 text-xs uppercase tracking-wider text-brand-300">
+              {tr("Last tires received")}
+            </div>
+            {logRows === null && (
+              <div className="px-3 pb-2 text-brand-300">{tr("Reading the ledger…")}</div>
+            )}
+            {logRows?.length === 0 && (
+              <div className="px-3 pb-2 text-brand-300">{tr("Nothing has been received yet.")}</div>
+            )}
+            {logRows && logRows.length > 0 && (
+              <div style={{ maxHeight: 168, overflowY: "auto" }}>
+                <table className="w-full text-xs">
+                  <tbody>
+                    {logRows.map((m) => (
+                      <tr key={m.id} className="border-t border-black/5">
+                        <td className="px-3 py-1.5 text-brand-300 whitespace-nowrap">
+                          {m.businessDate.slice(5)} {m.at.slice(11, 16)}
+                        </td>
+                        <td className="px-1 py-1.5 text-brand-500">{m.productName}</td>
+                        <td className="px-1 py-1.5 text-right tabular-nums font-semibold" style={{ color: "#15803d" }}>
+                          +{m.qtyDelta}
+                        </td>
+                        <td className="px-3 py-1.5 text-brand-300 whitespace-nowrap">
+                          {m.note || m.byName || ""}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* What has already gone in under this invoice. Twelve lines off one
             delivery is exactly the situation where somebody loses their place,
             and a running list is cheaper than a recount. */}
