@@ -243,6 +243,50 @@ export default function CloseoutV3Page() {
       setError("Say what the money is for");
       return;
     }
+
+    /*
+      THE FLOAT, ABOUT TO BE ENTERED AS CASH IN.
+
+      This is the mistake this shop actually makes. On 12 August it was made
+      twice — $80 at 8:11am "money on cash register at the start of the day",
+      then $20 at 10:47 "not money, just for the float so that it balances" —
+      and because the shift already carries the float, the two of them counted
+      the same hundred a second time and put the drawer $200 out. Somebody then
+      booked a $200 withdrawal that never happened to make it balance, which
+      hid the whole thing behind a clean zero.
+
+      So the one shape that is almost certainly that mistake gets stopped and
+      asked: the day's FIRST cash-in, for EXACTLY the standing float. Both
+      conditions matter. A $100 cash-in later in the day is a change run and
+      wants no interruption, and the first cash-in of the day for $37 is
+      obviously not a float.
+
+      Measured against the float SETTING rather than a hardcoded hundred, so it
+      follows the shop if the float ever changes.
+
+      A native confirm, like the overdraw question below it: this has to be
+      unmissable and it has to block, and it is the same conversation.
+    */
+    const floatCents = data?.drawer.floatCents ?? 0;
+    const alreadyCashedIn = (data?.drawer.movements ?? []).some(
+      (mv) => mv.amount_cents > 0 && !mv.reverses_id,
+    );
+    if (
+      drawerKind === "deposit" &&
+      floatCents > 0 &&
+      cents === floatCents &&
+      !alreadyCashedIn
+    ) {
+      const ok = window.confirm(
+        `That is exactly the register float (${formatCents(floatCents)}), and it is the first cash-in today.\n\n` +
+          `IF THIS IS THE MORNING FLOAT, DO NOT RECORD IT HERE.\n\n` +
+          `The drawer already carries the float. Entering it here counts the same money twice and leaves the drawer reading over by ${formatCents(floatCents)} at close.\n\n` +
+          `Use Step 1 at the top of this page — "count what is in the drawer" — which records the float without moving any money.\n\n` +
+          `Is this genuinely other cash going into the drawer?`,
+      );
+      if (!ok) return;
+    }
+
     setBusy(true);
     const res = await fetch("/api/pos/drawer", {
       method: "POST",
