@@ -333,6 +333,15 @@ export type OutstandingTicket = {
   /** What was rung, as one line — "2× 205/55R16, MOUNT & B". */
   what: string;
   /**
+   * How many of this ticket's tire lines could be filled off the rack today.
+   *
+   * Zero on a ticket with no tire on it, and zero when the tire is one the shop
+   * does not have — which is the normal state of a special order and the reason
+   * it is a special order. Anything above zero on a ticket still waiting for a
+   * tire means somebody could finish it this morning without ordering anything.
+   */
+  tiresOnRack: number;
+  /**
    * Who worked it, from the ticket's own lines. Empty when nobody was named.
    *
    * Distinct, because a four-tire job is four lines with the same name on them
@@ -427,6 +436,26 @@ export function outstandingTickets(): OutstandingTicket[] {
                                ELSE i.description END, ', ')
                           FROM sale_items i
                          WHERE i.sale_id = s.id AND i.voided = 0), '') AS what,
+              -- IS THE TIRE THIS TICKET IS WAITING FOR ACTUALLY ON THE RACK?
+              --
+              -- A ticket sits in Outstanding for one of two reasons: it owes
+              -- money, or it owes a tire. For the second kind this is the whole
+              -- question, and until now the only way to answer it was to write
+              -- the size down, walk to Inventory, and search — for each ticket,
+              -- every morning.
+              --
+              -- Counted off the movement ledger like every other stock figure,
+              -- rather than a column somebody can typo. Correlated per ticket,
+              -- which is fine: Outstanding is a handful of rows by design, and
+              -- the day it is not, that is the problem worth looking at.
+              (SELECT COUNT(*)
+                 FROM sale_items i
+                 JOIN products p ON p.id = i.product_id
+                WHERE i.sale_id = s.id AND i.voided = 0
+                  AND p.kind = 'tire' AND p.deleted = 0
+                  AND (SELECT COALESCE(SUM(m.qty_delta), 0)
+                         FROM inventory_movements m
+                        WHERE m.product_id = p.id) >= i.qty) AS tiresOnRack,
               -- Whose hands were on it. The employee's own name where the line
               -- names one, the typed name where it does not, and nothing at all
               -- where neither -- GROUP_CONCAT drops the NULLs for free, so an

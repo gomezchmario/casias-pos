@@ -682,10 +682,32 @@ export default function DayPage() {
                     >
                       {o.saleNo}
                     </button>
-                    {/* No badge. Everything that has collected nothing lives in
-                        Pending above, so every ticket left in this one has
-                        either taken money already or is waiting on a tire —
-                        there is no second kind of row here to tell apart. */}
+                    {/*
+                      THE TIRE IS ALREADY HERE.
+
+                      A ticket sits in this panel because it owes money or owes
+                      a tire, and for the second kind the only question that
+                      matters is whether the tire is on the rack — which used to
+                      mean writing the size down, walking to Inventory and
+                      searching, per ticket, every morning.
+
+                      Only on tickets still WAITING for one. Once it is marked
+                      arrived or picked up the tire has been set aside or fitted,
+                      and a badge saying "in stock" would then be pointing at
+                      the shop's other ones and reading as "go and get it" for a
+                      job already done.
+                    */}
+                    {o.tiresOnRack > 0 &&
+                      (o.fulfillmentStatus === "pending" ||
+                        o.fulfillmentStatus === "ordered") && (
+                        <span
+                          className="ml-1.5"
+                          title="This tire is on the rack now — it can be fitted today without ordering"
+                          aria-label="Tire in stock"
+                        >
+                          🛞
+                        </span>
+                      )}
                   </td>
                   {/* Nameless until big-boy mode fills these in — and it says so
                       rather than leaving the column blank, because "who is this"
