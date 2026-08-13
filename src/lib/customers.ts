@@ -252,7 +252,10 @@ export function listCustomers(args?: {
   if (args?.owing) where.push("COALESCE(t.owedCents, 0) > 0");
   if (args?.credit || args?.notApproved) where.push("COALESCE(cr.creditTickets, 0) > 0");
   if (args?.notApproved) where.push("c.credit_approved = 0");
-  if (args?.companies) where.push("c.is_fleet = 1");
+  // The companies AND their drivers, not the companies alone: the page groups
+  // each company with its people underneath, and a company shown without its
+  // drivers answers "who is this" with half a story.
+  if (args?.companies) where.push("(c.is_fleet = 1 OR c.fleet_id IS NOT NULL)");
 
   params.push(args?.limit ?? 500);
 

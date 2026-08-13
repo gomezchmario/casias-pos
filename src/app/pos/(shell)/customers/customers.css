@@ -261,3 +261,73 @@
   text-transform: uppercase;
   color: #94a3b8;
 }
+
+/* Two debts on one row stack; the gap keeps them reading as two facts
+   rather than one four-line figure. */
+.cu-money { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+.cu-money-line { text-align: right; line-height: 1.2; }
+.cu-money-line.is-good .cu-amount { color: #15803d; }
+
+/* ── The filtered list's own arithmetic ──────────────────────────────────
+   Above the rows it describes, summed from exactly those rows. Quiet: it is
+   an answer, not an alert. */
+.cu-tally {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border-radius: 10px;
+  background: rgba(10, 37, 64, 0.04);
+  font-size: 0.78rem;
+  color: #5b6b7f;
+}
+.cu-tally b { color: #0a2540; font-size: 0.84rem; }
+.cu-tally span { font-variant-numeric: tabular-nums; }
+
+/* ── Companies view: a heading and its people ────────────────────────────
+   The company row carries a rule above it so each block starts visibly; the
+   drivers indent under it, connected by a soft left edge — the same shape as
+   the statement that gets printed for the company. */
+.cu-row-fleet {
+  border-top: 2px solid rgba(10, 37, 64, 0.14);
+  margin-top: 4px;
+}
+.cu-row-fleet .cu-name { text-transform: uppercase; letter-spacing: 0.02em; }
+.cu-row-member {
+  margin-left: 18px;
+  width: calc(100% - 18px);
+  border-left: 2px solid rgba(10, 37, 64, 0.1);
+  border-radius: 0 10px 10px 0;
+  border-top: none;
+}
+
+/* ── The filters, as buttons ─────────────────────────────────────────────
+   Pressed is navy on white text; unpressed is an outline. The Not approved
+   filter keeps its red, but only while it is ON — a red button at rest is an
+   alarm about nothing. */
+.cu-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.cu-filter {
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(10, 37, 64, 0.22);
+  background: #fff;
+  color: #5b6b7f;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cu-filter:hover { border-color: rgba(10, 37, 64, 0.45); }
+.cu-filter:focus-visible { outline: 2px solid #0a2540; outline-offset: 2px; }
+.cu-filter.is-on {
+  background: #0a2540;
+  border-color: #0a2540;
+  color: #fff;
+}
+.cu-filter.is-warn.is-on {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}

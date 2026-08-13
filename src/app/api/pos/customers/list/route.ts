@@ -46,6 +46,14 @@ export async function GET(req: NextRequest) {
       // column of names — it belongs on the panel that has room to read it.
       hasNote: c.pinned_note !== null,
       creditApproved: c.credit_approved === 1,
+      // The fleet fields. The page has been reading these for a while and the
+      // route never sent them — so the "company · N" tag and the fleet name
+      // under a driver simply never rendered, and nobody could tell a company
+      // from a person on the list. undefined is invisible in JSX.
+      isFleet: c.isFleet,
+      fleetId: c.fleetId,
+      fleetName: c.fleetName,
+      fleetMembers: c.fleetMembers,
     })),
   });
 }

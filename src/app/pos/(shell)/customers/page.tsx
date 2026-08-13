@@ -114,6 +114,47 @@ export default function CustomersPage() {
   /** Companies only — the ones other customers are billed to. */
   const [companies, setCompanies] = useState(false);
   const [rows, setRows] = useState<Row[] | null>(null);
+
+  /*
+    The list as displayed: grouped under the company when Companies is ticked.
+
+    A company's drivers scattered through the alphabet answer "who is on this
+    account" only to somebody who already knows. Grouped, each company is a
+    heading with its people directly beneath — the same shape as the statement
+    that gets printed for them. Orphan drivers (fleet deleted, member kept)
+    fall through to the bottom rather than vanishing.
+
+    Everywhere else the list stays flat and alphabetical, which is right for
+    "find this person while they stand at the counter".
+  */
+  const displayRows = React.useMemo(() => {
+    if (!rows) return [];
+    if (!companies) return rows;
+    const fleets = rows.filter((c) => c.isFleet === 1);
+    const members = rows.filter((c) => c.isFleet !== 1);
+    const out: typeof rows = [];
+    for (const f of fleets) {
+      out.push(f);
+      for (const m of members.filter((m) => m.fleetId === f.id)) out.push(m);
+    }
+    for (const m of members.filter((m) => !fleets.some((f) => f.id === m.fleetId))) out.push(m);
+    return out;
+  }, [rows, companies]);
+
+  /*
+    The filtered list's own arithmetic, shown above it.
+
+    Ticking a box asks a question — "who runs an account", "which companies" —
+    and the total is half of why it was asked. Summed from exactly the rows on
+    screen, so the header and the list can never disagree.
+  */
+  const tally = React.useMemo(() => {
+    if (!rows || !(owing || credit || notApproved || companies)) return null;
+    const people = rows.length;
+    const tickets = rows.reduce((n, c) => n + Math.max(0, c.owedCents), 0);
+    const account = rows.reduce((n, c) => n + Math.max(0, c.accountBalanceCents), 0);
+    return { people, tickets, account, companies: rows.filter((c) => c.isFleet === 1).length };
+  }, [rows, owing, credit, notApproved, companies]);
   const [picked, setPicked] = useState<number | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -410,40 +451,54 @@ export default function CustomersPage() {
           {/* Two narrowings, and they compose: both ticked asks for people who
               owe money AND run an account, which is the shortest and most
               useful list on the page. */}
-          <div className="flex items-center gap-4 mb-3 text-sm text-brand-400">
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <input type="checkbox" checked={owing} onChange={(e) => setOwing(e.target.checked)} />{tr("Owes money")}</label>
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={credit}
-                onChange={(e) => setCredit(e.target.checked)}
-              />{tr("Credit account")}</label>
-            {/* The accountant's shortest useful list: people running a tab that
-                nobody ever approved. Implies the box above it — a customer with
-                no account activity is not approved either, and listing all of
-                them would bury the handful that matter. */}
+          {/* Buttons that are on or off, not checkboxes. On a counter
+              touchscreen a 14px checkbox is a miss half the time, and the tick
+              itself adds nothing the pressed state does not say — these are
+              filters somebody stabs at with a thumb between customers. */}
+          <div className="cu-filters">
+            <button
+              type="button"
+              className={`cu-filter${owing ? " is-on" : ""}`}
+              aria-pressed={owing}
+              onClick={() => setOwing((v) => !v)}
+            >{tr("Owes money")}</button>
+            <button
+              type="button"
+              className={`cu-filter${credit ? " is-on" : ""}`}
+              aria-pressed={credit}
+              onClick={() => setCredit((v) => !v)}
+            >{tr("Credit account")}</button>
             {can("manageCreditAccounts") && (
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={notApproved}
-                  onChange={(e) => setNotApproved(e.target.checked)}
-                />
-                <span className={notApproved ? "text-red-700 font-semibold" : undefined}>{tr("Not approved")}</span>
-              </label>
+              <button
+                type="button"
+                className={`cu-filter is-warn${notApproved ? " is-on" : ""}`}
+                aria-pressed={notApproved}
+                onClick={() => setNotApproved((v) => !v)}
+              >{tr("Not approved")}</button>
             )}
-            {/* A narrowing rather than a sort. "Show me the companies" is eight
-                rows among six hundred people, and sorting them to the top still
-                leaves somebody scrolling the rest to be sure they have seen
-                them all. */}
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={companies}
-                onChange={(e) => setCompanies(e.target.checked)}
-              />{tr("Companies")}</label>
+            <button
+              type="button"
+              className={`cu-filter${companies ? " is-on" : ""}`}
+              aria-pressed={companies}
+              onClick={() => setCompanies((v) => !v)}
+            >{tr("Companies")}</button>
           </div>
+          {tally && (
+            <div className="cu-tally">
+              <b>
+                {companies
+                  ? `${tally.companies} ${tally.companies === 1 ? tr("company") : tr("companies")}`
+                  : `${tally.people} ${tally.people === 1 ? tr("person") : tr("people")}`}
+              </b>
+              {tally.tickets > 0 && (
+                <span>{formatCents(tally.tickets)} {tr("owed on tickets")}</span>
+              )}
+              {tally.account > 0 && (
+                <span>{formatCents(tally.account)} {tr("owing to account")}</span>
+              )}
+              {tally.tickets === 0 && tally.account === 0 && <span>{tr("nothing owed")}</span>}
+            </div>
+          )}
           <div className="overflow-y-auto" style={{ maxHeight: 620 }}>
             {rows === null ? (
               <div className="text-brand-300 p-2">{tr("Loading…")}</div>
@@ -454,27 +509,31 @@ export default function CustomersPage() {
                   : "Nobody by that name."}
               </div>
             ) : (
-              rows.map((c) => {
+              displayRows.map((c) => {
                 /*
-                  The money for THIS list.
+                  BOTH debts, always.
 
-                  On the account lists the tab is what the name is being read
-                  for, so it goes beside the name; everywhere else the ticket
-                  balance is the debt that matters. Worked out once here rather
-                  than twice in the markup, so the two cannot drift apart.
+                  These used to switch on which filter was ticked, which meant
+                  the list answered a different question depending on how it was
+                  reached — and a customer owing on tickets AND running a tab
+                  showed only half their debt whichever way you looked. They are
+                  different money: the ticket balance is work not yet paid for,
+                  the account is the standing tab. Both lines, whenever either
+                  is non-zero.
                 */
-                const onAccount = credit || notApproved;
-                const cents = onAccount ? c.accountBalanceCents : c.owedCents;
-                const money =
-                  onAccount && c.accountBalanceCents !== 0
-                    ? {
-                        amount: formatCents(Math.abs(cents)),
-                        label: cents > 0 ? "owing to account" : "in credit",
-                        bad: cents > 0,
-                      }
-                    : !onAccount && c.owedCents > 0
-                      ? { amount: formatCents(c.owedCents), label: "owed on tickets", bad: true }
-                      : null;
+                const moneyLines: { amount: string; label: string; bad: boolean }[] = [];
+                if (c.owedCents > 0)
+                  moneyLines.push({
+                    amount: formatCents(c.owedCents),
+                    label: "owed on tickets",
+                    bad: true,
+                  });
+                if (c.accountBalanceCents !== 0)
+                  moneyLines.push({
+                    amount: formatCents(Math.abs(c.accountBalanceCents)),
+                    label: c.accountBalanceCents > 0 ? "owing to account" : "in credit",
+                    bad: c.accountBalanceCents > 0,
+                  });
 
                 /* One separator, applied between the parts that exist, rather
                    than each part carrying its own leading dot — which is what
@@ -501,7 +560,9 @@ export default function CustomersPage() {
                   key={c.id}
                   type="button"
                   onClick={() => setPicked(c.id)}
-                  className={`cu-row${picked === c.id ? " is-picked" : ""}`}
+                  className={`cu-row${picked === c.id ? " is-picked" : ""}${
+                    companies && c.isFleet !== 1 ? " cu-row-member" : ""
+                  }${companies && c.isFleet === 1 ? " cu-row-fleet" : ""}`}
                 >
                   {/*
                     A fixed slot for the markers, so every name starts at the
@@ -535,10 +596,14 @@ export default function CustomersPage() {
                       and can be compared at a glance. Inline after a
                       variable-length name they landed at a different place on
                       every row and could only be read one at a time. */}
-                  {money && (
-                    <span className={`cu-money${money.bad ? "" : " is-good"}`}>
-                      <span className="cu-amount">{money.amount}</span>
-                      <span className="cu-money-label">{tr(money.label)}</span>
+                  {moneyLines.length > 0 && (
+                    <span className="cu-money">
+                      {moneyLines.map((m) => (
+                        <span key={m.label} className={`cu-money-line${m.bad ? "" : " is-good"}`}>
+                          <span className="cu-amount">{m.amount}</span>
+                          <span className="cu-money-label">{tr(m.label)}</span>
+                        </span>
+                      ))}
                     </span>
                   )}
                 </button>
@@ -625,20 +690,6 @@ export default function CustomersPage() {
                     </div>
                   )}
 
-                  {detail.customer.isFleet && (
-                    <div className="mt-2 flex items-center gap-3 text-sm flex-wrap">
-                      <span className="cu-fleet">
-                        {tr("Company account")} · {detail.members.length}{" "}
-                        {detail.members.length === 1 ? tr("driver") : tr("drivers")}
-                      </span>
-                      {can("manageCreditAccounts") && (
-                        <Link href={`/pos/fleets/${detail.customer.id}`} className="underline text-brand-400">
-                          {tr("Statement")} →
-                        </Link>
-                      )}
-                    </div>
-                  )}
-
                   {/* Making somebody a company is a credit decision, so it
                       follows the account permission rather than the one for
                       correcting a phone number. */}
@@ -663,6 +714,20 @@ export default function CustomersPage() {
                         {tr("This is a company others can be billed to")}
                       </span>
                     </label>
+                  )}
+
+                  {detail.customer.isFleet && (
+                    <div className="mt-2 flex items-center gap-3 text-sm flex-wrap">
+                      <span className="cu-fleet">
+                        {tr("Company account")} · {detail.members.length}{" "}
+                        {detail.members.length === 1 ? tr("driver") : tr("drivers")}
+                      </span>
+                      {can("manageCreditAccounts") && (
+                        <Link href={`/pos/fleets/${detail.customer.id}`} className="underline text-brand-400">
+                          {tr("Statement")} →
+                        </Link>
+                      )}
+                    </div>
                   )}
                 </div>
                 <div className="flex items-center gap-3 text-sm">
