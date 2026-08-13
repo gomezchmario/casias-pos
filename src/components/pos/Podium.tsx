@@ -74,12 +74,26 @@ export const PODIUM_METRICS: PodiumMetric[] = [
   {
     key: "serviceMoney",
     label: "Most services by money",
-    unit: "in service work",
-    // Ranked on the share, not the cents, because the cents are zeroed for
-    // anyone below owner and ranking on them would put the board in a
-    // meaningless order for everyone else. The share survives the gate.
-    score: (t) => t.otherIncomePct,
-    show: (t, fmt) => fmt.income(t.otherIncomeCents, t.otherIncomePct),
+    unit: "in work done",
+    /*
+      ALL of it — the tires as well.
+
+      This used to read only the non-tire lines, which made "most services by
+      money" a board about flats and mounts with the biggest thing a technician
+      does all day left out of it. In a tire shop, fitting a tire IS the
+      service; the tire is what the service is performed on. Somebody who sold
+      and fitted four tires had a better day than the number said.
+
+      The tire boards above still count tires on their own, which is the point
+      of having them: this one asks who did the most work, they ask who moved
+      the most rubber, and both are worth knowing.
+
+      Ranked on the share, not the cents, because the cents are zeroed for
+      anyone below owner and ranking on them would put the board in a
+      meaningless order for everyone else. The share survives the gate.
+    */
+    score: (t) => t.incomePct,
+    show: (t, fmt) => fmt.income(t.incomeCents, t.incomePct),
   },
   {
     key: "serviceCount",
@@ -89,8 +103,12 @@ export const PODIUM_METRICS: PodiumMetric[] = [
     // same column — and calling three tires off one car "3 jobs" would be the
     // label disagreeing with the number under it.
     unit: "services",
-    score: (t) => t.otherCount,
-    show: (t) => String(t.otherCount),
+    // Every line, tires included, for the reason set out on the money board
+    // above: in a tire shop the tire is what the service is performed on, and
+    // a "services" board that left tires out was answering a question nobody
+    // asked. Jerry's five lines on 13 August read as two.
+    score: (t) => t.otherCount + t.newTires + t.usedTires,
+    show: (t) => String(t.otherCount + t.newTires + t.usedTires),
   },
   {
     key: "tickets",
