@@ -560,9 +560,9 @@ export default function CustomersPage() {
                   key={c.id}
                   type="button"
                   onClick={() => setPicked(c.id)}
-                  className={`cu-row${picked === c.id ? " is-picked" : ""}${
-                    companies && c.isFleet !== 1 ? " cu-row-member" : ""
-                  }${companies && c.isFleet === 1 ? " cu-row-fleet" : ""}`}
+                  className={`cu-pick${picked === c.id ? " is-picked" : ""}${
+                    companies && c.isFleet !== 1 ? " cu-pick-member" : ""
+                  }${companies && c.isFleet === 1 ? " cu-pick-fleet" : ""}`}
                 >
                   {/*
                     A fixed slot for the markers, so every name starts at the

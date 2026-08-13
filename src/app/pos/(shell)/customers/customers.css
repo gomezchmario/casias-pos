@@ -197,13 +197,18 @@
   font-weight: 600;
 }
 
-/* ── One customer, as a row ────────────────────────────────────────────────
+/* ── One customer, as a row ──
+   NAMED cu-pick, NOT cu-row. There were already three <tr>s carrying cu-row,
+   and a display:grid landing on a table row collapses its cells on top of each
+   other — the account history rendered the ticket number printed over the tire
+   name. A class in a shared stylesheet is a global name.
+   ── One customer, as a row ────────────────────────────────────────────────
    Three columns and not a paragraph: a fixed slot for the markers so every
    name starts at the same x, the name and its detail in the middle, and the
    money right-aligned so a column of amounts stacks and can be compared. The
    old row let all three float inline after a variable-length name, which put
    the figure somewhere different on every line. */
-.cu-row {
+.cu-pick {
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr) auto;
   align-items: baseline;
@@ -214,10 +219,10 @@
   border-radius: 10px;
   border-top: 1px solid rgba(10, 37, 64, 0.06);
 }
-.cu-row:first-child { border-top: none; }
-.cu-row:hover { background: rgba(10, 37, 64, 0.035); }
-.cu-row.is-picked { background: rgba(10, 37, 64, 0.08); }
-.cu-row:focus-visible { outline: 2px solid #0a2540; outline-offset: -2px; }
+.cu-pick:first-child { border-top: none; }
+.cu-pick:hover { background: rgba(10, 37, 64, 0.035); }
+.cu-pick.is-picked { background: rgba(10, 37, 64, 0.08); }
+.cu-pick:focus-visible { outline: 2px solid #0a2540; outline-offset: -2px; }
 
 .cu-marks { display: inline-flex; align-items: center; gap: 3px; line-height: 1; }
 
@@ -290,12 +295,12 @@
    The company row carries a rule above it so each block starts visibly; the
    drivers indent under it, connected by a soft left edge — the same shape as
    the statement that gets printed for the company. */
-.cu-row-fleet {
+.cu-pick-fleet {
   border-top: 2px solid rgba(10, 37, 64, 0.14);
   margin-top: 4px;
 }
-.cu-row-fleet .cu-name { text-transform: uppercase; letter-spacing: 0.02em; }
-.cu-row-member {
+.cu-pick-fleet .cu-name { text-transform: uppercase; letter-spacing: 0.02em; }
+.cu-pick-member {
   margin-left: 18px;
   width: calc(100% - 18px);
   border-left: 2px solid rgba(10, 37, 64, 0.1);
@@ -307,12 +312,27 @@
    Pressed is navy on white text; unpressed is an outline. The Not approved
    filter keeps its red, but only while it is ON — a red button at rest is an
    alarm about nothing. */
-.cu-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+/* One line, always. Four filters that wrap to a second row shift every name
+   under them down the moment one is hidden by a permission, and the list is
+   read by position as much as by reading. They shrink instead: the panel is
+   narrow, the words are short, and a filter nobody can read the whole of is
+   still recognisable by where it sits and whether it is lit. */
+.cu-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: nowrap;
+  margin-bottom: 12px;
+}
 .cu-filter {
   font: inherit;
-  font-size: 0.8rem;
+  font-size: 0.76rem;
   font-weight: 600;
-  padding: 7px 14px;
+  padding: 7px 10px;
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
   border-radius: 999px;
   border: 1px solid rgba(10, 37, 64, 0.22);
   background: #fff;
