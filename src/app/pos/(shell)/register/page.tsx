@@ -1520,6 +1520,14 @@ export default function RegisterPage() {
           {sale && sale.kind !== "purchase" && (
             <div className="mb-3">
               <TicketDetails
+                /*
+                  Full width, like the one in the ticket drawer.
+
+                  `compact` DEFAULTS TO TRUE, which is why removing a padding
+                  around it changed nothing worth seeing: it was never a wide
+                  button being narrowed, it was a small navy pill all along.
+                */
+                compact={false}
                 // Keyed on the ticket so a new one starts with empty boxes
                 // rather than inheriting the last customer's name — which is
                 // the single most expensive thing this panel could get wrong.

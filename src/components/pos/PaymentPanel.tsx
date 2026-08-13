@@ -457,6 +457,48 @@ export function PaymentPanel({
         ))}
       </div>
 
+      {/*
+        THE DISCOUNT LIVES BEHIND "OTHER".
+
+        It had no home on the register at all — the only way to take money
+        off a ticket was to open it again from Logs afterwards, which is
+        both slower and a different screen from the one the customer is
+        standing at. It sits under Other rather than beside every tender
+        because a discount is not a way of paying: putting it next to Cash
+        and Card would make it look like one, and the tender row is the one
+        place on this panel that must not gain a fourth meaning.
+
+        Applying one re-reads the ticket, so the total the Complete button
+        charges against is the discounted one.
+      */}
+      {method?.code === "other" &&
+        can("discountSale") &&
+        discountMax !== undefined && (
+          <div className="mb-2">
+            <DiscountTicket
+              subtotalCents={sale.subtotal_cents}
+              currentCents={sale.discount_cents}
+              maxCents={discountMax}
+              busy={busy}
+              onSet={async (amountCents, reason) => {
+                const res = await fetch(`/api/pos/sales/${sale.id}/discount`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ amountCents, reason }),
+                });
+                const d = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                  onError(d.error || "Could not take that off");
+                  return false;
+                }
+                onError(null);
+                if (d.sale) onSaleChanged?.(d.sale);
+                return true;
+              }}
+            />
+          </div>
+        )}
+
       {method?.allows_tip === 1 && (
         <>
           <div className="flex gap-2 mb-2">
@@ -512,48 +554,6 @@ export function PaymentPanel({
               Tip goes to {mechanics[0].name}.
             </p>
           )}
-
-          {/*
-            THE DISCOUNT LIVES BEHIND "OTHER".
-
-            It had no home on the register at all — the only way to take money
-            off a ticket was to open it again from Logs afterwards, which is
-            both slower and a different screen from the one the customer is
-            standing at. It sits under Other rather than beside every tender
-            because a discount is not a way of paying: putting it next to Cash
-            and Card would make it look like one, and the tender row is the one
-            place on this panel that must not gain a fourth meaning.
-
-            Applying one re-reads the ticket, so the total the Complete button
-            charges against is the discounted one.
-          */}
-          {method?.code === "other" &&
-            can("discountSale") &&
-            discountMax !== undefined && (
-              <div className="mb-2">
-                <DiscountTicket
-                  subtotalCents={sale.subtotal_cents}
-                  currentCents={sale.discount_cents}
-                  maxCents={discountMax}
-                  busy={busy}
-                  onSet={async (amountCents, reason) => {
-                    const res = await fetch(`/api/pos/sales/${sale.id}/discount`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ amountCents, reason }),
-                    });
-                    const d = await res.json().catch(() => ({}));
-                    if (!res.ok) {
-                      onError(d.error || "Could not take that off");
-                      return false;
-                    }
-                    onError(null);
-                    if (d.sale) onSaleChanged?.(d.sale);
-                    return true;
-                  }}
-                />
-              </div>
-            )}
 
           {tipCents > 0 && method?.is_card === 1 && (
             <label className="flex items-center gap-2 text-xs text-brand-400 mb-2">
