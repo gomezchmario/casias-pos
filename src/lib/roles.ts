@@ -87,8 +87,13 @@ export const VIEWER_MAY: ReadonlySet<Capability> = new Set<Capability>([
   "quoteTire",
   "reviewPricing",
   "reviewAlarms",
+  // Opening the register, not using it. Half the point of this account is
+  // showing somebody how the shop's screens work, and the busiest screen in
+  // the building being a flat refusal made that half of it useless.
+  "browseRegister",
   "viewCloseout",
   "manageDirectory",
+  "browseRegister",
 ]);
 
 /**
@@ -307,6 +312,20 @@ export const CAPABILITIES = {
   // see the note on GRANTED.accountant. Set at owner so that RANK alone never
   // grants it, and lifted for the accountant by name.
   manageDirectory: "owner",
+  /*
+    Reaching the register screen, as opposed to ringing anything on it.
+
+    Its own capability because the viewer needs the first without the second,
+    and ringSale cannot give it: POST /api/pos/sales is guarded by ringSale
+    too, so putting that on the read-only account's list would let it write
+    real tickets into the ledger. Set at cashier so everyone who can ring can
+    obviously also open the screen, and lifted for the viewer by name.
+
+    NOTHING THAT WRITES MAY EVER BE GUARDED BY THIS. It exists to answer "may
+    this account look at the register", and a route that changes something and
+    asks this question is a route a read-only account can change something on.
+  */
+  browseRegister: "cashier",
   // Removing a midday register log. Owner, and deliberately far above the
   // capability to take one: the whole value of a timeline of counts is that
   // nobody on the floor can quietly drop the one that came out short.
@@ -516,6 +535,10 @@ export const CAPABILITY_INFO: Record<
     group: "At the register",
   },
   deleteCustomer: { label: "Remove a customer from the book", group: "At the register" },
+  browseRegister: {
+    label: "Open the register screen",
+    group: "At the register",
+  },
   manageDirectory: {
     label: "Give a company its own page",
     group: "Money and reports",

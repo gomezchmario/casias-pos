@@ -9,7 +9,9 @@ import { getDb } from "@/lib/db";
 
 /** Everything the register screen needs to render, in one round trip. */
 export async function GET() {
-  const auth = await requirePos("ringSale");
+  // The screen's furniture: shelf buttons, the service grid, the roster.
+  // All of it a lookup.
+  const auth = await requirePos("browseRegister");
   if (!auth.ok) return auth.response;
 
   return NextResponse.json({

@@ -4,7 +4,10 @@ import { createSale, listOpenSales, listSalesForDate } from "@/lib/sales";
 import { currentBusinessDate } from "@/lib/business-date";
 
 export async function GET(req: NextRequest) {
-  const auth = await requirePos("ringSale");
+  // Reading the open tickets, not creating one — so the read-only account may
+  // ask. POST below still demands ringSale, which is what actually keeps a
+  // viewer from putting a ticket in the ledger.
+  const auth = await requirePos("browseRegister");
   if (!auth.ok) return auth.response;
 
   const scope = req.nextUrl.searchParams.get("scope") ?? "open";

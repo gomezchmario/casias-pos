@@ -823,7 +823,7 @@ export default function RegisterPage() {
   if (!data) {
     return <div className="text-brand-300">{tr("Loading register…")}</div>;
   }
-  if (!can("ringSale")) {
+  if (!can("browseRegister")) {
     return <div className="text-brand-400">Your account can&apos;t ring sales.</div>;
   }
 

@@ -35,7 +35,7 @@ const NAV: {
   title?: string;
 }[] = [
   { href: "/pos", label: "Main", capability: "viewDay" },
-  { href: "/pos/register", label: "New sale", capability: "ringSale" },
+  { href: "/pos/register", label: "New sale", capability: "browseRegister" },
   // Sits next to Main because it is the other half of the same question: Main
   // says how the day is going, Logs says what the day actually did. The ticket
   // list used to hang off the bottom of Main and made it too long to read;
