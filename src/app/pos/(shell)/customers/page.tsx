@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { usePosAuth } from "@/components/pos/PosShell";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { ShopLogo } from "@/components/ui/ShopLogo";
@@ -454,76 +454,96 @@ export default function CustomersPage() {
                   : "Nobody by that name."}
               </div>
             ) : (
-              rows.map((c) => (
+              rows.map((c) => {
+                /*
+                  The money for THIS list.
+
+                  On the account lists the tab is what the name is being read
+                  for, so it goes beside the name; everywhere else the ticket
+                  balance is the debt that matters. Worked out once here rather
+                  than twice in the markup, so the two cannot drift apart.
+                */
+                const onAccount = credit || notApproved;
+                const cents = onAccount ? c.accountBalanceCents : c.owedCents;
+                const money =
+                  onAccount && c.accountBalanceCents !== 0
+                    ? {
+                        amount: formatCents(Math.abs(cents)),
+                        label: cents > 0 ? "owing to account" : "in credit",
+                        bad: cents > 0,
+                      }
+                    : !onAccount && c.owedCents > 0
+                      ? { amount: formatCents(c.owedCents), label: "owed on tickets", bad: true }
+                      : null;
+
+                /* One separator, applied between the parts that exist, rather
+                   than each part carrying its own leading dot — which is what
+                   made the line read as a mush with uneven gaps. */
+                const meta: React.ReactNode[] = [];
+                if (c.phone) meta.push(<span className="cu-phone" key="p">{c.phone}</span>);
+                meta.push(
+                  <span key="t">
+                    {c.tickets} {c.tickets === 1 ? "ticket" : "tickets"}
+                  </span>,
+                );
+                if (c.creditTickets > 0) meta.push(<span key="a">{tr("account")}</span>);
+                if (c.isFleet === 1)
+                  meta.push(
+                    <span className="cu-fleet-tag" key="f">
+                      {tr("company")} · {c.fleetMembers}
+                    </span>,
+                  );
+                if (c.fleetName) meta.push(<span key="fn">{c.fleetName}</span>);
+                if (c.lastVisit) meta.push(<span key="l">{tr("last")} {c.lastVisit}</span>);
+
+                return (
                 <button
                   key={c.id}
                   type="button"
                   onClick={() => setPicked(c.id)}
-                  className="w-full text-left px-2 py-2 rounded-lg border-t border-black/5 first:border-t-0"
-                  style={{ background: picked === c.id ? "rgba(10,37,64,0.07)" : undefined }}
+                  className={`cu-row${picked === c.id ? " is-picked" : ""}`}
                 >
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-brand-500 font-medium truncate">
-                      {/* A star for approved credit, a dot for a note. Both are
-                          markers rather than words because this is a column of
-                          names read at speed — and the star comes first because
-                          it is the one that changes what somebody is allowed to
-                          do at the register. */}
-                      {c.creditApproved && (
-                        <span className="cu-star" title="Store credit approved">
-                          ★
-                        </span>
-                      )}
-                      {c.hasNote && (
-                        <span className="cu-note-dot" title="Has a note" aria-hidden="true" />
-                      )}
-                      {c.name}
-                    </span>
-                    {/* Money owed is the one fact worth seeing before clicking:
-                        it is why somebody is being looked up half the time.
-                        Held a little off the edge — a figure flush against the
-                        border of its own row reads as falling out of it. */}
-                    {/* On the account list, the tab is what the name is being
-                        read for — so it goes beside the name rather than
-                        waiting inside the client. Ticket balances are a
-                        different debt and keep their own badge when that is
-                        what the list is showing. */}
-                    {credit || notApproved ? (
-                      c.accountBalanceCents !== 0 && (
-                        <span
-                          className={`text-xs font-semibold whitespace-nowrap mr-2 ${
-                            c.accountBalanceCents > 0 ? "text-red-700" : "text-green-700"
-                          }`}
-                        >
-                          {c.accountBalanceCents > 0
-                            ? `${formatCents(c.accountBalanceCents)} owing to account`
-                            : `${formatCents(-c.accountBalanceCents)} in credit`}
-                        </span>
-                      )
-                    ) : c.owedCents > 0 ? (
-                      <span className="text-xs font-semibold text-red-700 whitespace-nowrap mr-2">
-                        owes {formatCents(c.owedCents)}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="text-xs text-brand-300 flex gap-2 flex-wrap">
-                    {c.phone && <span>{c.phone}</span>}
-                    <span>
-                      {c.tickets} {c.tickets === 1 ? "ticket" : "tickets"}
-                    </span>
-                    {c.creditTickets > 0 && (
-                      <span className="text-brand-400">· account</span>
+                  {/*
+                    A fixed slot for the markers, so every name starts at the
+                    same place. They used to sit inline, which pushed the name
+                    of anybody with approved credit a few pixels right of the
+                    name above it — down a column of forty that reads as a
+                    wobble rather than as a badge.
+                  */}
+                  <span className="cu-marks">
+                    {c.creditApproved && (
+                      <span className="cu-star" title="Store credit approved">★</span>
                     )}
-                    {c.isFleet === 1 && (
-                      <span className="cu-fleet-tag">
-                        {tr("company")} · {c.fleetMembers}
-                      </span>
+                    {c.hasNote && (
+                      <span className="cu-note-dot" title="Has a note" aria-hidden="true" />
                     )}
-                    {c.fleetName && <span className="text-brand-400">· {c.fleetName}</span>}
-                    {c.lastVisit && <span>last {c.lastVisit}</span>}
-                  </div>
+                  </span>
+
+                  <span className="cu-who">
+                    <span className="cu-name">{c.name}</span>
+                    <span className="cu-meta">
+                      {meta.map((m, i) => (
+                        <React.Fragment key={i}>
+                          {i > 0 && <span className="cu-sep" aria-hidden="true">·</span>}
+                          {m}
+                        </React.Fragment>
+                      ))}
+                    </span>
+                  </span>
+
+                  {/* Right-aligned and tabular, so a column of amounts stacks
+                      and can be compared at a glance. Inline after a
+                      variable-length name they landed at a different place on
+                      every row and could only be read one at a time. */}
+                  {money && (
+                    <span className={`cu-money${money.bad ? "" : " is-good"}`}>
+                      <span className="cu-amount">{money.amount}</span>
+                      <span className="cu-money-label">{tr(money.label)}</span>
+                    </span>
+                  )}
                 </button>
-              ))
+                );
+              })
             )}
           </div>
         </div>

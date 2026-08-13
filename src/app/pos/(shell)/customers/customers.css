@@ -196,3 +196,68 @@
   color: #146070;
   font-weight: 600;
 }
+
+/* ── One customer, as a row ────────────────────────────────────────────────
+   Three columns and not a paragraph: a fixed slot for the markers so every
+   name starts at the same x, the name and its detail in the middle, and the
+   money right-aligned so a column of amounts stacks and can be compared. The
+   old row let all three float inline after a variable-length name, which put
+   the figure somewhere different on every line. */
+.cu-row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border-top: 1px solid rgba(10, 37, 64, 0.06);
+}
+.cu-row:first-child { border-top: none; }
+.cu-row:hover { background: rgba(10, 37, 64, 0.035); }
+.cu-row.is-picked { background: rgba(10, 37, 64, 0.08); }
+.cu-row:focus-visible { outline: 2px solid #0a2540; outline-offset: -2px; }
+
+.cu-marks { display: inline-flex; align-items: center; gap: 3px; line-height: 1; }
+
+.cu-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cu-name {
+  color: #0a2540;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cu-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  line-height: 1.35;
+}
+/* A number is read digit by digit, so it gets figures that do not wander. */
+.cu-phone { font-variant-numeric: tabular-nums; }
+.cu-sep { color: #cbd5e1; }
+
+.cu-money { text-align: right; white-space: nowrap; line-height: 1.2; }
+.cu-amount {
+  display: block;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: #b91c1c;
+}
+.cu-money.is-good .cu-amount { color: #15803d; }
+/* The words shrink so the figure is what carries. Repeated down a column,
+   "owing to account" at full size competes with the number it describes. */
+.cu-money-label {
+  display: block;
+  font-size: 0.63rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
