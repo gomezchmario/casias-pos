@@ -188,3 +188,43 @@
   font-size: 13.5px;
   color: #14532d;
 }
+
+/*
+ * The reason under the verdict.
+ *
+ * The headline says BALANCED and this says why it is still allowed to be
+ * balanced while the drawer is light. Smaller and lighter deliberately: the
+ * finding is what somebody reads at a glance in a folder, and the arithmetic
+ * is what they read when they stop to check it.
+ */
+.cv3-verdict-why {
+  margin-top: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.45;
+  opacity: 0.85;
+}
+
+/*
+ * Cash from customers: the one line of the drawer table that is the shop
+ * earning money. The float is yesterday's, the movements are money being
+ * carried about, and the total below is arithmetic — this is the takings, and
+ * it is what somebody scanning the sheet is looking for.
+ *
+ * print-color-adjust because a background that only exists on screen is no use
+ * on the sheet that gets filed, and this sheet is printed far more than read.
+ */
+.cv3-took td {
+  background: rgb(21 128 61 / 0.12);
+  color: #14532d;
+  font-weight: 700;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+@media print {
+  .cv3-verdict-why {
+    font-size: 10.5pt;
+  }
+}

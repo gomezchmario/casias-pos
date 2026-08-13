@@ -790,7 +790,7 @@ export default function CloseoutV3Page() {
                 {outBy === 0
                   ? "BALANCED"
                   : shortByExactlyTips
-                    ? `SHORT BY EXACTLY THE TIPS (${formatCents(data.totals.tipCents)}) — that is not a shortage`
+                    ? "REGISTER BALANCED"
                     : `OUT BY ${formatCents(outBy)}`}
               </div>
               {finalCheck && (
@@ -898,8 +898,15 @@ export default function CloseoutV3Page() {
               : outBy === 0
                 ? "REGISTER BALANCED"
                 : shortByExactlyTips
-                  ? `SHORT BY EXACTLY THE TIPS (${formatCents(data.totals.tipCents)}) — NOT A SHORTAGE`
+                  ? "REGISTER BALANCED"
                   : `OUT BY ${formatCents(outBy)}`}
+            {registerLogged && shortByExactlyTips && (
+              <div className="cv3-verdict-why">
+                The drawer is {formatCents(data.totals.tipCents)} light and that is
+                exactly the tips paid out of it to the technicians — the money left
+                in hands, not unaccounted for.
+              </div>
+            )}
           </div>
 
           {finalCheck && (
@@ -942,7 +949,7 @@ export default function CloseoutV3Page() {
                 </td>
                 <td className="r n">{formatCents(data.drawer.floatCents)}</td>
               </tr>
-              <tr>
+              <tr className="cv3-took">
                 <td>Cash from customers</td>
                 <td className="r n">+{formatCents(data.drawer.cashSalesCents)}</td>
               </tr>
@@ -968,7 +975,7 @@ export default function CloseoutV3Page() {
             </tbody>
           </table>
 
-          {/* The day in four figures — enough for the file, no more. */}
+          {/* The day in figures — enough for the file, no more. */}
           <div className="rp-stats cv3-day">
             <Stat label="Sold" value={formatCents(data.totals.goodsCents)} />
             <Stat label="Collected" value={formatCents(data.totals.collectedCents)} />
@@ -977,6 +984,9 @@ export default function CloseoutV3Page() {
               label="Voids / refunds"
               value={`${data.tickets.voided} / ${data.tickets.refunds.length}`}
             />
+            <Stat label="New tires sold" value={String(data.sold.newTires.units)} />
+            <Stat label="In new tires alone" value={formatCents(data.sold.newTires.cents)} />
+            <Stat label="Disposals" value={String(data.sold.disposalUnits)} />
           </div>
 
           {/* Hand-ticked, not database-claimed: the system cannot verify the
