@@ -126,13 +126,21 @@ export const OURS: FulfillmentStatus[] = ["arrived", "no_answer", "installed"];
 export const ORDER_PILLS: Partial<
   Record<FulfillmentStatus, { bg: string; fg: string; border: string }>
 > = {
-  pending: { bg: "#ffedd5", fg: "#9a3412", border: "#fdba74" },
+  // Red, because it is the only stage where nothing has been set in motion yet:
+  // the customer has paid a deposit and the tire has not been ordered from
+  // anybody. Every other stage on this board is work in progress; this one is
+  // work not started, and it is the one that should catch an eye first.
+  pending: { bg: "#fee2e2", fg: "#b91c1c", border: "#fca5a5" },
   ordered: { bg: "#dbeafe", fg: "#1e40af", border: "#93c5fd" },
   arrived: { bg: "#ffedd5", fg: "#9a3412", border: "#fdba74" },
-  // Orange like Arrived, because it is the same job unfinished — the shop still
-  // owes somebody a phone call. Green like Fitted for Waiting for pickup: the
-  // shop has done everything it can and is waiting on the customer.
-  no_answer: { bg: "#ffedd5", fg: "#9a3412", border: "#fdba74" },
+  // Purple, and its own colour rather than Arrived's orange. The two used to
+  // match on the reasoning that both mean "a phone call is owed" — but that is
+  // exactly what makes them worth telling apart on a board somebody scans from
+  // across the counter: Arrived is a call nobody has made, no answer is a call
+  // already made once, and the second needs a different decision from the
+  // first. Green like Fitted for Waiting for pickup: the shop has done
+  // everything it can and is waiting on the customer.
+  no_answer: { bg: "#ede9fe", fg: "#6d28d9", border: "#c4b5fd" },
   waiting_pickup: { bg: "#dcfce7", fg: "#166534", border: "#86efac" },
   installed: { bg: "#dcfce7", fg: "#166534", border: "#86efac" },
   delivered: { bg: "#f1f5f9", fg: "#475569", border: "#cbd5e1" },

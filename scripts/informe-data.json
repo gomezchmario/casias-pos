@@ -1,0 +1,561 @@
+{
+ "generatedFor": "2026-08-14",
+ "record": {
+  "firstDay": "2024-03-01",
+  "lastDay": "2026-08-14",
+  "tradingDays": 847
+ },
+ "gaps": [
+  {
+   "from": "2024-09-20",
+   "to": "2024-09-30",
+   "days": 11
+  },
+  {
+   "from": "2025-08-04",
+   "to": "2025-08-12",
+   "days": 9
+  },
+  {
+   "from": "2026-06-27",
+   "to": "2026-07-14",
+   "days": 18
+  }
+ ],
+ "monthly": [
+  {
+   "month": "2024-03",
+   "tradingDays": 30,
+   "tickets": 3254,
+   "newU": 761,
+   "newC": 12761328,
+   "usedU": 289,
+   "usedC": 2232700,
+   "allC": 22795748,
+   "sizes": 120,
+   "partial": false
+  },
+  {
+   "month": "2024-04",
+   "tradingDays": 30,
+   "tickets": 2942,
+   "newU": 774,
+   "newC": 12766900,
+   "usedU": 310,
+   "usedC": 2203400,
+   "allC": 22129902,
+   "sizes": 120,
+   "partial": false
+  },
+  {
+   "month": "2024-05",
+   "tradingDays": 31,
+   "tickets": 3162,
+   "newU": 1070,
+   "newC": 18109217,
+   "usedU": 336,
+   "usedC": 2174500,
+   "allC": 26058327,
+   "sizes": 147,
+   "partial": false
+  },
+  {
+   "month": "2024-06",
+   "tradingDays": 30,
+   "tickets": 3220,
+   "newU": 1193,
+   "newC": 18456294,
+   "usedU": 315,
+   "usedC": 2045801,
+   "allC": 26052853,
+   "sizes": 150,
+   "partial": false
+  },
+  {
+   "month": "2024-07",
+   "tradingDays": 31,
+   "tickets": 3265,
+   "newU": 1196,
+   "newC": 18719393,
+   "usedU": 212,
+   "usedC": 1354980,
+   "allC": 25508276,
+   "sizes": 146,
+   "partial": false
+  },
+  {
+   "month": "2024-08",
+   "tradingDays": 31,
+   "tickets": 3312,
+   "newU": 1233,
+   "newC": 19630949,
+   "usedU": 231,
+   "usedC": 1487600,
+   "allC": 26536849,
+   "sizes": 143,
+   "partial": false
+  },
+  {
+   "month": "2024-09",
+   "tradingDays": 19,
+   "tickets": 1889,
+   "newU": 640,
+   "newC": 9934400,
+   "usedU": 102,
+   "usedC": 655500,
+   "allC": 13497050,
+   "sizes": 117,
+   "partial": true
+  },
+  {
+   "month": "2024-10",
+   "tradingDays": 31,
+   "tickets": 2778,
+   "newU": 1118,
+   "newC": 17625312,
+   "usedU": 160,
+   "usedC": 1045900,
+   "allC": 24021012,
+   "sizes": 156,
+   "partial": false
+  },
+  {
+   "month": "2024-11",
+   "tradingDays": 29,
+   "tickets": 2698,
+   "newU": 1047,
+   "newC": 15290700,
+   "usedU": 220,
+   "usedC": 1433900,
+   "allC": 20826801,
+   "sizes": 141,
+   "partial": false
+  },
+  {
+   "month": "2024-12",
+   "tradingDays": 29,
+   "tickets": 2485,
+   "newU": 843,
+   "newC": 10818600,
+   "usedU": 180,
+   "usedC": 968500,
+   "allC": 15146400,
+   "sizes": 130,
+   "partial": false
+  },
+  {
+   "month": "2025-01",
+   "tradingDays": 29,
+   "tickets": 1948,
+   "newU": 785,
+   "newC": 11657800,
+   "usedU": 152,
+   "usedC": 976900,
+   "allC": 15550452,
+   "sizes": 131,
+   "partial": false
+  },
+  {
+   "month": "2025-02",
+   "tradingDays": 28,
+   "tickets": 1869,
+   "newU": 755,
+   "newC": 11931700,
+   "usedU": 114,
+   "usedC": 681800,
+   "allC": 15934500,
+   "sizes": 134,
+   "partial": false
+  },
+  {
+   "month": "2025-03",
+   "tradingDays": 31,
+   "tickets": 2144,
+   "newU": 851,
+   "newC": 12614500,
+   "usedU": 80,
+   "usedC": 484500,
+   "allC": 17013959,
+   "sizes": 135,
+   "partial": false
+  },
+  {
+   "month": "2025-04",
+   "tradingDays": 29,
+   "tickets": 2059,
+   "newU": 790,
+   "newC": 12075020,
+   "usedU": 94,
+   "usedC": 540930,
+   "allC": 16372575,
+   "sizes": 129,
+   "partial": false
+  },
+  {
+   "month": "2025-05",
+   "tradingDays": 31,
+   "tickets": 2045,
+   "newU": 709,
+   "newC": 11877963,
+   "usedU": 93,
+   "usedC": 514000,
+   "allC": 16342503,
+   "sizes": 130,
+   "partial": false
+  },
+  {
+   "month": "2025-06",
+   "tradingDays": 30,
+   "tickets": 2197,
+   "newU": 860,
+   "newC": 14059200,
+   "usedU": 112,
+   "usedC": 648400,
+   "allC": 19059231,
+   "sizes": 129,
+   "partial": false
+  },
+  {
+   "month": "2025-07",
+   "tradingDays": 31,
+   "tickets": 2260,
+   "newU": 709,
+   "newC": 12056100,
+   "usedU": 102,
+   "usedC": 628000,
+   "allC": 17116957,
+   "sizes": 126,
+   "partial": false
+  },
+  {
+   "month": "2025-08",
+   "tradingDays": 22,
+   "tickets": 1479,
+   "newU": 382,
+   "newC": 5925840,
+   "usedU": 50,
+   "usedC": 297500,
+   "allC": 9251584,
+   "sizes": 97,
+   "partial": true
+  },
+  {
+   "month": "2025-09",
+   "tradingDays": 30,
+   "tickets": 1988,
+   "newU": 502,
+   "newC": 7943200,
+   "usedU": 55,
+   "usedC": 326000,
+   "allC": 12032174,
+   "sizes": 86,
+   "partial": false
+  },
+  {
+   "month": "2025-10",
+   "tradingDays": 31,
+   "tickets": 1813,
+   "newU": 435,
+   "newC": 7208332,
+   "usedU": 68,
+   "usedC": 381900,
+   "allC": 11463969,
+   "sizes": 95,
+   "partial": false
+  },
+  {
+   "month": "2025-11",
+   "tradingDays": 29,
+   "tickets": 1749,
+   "newU": 528,
+   "newC": 8275900,
+   "usedU": 51,
+   "usedC": 292800,
+   "allC": 12450983,
+   "sizes": 96,
+   "partial": false
+  },
+  {
+   "month": "2025-12",
+   "tradingDays": 29,
+   "tickets": 1522,
+   "newU": 359,
+   "newC": 5264500,
+   "usedU": 58,
+   "usedC": 341700,
+   "allC": 9059900,
+   "sizes": 84,
+   "partial": false
+  },
+  {
+   "month": "2026-01",
+   "tradingDays": 29,
+   "tickets": 1649,
+   "newU": 313,
+   "newC": 5270114,
+   "usedU": 31,
+   "usedC": 190030,
+   "allC": 9130333,
+   "sizes": 73,
+   "partial": false
+  },
+  {
+   "month": "2026-02",
+   "tradingDays": 28,
+   "tickets": 1481,
+   "newU": 293,
+   "newC": 4607275,
+   "usedU": 64,
+   "usedC": 388995,
+   "allC": 8267487,
+   "sizes": 71,
+   "partial": false
+  },
+  {
+   "month": "2026-03",
+   "tradingDays": 31,
+   "tickets": 1771,
+   "newU": 383,
+   "newC": 5689500,
+   "usedU": 81,
+   "usedC": 496500,
+   "allC": 10236382,
+   "sizes": 82,
+   "partial": false
+  },
+  {
+   "month": "2026-04",
+   "tradingDays": 30,
+   "tickets": 1515,
+   "newU": 347,
+   "newC": 5565200,
+   "usedU": 59,
+   "usedC": 365500,
+   "allC": 9137749,
+   "sizes": 80,
+   "partial": false
+  },
+  {
+   "month": "2026-05",
+   "tradingDays": 31,
+   "tickets": 1639,
+   "newU": 323,
+   "newC": 5343400,
+   "usedU": 49,
+   "usedC": 285000,
+   "allC": 9623450,
+   "sizes": 71,
+   "partial": false
+  },
+  {
+   "month": "2026-06",
+   "tradingDays": 26,
+   "tickets": 1124,
+   "newU": 186,
+   "newC": 3345500,
+   "usedU": 27,
+   "usedC": 156500,
+   "allC": 6163700,
+   "sizes": 59,
+   "partial": true
+  },
+  {
+   "month": "2026-07",
+   "tradingDays": 17,
+   "tickets": 939,
+   "newU": 203,
+   "newC": 3226200,
+   "usedU": 32,
+   "usedC": 190200,
+   "allC": 5360540,
+   "sizes": 47,
+   "partial": true
+  },
+  {
+   "month": "2026-08",
+   "tradingDays": 14,
+   "tickets": 781,
+   "newU": 196,
+   "newC": 2827000,
+   "usedU": 14,
+   "usedC": 86000,
+   "allC": 4400600,
+   "sizes": 54,
+   "partial": true
+  }
+ ],
+ "windows": {
+  "start": {
+   "months": [
+    "2024-03",
+    "2024-04",
+    "2024-05",
+    "2024-06",
+    "2024-07",
+    "2024-08"
+   ],
+   "tradingDays": 183,
+   "perDay": {
+    "allC": 814655.4918032787,
+    "newC": 548874.7595628415,
+    "usedC": 62835.96174863388,
+    "newU": 34.02732240437158,
+    "usedU": 9.251366120218579,
+    "tickets": 104.67213114754098
+   },
+   "avgTicketC": 7782.926389976507,
+   "avgNewPriceC": 16130.412879396177,
+   "avgUsedPriceC": 6792.0738334317775,
+   "sizesPerMonth": 137.66666666666666
+  },
+  "now": {
+   "months": [
+    "2026-02",
+    "2026-03",
+    "2026-04",
+    "2026-05",
+    "2026-06",
+    "2026-07"
+   ],
+   "tradingDays": 163,
+   "perDay": {
+    "allC": 299320.9079754601,
+    "newC": 170411.50306748465,
+    "usedC": 11550.276073619632,
+    "newU": 10.644171779141104,
+    "usedU": 1.9141104294478528,
+    "tickets": 51.95705521472393
+   },
+   "avgTicketC": 5760.929035305231,
+   "avgNewPriceC": 16009.841498559077,
+   "avgUsedPriceC": 6034.278846153846,
+   "sizesPerMonth": 68.33333333333333
+  }
+ },
+ "appWindows": {
+  "thenMonths": [
+   "2024-03",
+   "2024-04",
+   "2024-05",
+   "2024-06",
+   "2024-07",
+   "2024-08"
+  ],
+  "nowMonths": [
+   "2026-03",
+   "2026-04",
+   "2026-05",
+   "2026-06",
+   "2026-07",
+   "2026-08"
+  ],
+  "usedPerDayThenC": 62984.10949820789,
+  "usedPerDayNowC": 10123.888993148956,
+  "newPerDayThenC": 547904.4716845878,
+  "newPerDayNowC": 176964.13093442505,
+  "newUnitsThen": 33.96738351254481,
+  "newUnitsNow": 11.23931380658136,
+  "sizesThen": 137.66666666666666,
+  "sizesNow": 65.5
+ },
+ "yoy": {
+  "skipped": [],
+  "perDayNowC": 336871.6246246246,
+  "perDayBeforeC": 624765.198275862,
+  "ticketsPerDayNow": 56.06306306306306,
+  "ticketsPerDayBefore": 79.55172413793103,
+  "avgTicketNowC": 6008.798060956666,
+  "avgTicketBeforeC": 7853.572063285653,
+  "fromVolumeC": -184469.89242156825,
+  "fromPriceC": -103423.68122966925
+ },
+ "decomposition": {
+  "perDayChangeC": -515334.58382781857,
+  "fromVolumeC": -410277.55562713725,
+  "fromPriceC": -105057.02820068123
+ },
+ "used": {
+  "startPerDayC": 62835.96174863388,
+  "nowPerDayC": 11550.276073619632,
+  "gapPerDayC": 51285.68567501425,
+  "gapPerMonthC": 1559084.844520433,
+  "profitShare": 0.16666666666666663,
+  "profitLostPerMonthC": 259847.4740867388,
+  "cumulativeLostC": 29346123.601092905,
+  "cumulativeLostProfitC": 4891020.60018215,
+  "daysMeasured": 664
+ },
+ "wholeBusiness": {
+  "cumulativeLostC": 233470955.557377
+ },
+ "buybacks": [
+  {
+   "month": "2026-08",
+   "n": 2,
+   "cents": 3200
+  }
+ ],
+ "demand": [
+  {
+   "size": "225-50-17",
+   "asks": 2,
+   "units": 8
+  },
+  {
+   "size": "215-60-16",
+   "asks": 2,
+   "units": 7
+  },
+  {
+   "size": "235-40-18",
+   "asks": 2,
+   "units": 6
+  },
+  {
+   "size": "255-50-20",
+   "asks": 2,
+   "units": 3
+  },
+  {
+   "size": "235-75-15",
+   "asks": 2,
+   "units": 2
+  },
+  {
+   "size": "275-60-20",
+   "asks": 1,
+   "units": 15
+  },
+  {
+   "size": "11/22.5",
+   "asks": 1,
+   "units": 14
+  },
+  {
+   "size": "LT265-70-17",
+   "asks": 1,
+   "units": 8
+  }
+ ],
+ "demandTotal": 76,
+ "projectionBase": {
+  "months": [
+   "2026-03",
+   "2026-04",
+   "2026-05"
+  ],
+  "tradingDays": 92,
+  "perDay": {
+   "allC": 315191.097826087,
+   "newC": 180414.13043478262,
+   "usedC": 12467.391304347826,
+   "newU": 11.445652173913043,
+   "usedU": 2.0543478260869565,
+   "tickets": 53.53260869565217
+  },
+  "avgTicketC": 5887.8337055837565,
+  "avgNewPriceC": 15762.678062678062,
+  "avgUsedPriceC": 6068.783068783069,
+  "sizesPerMonth": 77.66666666666667
+ }
+}
