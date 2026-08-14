@@ -4,7 +4,8 @@
 /* Screen shows the procedure; paper gets the document. The evidence block is
    deliberately NOT on screen at all: the closing cashier's job is three steps,
    and every extra table on screen is something to skim past the verdict. */
-.cv3-print {
+.cv3-print,
+.cv3-cashier-print {
   display: none;
 }
 
@@ -81,7 +82,24 @@
     display: none !important;
   }
 
-  .cv3-print {
+  /*
+    ONE SHEET REACHES THE PRINTER, AND THE BUTTON DECIDES WHICH.
+
+    Both documents live in this page — the day being signed off, and one
+    person's takings being handed over. Without the mode on the root they would
+    print together every time, and somebody asking for a cashier's slip would
+    get the close-out stapled to it.
+  */
+  .cv3-printing-page1 .cv3-print {
+    display: block;
+  }
+
+  .cv3-printing-cashier .cv3-cashier-print {
+    display: block;
+  }
+
+  /* Ctrl+P with nothing chosen still prints the sheet that matters. */
+  .cv3-printing-none .cv3-print {
     display: block;
   }
 
@@ -355,4 +373,101 @@
   .cv3-retire span { font-size: 11pt; }
   .cv3-retire strong { font-size: 15pt; }
   .cv3-retire small { font-size: 8pt; }
+}
+
+/*
+ * Money taken in, by whoever took it — the chooser and its sheet.
+ *
+ * A different question from the close-out itself: that one is the day being
+ * signed off, this is one person's takings being handed over at the end of
+ * their shift. It sits at the top because the person asking for it is usually
+ * not the person closing the day, and they should not have to scroll past four
+ * steps of somebody else's procedure to reach it.
+ */
+.cv3-cashier-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  background: #fff;
+  border: 1px solid rgb(10 37 64 / 0.1);
+  border-radius: 12px;
+  padding: 0.6rem 0.9rem;
+  margin-bottom: 14px;
+}
+
+.cv3-cashier-lab {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-brand-300, #4f6e8e);
+}
+
+@media print {
+  /* Each person on their own sheet: it is handed to them, and two people's
+     takings on one page is a page neither of them can keep. */
+  .cv3-cashier-block {
+    break-inside: avoid;
+    break-after: page;
+    padding-bottom: 4mm;
+  }
+  /* No trailing blank page after the last one — the same forced-break trap the
+     close-out's own page1 avoids. */
+  .cv3-cashier-block:last-of-type {
+    break-after: auto;
+  }
+
+  .cv3-cashier-print .cv3-h3 {
+    font-size: 14pt;
+    font-weight: 700;
+    color: #0a2540;
+    margin: 5mm 0 2mm;
+    break-after: avoid;
+  }
+
+  .cv3-cashier-print .rp-table {
+    font-size: 11pt;
+  }
+  .cv3-cashier-print .rp-table td,
+  .cv3-cashier-print .rp-table th {
+    padding-top: 1.6mm;
+    padding-bottom: 1.6mm;
+  }
+
+  /* The only figure on the sheet that is an instruction: this is what they
+     physically hand over. The card total above it is for reconciling against
+     the batch and is nobody's to carry. */
+  .cv3-cashier-cash {
+    margin-top: 3mm;
+    padding: 2.5mm 3.5mm;
+    border-radius: 6px;
+    background: rgb(21 128 61 / 0.12);
+    color: #14532d;
+    border-left: 4px solid #15803d;
+    font-size: 11pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .cv3-cashier-cash strong {
+    font-size: 14pt;
+  }
+  .cv3-cashier-cash span {
+    display: block;
+    font-size: 8.5pt;
+    opacity: 0.8;
+  }
+
+  .cv3-cashier-sig {
+    margin-top: 12mm;
+    max-width: 80mm;
+    font-size: 9.5pt;
+    color: rgb(10 37 64 / 0.7);
+  }
+
+  .cv3-cashier-total {
+    margin-top: 4mm;
+    border-top: 2px solid #0a2540;
+    font-size: 11pt;
+  }
 }

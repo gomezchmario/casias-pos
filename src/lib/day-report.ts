@@ -197,7 +197,23 @@ export type CloseoutV2 = {
   mechanics: MechanicTotal[];
   /** Hours on the clock, and how much of that was actually clocked out. */
   hours: DayHours;
-  cashiers: { employeeId: number; name: string; collectedCents: number; tipCents: number; count: number }[];
+  /**
+   * What each person at the counter took in, and on which tenders.
+   *
+   * The tender split is the half that makes this printable. A cashier's total
+   * answers "how much went through them"; the split answers the question
+   * somebody actually has at the end of a shift — how much of that is cash
+   * they should be handing over, and how much went to the card batch and is
+   * nobody's to carry.
+   */
+  cashiers: {
+    employeeId: number;
+    name: string;
+    collectedCents: number;
+    tipCents: number;
+    count: number;
+    tenders: { methodId: number; label: string; isCard: number; count: number; cents: number; tipCents: number }[];
+  }[];
   sold: {
     newTires: { units: number; cents: number };
     usedTires: { units: number; cents: number };
@@ -261,6 +277,70 @@ export type CloseoutV2 = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Each cashier's takings, split by tender.
+ *
+ * Built here rather than inside `byCashier` because that one is also the
+ * shift-level figure on the close-out's own screen, and widening it would put
+ * a query per cashier behind a number that only ever needed one total.
+ *
+ * Reads the same payments table and the same day, so the per-cashier totals
+ * cannot disagree with the day's tender lines — they are the same rows grouped
+ * two ways.
+ */
+function cashiersWithTenders(businessDate: string): CloseoutV2["cashiers"] {
+  const db = getDb();
+  const rows = db
+    .prepare(
+      `SELECT e.id AS employeeId, e.name,
+              m.id AS methodId, m.label, m.is_card AS isCard,
+              COUNT(*) AS count,
+              COALESCE(SUM(p.amount_cents), 0) AS cents,
+              COALESCE(SUM(p.tip_cents), 0) AS tipCents
+         FROM payments p
+         JOIN employees e ON e.id = p.taken_by
+         JOIN payment_methods m ON m.id = p.method_id
+        WHERE p.business_date = ?
+     GROUP BY e.id, m.id
+     ORDER BY e.name, m.sort_order`,
+    )
+    .all(businessDate) as {
+    employeeId: number;
+    name: string;
+    methodId: number;
+    label: string;
+    isCard: number;
+    count: number;
+    cents: number;
+    tipCents: number;
+  }[];
+
+  const by = new Map<number, CloseoutV2["cashiers"][number]>();
+  for (const r of rows) {
+    const who = by.get(r.employeeId) ?? {
+      employeeId: r.employeeId,
+      name: r.name,
+      collectedCents: 0,
+      tipCents: 0,
+      count: 0,
+      tenders: [],
+    };
+    who.collectedCents += r.cents;
+    who.tipCents += r.tipCents;
+    who.count += r.count;
+    who.tenders.push({
+      methodId: r.methodId,
+      label: r.label,
+      isCard: r.isCard,
+      count: r.count,
+      cents: r.cents,
+      tipCents: r.tipCents,
+    });
+    by.set(r.employeeId, who);
+  }
+  return [...by.values()].sort((a, b) => b.collectedCents - a.collectedCents);
+}
 
 export function closeoutV2(businessDate: string): CloseoutV2 {
   const db = getDb();
@@ -558,7 +638,7 @@ export function closeoutV2(businessDate: string): CloseoutV2 {
     },
     mechanics: dayByMechanic(businessDate),
     hours: hoursForDay(businessDate),
-    cashiers: byCashier({ businessDate }),
+    cashiers: cashiersWithTenders(businessDate),
     sold: {
       newTires: { units: cat.newUnits, cents: cat.newCents },
       usedTires: { units: cat.usedUnits, cents: cat.usedCents },

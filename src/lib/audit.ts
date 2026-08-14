@@ -58,6 +58,10 @@ export type AuditAction =
   // own action because "who moved my tip" is a question about somebody's pay,
   // and it must not be answered by searching for a removal that never happened.
   | "payment.tip_reassigned"
+  // Which cashier a payment is credited to, corrected after the fact. Its own
+  // action because it moves no money at all — only the name on the takings —
+  // and a log searched for a money correction must not return it.
+  | "payment.cashier_reassign"
   | "shift.open"
   | "shift.close"
   | "drawer.withdraw"

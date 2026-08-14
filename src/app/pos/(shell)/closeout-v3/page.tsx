@@ -92,7 +92,14 @@ export default function CloseoutV3Page() {
    * The mode has to be committed to the DOM before the print dialog reads it,
    * which is why the button sets state and an effect does the printing.
    */
-  const [printMode, setPrintMode] = useState<"page1" | null>(null);
+  const [printMode, setPrintMode] = useState<"page1" | "cashier" | null>(null);
+  /**
+   * Whose takings the cashier sheet covers: one person, or everybody.
+   *
+   * Held as a string because it comes off a <select>; "all" is the total sheet
+   * and anything else is an employee id.
+   */
+  const [cashierPick, setCashierPick] = useState<string>("all");
   useEffect(() => {
     if (!printMode) return;
     const done = () => setPrintMode(null);
@@ -247,11 +254,30 @@ export default function CloseoutV3Page() {
   */
   const countedCash =
     finalCheck?.lines.find((l) => l.isCard === 0)?.countedCents ?? null;
-  const inDrawerCents =
-    countedCash !== null
-      ? countedCash
-      : data.drawer.expectedCents - data.totals.tipCents;
-  const retireCents = Math.max(0, inDrawerCents - data.drawer.floatCents);
+  const inDrawerCents = countedCash ?? data.drawer.expectedCents;
+
+  /*
+    THE TIPS COME OUT OF THE DRAWER TOO, AND USUALLY AFTER THE COUNT.
+
+    The shop counts the drawer and then pays the technicians their tips out of
+    it, so cash that is sitting there at counting time is already owed to
+    somebody and must not be carried to the safe. Measured across the counted
+    days on record, that is what happens on four days out of five.
+
+    ON THE FIFTH IT DOES NOT, and subtracting blindly would send somebody
+    looking for money that left hours ago: if the tips were handed out BEFORE
+    the count, the drawer comes up short by exactly them, and taking them off
+    again would understate what to retire by the whole tip figure. That case is
+    not guesswork — it is the same fact this sheet already prints as its
+    verdict, so it is read off the same signal rather than a second rule that
+    could disagree with the first.
+  */
+  const tipsStillInDrawer = !shortByExactlyTips;
+  const tipsToPayCents = tipsStillInDrawer ? data.totals.tipCents : 0;
+  const retireCents = Math.max(
+    0,
+    inDrawerCents - data.drawer.floatCents - tipsToPayCents,
+  );
 
   async function doClockOut(employeeId: number) {
     if (busy) return;
@@ -449,7 +475,7 @@ export default function CloseoutV3Page() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto rp cv3">
+    <div className={`max-w-4xl mx-auto rp cv3 cv3-printing-${printMode ?? "none"}`}>
       {/* ═══ SCREEN: the procedure ═══════════════════════════════════════ */}
       <div className="cv3-screen">
         <div className="mb-4">
@@ -461,6 +487,49 @@ export default function CloseoutV3Page() {
             register is logged.
           </p>
         </div>
+
+        {/*
+          MONEY TAKEN IN, BY WHOEVER TOOK IT.
+
+          At the top rather than beside the close-out's own print button,
+          because it answers a different question and is wanted at a different
+          moment: the sheet at the bottom is the day being signed off, this is
+          one person's takings being handed over at the end of their shift, and
+          the person asking for it is usually not the person closing the day.
+
+          "Everybody" prints the same sheet with a section per cashier and a
+          grand total, so the one document reconciles against the day's tender
+          lines without anybody adding up four printouts.
+        */}
+        {data.cashiers.length > 0 && (
+          <div className="cv3-cashier-bar no-print">
+            <span className="cv3-cashier-lab">Money taken in</span>
+            <select
+              className="input"
+              style={{ height: 34, fontSize: 13 }}
+              value={cashierPick}
+              onChange={(e) => setCashierPick(e.target.value)}
+              aria-label="Whose takings to print"
+            >
+              <option value="all">
+                Everybody — {formatCents(data.cashiers.reduce((n, c) => n + c.collectedCents, 0))}
+              </option>
+              {data.cashiers.map((c) => (
+                <option key={c.employeeId} value={String(c.employeeId)}>
+                  {c.name} — {formatCents(c.collectedCents)}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="btn btn-outline"
+              style={{ height: 34, fontSize: 13 }}
+              onClick={() => setPrintMode("cashier")}
+            >
+              Print
+            </button>
+          </div>
+        )}
 
         {/* ── What needs attention, before anything else ─────────────────
             At the top, above the first step, because a warning found after the
@@ -947,6 +1016,98 @@ export default function CloseoutV3Page() {
       </div>
 
       {/* ═══ PRINT: page one — the sheet that gets signed ════════════════ */}
+      {/* ═══ PRINT: money taken in, by cashier ═══════════════════════════ */}
+      {(() => {
+        const shown =
+          cashierPick === "all"
+            ? data.cashiers
+            : data.cashiers.filter((c) => String(c.employeeId) === cashierPick);
+        const grand = shown.reduce((n, c) => n + c.collectedCents, 0);
+        const grandTips = shown.reduce((n, c) => n + c.tipCents, 0);
+        const grandCount = shown.reduce((n, c) => n + c.count, 0);
+        /*
+          Cash is called out on its own line under each person because it is
+          the only tender they are physically holding. The card total is on
+          the sheet for reconciliation against the batch, but nobody hands it
+          over at the end of a shift, and a single "you took $1,594" invites
+          somebody to go looking for $1,594 in a drawer.
+        */
+        const cashOf = (c: (typeof data.cashiers)[number]) =>
+          c.tenders.filter((t) => t.isCard === 0).reduce((n, t) => n + t.cents, 0);
+        return (
+          <div className="cv3-cashier-print">
+            <div className="cv3-letterhead">
+              <ShopLogo size={44} priority />
+              <div>
+                <div style={{ fontWeight: 700, fontSize: "13pt" }}>
+                  Casias Muffler and Tire Shop · Money taken in
+                </div>
+                <div style={{ fontSize: "9.5pt" }}>
+                  {weekday} {data.businessDate} ·{" "}
+                  {cashierPick === "all" ? "everybody at the counter" : shown[0]?.name} ·
+                  printed {printedOn} by {user.name}
+                </div>
+              </div>
+            </div>
+
+            {shown.map((c) => (
+              <div key={c.employeeId} className="cv3-cashier-block">
+                <h3 className="cv3-h3">{c.name}</h3>
+                <table className="rp-table">
+                  <thead>
+                    <tr>
+                      <th>Tender</th>
+                      <th className="r">Payments</th>
+                      <th className="r">Tips in it</th>
+                      <th className="r">Taken</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {c.tenders.map((t) => (
+                      <tr key={t.methodId}>
+                        <td>{t.label}</td>
+                        <td className="r n">{t.count}</td>
+                        <td className="r n">{t.tipCents === 0 ? "—" : formatCents(t.tipCents)}</td>
+                        <td className="r n">{formatCents(t.cents)}</td>
+                      </tr>
+                    ))}
+                    <tr style={{ fontWeight: 700 }}>
+                      <td>All tenders</td>
+                      <td className="r n">{c.count}</td>
+                      <td className="r n">{c.tipCents === 0 ? "—" : formatCents(c.tipCents)}</td>
+                      <td className="r n">{formatCents(c.collectedCents)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div className="cv3-cashier-cash">
+                  Cash in hand from this person: <strong>{formatCents(cashOf(c))}</strong>
+                  <span> · the rest went to the card batch and is not theirs to carry.</span>
+                </div>
+                <div className="cv3-cashier-sig">
+                  <div className="cv3-sigline" />
+                  <div>Handed over by {c.name}</div>
+                </div>
+              </div>
+            ))}
+
+            {shown.length > 1 && (
+              <table className="rp-table cv3-cashier-total">
+                <tbody>
+                  <tr style={{ fontWeight: 700 }}>
+                    <td>Everybody</td>
+                    <td className="r n">{grandCount} payments</td>
+                    <td className="r n">{grandTips === 0 ? "—" : formatCents(grandTips)}</td>
+                    <td className="r n">{formatCents(grand)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            )}
+
+            {shown.length === 0 && <p className="rp-note">Nobody took money on this day.</p>}
+          </div>
+        );
+      })()}
+
       <div className="cv3-print">
         <div className="cv3-page1">
           <div className="cv3-letterhead">
@@ -1080,8 +1241,14 @@ export default function CloseoutV3Page() {
             <strong>{formatCents(retireCents)}</strong>
             <small>
               {countedCash !== null
-                ? `counted ${formatCents(inDrawerCents)} less the ${formatCents(data.drawer.floatCents)} float that stays`
-                : `drawer not counted — books say ${formatCents(inDrawerCents)} less the ${formatCents(data.drawer.floatCents)} float that stays`}
+                ? `counted ${formatCents(inDrawerCents)}`
+                : `drawer not counted — books say ${formatCents(inDrawerCents)}`}
+              {` less the ${formatCents(data.drawer.floatCents)} float that stays`}
+              {tipsToPayCents > 0
+                ? ` and the ${formatCents(tipsToPayCents)} of tips still to hand out`
+                : data.totals.tipCents > 0
+                  ? ` — the ${formatCents(data.totals.tipCents)} of tips already came out before the count`
+                  : ""}
             </small>
           </div>
 
