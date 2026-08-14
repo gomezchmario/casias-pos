@@ -530,3 +530,128 @@ html, body {
 .pos-grant button:hover {
   color: #7a5a05;
 }
+
+/*
+ * The corrections at the foot of the ticket drawer.
+ *
+ * Move a tip, take one off, refund, discount, void. They grew up separately and
+ * each centred itself its own way — two hugged the left edge, two sat in the
+ * middle — so the bottom of the drawer read as a pile of leftover links rather
+ * than a set of things you can do. One class, one alignment, one group.
+ *
+ * In globals rather than a module because DiscountTicket is shared with the
+ * register, where the same control sits in a plain div and needs to look the
+ * same as it does here.
+ */
+.td-fix {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid rgb(10 37 64 / 0.1);
+}
+
+.td-fix-label {
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-brand-300, #4f6e8e);
+  margin-bottom: 0.1rem;
+}
+
+/*
+ * Every opener in the group, and the one on the register.
+ *
+ * `mx-auto` on a block rather than `self-center`: the second only does anything
+ * inside a flex parent, and this same button sits in a plain div on the
+ * register — which is exactly how it ended up hugging the left edge there.
+ */
+.td-fix-open {
+  display: block;
+  margin: 0 auto;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.4rem;
+  font-size: 0.875rem;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  color: var(--color-brand-400, #1f3f64);
+  cursor: pointer;
+}
+.td-fix-open:hover {
+  background: rgb(10 37 64 / 0.05);
+  color: var(--color-brand-500, #0a2540);
+}
+
+.td-fix-open-danger {
+  color: #b91c1c;
+}
+.td-fix-open-danger:hover {
+  background: rgb(185 28 28 / 0.07);
+  color: #7f1d1d;
+}
+
+/* Voiding is the one act here that no other control on the list can walk
+   back, so it sits alone under its own rule. */
+.td-fix-danger {
+  margin-top: 0.15rem;
+  padding-top: 0.65rem;
+  border-top: 1px dashed rgb(10 37 64 / 0.12);
+}
+
+/*
+ * The ticket drawer's eye: show the working, or show what the ticket comes to.
+ *
+ * Off by default. A ticket corrected a few times carries every step — the wrong
+ * payment, the reversal that took it back, the one that replaced it, a struck
+ * line for anything removed — and all of it is true and none of it is what
+ * somebody opening the ticket is asking. The default nets it out.
+ *
+ * Safe because hiding a reversal also hides the row it reverses, and the pair
+ * sums to zero: the balance is the same whichever way this is set.
+ */
+.td-eye {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 0.45rem;
+  border: 1px solid transparent;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  /* Greyed rather than faded to nothing: it has to be findable by somebody who
+     has never been told it is there. */
+  filter: grayscale(1);
+  opacity: 0.45;
+  transition: opacity 0.12s, background 0.12s, filter 0.12s;
+}
+.td-eye:hover {
+  opacity: 0.8;
+  background: rgb(10 37 64 / 0.05);
+}
+.td-eye.is-on {
+  filter: none;
+  opacity: 1;
+  background: rgb(255 211 90 / 0.22);
+  border-color: rgb(217 119 6 / 0.45);
+}
+
+/* A payment that was reversed, or the reversal itself — shown only when the
+   working is on. Struck rather than dropped, so the pair reads as a thing that
+   happened and was undone. */
+.td-undone {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+
+/* How many rows the panel is holding back. Said out loud: a panel that quietly
+   drops four rows is one somebody stops trusting the moment they notice. */
+.td-money-hidden {
+  margin-top: 0.35rem;
+  font-size: 0.7rem;
+  font-style: italic;
+  color: var(--color-brand-300, #4f6e8e);
+}

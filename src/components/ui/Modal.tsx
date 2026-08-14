@@ -12,10 +12,27 @@ type Props = {
   title: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  /**
+   * A control of the dialog's own, sitting to the left of the ×.
+   *
+   * For things that change how the dialog READS rather than what it says — the
+   * ticket drawer's show-corrections eye is the first. It belongs in the header
+   * because it applies to everything below it, and putting it in the body would
+   * have made it look like part of whichever section it happened to land above.
+   */
+  headerAction?: React.ReactNode;
   width?: number;
 };
 
-export function Modal({ open, onClose, title, children, footer, width = 480 }: Props) {
+export function Modal({
+  open,
+  onClose,
+  title,
+  children,
+  footer,
+  headerAction,
+  width = 480,
+}: Props) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -73,14 +90,17 @@ export function Modal({ open, onClose, title, children, footer, width = 480 }: P
       >
         <div className="shrink-0 px-6 py-4 border-b border-black/5 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-brand-500">{title}</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-brand-300 hover:text-brand-500 text-xl leading-none"
-            aria-label="Close"
-          >
-            ×
-          </button>
+          <div className="flex items-center gap-1">
+            {headerAction}
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-brand-300 hover:text-brand-500 text-xl leading-none px-1"
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
         </div>
         {/* `min-h-0` is doing real work: a flex child defaults to a minimum
             size of its own content, which would let this box grow to whatever

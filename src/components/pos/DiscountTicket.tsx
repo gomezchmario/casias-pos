@@ -49,10 +49,11 @@ export function DiscountTicket({
     return (
       <button
         type="button"
-        /* block + mx-auto rather than self-center alone: self-center only does
-           anything inside a flex parent, and on the register this sits in a
-           plain div, where it was hugging the left edge. */
-        className="block mx-auto text-sm text-brand-400 hover:text-brand-500 underline self-center"
+        /* Shared with the other corrections in the ticket drawer — see
+           .td-fix-open. It centres itself rather than leaning on the parent,
+           because on the register this same control sits in a plain div where
+           self-center does nothing at all. */
+        className="td-fix-open"
         onClick={() => {
           setAmount(currentCents ? (currentCents / 100).toFixed(2) : "");
           setReason("");
@@ -61,7 +62,7 @@ export function DiscountTicket({
       >
         {currentCents > 0
           ? `${tr("Change the")} ${formatCents(currentCents)} ${tr("discount")}`
-          : tr("Take money off this ticket")}
+          : tr("Apply Discount")}
       </button>
     );
 

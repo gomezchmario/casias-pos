@@ -61,6 +61,23 @@ export function TicketDrawer({
   const [busy, setBusy] = useState(false);
   /** The cashier ceiling on a discount. Null for anybody who has no ceiling. */
   const [discountMax, setDiscountMax] = useState<number | null | undefined>(undefined);
+  /**
+   * Show the corrections, or show the ticket as it stands. OFF by default.
+   *
+   * A ticket that has been corrected a few times carries every step of it: the
+   * payment that was wrong, the reversal that took it back, the one that
+   * replaced it, and a struck line for anything taken off. All of that is the
+   * truth and none of it can be deleted — it is an append-only ledger and that
+   * is the point — but it is not what somebody opening the ticket is asking.
+   * They want to know what this ticket IS: what was sold, what was paid, what
+   * is owed. S-2026-000542 had seven payment rows adding up to three live ones.
+   *
+   * So the default view nets it out and the eye brings the working back. The
+   * figures are identical either way — hiding a reversal also hides the row it
+   * reverses, and the pair sums to zero — so the balance can never depend on
+   * which way this is set. That is the one property that makes hiding safe.
+   */
+  const [showFixes, setShowFixes] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/pos/sales/${saleId}`);
@@ -130,6 +147,28 @@ export function TicketDrawer({
             {detail ? detail.sale.sale_no : "—"}
           </span>
         </span>
+      }
+      headerAction={
+        /*
+          An eye, not a checkbox with a sentence: it sits in a header six
+          pixels from the close button and has to be readable at a glance
+          without a label. Dimmed when off, solid and boxed when on, so the
+          state is visible from across the counter.
+        */
+        <button
+          type="button"
+          onClick={() => setShowFixes((v) => !v)}
+          aria-pressed={showFixes}
+          className={`td-eye${showFixes ? " is-on" : ""}`}
+          title={
+            showFixes
+              ? tr("Hide the corrections and show the ticket as it stands")
+              : tr("Show every correction made to this ticket")
+          }
+          aria-label={showFixes ? tr("Hide corrections") : tr("Show corrections")}
+        >
+          {showFixes ? "👁" : "👁"}
+        </button>
       }
       width={620}
     >
@@ -204,7 +243,10 @@ export function TicketDrawer({
           {/* Reassignable on a live ticket by anyone who can ring one. A void
               has no credit left to move, so there it is read-only. */}
           <Lines
-            items={detail.items}
+            items={showFixes ? detail.items : detail.items.filter((i) => !i.voided)}
+            /* A struck line is a correction like any other: it says what the
+               ticket used to claim, not what it sold. Hidden with the rest of
+               the working unless somebody asks. */
             mechanics={detail.roster}
             editable={detail.sale.status !== "voided" && can("ringSale")}
             busy={busy}
@@ -244,6 +286,7 @@ export function TicketDrawer({
             }
           />
           <Money
+            showFixes={showFixes}
             sale={detail.sale}
             payments={detail.payments}
             methods={methods}
@@ -440,6 +483,46 @@ export function TicketDrawer({
             />
           )}
 
+          {/*
+            EVERYTHING THAT CORRECTS THIS TICKET, IN ONE PLACE.
+
+            These four grew up separately and each centred itself its own way —
+            two hugged the left edge, two sat in the middle — so the bottom of
+            the drawer read as a pile of leftover links rather than a set of
+            things you can do. They are the same KIND of act: undoing or
+            adjusting something already recorded. Grouping them says so, and a
+            single rule above the group separates them from the ticket itself,
+            which is what everything above is.
+
+            The order is how likely each is to be the right answer, with the
+            irreversible one last and alone under its own line.
+          */}
+          {(() => {
+            const live = detail.sale.status !== "voided";
+            const tippable =
+              live &&
+              can("correctPayment") &&
+              detail.payments.some(
+                (p) =>
+                  p.tip_cents > 0 &&
+                  p.kind !== "reversal" &&
+                  !detail.payments.some((r) => r.reverses_payment_id === p.id),
+              );
+            const refundable =
+              detail.sale.status === "completed" &&
+              can("voidSale") &&
+              detail.sale.paid_cents > 0;
+            const discountable =
+              live &&
+              detail.sale.kind !== "purchase" &&
+              can("discountSale") &&
+              discountMax !== undefined;
+            const voidable = live && can("voidSale");
+            return tippable || refundable || discountable || voidable;
+          })() && (
+          <div className="td-fix">
+            <div className="td-fix-label">{tr("Fix something on this ticket")}</div>
+
           {/* A tip that should not be on the ticket, taken off the row that
               carries it. One control per tipped payment, because a ticket can
               have more than one and "which tip" has no good abstract answer.
@@ -539,18 +622,24 @@ export function TicketDrawer({
               />
             )}
 
+          {/* Alone under its own rule. Voiding is the one act here that
+              cannot be walked back by another control on this list. */}
           {detail.sale.status !== "voided" && can("voidSale") && (
-            <VoidTicket
-              busy={busy}
-              onVoid={async (reason) => {
-                const ok = await send(`/api/pos/sales/${saleId}/void`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ reason }),
-                });
-                return ok;
-              }}
-            />
+            <div className="td-fix-danger">
+              <VoidTicket
+                busy={busy}
+                onVoid={async (reason) => {
+                  const ok = await send(`/api/pos/sales/${saleId}/void`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ reason }),
+                  });
+                  return ok;
+                }}
+              />
+            </div>
+          )}
+          </div>
           )}
         </div>
       )}
@@ -871,9 +960,12 @@ function Money({
   canCorrect,
   onCorrect,
   busy,
+  showFixes,
 }: {
   sale: Sale;
   payments: Payment[];
+  /** Show the working, or show what the ticket comes to. See the drawer's eye. */
+  showFixes: boolean;
   methods: PaymentMethod[];
   /** Manager and up — see `correctPayment`. */
   canCorrect: boolean;
@@ -895,6 +987,21 @@ function Money({
   const reversed = new Set(
     payments.map((p) => p.reverses_payment_id).filter((id): id is number => id != null),
   );
+
+  /*
+    WHAT THE TICKET COMES TO, RATHER THAN HOW IT GOT THERE.
+
+    A reversal and the row it reverses are equal and opposite, so dropping BOTH
+    changes nothing about the arithmetic — which is what makes this safe to
+    hide. Drop only one of them and the column stops adding up to the balance,
+    and a payment panel that does not add up is worse than a cluttered one.
+
+    S-2026-000542 is the case that prompted it: seven rows, of which two pairs
+    cancelled, leaving three that were true. The eye brings the other four back.
+  */
+  const liveRows = payments.filter((p) => p.kind !== "reversal" && !reversed.has(p.id));
+  const shownRows = showFixes ? payments : liveRows;
+  const hiddenCount = payments.length - liveRows.length;
 
   // Only a plain payment nobody has already reversed. A refund or a tip
   // adjustment says something specific about money that moved, and correcting
@@ -924,7 +1031,7 @@ function Money({
         )}
         <Row label={tr("Total")} value={formatCents(sale.total_cents)} strong />
         <div className="mt-2 pt-2 border-t border-black/10">
-          {payments.map((p) => (
+          {shownRows.map((p) => (
             <Row
               key={p.id}
               /* No SEQ on this line. It is the card batch's business, it means
@@ -933,10 +1040,26 @@ function Money({
               label={`${label(p.method_id)}${p.kind !== "payment" ? ` · ${p.kind.replace("_", " ")}` : ""}`}
               value={formatCents(p.amount_cents)}
               muted
+              /* Struck through only when the working is on show, where the
+                 point is to tell a row that stands from one that was undone.
+                 With the eye closed nothing here has been undone. */
+              undone={showFixes && (p.kind === "reversal" || reversed.has(p.id))}
             />
           ))}
-          {payments.length === 0 && (
+          {shownRows.length === 0 && (
             <div className="text-brand-300">{tr("Nothing collected on this ticket.")}</div>
+          )}
+          {/* Said, rather than silently omitted. A panel that quietly drops
+              four rows is a panel somebody stops trusting the moment they
+              notice; one that says how many it is holding back, and offers the
+              eye, is one they can check. */}
+          {!showFixes && hiddenCount > 0 && (
+            <div className="td-money-hidden">
+              {hiddenCount}{" "}
+              {hiddenCount === 1 ? tr("corrected row hidden") : tr("corrected rows hidden")}
+              {" — "}
+              {tr("open the eye above to see them")}
+            </div>
           )}
         </div>
         {sale.balance_cents !== 0 && (
@@ -955,8 +1078,12 @@ function Money({
           "Wrong tender on the Credit Card?Wrong tender on the Cash?" — which
           reads as gibberish and gives neither a click target you can aim at.
           One per line, each only as wide as its own words. */}
-      {fixable.length > 0 && (
-        <div className="mb-1 flex flex-col items-start gap-1.5">
+      {/* With the eye closed these come off too. They are the tools for
+          changing what the ticket says, and a clean read of the ticket is
+          precisely the moment nobody is using them — three of them stacked
+          under the figures was most of what made this panel hard to scan. */}
+      {showFixes && fixable.length > 0 && (
+        <div className="mt-2 flex flex-col items-start gap-1.5">
           {fixable.map((p) => (
             <Fragment key={p.id}>
               {editing !== p.id && (
@@ -1088,15 +1215,18 @@ function Row({
   value,
   strong,
   muted,
+  undone,
 }: {
   label: string;
   value: string;
   strong?: boolean;
   muted?: boolean;
+  /** A row that was reversed, or the reversal itself. Struck, not hidden. */
+  undone?: boolean;
 }) {
   return (
     <div
-      className={`flex justify-between py-0.5 ${strong ? "font-semibold text-brand-500" : muted ? "text-brand-400" : ""}`}
+      className={`flex justify-between py-0.5 ${strong ? "font-semibold text-brand-500" : muted ? "text-brand-400" : ""}${undone ? " td-undone" : ""}`}
     >
       <span>{label}</span>
       <span className="tabular-nums">{value}</span>
@@ -1392,7 +1522,7 @@ function VoidTicket({
     return (
       <button
         type="button"
-        className="text-sm text-red-700 hover:text-red-900 underline self-center"
+        className="td-fix-open td-fix-open-danger"
         onClick={() => setArming(true)}
       >
         Void this ticket
@@ -1719,7 +1849,7 @@ function RefundTicket({
     return (
       <button
         type="button"
-        className="text-sm underline self-center"
+        className="td-fix-open"
         style={{ color: "#b45309" }}
         onClick={() => {
           setMethodId(paidMethodIds[0] ?? methods[0]?.id ?? 0);
@@ -1851,7 +1981,7 @@ function MoveTip({
     return (
       <button
         type="button"
-        className="text-sm text-brand-400 hover:text-brand-500 underline text-left"
+        className="td-fix-open"
         onClick={() => setArming(true)}
       >
         {tr("Move the")} {formatCents(tipCents)} {tr("tip to somebody else")}
@@ -1926,7 +2056,7 @@ function RemoveTip({
     return (
       <button
         type="button"
-        className="text-sm text-brand-400 hover:text-brand-500 underline text-left"
+        className="td-fix-open"
         onClick={() => setArming(true)}
       >
         Take the {formatCents(tipCents)} tip off

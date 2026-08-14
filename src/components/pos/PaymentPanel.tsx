@@ -543,19 +543,22 @@ export function PaymentPanel({
         THE DISCOUNT LIVES BEHIND "OTHER".
 
         It had no home on the register at all — the only way to take money
-        off a ticket was to open it again from Logs afterwards, which is
-        both slower and a different screen from the one the customer is
-        standing at. It sits under Other rather than beside every tender
-        because a discount is not a way of paying: putting it next to Cash
-        and Card would make it look like one, and the tender row is the one
-        place on this panel that must not gain a fourth meaning.
+        off a ticket was to open it again from Logs afterwards, which is both
+        slower and a different screen from the one the customer is standing at.
+
+        ALWAYS SHOWN, not only once a tender is chosen. It used to appear under
+        Other, on the reasoning that a discount is not a way of paying and
+        should not sit in the tender row looking like one. That much is still
+        true — it is below the row, not in it — but hiding it until somebody
+        picked a particular tender hid it from the moment it is actually
+        wanted: the discount is agreed with the customer BEFORE anybody decides
+        how they are paying, and a cashier who has not pressed Other has no way
+        of knowing the control exists at all.
 
         Applying one re-reads the ticket, so the total the Complete button
-        charges against is the discounted one.
+        charges against is the discounted one — see goodsCents.
       */}
-      {method?.code === "other" &&
-        can("discountSale") &&
-        discountMax !== undefined && (
+      {can("discountSale") && discountMax !== undefined && (
           <div className="mb-2">
             <DiscountTicket
               subtotalCents={sale.subtotal_cents}

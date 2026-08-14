@@ -775,7 +775,7 @@ const ES: Record<string, string> = {
     "El sugerido es más o menos lo que se vende en dos semanas al ritmo de arriba — un punto de partida, no una respuesta. Dos semanas sirve solo si el camión llega en dos semanas, y eso el sistema no lo sabe. Póngalo en la llanta desde Inventario y empezará a salir en Por pedir.",
 
 // ── Discounts and the search list ──────────────────────────────────────
-  "Take money off this ticket": "Quitarle dinero a este ticket",
+  "Apply Discount": "Aplicar descuento",
   "Change the": "Cambiar el",
   discount: "descuento",
   "How much off": "Cuánto de descuento",
