@@ -85,9 +85,11 @@
     display: block;
   }
 
+  /* 12mm rather than 14: four millimetres back, and still a wider margin than
+     anything this gets filed in needs. */
   @page {
     size: letter;
-    margin: 14mm;
+    margin: 12mm;
   }
 
   /* The close-out prints as ONE page. A six-page nightly print is one nobody
@@ -107,59 +109,122 @@
     break-after: auto;
     display: flex;
     flex-direction: column;
-    min-height: 240mm;
+    /*
+      The printable area at 12mm margins, and not a millimetre more.
+
+      The signatures sit at the foot of this flex column on `margin-top: auto`,
+      so this figure is what they get pushed down to. It has to equal the paper:
+      larger and they are driven off the bottom, smaller and they float up under
+      the content instead of sitting where a signature belongs.
+
+      What put them on page two was the content itself outgrowing the old 251mm
+      printable area — the retire box and three more figures went on and the
+      column stopped fitting. The sizes below are where that came back, with
+      room left over for the tender table, which is the part that grows.
+    */
+    min-height: 255mm;
   }
 
   .cv3-letterhead {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     border-bottom: 2.5pt solid #0a2540;
-    padding-bottom: 8px;
-    margin-bottom: 14px;
+    padding-bottom: 5px;
+    margin-bottom: 8px;
   }
 
   .cv3-verdict {
-    font-size: 20pt;
-    margin: 4mm 0 6mm;
+    font-size: 16pt;
+    margin: 3mm 0 4mm;
+    padding: 8px 12px;
   }
 
+  /*
+    THE TENDER TABLE IS THE ONE THAT GROWS.
+
+    Everything else on this sheet is a fixed number of lines; this one gains a
+    row every time the shop takes a new kind of money, and at 12pt with 3mm of
+    padding each row cost 11.5mm — three tenders and the signatures were off the
+    page. At these sizes a row is about 7mm, so the sheet now holds five or six
+    without moving anything. Still the largest type in any table here, because
+    it is the table somebody reads while counting.
+  */
   .cv3-recon {
-    font-size: 12pt;
+    font-size: 11pt;
   }
 
   .cv3-recon td,
   .cv3-recon th {
-    padding-top: 3mm;
-    padding-bottom: 3mm;
+    padding-top: 1.6mm;
+    padding-bottom: 1.6mm;
   }
 
+  /* The drawer's own lines, which are read after the counting rather than
+     during it. */
+  .cv3-drawer {
+    font-size: 10pt;
+  }
+  .cv3-drawer td {
+    padding-top: 1.2mm;
+    padding-bottom: 1.2mm;
+  }
+
+  /*
+    Seven figures across, not four-and-three.
+
+    The screen grid is auto-fit at 168px, which on paper wrapped into two rows
+    of tall cards — 52mm for seven numbers nobody needs a card around. Four
+    columns, flat, no border radius: the same seven facts in half the height.
+  */
   .cv3-day {
-    margin-top: 6mm;
+    margin-top: 4mm;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2mm;
+  }
+
+  .cv3-day .rp-stat {
+    padding: 1.5mm 2mm;
+    border: 1px solid #ddd;
+    border-radius: 0;
+  }
+  .cv3-day .rp-stat-lab {
+    font-size: 7pt;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.5mm;
+  }
+  .cv3-day .rp-stat-val {
+    font-size: 12pt;
   }
 
   .cv3-manual-ticks {
-    margin-top: 8mm;
-    font-size: 12pt;
-    line-height: 2.1;
+    margin-top: 5mm;
+    font-size: 10.5pt;
+    line-height: 1.7;
   }
 
   /* Signatures pinned to the bottom of page one, where a signature belongs —
      under everything it certifies, with nothing after it on the page. */
+  /* Pinned to the bottom of page one, where a signature belongs — under
+     everything it certifies, with nothing after it on the page. `margin-top:
+     auto` does that, which is why the min-height above has to be the paper and
+     not a millimetre more. */
   .cv3-signatures {
     margin-top: auto;
-    padding-top: 14mm;
+    padding-top: 8mm;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 20mm;
-    font-size: 10pt;
+    gap: 16mm;
+    font-size: 9.5pt;
     color: rgb(10 37 64 / 0.7);
   }
 
   .cv3-sigline {
     border-bottom: 1.2pt solid #0a2540;
-    height: 14mm;
-    margin-bottom: 2mm;
+    /* Enough to sign in. Nobody needs fourteen millimetres of air above a
+       line they write one name on. */
+    height: 10mm;
+    margin-bottom: 1.5mm;
   }
 
   .cv3-evidence h3.cv3-h3 {
@@ -284,10 +349,10 @@
 
 @media print {
   .cv3-retire {
-    margin-top: 4mm;
-    padding: 3mm 4mm;
+    margin-top: 3mm;
+    padding: 2.2mm 3.5mm;
   }
-  .cv3-retire span { font-size: 12pt; }
-  .cv3-retire strong { font-size: 17pt; }
-  .cv3-retire small { font-size: 8.5pt; }
+  .cv3-retire span { font-size: 11pt; }
+  .cv3-retire strong { font-size: 15pt; }
+  .cv3-retire small { font-size: 8pt; }
 }
