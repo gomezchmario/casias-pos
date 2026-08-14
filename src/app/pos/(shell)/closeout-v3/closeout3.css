@@ -206,23 +206,6 @@
   opacity: 0.85;
 }
 
-/*
- * Cash from customers: the one line of the drawer table that is the shop
- * earning money. The float is yesterday's, the movements are money being
- * carried about, and the total below is arithmetic — this is the takings, and
- * it is what somebody scanning the sheet is looking for.
- *
- * print-color-adjust because a background that only exists on screen is no use
- * on the sheet that gets filed, and this sheet is printed far more than read.
- */
-.cv3-took td {
-  background: rgb(21 128 61 / 0.12);
-  color: #14532d;
-  font-weight: 700;
-  -webkit-print-color-adjust: exact;
-  print-color-adjust: exact;
-}
-
 @media print {
   .cv3-verdict-why {
     font-size: 10.5pt;
@@ -242,4 +225,69 @@
   background: rgb(217 119 6 / 0.12);
   color: #7c2d12;
   border-left: 5px solid #d97706;
+}
+
+/*
+ * The one instruction on a sheet of findings.
+ *
+ * Everything else on this page describes what happened; this says what to do
+ * with the drawer. Page-wide and green so somebody holding the sheet at arm's
+ * length finds it without reading, and print-color-adjust because the sheet
+ * exists to be printed — a colour that only shows on screen would be no colour
+ * at all here.
+ */
+.cv3-retire {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  margin-top: 10px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: rgb(21 128 61 / 0.12);
+  color: #14532d;
+  border-left: 5px solid #15803d;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.cv3-retire span {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.cv3-retire strong {
+  font-size: 24px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+}
+.cv3-retire small {
+  flex-basis: 100%;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+/*
+ * The drawer's three inputs and its total, banded.
+ *
+ * Cash from customers used to be picked out in green on its own, which read as
+ * the table's conclusion when it is one of three things feeding the line below
+ * it. Banding keeps the rows apart on paper — where hairlines disappear —
+ * without claiming any single row matters more than the others.
+ */
+.cv3-drawer tbody tr:nth-child(odd) td {
+  background: rgb(10 37 64 / 0.035);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+@media print {
+  .cv3-retire {
+    margin-top: 4mm;
+    padding: 3mm 4mm;
+  }
+  .cv3-retire span { font-size: 12pt; }
+  .cv3-retire strong { font-size: 17pt; }
+  .cv3-retire small { font-size: 8.5pt; }
 }

@@ -225,6 +225,34 @@ export default function CloseoutV3Page() {
   const onlyOver = overCents > 0 && shortCents === 0;
   const onlyShort = shortCents < 0 && overCents === 0;
 
+  /*
+    WHAT TO PHYSICALLY TAKE OUT OF THE DRAWER TONIGHT.
+
+    Every other figure on this sheet describes what happened. This one is an
+    instruction, and it was the one thing the sheet made somebody work out in
+    their head at the end of a long day: what is in the drawer, less the float
+    that has to be there in the morning.
+
+    Counted first, expected second. If the drawer has been counted, the cash in
+    it is a fact and the arithmetic should be done against the fact — that is
+    the whole reason for counting. Only when nobody has counted does this fall
+    back to what the books say should be there, less the tips that were handed
+    out of it in cash, which the books do not know about (see the tips line and
+    the balanced-but-short verdict above).
+
+    Never negative on the sheet. A drawer holding less than its float is a real
+    situation and a serious one, but "retire −$40.00" is not an instruction
+    anybody can carry out, so it says nothing to remove and leaves the shortage
+    to the verdict, which is where a shortage belongs.
+  */
+  const countedCash =
+    finalCheck?.lines.find((l) => l.isCard === 0)?.countedCents ?? null;
+  const inDrawerCents =
+    countedCash !== null
+      ? countedCash
+      : data.drawer.expectedCents - data.totals.tipCents;
+  const retireCents = Math.max(0, inDrawerCents - data.drawer.floatCents);
+
   async function doClockOut(employeeId: number) {
     if (busy) return;
     const hhmm = outAt[employeeId] ?? new Date().toTimeString().slice(0, 5);
@@ -993,8 +1021,14 @@ export default function CloseoutV3Page() {
           )}
 
           {/* The drawer explained in one line each — the three numbers that
-              produced Expected, so a signature is never against a mystery. */}
-          <table className="rp-table">
+              produced Expected, so a signature is never against a mystery.
+
+              Zebra-striped rather than picking one row out in colour. Cash from
+              customers was highlighted green on its own, which made it look
+              like the conclusion of the table when it is one of three inputs to
+              it; banding the whole thing keeps the rows apart on paper without
+              claiming any of them matters more. */}
+          <table className="rp-table cv3-drawer">
             <tbody>
               <tr>
                 <td>
@@ -1007,7 +1041,7 @@ export default function CloseoutV3Page() {
                 </td>
                 <td className="r n">{formatCents(data.drawer.floatCents)}</td>
               </tr>
-              <tr className="cv3-took">
+              <tr>
                 <td>Cash from customers</td>
                 <td className="r n">+{formatCents(data.drawer.cashSalesCents)}</td>
               </tr>
@@ -1033,18 +1067,44 @@ export default function CloseoutV3Page() {
             </tbody>
           </table>
 
+          {/*
+            The one instruction on a sheet of findings.
+
+            Page wide and green because it is what somebody DOES after reading
+            everything above it, and it should be findable by a person holding
+            the sheet at arm's length. print-color-adjust for the same reason
+            the takings row has it: this exists to be printed.
+          */}
+          <div className="cv3-retire">
+            <span>Money to be retired from the drawer</span>
+            <strong>{formatCents(retireCents)}</strong>
+            <small>
+              {countedCash !== null
+                ? `counted ${formatCents(inDrawerCents)} less the ${formatCents(data.drawer.floatCents)} float that stays`
+                : `drawer not counted — books say ${formatCents(inDrawerCents)} less the ${formatCents(data.drawer.floatCents)} float that stays`}
+            </small>
+          </div>
+
           {/* The day in figures — enough for the file, no more. */}
           <div className="rp-stats cv3-day">
             <Stat label="Sold" value={formatCents(data.totals.goodsCents)} />
             <Stat label="Collected" value={formatCents(data.totals.collectedCents)} />
             <Stat label="Tickets" value={String(data.totals.saleCount)} />
+            {/* Beside tickets, because it is the other half of the same
+                question: how much work went through, as opposed to how many
+                people it was split across. Every live line counts — a tire
+                fitted is work done, not only the things filed as services. */}
+            <Stat label="Lines / services done" value={String(data.sold.lineCount)} />
+            <Stat label="New tires sold" value={String(data.sold.newTires.units)} />
+            <Stat label="In new tires alone" value={formatCents(data.sold.newTires.cents)} />
+            <Stat label="Disposals" value={String(data.sold.disposalUnits)} />
+            {/* Last. It is the only one here that is not a measure of the day's
+                work, and leading with it put the exceptions ahead of the
+                takings on a sheet that is mostly good news. */}
             <Stat
               label="Voids / refunds"
               value={`${data.tickets.voided} / ${data.tickets.refunds.length}`}
             />
-            <Stat label="New tires sold" value={String(data.sold.newTires.units)} />
-            <Stat label="In new tires alone" value={formatCents(data.sold.newTires.cents)} />
-            <Stat label="Disposals" value={String(data.sold.disposalUnits)} />
           </div>
 
           {/* Hand-ticked, not database-claimed: the system cannot verify the

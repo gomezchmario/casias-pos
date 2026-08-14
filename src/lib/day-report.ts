@@ -202,6 +202,8 @@ export type CloseoutV2 = {
     newTires: { units: number; cents: number };
     usedTires: { units: number; cents: number };
     service: { lines: number; cents: number };
+    /** Every live line on the day's tickets — tires, services, everything. */
+    lineCount: number;
     /** Tickets carrying at least one new tire, over completed tickets. */
     attachmentPct: number;
     disposalUnits: number;
@@ -349,13 +351,19 @@ export function closeoutV2(businessDate: string): CloseoutV2 {
          COALESCE(SUM(CASE WHEN c.code IS NULL OR c.code NOT IN ('new_tire','used_tire')
                            THEN 1 ELSE 0 END), 0)                                            AS svcLines,
          COALESCE(SUM(CASE WHEN c.code IS NULL OR c.code NOT IN ('new_tire','used_tire')
-                           THEN i.line_total_cents ELSE 0 END), 0)                           AS svcCents
+                           THEN i.line_total_cents ELSE 0 END), 0)                           AS svcCents,
+         -- Every live line on the day's completed tickets, tires included.
+         -- svcLines above is the SERVICE lines only, which is a different
+         -- question and was the only one the report could answer: "how much
+         -- work went through" counts a tire fitted as work done.
+         COUNT(*)                                                                            AS allLines
        FROM sale_items i
        JOIN sales s ON s.id = i.sale_id
   LEFT JOIN service_categories c ON c.id = i.category_id
       WHERE ${SALE} AND i.voided = 0 AND s.business_date = ?`,
     )
     .get(businessDate) as {
+    allLines: number;
     newUnits: number;
     newCents: number;
     usedUnits: number;
@@ -555,6 +563,7 @@ export function closeoutV2(businessDate: string): CloseoutV2 {
       newTires: { units: cat.newUnits, cents: cat.newCents },
       usedTires: { units: cat.usedUnits, cents: cat.usedCents },
       service: { lines: cat.svcLines, cents: cat.svcCents },
+      lineCount: cat.allLines,
       attachmentPct:
         states.completed > 0 ? (attach.withTire / states.completed) * 100 : 0,
       disposalUnits: disposal.units,
