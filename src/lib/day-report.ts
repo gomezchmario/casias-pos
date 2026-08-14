@@ -1,4 +1,5 @@
 import { getDb } from "./db";
+import { roleAtLeast, type PosRole } from "./roles";
 import { taxIncludedInCents } from "./money";
 import { getSetting } from "./settings";
 import { COST_JOINS, assumedCostSql } from "./costs";
@@ -85,6 +86,19 @@ export type UnpaidRow = {
 
 export type TopLine = { label: string; qty: number; cents: number };
 
+/**
+ * The alarms this person may be told about.
+ *
+ * Owner rank, which the viewer also carries — that account exists to see what
+ * an owner sees, and an alarm it could not read would make it a poor stand-in
+ * for the screen it is meant to be checking. Manager and below never receive
+ * the row, so there is nothing for a client to leak.
+ */
+export function exceptionsFor(list: Exception[], role: PosRole): Exception[] {
+  if (roleAtLeast(role, "owner")) return list;
+  return list.filter((e) => !e.ownerOnly);
+}
+
 export type Exception = {
   /**
    * The alarm's identity, stable for the life of the shop.
@@ -95,6 +109,21 @@ export type Exception = {
    * name. See `alarm_actions` in 036_alarms.sql.
    */
   code: string;
+  /**
+   * Only the owner may be told about this one.
+   *
+   * The register logs not balancing is a question about whoever counted the
+   * drawer, and the people it is asking about are the people standing at the
+   * counter reading the screen. Every other alarm here is work to be done and
+   * belongs in front of whoever can do it; this one is the owner deciding
+   * whether to ask somebody a question, and it should not announce itself to
+   * the room first.
+   *
+   * Enforced where the report is SERVED, not where it is drawn — see
+   * exceptionsFor. A page that hid the row would still have been handed the
+   * text, and the text is the whole of what is being withheld.
+   */
+  ownerOnly?: boolean;
   /**
    * Whether this alarm is about THE DAY or about RIGHT NOW.
    *
@@ -647,6 +676,7 @@ function findExceptions(r: CloseoutV2): Exception[] {
       scope: "day",
       dismissed: null,
       severity: "serious",
+      ownerOnly: true,
       text: `${badChecks.length} register ${badChecks.length === 1 ? "log" : "logs"} today did not balance. The earliest imbalance is the fact worth chasing — everything after it inherits the problem.`,
     });
 

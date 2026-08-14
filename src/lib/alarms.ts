@@ -1,10 +1,11 @@
 import { getDb } from "./db";
+import type { PosRole } from "./roles";
 import { inTx } from "./tx";
 import { Actor, logActorAudit } from "./audit";
 import { PosUser } from "./pos-session";
 import { can } from "./roles";
 import { nowLocalIso } from "./time";
-import { closeoutV2, Exception } from "./day-report";
+import { closeoutV2, Exception, exceptionsFor } from "./day-report";
 
 /**
  * The alarm book.
@@ -151,7 +152,7 @@ function daysBetween(from: string, to: string): string[] {
  * at a week rather than the ninety days the first draft offered. See MAX_DAYS
  * on the alarms route.
  */
-export function alarmBook(from: string, to: string): AlarmBook {
+export function alarmBook(from: string, to: string, role: PosRole = "owner"): AlarmBook {
   const actions = actionsFor(from, to);
   const days: AlarmBook["days"] = [];
   const range = daysBetween(from, to);
@@ -159,7 +160,7 @@ export function alarmBook(from: string, to: string): AlarmBook {
 
   for (const businessDate of range) {
     const report = closeoutV2(businessDate);
-    const alarms: AlarmRow[] = report.exceptions
+    const alarms: AlarmRow[] = exceptionsFor(report.exceptions, role)
       /*
         A standing alarm belongs to the newest day in the range and nowhere
         else. It is a fact about the racks as they are — see `Exception.scope` —

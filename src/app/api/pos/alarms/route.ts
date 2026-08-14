@@ -34,7 +34,9 @@ export async function GET(req: NextRequest) {
   if (span > MAX_DAYS)
     return jsonError(`That is ${Math.round(span)} days. ${MAX_DAYS} is the most at once.`);
 
-  return NextResponse.json({ ...alarmBook(from, to), today });
+  // The same withholding as the close-out payload: an alarm the owner keeps
+  // to themselves must not arrive in the log a manager can open.
+  return NextResponse.json({ ...alarmBook(from, to, auth.user.role), today });
 }
 
 export async function POST(req: NextRequest) {
