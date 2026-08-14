@@ -88,6 +88,8 @@ export function PaymentPanel({
    * was always meant to be deliberate.
    */
   const [methodId, setMethodId] = useState<number | null>(null);
+  /** Is the Financing group open? See the tender row. */
+  const [pickingFinance, setPickingFinance] = useState(false);
   /**
    * The cashier's ceiling on a discount, or null for somebody who has none.
    *
@@ -126,6 +128,21 @@ export function PaymentPanel({
   const method = methods.find((m) => m.id === methodId);
   /** The house account, by code rather than by label — labels get renamed. */
   const isAccount = method?.code === "credit_account";
+
+  /*
+    The financing providers, and everything else.
+
+    Split on the method's own kind so the register never carries a list of
+    provider codes — adding a third is a row in payment_methods. With only one
+    financing method active the group collapses: it goes back in the main row
+    under its own name, because a Financing button that opens onto a single
+    choice is a tap that asks nothing.
+  */
+  const financing = methods.filter((m) => m.kind === "financing");
+  const plainMethods =
+    financing.length > 1 ? methods.filter((m) => m.kind !== "financing") : methods;
+  const financingChosen =
+    financing.length > 1 ? (financing.find((m) => m.id === methodId) ?? null) : null;
   useEffect(() => {
     onTenderChange?.(isAccount);
   }, [isAccount, onTenderChange]);
@@ -521,8 +538,22 @@ export function PaymentPanel({
 
   return (
     <div className="mt-4 pt-4 border-t border-black/10">
+      {/*
+        FINANCING IS ONE BUTTON AND TWO TENDERS.
+
+        The shop takes SNAP and AFF. Both are the same thing to whoever is at
+        the counter — the customer is financing — and two different things to
+        whoever reconciles, because they settle from different places on
+        different days. So the row offers Financing, and picking it asks which
+        provider; the ledger records the provider, never the group.
+
+        Grouped on kind = 'financing' rather than a list of codes here, so a
+        third provider is a row in the methods table and not a code change.
+        A single active financing method is shown under its own name, because
+        "Financing → SNAP" with nothing else to choose is a tap for nothing.
+      */}
       <div className="grid grid-cols-2 gap-2 mb-3">
-        {methods.map((m) => (
+        {plainMethods.map((m) => (
           <button
             key={m.id}
             type="button"
@@ -537,7 +568,54 @@ export function PaymentPanel({
             {m.label}
           </button>
         ))}
+        {financing.length > 1 && (
+          <button
+            type="button"
+            onClick={() => {
+              // Opening the group does not choose a provider. Nothing is
+              // selected until somebody names one, so a ticket cannot be
+              // completed on "Financing" — which is not a thing money arrives
+              // from.
+              setPickingFinance((v) => !v);
+              if (financingChosen) setMethodId(null);
+            }}
+            aria-expanded={pickingFinance || !!financingChosen}
+            className="btn text-sm"
+            style={{
+              height: 42,
+              background: financingChosen ? "#0a2540" : "rgba(10,37,64,0.06)",
+              color: financingChosen ? "#fff" : "#0a2540",
+            }}
+          >
+            {financingChosen ? `${tr("Financing")} · ${financingChosen.label}` : tr("Financing")}
+          </button>
+        )}
       </div>
+
+      {/* Which provider. Only while the group is open or one is already
+          chosen, so the row stays two-across on an ordinary cash sale. */}
+      {financing.length > 1 && (pickingFinance || financingChosen) && (
+        <div className="grid grid-cols-2 gap-2 mb-3 pl-3" style={{ borderLeft: "3px solid rgba(10,37,64,0.12)" }}>
+          {financing.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => {
+                setMethodId(m.id);
+                setPickingFinance(false);
+              }}
+              className="btn text-sm"
+              style={{
+                height: 38,
+                background: m.id === methodId ? "#0a2540" : "rgba(10,37,64,0.06)",
+                color: m.id === methodId ? "#fff" : "#0a2540",
+              }}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/*
         THE DISCOUNT LIVES BEHIND "OTHER".
