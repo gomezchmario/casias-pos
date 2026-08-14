@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { usePosAuth } from "@/components/pos/PosShell";
+import { roleAtLeast } from "@/lib/roles";
 import { useLang } from "@/components/pos/LangToggle";
 import { ShopLogo } from "@/components/ui/ShopLogo";
 import { BarChart, RankedBars, Stat, changePct } from "@/components/pos/Charts";
@@ -470,18 +471,34 @@ export default function CloseoutV2Page() {
             )}
           </Panel>
         </div>
-        {data.drawer.checks.filter((c) => !c.deleted).length > 0 && (
-          <p className="rp-note">
-            {tr("Register logged")}{" "}
-            {data.drawer.checks
-              .filter((c) => !c.deleted)
-              .map(
-                (c) =>
-                  `${c.checkedAt.slice(11, 16)} (${c.balanced ? tr("balanced") : tr("did not balance")})`,
-              )
-              .join(" · ")}
-          </p>
-        )}
+        {/*
+          THE LAST LOG, NOT THE HISTORY OF THEM.
+
+          This listed every count of the day with its verdict beside it —
+          "14:02 (balanced) · 16:31 (did not balance) · 18:05 (balanced)" — which
+          is the story of an afternoon rather than a fact about the register.
+          Nobody reading a daily report is asking how many times the drawer was
+          counted; they are asking when it was last looked at. The whole run is
+          still on the close-out, which is the screen for working through it.
+
+          Whether that last count BALANCED is said only to the owner. That is
+          the same withholding as the checks-unbalanced alarm — a question about
+          whoever counted the drawer, put where the people it asks about are
+          standing — and saying it here in one line would have walked straight
+          around it.
+        */}
+        {(() => {
+          const live = data.drawer.checks.filter((c) => !c.deleted);
+          const last = live.length ? live[live.length - 1] : null;
+          if (!last) return null;
+          return (
+            <p className="rp-note">
+              {tr("Register last logged")} {last.checkedAt.slice(11, 16)}
+              {roleAtLeast(user.role, "owner") &&
+                ` (${last.balanced ? tr("balanced") : tr("did not balance")})`}
+            </p>
+          );
+        })()}
       </Section>
 
       {/* ── 5 · Tickets ─────────────────────────────────────────────────── */}
