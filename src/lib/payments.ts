@@ -732,7 +732,27 @@ export function voidSale(user: PosUser, saleId: number, reason: string): Result 
     const db = getDb();
     const now = nowLocalIso();
     const businessDate = currentBusinessDate();
-    const originals = listPayments(saleId).filter((p) => p.kind !== "reversal");
+    /*
+      LIVE payments only — not merely "not itself a reversal".
+
+      A row that has already been reversed has had its money taken back out
+      once. Reversing it again writes a second negative and the tender ends the
+      day at minus the amount: S-2026-000542 took \$20 on PO Shop, had the
+      tender corrected (one reversal), was then voided (a second), and the
+      close-out read PO Shop −\$20.00 for a ticket that had collected nothing.
+
+      `removeTip` and `reassignTip` have always refused to touch an
+      already-reversed row for exactly this reason. This is the same rule,
+      applied where it was missing.
+    */
+    const reversedIds = new Set(
+      listPayments(saleId)
+        .map((p) => p.reverses_payment_id)
+        .filter((id): id is number => id != null),
+    );
+    const originals = listPayments(saleId).filter(
+      (p) => p.kind !== "reversal" && !reversedIds.has(p.id),
+    );
     // A reversal takes money back out of the drawer now, so it lands in the
     // shift doing the voiding -- not the one that originally took it, which may
     // already be counted and signed off.

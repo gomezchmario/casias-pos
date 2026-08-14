@@ -301,7 +301,10 @@ function cashiersWithTenders(businessDate: string): CloseoutV2["cashiers"] {
          FROM payments p
          JOIN employees e ON e.id = p.taken_by
          JOIN payment_methods m ON m.id = p.method_id
-        WHERE p.business_date = ?
+         -- The printed sheet is handed to a person as a record of what they
+         -- took. A deleted ticket never happened, so it cannot be on it.
+    LEFT JOIN sales ds ON ds.id = p.sale_id
+        WHERE p.business_date = ? AND COALESCE(ds.deleted, 0) = 0
      GROUP BY e.id, m.id
      ORDER BY e.name, m.sort_order`,
     )

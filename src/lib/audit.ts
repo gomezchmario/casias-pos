@@ -67,6 +67,10 @@ export type AuditAction =
   | "drawer.withdraw"
   | "drawer.deposit"
   | "drawer.reversal"
+  // A cash-in/out row taken off the day entirely, rather than reversed. For
+  // test rows that never moved money: a reversal would leave two entries on a
+  // sheet somebody reads, both describing something that did not happen.
+  | "drawer.delete"
   | "register_check.create"
   | "register_check.delete"
   | "product.create"

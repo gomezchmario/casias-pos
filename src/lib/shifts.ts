@@ -277,7 +277,11 @@ function expectationsFrom(
               COALESCE(SUM(p.comm_cents), 0)   AS commCents,
               COUNT(p.id)                      AS count
        FROM payment_methods m
+       -- A deleted ticket is gone, and its money with it. Without this the
+       -- close-out still expects cash from a ticket somebody struck off the
+       -- log, and the drawer is judged against money that was never taken.
        LEFT JOIN payments p ON p.method_id = m.id AND ${where}
+            AND NOT EXISTS (SELECT 1 FROM sales ds WHERE ds.id = p.sale_id AND ds.deleted = 1)
        WHERE m.active = 1
        GROUP BY m.id
        ORDER BY m.sort_order`,
@@ -623,7 +627,10 @@ export function byCashier(scope:
               COUNT(*)                         AS count
        FROM payments p
        JOIN employees e ON e.id = p.taken_by
-       WHERE ${where}
+       -- Same rule as the tender expectations above: a struck ticket must not
+       -- appear in anybody's takings either.
+       LEFT JOIN sales ds ON ds.id = p.sale_id
+       WHERE ${where} AND COALESCE(ds.deleted, 0) = 0
        GROUP BY e.id
        ORDER BY collectedCents DESC`,
     )
