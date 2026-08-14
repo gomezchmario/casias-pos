@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jsonError, requirePos } from "@/lib/api-helpers";
-import { correctPayment, removeTip, setPaymentSeq } from "@/lib/payments";
+import { correctPayment, reassignTip, removeTip, setPaymentSeq } from "@/lib/payments";
 
 /**
  * The two ways a payment gets corrected, and they are not the same kind of act.
@@ -36,6 +36,8 @@ export async function PATCH(
     amountCents?: number;
     reason?: string;
     removeTip?: boolean;
+    /** Move the tip on this row to this technician. See `reassignTip`. */
+    tipToMechanicId?: number;
   };
   try {
     body = await req.json();
@@ -50,6 +52,21 @@ export async function PATCH(
     const r = removeTip(auth.user, paymentId, body.reason ?? "");
     if (!r.ok) return jsonError(r.error);
     return NextResponse.json({ ok: true, removedCents: r.removedCents });
+  }
+
+  // Before re-tendering too, and for the same reason as the removal above: a
+  // body carrying both would re-tender the row and leave the tip on the wrong
+  // person, which is the exact fault this answers.
+  if (body.tipToMechanicId !== undefined) {
+    if (!Number.isInteger(body.tipToMechanicId)) return jsonError("Pick a technician");
+    const r = reassignTip(auth.user, paymentId, body.tipToMechanicId, body.reason ?? "");
+    if (!r.ok) return jsonError(r.error);
+    return NextResponse.json({
+      ok: true,
+      movedCents: r.movedCents,
+      fromName: r.fromName,
+      toName: r.toName,
+    });
   }
 
   if (body.methodId !== undefined || body.amountCents !== undefined) {

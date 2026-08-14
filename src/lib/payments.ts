@@ -1145,3 +1145,172 @@ export function removeTip(
     return { ok: true as const, removedCents };
   });
 }
+
+/**
+ * A tip credited to the wrong technician, moved to the right one.
+ *
+ * WHY THIS EXISTS. The tip is chosen at the moment of payment, and the
+ * technician on the ticket can be corrected afterwards — those are two separate
+ * acts and nothing tied them together. S-2026-000408 is what that looks like:
+ * the line was reassigned from Jerry to Jose at 08:49:44 and a tip was put on
+ * Jerry five seconds later, because the tip control was still offering the name
+ * the ticket had a moment earlier. The ticket then read correctly and the money
+ * went to the wrong person, which is the worst combination — nothing on screen
+ * disagreed with anything else.
+ *
+ * The alternative was to remove the tip and add it again, which is two acts by
+ * a manager with a live moment in between where the technician has been docked
+ * and not yet paid, and which lands the replacement on TODAY. This is one act,
+ * and it keeps the tip on the day it was earned.
+ *
+ * HOW. Append-only, like every other correction here: a reversal against the
+ * wrong technician, and a fresh tip row for the right one. Nothing is updated
+ * in place, so both names keep an honest history — the person who lost it can
+ * see that they had it, which matters when somebody is querying their pay.
+ *
+ * THE MONEY DOES NOT MOVE. Same amount, same method, same business date, same
+ * shift. The two rows net to zero against the day, so a close-out already
+ * signed for last Tuesday still balances after this runs on Friday. Only the
+ * name on the tip changes, which is the entire point.
+ *
+ * Manager and up, the same rank as taking a tip off — see `removeTip`. This is
+ * somebody's money, and moving it between two people is if anything the more
+ * sensitive of the two.
+ */
+export function reassignTip(
+  user: PosUser,
+  paymentId: number,
+  toMechanicId: number,
+  reason: string,
+): Result<{ movedCents: number; fromName: string | null; toName: string }> {
+  if (!can(user.role, "correctPayment"))
+    return { ok: false, error: "Only a manager can move a tip" };
+  const why = reason.trim();
+  if (!why) return { ok: false, error: "Say why the tip is moving" };
+
+  const db = getDb();
+  const payment = db.prepare("SELECT * FROM payments WHERE id = ?").get(paymentId) as
+    | Payment
+    | undefined;
+  if (!payment) return { ok: false, error: "Payment not found" };
+  if (payment.tip_cents === 0) return { ok: false, error: "There is no tip on that row" };
+  if (payment.kind === "reversal")
+    return { ok: false, error: "That row is already a reversal" };
+  if (db.prepare("SELECT 1 FROM payments WHERE reverses_payment_id = ?").get(paymentId))
+    return { ok: false, error: "That payment has already been reversed" };
+  if (payment.mechanic_id === toMechanicId)
+    return { ok: false, error: "The tip is already theirs" };
+
+  const sale = getSale(payment.sale_id);
+  if (!sale) return { ok: false, error: "Sale not found" };
+  if (sale.status === "voided")
+    return { ok: false, error: "This ticket is voided — the tip is already off it" };
+
+  const to = db
+    .prepare("SELECT id, name FROM employees WHERE id = ? AND active = 1")
+    .get(toMechanicId) as { id: number; name: string } | undefined;
+  if (!to) return { ok: false, error: "That technician is not on the roster" };
+
+  const from = payment.mechanic_id
+    ? (db.prepare("SELECT name FROM employees WHERE id = ?").get(payment.mechanic_id) as
+        | { name: string }
+        | undefined)
+    : undefined;
+
+  /*
+    What comes off the wrong person and goes to the right one: the tip and the
+    fee charged on it, which travel together because the fee only exists because
+    the tip does. Whatever else was on the row — the goods, on a tip taken at
+    the till — stays exactly where it is, which is why the replacement below is
+    built from these two numbers rather than from amount_cents.
+  */
+  const tipCents = payment.tip_cents;
+  const commCents = payment.comm_cents;
+  const restCents = payment.amount_cents - tipCents - commCents;
+  if (restCents < 0)
+    return { ok: false, error: "That row does not add up — have somebody look at it" };
+
+  return inTx(() => {
+    const now = nowLocalIso();
+
+    db.prepare(
+      `INSERT INTO payments
+         (sale_id, method_id, kind, amount_cents, tip_cents, comm_cents,
+          mechanic_id, reverses_payment_id, taken_by, business_date, shift_id, note, created_at)
+       VALUES (?, ?, 'reversal', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      payment.sale_id,
+      payment.method_id,
+      -payment.amount_cents,
+      -tipCents,
+      -commCents,
+      // Credited to whoever HAD it, so it comes off their total and not
+      // somebody else's — the same rule the removal reversal follows.
+      payment.mechanic_id,
+      payment.id,
+      user.employeeId,
+      payment.business_date,
+      payment.shift_id,
+      `Tip moved to ${to.name}: ${why}`,
+      now,
+    );
+
+    /*
+      The row restated with the right name on it.
+
+      One row, not two, even when there were goods on the original: splitting a
+      till payment into "the goods" and "the tip" would put a second entry on
+      the day for a customer who handed money over once, and the seq below is
+      the slip it was taken on. The row is identical to the one just reversed
+      except for the technician.
+    */
+    const info = db
+      .prepare(
+        `INSERT INTO payments
+           (sale_id, method_id, kind, amount_cents, tip_cents, comm_cents,
+            mechanic_id, seq, taken_by, business_date, shift_id, note, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        payment.sale_id,
+        payment.method_id,
+        payment.kind,
+        payment.amount_cents,
+        tipCents,
+        commCents,
+        to.id,
+        payment.seq,
+        user.employeeId,
+        payment.business_date,
+        payment.shift_id,
+        `Tip moved from ${from?.name ?? "nobody"}: ${why}`,
+        now,
+      );
+
+    recalcMoney(payment.sale_id);
+
+    logActorAudit(actorOf(user), {
+      action: "payment.tip_reassigned",
+      targetType: "sale",
+      targetId: payment.sale_id,
+      details: {
+        sale_no: sale.sale_no,
+        sale_business_date: sale.business_date,
+        reason: why,
+        reversed_payment_id: payment.id,
+        replacement_payment_id: Number(info.lastInsertRowid),
+        tip_cents: tipCents,
+        comm_cents: commCents,
+      },
+      before: { mechanic_id: payment.mechanic_id, mechanic_name: from?.name ?? null },
+      after: { mechanic_id: to.id, mechanic_name: to.name },
+    });
+
+    return {
+      ok: true as const,
+      movedCents: tipCents,
+      fromName: from?.name ?? null,
+      toName: to.name,
+    };
+  });
+}

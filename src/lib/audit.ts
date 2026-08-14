@@ -54,6 +54,10 @@ export type AuditAction =
   // A tip taken back off a ticket. Its own action rather than payment.correct:
   // "who removed a tip" is a question somebody will ask about their own money.
   | "payment.tip_removed"
+  // A tip credited to the wrong technician and moved to the right one. Its
+  // own action because "who moved my tip" is a question about somebody's pay,
+  // and it must not be answered by searching for a removal that never happened.
+  | "payment.tip_reassigned"
   | "shift.open"
   | "shift.close"
   | "drawer.withdraw"

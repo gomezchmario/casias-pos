@@ -455,18 +455,41 @@ export function TicketDrawer({
                   !detail.payments.some((r) => r.reverses_payment_id === p.id),
               )
               .map((p) => (
-                <RemoveTip
-                  key={`tip-${p.id}`}
-                  tipCents={p.tip_cents}
-                  busy={busy}
-                  onRemove={async (reason) =>
-                    send(`/api/pos/payments/${p.id}`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ removeTip: true, reason }),
-                    })
-                  }
-                />
+                <div key={`tip-${p.id}`} className="flex flex-col gap-1">
+                  {/*
+                    Moving it comes FIRST, because it is nearly always the
+                    right answer. A tip on the wrong name is not a tip that
+                    should not exist — the customer meant it, somebody earned
+                    it, and the only thing wrong is which technician it landed
+                    on. Offering only "take it off" made removal the obvious
+                    move and left the money to be re-added by hand, on today,
+                    by somebody who might forget the second half.
+                  */}
+                  <MoveTip
+                    tipCents={p.tip_cents}
+                    currentId={p.mechanic_id}
+                    roster={detail.roster}
+                    busy={busy}
+                    onMove={async (mechanicId, reason) =>
+                      send(`/api/pos/payments/${p.id}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ tipToMechanicId: mechanicId, reason }),
+                      })
+                    }
+                  />
+                  <RemoveTip
+                    tipCents={p.tip_cents}
+                    busy={busy}
+                    onRemove={async (reason) =>
+                      send(`/api/pos/payments/${p.id}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ removeTip: true, reason }),
+                      })
+                    }
+                  />
+                </div>
               ))}
 
           {/* Money back on a ticket that stands, which is not a void — see
@@ -1786,6 +1809,106 @@ function RefundTicket({
  * their own name, and the person it comes off is entitled to know who did it and
  * why. See `removeTip`.
  */
+/**
+ * Move a tip from the technician it landed on to the one who earned it.
+ *
+ * The fault this answers: the technician on a line can be corrected after the
+ * ticket is paid, and the tip cannot follow it, because the tip was chosen at
+ * payment time against whatever name the ticket carried then. Both halves end
+ * up looking right on their own screens and the money is on the wrong person.
+ *
+ * Shows who has it now, so the manager is choosing against a fact rather than
+ * a memory — and names whoever is on the ticket's LINES first, since that is
+ * the answer nine times in ten.
+ *
+ * A reason is required, as it is for a removal, and for a stronger version of
+ * the same reason: this takes money off one person's name and puts it on
+ * another's, and both of them are entitled to know who did it and why.
+ */
+function MoveTip({
+  tipCents,
+  currentId,
+  roster,
+  busy,
+  onMove,
+}: {
+  tipCents: number;
+  currentId: number | null;
+  roster: Mechanic[];
+  busy: boolean;
+  onMove: (mechanicId: number, reason: string) => Promise<boolean>;
+}) {
+  const { t: tr } = useLang();
+  const [arming, setArming] = useState(false);
+  const [to, setTo] = useState<number | "">("");
+  const [reason, setReason] = useState("");
+
+  const currentName = currentId
+    ? (roster.find((m) => m.id === currentId)?.name ?? "Gone")
+    : tr("nobody");
+
+  if (!arming)
+    return (
+      <button
+        type="button"
+        className="text-sm text-brand-400 hover:text-brand-500 underline text-left"
+        onClick={() => setArming(true)}
+      >
+        {tr("Move the")} {formatCents(tipCents)} {tr("tip to somebody else")}
+      </button>
+    );
+
+  return (
+    <div className="rounded-xl bg-black/[0.03] p-3">
+      <div className="text-xs text-brand-400 mb-2">
+        {tr("Credited to")} <strong>{currentName}</strong>{tr(" right now.")}{" "}
+        {tr(
+          "It comes off them and goes to whoever you pick, for the same amount, on the day it was rung — the ticket and the day's takings do not change.",
+        )}
+      </div>
+      <div className="flex items-end gap-2 flex-wrap">
+        <label className="text-xs text-brand-400">
+          {tr("To")}
+          <select
+            className="input mt-1"
+            value={to}
+            onChange={(e) => setTo(e.target.value === "" ? "" : Number(e.target.value))}
+          >
+            <option value="">{tr("Pick a technician")}</option>
+            {roster
+              .filter((m) => m.id !== currentId)
+              .map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+          </select>
+        </label>
+        <label className="text-xs text-brand-400 flex-1">
+          {tr("Reason")}
+          <input
+            className="input mt-1 w-full"
+            placeholder="Jose did the work — the line was reassigned after the tip"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </label>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={busy || to === "" || !reason.trim()}
+          onClick={() => void onMove(Number(to), reason.trim())}
+        >
+          {tr("Move it")}
+        </button>
+        <button type="button" className="btn btn-ghost" onClick={() => setArming(false)}>
+          {tr("Cancel")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function RemoveTip({
   tipCents,
   busy,
