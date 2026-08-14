@@ -92,8 +92,21 @@ export const VIEWER_MAY: ReadonlySet<Capability> = new Set<Capability>([
   // the building being a flat refusal made that half of it useless.
   "browseRegister",
   "viewCloseout",
-  "manageDirectory",
-  "browseRegister",
+  /*
+    NOTHING THAT WRITES BELOW THIS LINE, AND TWO THINGS THAT DID.
+
+    `manageDirectory` and `editDrawerMovement` were both in this list by
+    accident — added by edits aimed at CAPABILITIES that matched here first,
+    because both lists are runs of quoted capability names and this one comes
+    earlier in the file. Neither is a lookup: the first mints the code that
+    opens a company's balance from outside the shop, the second rewrites and
+    deletes cash rows. A read-only account had both.
+
+    Worth saying plainly, because this list is the whole of what makes the
+    viewer safe and it fails silently: an extra name here is not a type error,
+    not a test failure, and not visible on any screen until somebody uses it.
+    Anything added here should answer a question and change nothing.
+  */
 ]);
 
 /**
@@ -349,6 +362,17 @@ export const CAPABILITIES = {
   // recorded — row, reason, audit entry, and the owner's own close-out — and
   // what is withheld is only the floor's expectation of it.
   hideDrawerMovement: "owner",
+  /*
+    Correcting the words on a cash-in/out row, or taking one off the day.
+
+    Owner, and deliberately a step above `drawerCash` at manager. Recording a
+    withdrawal is the floor's job and is supervised by the fact that the drawer
+    then comes up short by it; rewriting or removing one afterwards is the only
+    act here that can make money that moved stop looking like it moved. Every
+    use is audited with the old and new values, which is what makes it safe to
+    have at all.
+  */
+  editDrawerMovement: "owner",
   viewReports: "manager",
   // What each technician individually brought in, in dollars. Separate from
   // viewReports on purpose: a manager runs the floor and needs to know who is
@@ -513,6 +537,10 @@ export const CAPABILITY_INFO: Record<
     group: "Money and reports",
   },
 
+  editDrawerMovement: {
+    label: "Correct or remove a cash in/out row",
+    group: "Money and reports",
+  },
   hideDrawerMovement: {
     label: "Take cash out without it showing on the sheet",
     group: "Money and reports",

@@ -71,6 +71,10 @@ export type AuditAction =
   // test rows that never moved money: a reversal would leave two entries on a
   // sheet somebody reads, both describing something that did not happen.
   | "drawer.delete"
+  // The words on a cash-in/out row corrected, with the amount untouched. Its
+  // own action so that a log searched for money moving does not return a
+  // relabelling, and vice versa.
+  | "drawer.update"
   | "register_check.create"
   | "register_check.delete"
   | "product.create"

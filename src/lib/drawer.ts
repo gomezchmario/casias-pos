@@ -307,6 +307,88 @@ export function recordDrawerMovement(
  * someone to notice, and an audit trail that erases that is worth less than no
  * trail at all.
  */
+/**
+ * Correct the words on a cash-in/out row. The amount is not negotiable.
+ *
+ * A relabelling, not a correction of money: "Coke" becoming "Mario - 1 Coke" is
+ * the same three dollars leaving the drawer, described properly. Anything that
+ * changes what the drawer is judged against goes through `reverseDrawerMovement`
+ * instead, so that the day keeps a row for the money going and a row for it
+ * coming back rather than a figure that quietly became a different figure.
+ */
+export function renameDrawerMovement(
+  user: PosUser,
+  id: number,
+  reason: string,
+): Result<{ movement: DrawerMovement }> {
+  if (!can(user.role, "editDrawerMovement"))
+    return { ok: false, error: "Only the owner can correct a cash in/out row" };
+  const why = reason.trim();
+  if (!why) return { ok: false, error: "Say what it was for" };
+
+  const before = getDrawerMovement(id);
+  if (!before) return { ok: false, error: "That row is not there" };
+
+  return inTx(() => {
+    getDb().prepare("UPDATE drawer_movements SET reason = ? WHERE id = ?").run(why, id);
+    logActorAudit(actorOf(user), {
+      action: "drawer.update",
+      targetType: "drawer_movement",
+      targetId: id,
+      details: { business_date: before.business_date, amount_cents: before.amount_cents },
+      before: { reason: before.reason },
+      after: { reason: why },
+    });
+    return { ok: true as const, movement: getDrawerMovement(id)! };
+  });
+}
+
+/**
+ * Take a cash-in/out row off the day entirely.
+ *
+ * NOT the usual way to undo one — that is `reverseDrawerMovement`, which leaves
+ * the money going out and coming back on the record where anybody can see both.
+ * This is for a row that describes cash which never moved: a test entry, a
+ * fumbled double-tap. Reversing one of those leaves two lines on the sheet
+ * describing something that did not happen, which is worse than none.
+ *
+ * Refuses when another movement reverses this one. Deleting the target would
+ * leave a reversal pointing at nothing and a day whose movements no longer add
+ * up — undo the reversal first, or leave the pair alone.
+ *
+ * The row's amount and reason go into the audit entry, so "what came off the
+ * day" is still answerable after the row itself is gone.
+ */
+export function deleteDrawerMovement(user: PosUser, id: number): Result<{ removed: number }> {
+  if (!can(user.role, "editDrawerMovement"))
+    return { ok: false, error: "Only the owner can remove a cash in/out row" };
+
+  const row = getDrawerMovement(id);
+  if (!row) return { ok: false, error: "That row is not there" };
+  if (row.reversed_by_id != null)
+    return {
+      ok: false,
+      error: "Another row reverses this one — undo that first, or leave the pair as it is",
+    };
+
+  return inTx(() => {
+    getDb().prepare("DELETE FROM drawer_movements WHERE id = ?").run(id);
+    logActorAudit(actorOf(user), {
+      action: "drawer.delete",
+      targetType: "drawer_movement",
+      targetId: id,
+      details: { business_date: row.business_date },
+      before: {
+        amount_cents: row.amount_cents,
+        kind: row.kind,
+        reason: row.reason,
+        hidden: row.hidden,
+      },
+    });
+    return { ok: true as const, removed: row.amount_cents };
+  });
+}
+
 export function reverseDrawerMovement(
   user: PosUser,
   id: number,

@@ -471,3 +471,133 @@
     font-size: 11pt;
   }
 }
+
+/*
+ * The day's cash in / out, folded under the form that records them.
+ *
+ * Closed by default: on most days it is empty or two lines, and the step's job
+ * is recording a movement rather than reviewing them. It earns its place when
+ * the difference at the bottom of the page provokes the question "what came out
+ * of here today, and who said so".
+ */
+.cv3-moves {
+  margin-top: 12px;
+  border-top: 1px solid rgb(10 37 64 / 0.08);
+  padding-top: 8px;
+}
+
+.cv3-moves > summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-brand-400, #1f3f64);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  list-style: revert; /* keep the native chevron — it is the affordance */
+}
+.cv3-moves > summary::-webkit-details-marker {
+  color: var(--color-brand-300, #4f6e8e);
+}
+
+.cv3-moves-net {
+  margin-left: auto;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-brand-300, #4f6e8e);
+}
+
+.cv3-moves-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 13px;
+}
+.cv3-moves-table td {
+  padding: 5px 6px;
+  border-top: 1px solid rgb(10 37 64 / 0.06);
+  vertical-align: top;
+}
+.cv3-moves-table td.t {
+  width: 3.4rem;
+  color: var(--color-brand-300, #4f6e8e);
+  font-variant-numeric: tabular-nums;
+}
+.cv3-moves-table td.a {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.cv3-moves-table td.x {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+.cv3-moves-table td.x button {
+  font-size: 12px;
+  padding: 2px 7px;
+  margin-left: 4px;
+  border: 1px solid rgb(10 37 64 / 0.15);
+  border-radius: 5px;
+  background: #fff;
+  cursor: pointer;
+  color: var(--color-brand-400, #1f3f64);
+}
+.cv3-moves-table td.x button:hover {
+  background: rgb(10 37 64 / 0.05);
+}
+.cv3-moves-table td.x button.is-danger {
+  color: #b91c1c;
+  border-color: rgb(185 28 28 / 0.3);
+}
+.cv3-moves-table td.x button.is-danger:hover {
+  background: rgb(185 28 28 / 0.07);
+}
+
+/* A row that was undone, or that undoes another: struck, not dropped, so the
+   pair reads as something that happened and was taken back. */
+.cv3-moves-table tr.is-undone td.a,
+.cv3-moves-table tr.is-undone td:nth-child(2) {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.cv3-moves-by {
+  font-size: 11.5px;
+  color: var(--color-brand-300, #4f6e8e);
+}
+
+/* Only the owner sees this, and only they can act on it — the tag is a
+   reminder that the figure below the fold does not include this row. */
+.cv3-moves-tag {
+  margin-left: 6px;
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgb(217 119 6 / 0.14);
+  color: #7c2d12;
+}
+
+.cv3-moves-edit {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.cv3-moves-edit .input {
+  flex: 1;
+  min-width: 8rem;
+}
+
+.cv3-moves-foot {
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: var(--color-brand-300, #4f6e8e);
+  line-height: 1.45;
+}
+
+@media print {
+  .cv3-moves {
+    display: none;
+  }
+}

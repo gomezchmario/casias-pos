@@ -111,6 +111,44 @@ export default function CloseoutV3Page() {
   const [drawerAmount, setDrawerAmount] = useState("");
   const [drawerReason, setDrawerReason] = useState("");
   const [drawerHidden, setDrawerHidden] = useState(false);
+  /** Which movement's reason is being retyped, and what it now says. */
+  const [editingMove, setEditingMove] = useState<number | null>(null);
+  const [editReason, setEditReason] = useState("");
+
+  async function renameMovement(id: number) {
+    const why = editReason.trim();
+    if (!why) return;
+    setBusy(true);
+    const res = await fetch(`/api/pos/drawer/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: why }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setError((await res.json().catch(() => ({}))).error || "Could not rename that");
+      return;
+    }
+    setEditingMove(null);
+    setError(null);
+    await load();
+  }
+
+  async function removeMovement(id: number, label: string) {
+    // Confirmed by hand: this is the one control here that takes a row off the
+    // day rather than adding one, and the row does not come back.
+    if (!window.confirm(`Delete "${label}"? It comes off the day for good — use Undo instead if the money really moved.`))
+      return;
+    setBusy(true);
+    const res = await fetch(`/api/pos/drawer/${id}`, { method: "DELETE" });
+    setBusy(false);
+    if (!res.ok) {
+      setError((await res.json().catch(() => ({}))).error || "Could not delete that");
+      return;
+    }
+    setError(null);
+    await load();
+  }
 
   useEffect(() => setPrintedOn(new Date().toLocaleString()), []);
 
@@ -836,6 +874,105 @@ export default function CloseoutV3Page() {
               Record it
             </button>
           </div>
+
+          {/*
+            WHAT HAS ALREADY GONE IN AND OUT, FOLDED AWAY.
+
+            Closed by default because on most days it is empty or two lines,
+            and the step's job is recording a movement rather than reviewing
+            them. Open, it answers the question the difference at the bottom of
+            the page provokes: "what came out of here today, and who said so".
+
+            Manager and up, because taking cash out is already their job — and
+            a list they cannot see is a list nobody checks. Hidden withdrawals
+            are not in this payload at all for anybody below owner; they are
+            stripped at the route, not here, so nothing on the floor's screen
+            depends on a client remembering to leave them out.
+          */}
+          {can("drawerCash") && data.drawer.movements.length > 0 && (
+            <details className="cv3-moves">
+              <summary>
+                {data.drawer.movements.length}{" "}
+                {data.drawer.movements.length === 1 ? "movement" : "movements"} today
+                <span className="cv3-moves-net">
+                  {data.drawer.movementsCents >= 0 ? "+" : "−"}
+                  {formatCents(Math.abs(data.drawer.movementsCents))} on the drawer
+                </span>
+              </summary>
+              <table className="cv3-moves-table">
+                <tbody>
+                  {data.drawer.movements.map((m) => (
+                    <tr key={m.id} className={m.reverses_id != null || m.reversed_by_id != null ? "is-undone" : ""}>
+                      <td className="t">{m.created_at.slice(11, 16)}</td>
+                      <td>
+                        {editingMove === m.id ? (
+                          <div className="cv3-moves-edit">
+                            <input
+                              className="input"
+                              autoFocus
+                              value={editReason}
+                              onChange={(e) => setEditReason(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") void renameMovement(m.id);
+                                if (e.key === "Escape") setEditingMove(null);
+                              }}
+                            />
+                            <button type="button" className="btn btn-primary" disabled={busy || !editReason.trim()} onClick={() => void renameMovement(m.id)}>
+                              Save
+                            </button>
+                            <button type="button" className="btn btn-ghost" onClick={() => setEditingMove(null)}>
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            {m.reason}
+                            {m.hidden === 1 && <span className="cv3-moves-tag">off the floor's sheet</span>}
+                            <div className="cv3-moves-by">{m.created_by_name}</div>
+                          </>
+                        )}
+                      </td>
+                      <td className="a">
+                        {m.amount_cents >= 0 ? "+" : "−"}
+                        {formatCents(Math.abs(m.amount_cents))}
+                      </td>
+                      {can("editDrawerMovement") && (
+                        <td className="x">
+                          {editingMove !== m.id && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingMove(m.id);
+                                  setEditReason(m.reason);
+                                }}
+                              >
+                                Rename
+                              </button>
+                              <button
+                                type="button"
+                                className="is-danger"
+                                disabled={busy}
+                                onClick={() => void removeMovement(m.id, m.reason)}
+                              >
+                                Delete
+                              </button>
+                            </>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {can("editDrawerMovement") && (
+                <p className="cv3-moves-foot">
+                  Rename fixes the words. Delete is for a row where no cash moved — if
+                  it did, undo it instead so the day keeps both halves.
+                </p>
+              )}
+            </details>
+          )}
         </div>
 
         {/* ── Who is still on the clock ──────────────────────────────────

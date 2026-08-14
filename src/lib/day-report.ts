@@ -364,7 +364,19 @@ export function closeoutV2(businessDate: string): CloseoutV2 {
         .get(firstShift.float_counted_by) as { name: string } | undefined)
     : undefined;
   const cash = tenders.find((t) => t.kind === "cash");
-  const movements = drawerMovementsForDay(businessDate, { includeHidden: false });
+  /*
+    HIDDEN ROWS COME BACK IN THE PAYLOAD AND GO OUT AT THE DOOR.
+
+    They used to be dropped here, which kept them off the floor's screen and
+    also kept them off the owner's — the one person they exist for. The route
+    strips them for everybody below owner instead, the same way it strips
+    owner-only alarms, so the withholding happens once, at the edge, where it
+    can be read.
+
+    No arithmetic changes: `movementsCents` comes from the drawer adjustment
+    query, which has always counted only the visible ones.
+  */
+  const movements = drawerMovementsForDay(businessDate, { includeHidden: true });
   const drawer = {
     floatCents,
     floatCountedAt: firstShift?.float_counted_at ?? null,

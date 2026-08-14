@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requirePos } from "@/lib/api-helpers";
 import { currentBusinessDate } from "@/lib/business-date";
 import { closeoutV2, exceptionsFor } from "@/lib/day-report";
+import { can } from "@/lib/roles";
 
 /**
  * Close-out V2 — the whole day, read rather than worked.
@@ -30,6 +31,15 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     ...report,
     exceptions: exceptionsFor(report.exceptions, auth.user.role),
+    drawer: {
+      ...report.drawer,
+      // A hidden withdrawal is the owner's, and the point of it is that nobody
+      // else knows it happened — so it is removed from the payload rather than
+      // from the screen. See hideDrawerMovement.
+      movements: can(auth.user.role, 'hideDrawerMovement')
+        ? report.drawer.movements
+        : report.drawer.movements.filter((m) => m.hidden === 0),
+    },
     today: currentBusinessDate(),
   });
 }
