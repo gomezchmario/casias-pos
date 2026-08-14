@@ -200,6 +200,31 @@ export default function CloseoutV3Page() {
   const shortByExactlyTips =
     !!cashLine && data.totals.tipCents > 0 && cashLine.varianceCents === -data.totals.tipCents;
 
+  /*
+    WHICH WAY THE DRAWER IS OUT, WHICH outBy CANNOT SAY.
+
+    That one sums the ABSOLUTE variances, so a drawer holding $24 too much and a
+    drawer missing $24 arrive at the same number and got the same red OUT BY
+    $24.00. They are not the same event and they are not equally alarming: money
+    missing is money gone, and money over is almost always a sale rung short or
+    not rung at all — the shop holding cash it has no record of taking.
+
+    Still worth finding, so this is not green. But it is not the red that means
+    the till is light, and OUT BY sends somebody hunting for a loss that never
+    happened.
+
+    Signed and per tender, so the mixed case stays honest: one tender over and
+    another short is neither extra nor short, it is two errors, and it keeps the
+    old wording.
+  */
+  const signedLines = (finalCheck?.lines ?? []).map((l) =>
+    shownVariance(l.varianceCents, l.isCard),
+  );
+  const overCents = signedLines.reduce((n, v) => n + Math.max(0, v), 0);
+  const shortCents = signedLines.reduce((n, v) => n + Math.min(0, v), 0);
+  const onlyOver = overCents > 0 && shortCents === 0;
+  const onlyShort = shortCents < 0 && overCents === 0;
+
   async function doClockOut(employeeId: number) {
     if (busy) return;
     const hhmm = outAt[employeeId] ?? new Date().toTimeString().slice(0, 5);
@@ -786,12 +811,29 @@ export default function CloseoutV3Page() {
             <p className="text-sm text-brand-300">Appears once the register is logged.</p>
           ) : (
             <>
-              <div className={`cv3-verdict ${outBy === 0 || shortByExactlyTips ? "is-good" : "is-bad"}`}>
-                {outBy === 0
+              <div
+                className={`cv3-verdict ${
+                  outBy === 0 || shortByExactlyTips
+                    ? "is-good"
+                    : onlyOver
+                      ? "is-warn"
+                      : "is-bad"
+                }`}
+              >
+                {outBy === 0 || shortByExactlyTips
                   ? "BALANCED"
-                  : shortByExactlyTips
-                    ? "REGISTER BALANCED"
-                    : `OUT BY ${formatCents(outBy)}`}
+                  : onlyOver
+                    ? `WE HAVE ${formatCents(overCents)} EXTRA`
+                    : onlyShort
+                      ? `SHORT BY ${formatCents(-shortCents)}`
+                      : `OUT BY ${formatCents(outBy)}`}
+                {onlyOver && (
+                  <div className="cv3-verdict-why">
+                    More in the drawer than the tickets account for — usually a sale
+                    rung short or not rung at all. Worth finding, but nothing is
+                    missing.
+                  </div>
+                )}
               </div>
               {finalCheck && (
                 <table className="rp-table">
@@ -892,14 +934,30 @@ export default function CloseoutV3Page() {
           </div>
 
           {/* The register, first and biggest — this is what the sheet certifies. */}
-          <div className={`cv3-verdict ${outBy === 0 || shortByExactlyTips ? "is-good" : "is-bad"}`}>
+          <div
+            className={`cv3-verdict ${
+              outBy === 0 || shortByExactlyTips
+                ? "is-good"
+                : onlyOver
+                  ? "is-warn"
+                  : "is-bad"
+            }`}
+          >
             {!registerLogged
               ? "REGISTER NOT LOGGED — THIS SHEET CERTIFIES NOTHING"
-              : outBy === 0
+              : outBy === 0 || shortByExactlyTips
                 ? "REGISTER BALANCED"
-                : shortByExactlyTips
-                  ? "REGISTER BALANCED"
-                  : `OUT BY ${formatCents(outBy)}`}
+                : onlyOver
+                  ? `WE HAVE ${formatCents(overCents)} EXTRA`
+                  : onlyShort
+                    ? `SHORT BY ${formatCents(-shortCents)}`
+                    : `OUT BY ${formatCents(outBy)}`}
+            {registerLogged && onlyOver && (
+              <div className="cv3-verdict-why">
+                More in the drawer than the tickets account for — usually a sale rung
+                short or not rung at all. Worth finding, but nothing is missing.
+              </div>
+            )}
             {registerLogged && shortByExactlyTips && (
               <div className="cv3-verdict-why">
                 The drawer is {formatCents(data.totals.tipCents)} light and that is
