@@ -27,6 +27,7 @@ export function DiscountTicket({
   maxCents,
   busy,
   onSet,
+  quiet,
 }: {
   subtotalCents: number;
   currentCents: number;
@@ -34,6 +35,20 @@ export function DiscountTicket({
   maxCents: number | null;
   busy: boolean;
   onSet: (amountCents: number, reason: string) => Promise<boolean>;
+  /**
+   * Render the opener in blue-grey rather than the drawer's link colour.
+   *
+   * For the register, where this sits among the controls that finish a sale.
+   * It has to be REACHABLE — a discount agreed at the counter should not need
+   * a second screen — without being one of the things the eye lands on while
+   * ringing an ordinary ticket. Money off is the exception, not a step, and a
+   * control that looks like a step gets pressed like one.
+   *
+   * Deliberately not hidden and not disabled: it keeps its underline, its
+   * hover, and its focus ring, so anybody looking for it finds it and a
+   * keyboard reaches it in the usual order. Quiet is not the same as secret.
+   */
+  quiet?: boolean;
 }) {
   const { t: tr } = useLang();
   const [arming, setArming] = useState(false);
@@ -53,7 +68,7 @@ export function DiscountTicket({
            .td-fix-open. It centres itself rather than leaning on the parent,
            because on the register this same control sits in a plain div where
            self-center does nothing at all. */
-        className="td-fix-open"
+        className={`td-fix-open${quiet ? " td-fix-open-quiet" : ""}`}
         onClick={() => {
           setAmount(currentCents ? (currentCents / 100).toFixed(2) : "");
           setReason("");

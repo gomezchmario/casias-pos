@@ -655,3 +655,27 @@ html, body {
   font-style: italic;
   color: var(--color-brand-300, #4f6e8e);
 }
+
+/*
+ * Apply Discount on the register: present, not prominent.
+ *
+ * Light blue-grey — the brand's own #8ea4be rather than a neutral grey, so it
+ * reads as part of this screen's palette and not as a disabled control. Money
+ * off is the exception on a ticket, not a step in ringing one, and a control
+ * sitting at full link strength among Cash / Card / Complete gets pressed like
+ * one of them.
+ *
+ * Still underlined, still hovers, still takes focus in the normal order. Quiet
+ * is not the same as hidden, and a discount somebody cannot find is a discount
+ * given verbally and never recorded — which is the exact hole this control was
+ * built to close.
+ */
+.td-fix-open-quiet {
+  color: #8ea4be;
+  text-decoration-color: rgb(142 164 190 / 0.45);
+}
+.td-fix-open-quiet:hover {
+  color: var(--color-brand-400, #1f3f64);
+  text-decoration-color: currentColor;
+  background: rgb(10 37 64 / 0.04);
+}

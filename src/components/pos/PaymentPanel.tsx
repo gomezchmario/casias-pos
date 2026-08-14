@@ -561,6 +561,7 @@ export function PaymentPanel({
       {can("discountSale") && discountMax !== undefined && (
           <div className="mb-2">
             <DiscountTicket
+              quiet
               subtotalCents={sale.subtotal_cents}
               currentCents={sale.discount_cents}
               maxCents={discountMax}
