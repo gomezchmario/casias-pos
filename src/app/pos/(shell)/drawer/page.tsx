@@ -696,8 +696,8 @@ export default function CloseoutV3Page() {
                 hours of tickets to search, where one logged at lunch narrows it
                 to the afternoon. */}
             Log a count whenever it suits — at a shift change, after a bank run,
-            or any time the drawer feels wrong — and again at close. Every count
-            is kept; the last one of the day is the one this sheet is signed on.
+            or any time the drawer feels wrong — and again at close. The last one
+            of the day is the one this sheet is signed on.
             {blind && " What the register expects stays covered until you log your count — that is the point of counting."}
           </p>
           <table className="rp-table">
