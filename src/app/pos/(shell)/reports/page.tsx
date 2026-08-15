@@ -17,6 +17,7 @@ import {
   changePct,
 } from "@/components/pos/Charts";
 import { formatCents } from "@/lib/money";
+import type { Staffing } from "@/lib/reports-bi";
 import type {
   AgingBucket,
   CategoryRow,
@@ -90,6 +91,8 @@ type Data = {
   categories: CategoryRow[];
   tenders: TenderRow[];
   heatmap: HourCell[];
+  /** Where the week's work falls, and what that means for cover. */
+  staffing: Staffing;
   weekdays: WeekdayRow[];
   bestSellers: ProductRow[];
   stock: { totalUnits: number; totalCostCents: number; byBrand: StockValueRow[]; byRim: StockValueRow[] };
@@ -697,6 +700,134 @@ export default function ReportsPage() {
               })()}
               format={(n) => `${n}`}
               emptyLabel={tr("No tickets in this window.")}
+            />
+          </Panel>
+        </div>
+      </Section>
+
+      {/* ── 3b · HOW MANY PEOPLE ────────────────────────────────────────── */}
+      {/*
+        THE ROTA QUESTION, ANSWERED AS FAR AS THE TICKETS CAN ANSWER IT.
+
+        The heatmap above says WHEN the work lands. This says how many people
+        that takes — and it is careful about the difference, because turning
+        tickets into people needs a pace the tickets do not contain: how many
+        customers one technician gets through in an hour.
+
+        The honest source for that pace is the shop's own clock, tickets served
+        divided by technician-hours worked. Where those hours exist this uses
+        them; where they do not it says so and hands over the arithmetic at four
+        rates instead of inventing one. A confident grid built on somebody
+        else's shop is worse than no grid, because it looks like it came from
+        the books.
+      */}
+      <Section
+        id="cover"
+        title={tr("How many people the week needs")}
+        note={tr("Customers to expect in each hour, and the cover that takes. The shape is counted off every ticket; the number of people needs one thing the tickets cannot say — how long a job takes — so pick the line that matches the bay.")}
+      >
+        {!data.staffing.paceFromData && (
+          <div className="rp-note rp-note-warn">
+            <strong>{tr("The shop cannot work out its own pace yet.")}</strong>{" "}
+            {tr("Over this window the time clock recorded")}{" "}
+            <strong>{data.staffing.techHours.toFixed(1)} {tr("technician hours")}</strong>
+            {tr(", which is not enough to divide")} {data.staffing.tickets.toLocaleString()}{" "}
+            {tr("customers by. Everything below is still counted from real tickets — only the last table needs you to pick a line rather than being told one. If the technicians clocked in and out, this would answer itself.")}
+          </div>
+        )}
+
+        {/* The whole of this, as a document. It carries an appendix on what the
+            town pays that has no business on a screen somebody is scrolling —
+            it is for sitting down with, and for handing to whoever else is in
+            the room when the rota is being argued about. */}
+        <div className="no-print" style={{ marginBottom: 12 }}>
+          <a
+            className="btn btn-outline"
+            style={{ height: 36, fontSize: 13, display: "inline-flex", alignItems: "center" }}
+            href={`/pos/reports/staffing?from=${from}&to=${to}`}
+          >
+            {tr("Open the printable staffing report")}
+          </a>
+        </div>
+
+        <Panel
+          title={tr("Customers to expect, hour by hour")}
+          note={tr("Averages over the window, not totals — what to expect in that hour on that day.")}
+        >
+          <Heatmap
+            cells={data.staffing.slots
+              .filter((x) => x.avgTickets >= 0.05)
+              .map((x) => ({
+                weekday: x.weekday,
+                hour: x.hour,
+                value: Math.round(x.avgTickets * 10) / 10,
+              }))}
+            hours={data.staffing.hours}
+            format={(n) => `${n} ${n === 1 ? tr("customer") : tr("customers")} ${tr("an hour")}`}
+            emptyLabel={tr("No tickets in this window.")}
+            quietLabel={tr("Quiet")}
+            busyLabel={tr("Busiest")}
+          />
+        </Panel>
+
+        <div className="rp-two">
+          <Panel
+            title={tr("Technicians needed at the busiest hour")}
+            note={tr("Rounded up — half a technician cannot fit a tire, and the cost of rounding down is a customer in the lobby.")}
+          >
+            <table className="rp-table">
+              <thead>
+                <tr>
+                  <th>{tr("If one handles")}</th>
+                  {DAY_NAMES.map((d) => (
+                    <th key={d} className="num">
+                      {d.slice(0, 3)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.staffing.atPace.map((row) => (
+                  <tr key={row.perHour}>
+                    <td>
+                      <strong>
+                        {row.perHour} {tr("an hour")}
+                      </strong>
+                      <div className="rp-sub">{tr(row.label)}</div>
+                    </td>
+                    {row.peak.map((c) => (
+                      <td key={c.weekday} className="num">
+                        <strong>{c.techs || "—"}</strong>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Panel>
+
+          <Panel
+            title={tr("Busiest days first")}
+            note={tr("The order to staff them in. The gap top to bottom is the argument for moving somebody's day off.")}
+          >
+            <RankedBars
+              data={[...data.staffing.days]
+                .sort((a, b) => b.tickets - a.tickets)
+                .map((d) => ({
+                  label: DAY_NAMES[d.weekday],
+                  value: Math.round(d.tickets),
+                  note: ` · ${tr("busiest at")} ${
+                    d.peakHour === 0
+                      ? "12 AM"
+                      : d.peakHour < 12
+                        ? `${d.peakHour} AM`
+                        : d.peakHour === 12
+                          ? "12 PM"
+                          : `${d.peakHour - 12} PM`
+                  }`,
+                }))}
+              format={(n) => `${n} ${tr("customers")}`}
+              emptyLabel={tr("Nothing in this window.")}
             />
           </Panel>
         </div>

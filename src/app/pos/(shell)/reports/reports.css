@@ -107,6 +107,25 @@
   max-width: 74ch;
 }
 
+/* A note that is telling you the report cannot answer something, rather than
+   explaining what it just answered. Amber because it is a gap, not a fault. */
+.rp-note-warn {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-left: 3px solid #b45309;
+  color: #78350f;
+  padding: 10px 12px;
+  border-radius: 8px;
+  max-width: none;
+}
+
+/* The second line inside a table cell — the plain-English gloss under a rate. */
+.rp-sub {
+  font-size: 11.5px;
+  color: rgba(10, 37, 64, 0.55);
+  margin-top: 2px;
+}
+
 /* ── The figure tiles ─────────────────────────────────────────────────── */
 
 .rp-stats {

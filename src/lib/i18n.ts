@@ -1268,6 +1268,39 @@ const ES: Record<string, string> = {
   "A used tire is recorded by size only. No brand, price or cost — the price is set at the counter when it sells.":
     "Una llanta usada se registra nada más por medida. Sin marca, sin precio y sin costo — el precio se decide en el mostrador cuando se vende.",
 
+  /*
+    ── How many people the week needs ─────────────────────────────────────
+
+    "Clientes" rather than "tickets" throughout this section, because it is the
+    only report in the app counting PEOPLE arriving rather than paperwork — the
+    whole question is how many hands are needed to serve them, and the word has
+    to carry that.
+  */
+  "How many people the week needs": "Cuánta gente necesita la semana",
+  "Customers to expect in each hour, and the cover that takes. The shape is counted off every ticket; the number of people needs one thing the tickets cannot say — how long a job takes — so pick the line that matches the bay.":
+    "Cuántos clientes esperar en cada hora, y cuánta gente se necesita para atenderlos. La forma se cuenta de cada ticket; el número de personas necesita algo que los tickets no dicen — cuánto tarda un trabajo — así que escoja la línea que se parezca a lo que pasa en el taller.",
+  "Customers to expect, hour by hour": "Clientes que esperar, hora por hora",
+  "Averages over the window, not totals — what to expect in that hour on that day.":
+    "Promedios del periodo, no totales — lo que se espera a esa hora de ese día.",
+  "Technicians needed at the busiest hour": "Técnicos que se necesitan en la hora más pesada",
+  "Rounded up — half a technician cannot fit a tire, and the cost of rounding down is a customer in the lobby.":
+    "Redondeado hacia arriba — medio técnico no monta una llanta, y redondear hacia abajo se paga con un cliente esperando en la sala.",
+  "If one handles": "Si uno atiende",
+  "an hour": "por hora",
+  "customer": "cliente",
+  "customers": "clientes",
+  "Busiest days first": "Los días más pesados primero",
+  "The order to staff them in. The gap top to bottom is the argument for moving somebody's day off.":
+    "El orden en que hay que cubrirlos. La diferencia entre el primero y el último es el argumento para mover el día de descanso de alguien.",
+  "busiest at": "más pesado a las",
+  "The shop cannot work out its own pace yet.": "El taller todavía no puede calcular su propio ritmo.",
+  "Over this window the time clock recorded": "En este periodo el reloj registró",
+  "technician hours": "horas de técnico",
+  ", which is not enough to divide": ", que no alcanza para dividir",
+  "customers by. Everything below is still counted from real tickets — only the last table needs you to pick a line rather than being told one. If the technicians clocked in and out, this would answer itself.":
+    "clientes. Todo lo de abajo se sigue contando de tickets reales — nada más la última tabla necesita que usted escoja una línea en vez de que se la digan. Si los técnicos marcaran entrada y salida, esto se contestaría solo.",
+  "Open the printable staffing report": "Abrir el reporte de personal para imprimir",
+
   // ── Things that go wrong ───────────────────────────────────────────────
   "That did not save": "Eso no se guardó",
   "Could not load": "No se pudo cargar",

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requirePos } from "@/lib/api-helpers";
 import { getDb } from "@/lib/db";
 import { currentBusinessDate } from "@/lib/business-date";
+import { getSetting } from "@/lib/settings";
 import { techPeriod, tipsByTech } from "@/lib/leaderboard";
 import {
   categoryMix,
@@ -119,6 +120,9 @@ export async function GET(req: NextRequest) {
     // Rides on this endpoint because it is built from the same heatmap the
     // line above it is — one pass over the tickets, two answers.
     staffing: staffingNeed(from, to),
+    // For the staffing report's masthead, which is a document rather than a
+    // screen and needs to say whose shop it is.
+    shopName: getSetting("company_name") ?? "Casias Tire Shop",
     /**
      * The sellers, deepest first, cut at a hundred.
      *
