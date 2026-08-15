@@ -734,15 +734,23 @@
 /* ── The ledger, grouped by ticket ────────────────────────────────────── */
 
 /*
-  A ticket is one block, and it is drawn as one.
+  A ticket is one block, and it is drawn as one — INCLUDING ITS STRIPE.
 
-  The zebra that helps a flat table hurts a grouped one — it stripes ACROSS the
-  grouping and fights the very thing the reader is being asked to see. So the
-  stripe comes off and the ticket is separated by a rule above its heading
-  instead, which is a boundary rather than a rhythm.
+  Row zebra stripes ACROSS the grouping and fights the very thing the reader is
+  being asked to see: a four-line ticket comes out banded like a barcode and its
+  own boundaries disappear into the pattern. So the stripe moves up a level. It
+  is the TICKET that alternates, not the row, which means the shading is now
+  doing the same job as the rule above each heading rather than competing with
+  it — every band on the page is one customer.
+
+  `nth-of-type` counts tbodies only, so the thead does not shift the parity.
 */
 .dr-ledger tbody tr:nth-child(even) {
   background: none;
+}
+
+.dr-ledger tbody.dr-tk:nth-of-type(even) td {
+  background: #f5f6f8;
 }
 
 .dr-tk {

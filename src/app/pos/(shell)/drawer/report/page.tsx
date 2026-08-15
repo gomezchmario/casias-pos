@@ -1906,7 +1906,15 @@ export default function DayReportPage() {
                   >
                     <td className="dr-time">{clockOf(tk.at)}</td>
                     <td className="dr-mono">{tk.saleNo}</td>
-                    <td>{tk.entry.customerName ?? "no name taken"}</td>
+                    {/* Left blank on purpose. This column is Who, and Who means
+                        the technician who did the line — putting the customer's
+                        name in it made the same column answer two different
+                        questions depending on which row you were reading, and
+                        the eye running down it for a name to credit kept
+                        catching customers. The customer is named where the
+                        customer matters: on the money-owed and account
+                        sections, and on their own receipt. */}
+                    <td />
                     <td className="dr-note">
                       {tk.entry.saleStatus === "voided"
                         ? `voided${tk.entry.voidReason ? ` — ${tk.entry.voidReason}` : ""}`
