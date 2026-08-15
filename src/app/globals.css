@@ -694,11 +694,16 @@ html, body {
  * counter screen by a window.
  */
 .td-fix-open-quiet {
-  /* Full width, inherited from .td-fix-open rather than shrunk back to its own
-     text. It used to sit centred at its natural size beneath two full-width
-     buttons, which read as an afterthought pinned under the panel instead of as
-     one of the things you can do to this ticket. The colour is what makes it
-     quiet; the width was only making it look unfinished. */
+  /* Back to its own width, centred — which is the treatment that was wanted all
+     along. Stretching it to the full measure made it look like a third ending
+     for the ticket, and it is not one: it changes the PRICE, and the two
+     buttons above it finish the sale. Its own size is what says so.
+
+     The gap is the whole fix. It was butted straight against the button above
+     it, which is what made it read as part of that group rather than as a
+     separate thing sitting under it. */
+  width: auto;
+  margin: 0.55rem auto 0;
   background: #fef2f2;
   color: #b4483f;
   border-color: rgb(185 28 28 / 0.22);
