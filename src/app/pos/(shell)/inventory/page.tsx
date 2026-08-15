@@ -1616,7 +1616,7 @@ export default function InventoryPage() {
                 <tr>
                   <td className="inv-c-name py-1">
                     <span className="inv-tire-name text-brand-500">
-                      {tr("General pool used tires")}
+                      {tr("Used Tires (Pool)")}
                     </span>
                   </td>
                   <td

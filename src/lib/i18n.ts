@@ -1237,7 +1237,7 @@ const ES: Record<string, string> = {
   "General pool": "Montón general",
   "bought by the load — listed by size as somebody works through it":
     "compradas por camionada — se apuntan por medida conforme alguien las va revisando",
-  "General pool used tires": "Llantas usadas del montón general",
+  "Used Tires (Pool)": "Llantas usadas (montón)",
   "A whole load, no sizes yet": "Una camionada entera, todavía sin medidas",
   "Goes to the general pool. Somebody can list them by size later, and the pool comes down as they do.":
     "Se va al montón general. Después alguien las puede apuntar por medida, y el montón va bajando conforme lo hace.",

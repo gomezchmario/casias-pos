@@ -69,7 +69,28 @@ const BASE = `
                     WHERE m.product_id = p.id), 0) AS onHand
     FROM products p
    WHERE p.deleted = 0 AND p.active = 1 AND p.track_inventory = 1
+     AND p.condition IS NOT 'used'
 `;
+
+/*
+  USED TIRES ARE NOT PRICED, AND THAT IS NOT A MISTAKE.
+
+  A used row is created with no price on purpose — `ensureUsedTire` sets it to
+  zero and says why: the price is decided at the counter from the tire's
+  condition and the customer in front of it, so there is genuinely no number to
+  put there. Every used size the shop holds therefore matched "in stock and the
+  register does not know what to charge", which is what this list is for, and
+  every one of them was wrong.
+
+  It is not a small amount of noise either: used sizes are most of the rows on
+  the rack sheet, so the flag they cannot ever clear is the flag that swamps the
+  real ones — the new tire that came off a truck before anybody priced it. A
+  warning nobody can clear is a warning nobody reads, which is the same reasoning
+  the `discounted = 0` clause below is written from.
+
+  Below-cost never matched them anyway (it needs a price above zero), so this is
+  stated once here rather than twice down there.
+*/
 
 export function pricingFlags(opts: { includeCosts: boolean }): PricingFlags {
   const db = getDb();
