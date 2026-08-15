@@ -704,6 +704,41 @@ export default function CloseoutV3Page() {
           <div className="cv3-step-head">
             <span className="cv3-step-no">2</span>
             <span className="cv3-step-title">{tr("Count the drawer and the terminal")}</span>
+            {/*
+              The note-by-note counter, in the corner of the step it serves.
+
+              An icon, and up here rather than beside Log Register: the sequence
+              down this page is count, log, print, and a second button next to
+              Log Register read as a fourth thing that had to be done. In the
+              corner it is a tool the box carries — reachable the moment
+              somebody starts counting, which is before they have scrolled to
+              the button at the bottom.
+            */}
+            {can("closeShift") && (
+              <button
+                type="button"
+                className="cv3-tool"
+                title={tr("Count the drawer note by note")}
+                aria-label={tr("Count the drawer note by note")}
+                onClick={() => setCounting(true)}
+              >
+                <svg
+                  width="17"
+                  height="17"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <rect x="4" y="3" width="16" height="18" rx="2" />
+                  <rect x="7.5" y="6.5" width="9" height="3.5" rx="0.5" />
+                  <path d="M8 14h.01M12 14h.01M16 14h.01M8 17.5h.01M12 17.5h.01M16 17.5h.01" />
+                </svg>
+              </button>
+            )}
           </div>
           <p className="text-sm text-brand-400 mb-2">
             {tr("Count the cash in hand. Settle and read the batch total off the card terminal.")}
@@ -788,50 +823,14 @@ export default function CloseoutV3Page() {
               .map((t) => `${t.label} ${formatCents(t.takingsCents)}`)
               .join(" · ") || "No other tenders today."}
           </p>
-          <div className="flex items-center gap-2 mt-2">
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={busy}
-              onClick={() => void logRegister()}
-            >
-              {busy ? "Working…" : "Log Register"}
-            </button>
-            {/*
-              The counting tool, as an icon beside the button it feeds.
-
-              An icon and not a word because it is a helper, not a step: the
-              sequence on this page is count, log, print, and a second labelled
-              button next to Log Register would read as a fourth thing that has
-              to be done. It sits here rather than beside the cash box because
-              this is where somebody is standing when they have the drawer in
-              their hand.
-            */}
-            <button
-              type="button"
-              className="btn btn-outline"
-              style={{ width: 44, padding: 0 }}
-              title={tr("Count the drawer note by note")}
-              aria-label={tr("Count the drawer note by note")}
-              onClick={() => setCounting(true)}
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <rect x="4" y="3" width="16" height="18" rx="2" />
-                <rect x="7.5" y="6.5" width="9" height="3.5" rx="0.5" />
-                <path d="M8 14h.01M12 14h.01M16 14h.01M8 17.5h.01M12 17.5h.01M16 17.5h.01" />
-              </svg>
-            </button>
-          </div>
+          <button
+            type="button"
+            className="btn btn-primary mt-2"
+            disabled={busy}
+            onClick={() => void logRegister()}
+          >
+            {busy ? "Working…" : "Log Register"}
+          </button>
         </div>
 
         {/* ── Cash in / out of the drawer ────────────────────────────────

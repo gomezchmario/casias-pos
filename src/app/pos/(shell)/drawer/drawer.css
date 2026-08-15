@@ -49,6 +49,35 @@
   color: #0a2540;
 }
 
+/*
+  A tool the step carries, pinned to the far corner of its heading.
+
+  `margin-left: auto` inside the flex header is what puts it there, and it is
+  the only thing in that row that is not the step's own name — which is the
+  point of the corner: a tool is not a step, and it must not look like the next
+  thing to do. Quiet until the pointer is on it.
+*/
+.cv3-tool {
+  margin-left: auto;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(10, 37, 64, 0.15);
+  border-radius: 9px;
+  background: #fff;
+  color: rgba(10, 37, 64, 0.55);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.cv3-tool:hover {
+  background: rgba(10, 37, 64, 0.05);
+  border-color: rgba(10, 37, 64, 0.3);
+  color: #0a2540;
+}
+
 /* The verdict: one line, unmissable, red or green and nothing in between. */
 .cv3-verdict {
   font-size: 22px;

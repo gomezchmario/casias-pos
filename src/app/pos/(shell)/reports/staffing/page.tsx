@@ -294,6 +294,36 @@ export default function StaffingReportPage() {
           paces — read the line that matches what actually happens in the bay.
         </p>
 
+        {/*
+          FIRST, NOT LAST, and in red.
+
+          It was the closing footnote under the table, which is where a reader
+          arrives having already decided what the numbers mean. The warning is
+          about how to READ the table, so it has to be read before it: every
+          figure below counts the customers who stayed, and staffing exactly to
+          them keeps the shop exactly as busy as it already is — turning away
+          whoever it is already turning away, invisibly, for as long as the
+          roster is set from this page.
+
+          Red rather than amber. The other callouts on this report say "here is
+          something the figures cannot tell you"; this one says "the figures
+          will mislead you if you read them the obvious way", which is a
+          different order of warning and the only one on the page that can cost
+          the shop money by being skipped.
+        */}
+        <div className="dr-alert">
+          <div className="dr-alert-head">These are minimums, not targets</div>
+          <p className="dr-alert-body">
+            The customers counted are the ones who stayed. Staffing exactly to this table keeps the
+            shop exactly as busy as it already is — and keeps turning away whoever it is already
+            turning away, without that ever showing up in a figure.{" "}
+            <strong>
+              Staffing one above it is how the shop finds out whether there is more work than it
+              has been seeing.
+            </strong>
+          </p>
+        </div>
+
         {!staffing.paceFromData && (
           <div className="dr-callout">
             <div className="dr-callout-head">Why the shop is being asked instead of told</div>
@@ -345,12 +375,6 @@ export default function StaffingReportPage() {
           lobby. Away from the peak the same days need fewer — the grid above shows exactly where,
           and the difference between the two is the case for a split shift rather than a second
           full one.
-        </p>
-        <p className="dr-foot">
-          <strong>These are minimums.</strong> The customers counted are the ones who stayed, so
-          staffing exactly to this table keeps the shop exactly as busy as it already is — and
-          keeps turning away whoever it is already turning away. Staffing one above it is how the
-          shop finds out whether there is more work than it has been seeing.
         </p>
       </section>
 
@@ -591,7 +615,21 @@ A tire technician at an independent shop in San Antonio is a $15–$17 hire. A q
             <tr>
               <th>Pay rate</th>
               <th className="num">Straight time</th>
-              <th className="num">At the overtime rate</th>
+              {/*
+                The heading says WHEN, because the rate on its own invites the
+                wrong reading. Forty hours is exactly four of these shifts, so
+                the fifth day a technician works is the first one paid at time
+                and a half — start to finish, not just its last hours. Computed
+                from the shift length rather than written as "four", so it stays
+                true if the shop's hours change.
+              */}
+              <th className="num">
+                At the overtime rate
+                <div className="dr-note" style={{ fontWeight: 400 }}>
+                  from day {Math.floor(OT_AFTER / PAID_HOURS_A_DAY) + 1} of the week, on{" "}
+                  {PAID_HOURS_A_DAY}-hour days
+                </div>
+              </th>
               <th className="num">The difference</th>
             </tr>
           </thead>

@@ -227,7 +227,55 @@ export function serviceCosts(limit = 30): ServiceCost[] {
           -- dressed as a question about labour. Nearly two thousand lines of
           -- this shop's new-tire money arrives without a product row; it gets
           -- the assumed markup instead -- see assumedCostSql.
+          /*
+            PER ROW, and it was tried the other way first.
+
+            Because this list groups by description, the obvious fix for "USED
+            TIRE" appearing was to drop any description that has ANY tire line
+            against it. That is far too blunt: FLAT has fifteen lines somebody
+            filed under a tire category out of several hundred, so the rule
+            deleted the single biggest service the shop sells from the list of
+            services. MOUNT & BALANCE and ROTACION went with it — the list came
+            back holding twelve rows, none of them the ones that matter.
+
+            One stray mis-filing must not be able to hide a whole trade. So the
+            category filter stays per row, and the handful of descriptions that
+            genuinely do not belong are named below instead.
+          */
           AND (c.code IS NULL OR c.code NOT IN ('new_tire', 'used_tire'))
+          /*
+            NOT EVERY LINE IS A THING WITH A COST.
+
+            The rest of what was on this list is not labour the shop buys and
+            not a part it stocks — it is money being moved. A CORRECTION, a TIP
+            FIX, a DEPOSIT taken against a tire coming in, a FLAT MIX PAY: each
+            of those is an adjustment on a ticket, and asking "what does a
+            correction cost us" is a question with no answer. They were sitting
+            among FLAT and MOUNT & BALANCE making the list look longer than the
+            work actually is.
+
+            Matched on the words rather than on a category because they have no
+            category — they are free text somebody typed at the counter, which
+            is exactly why they never got filed anywhere. Kept as a list rather
+            than a clever pattern so that adding one is obvious, and so that
+            nothing gets swept up by a rule nobody can see.
+          */
+          AND UPPER(TRIM(i.description)) NOT IN (
+            'CORRECTION', 'TIP FIX', 'FLAT MIX PAY', 'MOVE TIRE', 'DISPOSAL FEE',
+            -- A tire, rung as free text on tickets that were not all filed
+            -- under the used-tire category — which is how it slipped past the
+            -- rule above. Named here rather than chased with a cleverer
+            -- category rule, because the words are the reliable part.
+            'USED TIRE'
+          )
+          AND UPPER(TRIM(i.description)) NOT LIKE '%DEPOSIT%'
+          -- Parts sold as free text. A sensor and a valve stem DO cost the shop
+          -- money, but they are bought on an invoice like a tire is, not priced
+          -- like labour — and a per-unit cost typed on a services screen is a
+          -- question about a supplier bill wearing the wrong clothes. Same
+          -- reasoning as the tire exclusion above.
+          AND UPPER(TRIM(i.description)) NOT LIKE '%SENSOR%'
+          AND UPPER(TRIM(i.description)) NOT LIKE '%VALVE STEM%'
           -- The shop's own record only. The imported years hold 1,346 distinct
           -- descriptions, most of them typed once by somebody who has left, and
           -- a list of questions about them is a list nobody can answer. What is

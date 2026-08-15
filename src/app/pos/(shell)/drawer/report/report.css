@@ -898,3 +898,37 @@
     color: inherit;
   }
 }
+
+/* ── A warning about how to read the page, not about what is on it ────── */
+
+/*
+  Red, where the callouts are amber.
+
+  The amber blocks on these reports say "here is something the figures cannot
+  tell you". This one says "the figures will mislead you if you read them the
+  obvious way", which is a different order of warning — and on the staffing
+  report it is the only one that can cost the shop money by being skipped. So it
+  gets the one treatment nothing else on the page uses, and it sits at the head
+  of its section rather than under the table it qualifies.
+*/
+.dr-alert {
+  margin: 3mm 0 4mm;
+  padding: 3mm 4mm;
+  border: 1px solid #fecaca;
+  border-left: 4pt solid #b91c1c;
+  background: #fef2f2;
+  break-inside: avoid;
+}
+
+.dr-alert-head {
+  font-weight: 800;
+  font-size: 10.5pt;
+  color: #991b1b;
+}
+
+.dr-alert-body {
+  font-size: 9pt;
+  color: #7f1d1d;
+  margin: 1.5mm 0 0;
+  max-width: 165mm;
+}
