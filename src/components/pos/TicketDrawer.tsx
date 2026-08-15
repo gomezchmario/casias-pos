@@ -689,13 +689,21 @@ export function TicketDrawer({
               staleDay={detail.sale.business_date !== detail.today}
               businessDate={detail.sale.business_date}
               busy={busy}
-              onReopen={async (reason) =>
-                send(`/api/pos/sales/${saleId}/reopen`, {
+              /*
+                Straight to the register with the ticket loaded. Reopening is
+                never the thing somebody wanted — adding a line is — and leaving
+                them in a drawer on a ticket that now says "open" is leaving
+                them one screen short of the job.
+              */
+              onReopen={async (reason) => {
+                const ok = await send(`/api/pos/sales/${saleId}/reopen`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ reason }),
-                })
-              }
+                });
+                if (ok) window.location.href = `/pos/register?sale=${saleId}`;
+                return ok;
+              }}
             />
           )}
 

@@ -246,6 +246,28 @@ export default function RegisterPage() {
    * has to announce itself.
    */
   const [resumed, setResumed] = useState<string | null>(null);
+
+  /**
+   * Close a reopened ticket without touching the money.
+   *
+   * Straight to `completeSale`, which re-freezes the totals and stops. The
+   * payment panel is the wrong door here: it exists to take money, and on a
+   * ticket that is already paid it would ask for it a second time.
+   */
+  async function recloseAsIs() {
+    if (!sale) return;
+    setBusy(true);
+    const res = await fetch(`/api/pos/sales/${sale.id}/complete`, { method: "POST" });
+    setBusy(false);
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      setError(d.error || "Could not close it again");
+      return;
+    }
+    setError(null);
+    // Back to a clean register, the same as finishing any other ticket.
+    window.location.href = "/pos/register";
+  }
   const amountRef = useRef<HTMLInputElement>(null);
   // The cashback panel has its own amount box. Its own ref too: two inputs
   // sharing one ref means whichever mounted last silently owns the focus, and
@@ -289,6 +311,26 @@ export default function RegisterPage() {
     if (!data || sale) return;
     let cancelled = false;
     void (async () => {
+      /*
+        A ticket named in the address wins over the day's draft.
+
+        Reopening a ticket sends you here with ?sale=123, and it has to be THAT
+        ticket: the adoption below finds the first open one of today, which is
+        the wrong ticket when there are two, and no ticket at all when the one
+        being reopened belongs to an earlier day.
+      */
+      const asked = Number(new URLSearchParams(window.location.search).get("sale"));
+      if (Number.isInteger(asked) && asked > 0) {
+        const one = await fetch(`/api/pos/sales/${asked}`);
+        if (!one.ok || cancelled) return;
+        const got = (await one.json().catch(() => ({}))) as { sale?: Sale; items?: SaleItem[] };
+        if (!got.sale || cancelled) return;
+        setSale(got.sale);
+        setItems(got.items ?? []);
+        setResumed(got.sale.sale_no);
+        return;
+      }
+
       const res = await fetch("/api/pos/sales?scope=open");
       if (!res.ok) return;
       const d = (await res.json().catch(() => ({}))) as { sales?: Sale[] };
@@ -1570,10 +1612,62 @@ export default function RegisterPage() {
               Amber, not red: nothing has gone wrong, but the lines already on
               screen belong to somebody else's job and adding to them by mistake
               is the one error this whole behaviour could cause. */}
-          {resumed && sale && (
+          {resumed && sale && sale.paid_cents === 0 && (
             <div className="mb-3 rounded-xl px-3 py-2 text-xs" style={{ background: "#fff7ed", color: "#92400e" }}>{tr("Carrying on")}{" "}<strong>{resumed}</strong>, left unfinished on this
               register. Check the lines below are the ones you meant before
               adding to it.
+            </div>
+          )}
+
+          {/*
+            A REOPENED TICKET, which is not the same thing as an unfinished one.
+
+            An open ticket with money already on it can only have got that way
+            one way: it was paid, and somebody reopened it to add something. It
+            says so, and it offers the way back out — because the commonest
+            outcome of reopening is realising nothing needed adding after all,
+            and without this the only route to a closed ticket again is the
+            payment panel, which would ask for money that is already in.
+
+            "As it is" is exact: completeSale re-freezes the totals and does
+            nothing else. Whatever was collected stays collected, and a line
+            added since simply leaves a balance the ticket now shows.
+          */}
+          {resumed && sale && sale.paid_cents > 0 && (
+            <div
+              className="mb-3 rounded-xl px-3 py-2.5 text-xs"
+              style={{ background: "#fff7ed", color: "#92400e" }}
+            >
+              <strong>{resumed}</strong> {tr("was reopened.")}{" "}
+              {formatCents(sale.paid_cents)} {tr("is already collected on it.")}{" "}
+              {tr("Add what is missing, or close it again as it stands.")}
+              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  style={{ height: 30, fontSize: 12 }}
+                  disabled={busy}
+                  onClick={() => void recloseAsIs()}
+                >
+                  {tr("Close it again as it is")}
+                </button>
+                {sale.subtotal_cents - sale.discount_cents !== sale.paid_cents && (
+                  <span>
+                    {tr("It now comes to")}{" "}
+                    <strong>{formatCents(sale.subtotal_cents - sale.discount_cents)}</strong>
+                    {" — "}
+                    {tr("closing it leaves")}{" "}
+                    <strong>
+                      {formatCents(
+                        Math.abs(sale.subtotal_cents - sale.discount_cents - sale.paid_cents),
+                      )}
+                    </strong>{" "}
+                    {sale.subtotal_cents - sale.discount_cents > sale.paid_cents
+                      ? tr("to collect.")
+                      : tr("overpaid.")}
+                  </span>
+                )}
+              </div>
             </div>
           )}
 
