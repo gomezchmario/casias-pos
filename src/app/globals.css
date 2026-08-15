@@ -704,7 +704,11 @@ html, body {
      separate thing sitting under it. */
   width: auto;
   margin: 0.55rem auto 0;
-  background: #fef2f2;
+  /* Transparent, so it sits on whatever the panel behind it is rather than
+     carrying its own pale red block. The outline and the red text are doing
+     enough — the fill was the last thing making it look like a button that
+     wanted pressing. */
+  background: transparent;
   color: #b4483f;
   border-color: rgb(185 28 28 / 0.22);
 }

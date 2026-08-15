@@ -206,22 +206,25 @@
 }
 
 /*
-  A panel that fills its half of the row instead of sitting in a short box.
+  BOTH PANELS IN A PAIR END AT THE SAME LINE.
 
-  Two panels side by side almost never want to be the same height, and the
-  shorter one ends up as a small card with a third of a column of white under
-  it. This makes the panel stretch to the row and lets its bars breathe into
-  the space rather than bunching at the top — the chart gets bigger, which is
-  the only thing that was wrong with it.
+  A grid row stretches its items to the tallest of them, so they were already
+  the same height — and then the bottom margin undid it. `.rp-panel` carries 12px
+  of it for when panels stack in one column, and `.rp-fill` set it to zero; the
+  filled one therefore ran 12px lower than the one beside it and the pair looked
+  misaligned for a reason that had nothing to do with their content.
 
-  Opt-in, because it is only right where the content can USE the height. A
-  short list stretched to a tall row is the same whitespace with the gaps moved
-  into the middle.
+  Zeroed for every panel inside a pair, and the grid's own `gap` does the
+  spacing — which is what it was there for. Panels outside a pair keep their
+  margin.
 */
+.rp-two > .rp-panel {
+  margin-bottom: 0;
+}
+
 .rp-two > .rp-fill {
   display: flex;
   flex-direction: column;
-  margin-bottom: 0;
 }
 
 .rp-fill .rp-ranked {
