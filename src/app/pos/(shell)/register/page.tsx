@@ -253,6 +253,30 @@ export default function RegisterPage() {
   const [resumed, setResumed] = useState<string | null>(null);
 
   /**
+   * Whether tapping a service and a price rings the line by itself.
+   *
+   * ON is the register's whole speed: pick MOUNT, pick $20, and the line is on
+   * the ticket in two taps. It is also the behaviour somebody wants off while
+   * they are feeling their way around, correcting a ticket, or training
+   * somebody — because a mistap posts a real line to a real ticket, and the
+   * only way back is to take it off again.
+   *
+   * Kept in localStorage rather than in the settings table: it is a preference
+   * of the person standing at THIS counter, not a rule for the shop, and two
+   * registers should be able to disagree about it. Defaults to on, which is how
+   * it has always behaved.
+   */
+  const [autoAdd, setAutoAdd] = useState(true);
+  useEffect(() => {
+    setAutoAdd(window.localStorage.getItem("casias.autoAdd") !== "off");
+  }, []);
+  const toggleAutoAdd = () =>
+    setAutoAdd((v) => {
+      window.localStorage.setItem("casias.autoAdd", v ? "off" : "on");
+      return !v;
+    });
+
+  /**
    * Close a reopened ticket without touching the money.
    *
    * Straight to `completeSale`, which re-freezes the totals and stops. The
@@ -514,7 +538,11 @@ export default function RegisterPage() {
   // Other counts as an answer. It is a deliberate statement about who did the
   // work, so a line carrying it is as ready to ring itself as one carrying a
   // name off the grid.
-  const readyToAutoAdd = mechanicId !== "" || otherName !== null;
+  //
+  // `autoAdd` is checked FIRST and separately: switched off, no combination of
+  // taps rings a line on its own, and every line waits for Add. That is the
+  // whole of what the switch does — nothing else on this screen changes.
+  const readyToAutoAdd = autoAdd && (mechanicId !== "" || otherName !== null);
 
   /** What to call the mechanic on this line, in words. */
   const mechanicLabel =
@@ -1263,6 +1291,32 @@ export default function RegisterPage() {
               disabled={busy}
             >{tr("Add")}</button>
           </div>
+          {/*
+            The switch for the two-tap behaviour, beside the button it replaces.
+
+            Here rather than in Settings because it is a decision somebody makes
+            for the next five minutes — while training, while fixing a ticket,
+            while working out what a customer actually wants — and a preference
+            you have to leave the register to change is one nobody uses.
+
+            It says which state it is IN, not which state it would move to.
+            A switch labelled with its own opposite is the classic way to get
+            somebody to turn a thing on twice.
+          */}
+          <button
+            type="button"
+            className="reg-autoadd"
+            aria-pressed={autoAdd}
+            onClick={toggleAutoAdd}
+            title={
+              autoAdd
+                ? "A service and a price ring the line by themselves, once a mechanic is picked. Tap to make every line wait for Add."
+                : "Every line waits for Add. Tap to let a service and a price ring it by themselves."
+            }
+          >
+            <span className={`reg-autoadd-dot${autoAdd ? " is-on" : ""}`} />
+            {autoAdd ? tr("Rings by itself") : tr("Waits for Add")}
+          </button>
           {/* The counterpart to "Order it in" over in the tire card. A car gets
               left for work, not for a tire off the rack, so the question belongs
               to this half of the register and is asked while the work is being
@@ -1325,7 +1379,15 @@ export default function RegisterPage() {
                   survives being read from across the counter at an angle where
                   which button is filled is not obvious. */}
               <div className="text-xs shrink-0 max-w-full">
-                {mechanicLabel === null ? (
+                {!autoAdd ? (
+                  /* With the switch off, whether a mechanic is picked has
+                     nothing to do with when the line rings — it always waits.
+                     Saying "nobody picked, it will wait for Add" would be
+                     offering a reason that is not the reason. */
+                  <span style={{ color: "#b45309" }}>
+                    every line waits for Add
+                  </span>
+                ) : mechanicLabel === null ? (
                   <span style={{ color: "#b45309" }}>
                     nobody picked — the line will wait for Add
                   </span>

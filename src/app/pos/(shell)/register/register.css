@@ -210,3 +210,53 @@
 .qty-step > button:active {
   transform: translateY(1px);
 }
+
+/*
+ * The switch for the two-tap behaviour, under the Add button.
+ *
+ * Deliberately small and quiet. It is a preference somebody sets once and then
+ * forgets, and at full button weight it would compete with Add — which is the
+ * control it exists to make unnecessary.
+ *
+ * The dot carries the state; the words repeat it. Colour alone would be a poor
+ * signal on a counter screen at an angle, and words alone take a second read to
+ * tell "Rings by itself" from "Waits for Add".
+ */
+.reg-autoadd {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+  margin-left: auto;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid rgb(10 37 64 / 0.15);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-brand-300, #4f6e8e);
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+.reg-autoadd:hover {
+  border-color: rgb(10 37 64 / 0.3);
+  color: var(--color-brand-500, #0a2540);
+  background: rgb(10 37 64 / 0.03);
+}
+
+.reg-autoadd-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: rgb(10 37 64 / 0.25);
+}
+.reg-autoadd-dot.is-on {
+  background: #15803d;
+}
+
+/* Right-aligned under Add, which is where the eye already is after pressing
+   it — and where Mario asked for it. */
+.reg-autoadd-row {
+  display: flex;
+  justify-content: flex-end;
+}
