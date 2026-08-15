@@ -223,7 +223,11 @@
  * tell "Rings by itself" from "Waits for Add".
  */
 .reg-autoadd {
-  display: inline-flex;
+  /* Block-level flex with a fitted width, not inline-flex: an inline-level box
+     ignores an auto left margin, which is why this sat on the left under a
+     block parent while claiming to be right-aligned. */
+  display: flex;
+  width: fit-content;
   align-items: center;
   gap: 0.4rem;
   margin-top: 0.4rem;
@@ -252,11 +256,4 @@
 }
 .reg-autoadd-dot.is-on {
   background: #15803d;
-}
-
-/* Right-aligned under Add, which is where the eye already is after pressing
-   it — and where Mario asked for it. */
-.reg-autoadd-row {
-  display: flex;
-  justify-content: flex-end;
 }
