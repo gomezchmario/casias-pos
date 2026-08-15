@@ -994,6 +994,14 @@ export function ticketEditsForDay(businessDate: string): TicketEdit[] {
          JOIN sales s ON s.id = CAST(a.target_id AS INTEGER)
     LEFT JOIN sale_items i ON i.id = CAST(json_extract(a.details, '$.item_id') AS INTEGER)
         WHERE a.target_type = 'sale'
+          -- A ticket that has been deleted is not part of the day any more, and
+          -- an edit made to it before it was deleted is not something anybody
+          -- can act on. This join had no deleted filter while every other
+          -- report in the app does, so removed tickets kept turning up under
+          -- "changed after they were finished" — money that moved on a ticket
+          -- that no longer exists, which reads as a discrepancy and is not one.
+          -- The audit row itself is untouched; this is what gets REPORTED.
+          AND s.deleted = 0
           AND a.action IN ('sale_item.update', 'sale_item.void')
           AND a.timestamp >= date(?, '-1 day')
           AND a.timestamp <  date(?, '+2 days')

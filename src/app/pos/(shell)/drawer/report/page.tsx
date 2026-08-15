@@ -158,6 +158,48 @@ const shownVariance = (varianceCents: number, isCard: number) =>
  */
 const COUNTABLE = new Set(["cash", "cc"]);
 
+/**
+ * How busy an hour was, as a colour — blue when it is quiet through to red when
+ * the shop is flat out.
+ *
+ * ONE FUNCTION FOR BOTH CHARTS. The hour-by-hour bars and the four-week grid
+ * are read against each other — "was this morning busy for a Saturday?" — and
+ * that only works if the same amount of busy is the same colour in both. Each
+ * chart normalises against its OWN maximum, because one is a single day and the
+ * other is four weeks added up; what carries across is the scale, not the
+ * absolute figure.
+ *
+ * The stops are picked to stay apart in ink as well as in hue, so a mono print
+ * still reads light-to-dark down the same order.
+ */
+function busyColor(share: number): string {
+  const stops: [number, string][] = [
+    [0, "#dbeafe"],
+    [0.25, "#60a5fa"],
+    [0.45, "#34d399"],
+    [0.65, "#facc15"],
+    [0.82, "#fb923c"],
+    [1, "#dc2626"],
+  ];
+  const t = Math.max(0, Math.min(1, share));
+  for (let i = 1; i < stops.length; i++) {
+    if (t <= stops[i][0]) {
+      const [t0, c0] = stops[i - 1];
+      const [t1, c1] = stops[i];
+      const k = (t - t0) / (t1 - t0 || 1);
+      const hex = (c: string) => [1, 3, 5].map((j) => parseInt(c.slice(j, j + 2), 16));
+      const a = hex(c0);
+      const b = hex(c1);
+      const mix = a.map((v, j) => Math.round(v + (b[j] - v) * k));
+      return `rgb(${mix[0]}, ${mix[1]}, ${mix[2]})`;
+    }
+  }
+  return stops[stops.length - 1][1];
+}
+
+/** Dark text on the pale end of the scale, white on the hot end. */
+const busyInk = (share: number) => (share > 0.55 ? "#fff" : "#111827");
+
 const signed = (cents: number) =>
   cents === 0 ? formatCents(0) : `${cents > 0 ? "+" : "−"}${formatCents(Math.abs(cents))}`;
 
@@ -573,7 +615,15 @@ export default function DayReportPage() {
       newTireCents,
       receivedUnits,
     };
-  }, [data]);
+    /*
+      `weekdays` BELONGS IN HERE. It arrives on a second request, after the
+      first paint, and while this list held only `data` the memo never recomputed
+      when it landed — so the weekday baseline stayed null and the comparison
+      columns printed a dash on every report. The figures behind it were right
+      the whole time; the plumbing was not, which is the kind of fault that does
+      not announce itself.
+    */
+  }, [data, weekdays]);
 
   if (error) return <div className="p-6 text-red-700">{error}</div>;
   if (!data || !facts) return <div className="p-6 text-brand-300">Reading the day…</div>;
@@ -860,7 +910,16 @@ export default function DayReportPage() {
             </tr>
           </thead>
           <tbody>
-            {rec.methods.map((m: MethodVariance) => {
+            {rec.methods
+              /*
+                Nothing came in on it and nobody counts it — so it is a row
+                saying "$0.00" four times across, and there were five of them
+                under the two that matter. The counted pair always stay, even at
+                zero: an empty drawer is a fact somebody produced by counting,
+                and a missing cash line reads as a cash line nobody did.
+              */
+              .filter((m) => m.takingsCents !== 0 || m.counted || COUNTABLE.has(m.code))
+              .map((m: MethodVariance) => {
               const v = shownVariance(m.varianceCents, m.isCard);
               return (
                 <tr key={m.methodId}>
@@ -1293,7 +1352,7 @@ export default function DayReportPage() {
           title="Did the racks move in step"
           lead="A sold tire leaves two records, written by different parts of the program: a line on the ticket, and a movement on the stock ledger. When the two counts agree, no tire left the building unrecorded. When they do not, one of them is wrong and it is worth knowing which."
         >
-          <table className="dr-table dr-compact">
+          <table className="dr-table">
             <tbody>
               <tr>
                 <td>Tires on today&apos;s tickets</td>
@@ -1371,123 +1430,124 @@ export default function DayReportPage() {
 
       {/* ══════════ 10. WHO DID THE WORK ══════════ */}
       <Section
-        n="10"
+        n="11"
         title="Who did the work"
-        lead={`Each technician's week so far, against the same number of days of the week before. Credit follows the line on the ticket, so a ticket with two jobs on it is split between the two people who did them.`}
+        lead="What each technician was credited with TODAY, and the hours they were on the clock for it. Credit follows the line on the ticket, so a ticket with two jobs on it is split between the two people who did them."
       >
-        {data.leaderboard.techs.length === 0 ? (
-          <Nothing>Nobody has been credited with work this week.</Nothing>
+        {/*
+          TODAY, NOT THE WEEK.
+
+          This table used to print the week-so-far board, which is a real and
+          useful figure and the wrong one on a page headed with a single date:
+          somebody who worked Monday and was off today appeared on today's
+          report with work against their name. On a sheet an owner reads to see
+          how the day went, that is worse than showing nothing — it is a name
+          attached to work that did not happen today.
+
+          The week's board still exists on its own screen. This is the day.
+        */}
+        {!day || day.mechanics.length === 0 ? (
+          <Nothing>Nobody was credited with work today.</Nothing>
         ) : (
           <table className="dr-table">
             <thead>
               <tr>
                 <th>Technician</th>
-                <th className="num">Tickets</th>
-                <th className="num">New tires</th>
-                <th className="num">Used tires</th>
-                <th className="num">Other jobs</th>
-                {data.canSeeTechIncomeCash && <th className="num">Money brought in</th>}
-                {data.canSeeTechIncomeCash && <th className="num">Against last week</th>}
-                <th className="num">Tips</th>
+                <th className="num">Lines</th>
+                {data.canSeeTechIncomeCash && <th className="num">Brought in</th>}
+                <th className="num">Hours</th>
+                {data.canSeeTechIncomeCash && <th className="num">Per hour</th>}
+                <th className="num">Tips today</th>
               </tr>
             </thead>
             <tbody>
-              {data.leaderboard.techs.map((tech) => (
-                <tr key={tech.employeeId}>
-                  <td>{tech.name}</td>
-                  <td className="num">{tech.ticketCount}</td>
-                  <td className="num">{tech.newTires}</td>
-                  <td className="num">{tech.usedTires}</td>
-                  <td className="num">{tech.otherCount}</td>
-                  {data.canSeeTechIncomeCash && (
-                    <td className="num">{formatCents(tech.incomeCents)}</td>
-                  )}
-                  {data.canSeeTechIncomeCash && (
-                    <td className="num">
-                      {tech.improvementPct === null
-                        ? "—"
-                        : `${tech.improvementPct >= 0 ? "+" : ""}${Math.round(tech.improvementPct)}%`}
+              {day.mechanics.map((m) => {
+                const h = day.hours.people.find((x) => x.employeeId === m.employeeId);
+                const tip = data.leaderboard.techs.find(
+                  (x) => x.employeeId === m.employeeId,
+                )?.tipCentsToday;
+                /* Per hour ONLY over hours somebody really clocked out of. The
+                   rest were closed automatically at nine, which is a
+                   placeholder rather than a time anybody went home, and money
+                   divided by a placeholder is a figure that looks like a fact. */
+                const perHour =
+                  h && h.knownMinutes > 0
+                    ? Math.round((m.salesCents / h.knownMinutes) * 60)
+                    : null;
+                return (
+                  <tr key={m.employeeId ?? m.name}>
+                    <td>
+                      {m.name}
+                      {h?.onTheClock && <span className="dr-tag">still on</span>}
                     </td>
-                  )}
-                  <td className="num">
-                    {tech.tipCents > 0 ? formatCents(tech.tipCents) : "—"}
-                  </td>
-                </tr>
-              ))}
+                    <td className="num">{m.lineCount}</td>
+                    {data.canSeeTechIncomeCash && (
+                      <td className="num">{formatCents(m.salesCents)}</td>
+                    )}
+                    <td className="num">
+                      {h ? ((h.knownMinutes + h.assumedMinutes) / 60).toFixed(1) : "—"}
+                      {h && h.assumedMinutes > 0 && (
+                        <div className="dr-note">
+                          {(h.assumedMinutes / 60).toFixed(1)} estimated
+                        </div>
+                      )}
+                    </td>
+                    {data.canSeeTechIncomeCash && (
+                      <td className="num">{perHour === null ? "—" : formatCents(perHour)}</td>
+                    )}
+                    <td className="num">{tip ? formatCents(tip) : "—"}</td>
+                  </tr>
+                );
+              })}
             </tbody>
+            <tfoot>
+              <tr>
+                <td>Everybody</td>
+                <td className="num">
+                  {day.mechanics.reduce((n, m) => n + m.lineCount, 0)}
+                </td>
+                {data.canSeeTechIncomeCash && (
+                  <td className="num">
+                    {formatCents(day.mechanics.reduce((n, m) => n + m.salesCents, 0))}
+                  </td>
+                )}
+                <td className="num">
+                  {(
+                    day.hours.people.reduce(
+                      (n, h) => n + h.knownMinutes + h.assumedMinutes,
+                      0,
+                    ) / 60
+                  ).toFixed(1)}
+                </td>
+                {data.canSeeTechIncomeCash && <td className="num" />}
+                <td className="num">{formatCents(data.dayTotals.tipCents)}</td>
+              </tr>
+            </tfoot>
           </table>
         )}
-        <p className="dr-foot">
-          Week of {data.leaderboard.week.start} to {data.leaderboard.week.end}, read against{" "}
-          {data.leaderboard.comparable.days} matching day
-          {data.leaderboard.comparable.days === 1 ? "" : "s"} of the week before.
-        </p>
-
-        {/*
-          Hours, and what each hour brought in.
-
-          Rate per hour is worked out ONLY over hours somebody actually clocked
-          out of. The rest were closed automatically at nine, which is a
-          placeholder rather than a time anybody went home — dividing money by a
-          placeholder produces a figure that looks like a fact, and the share
-          that is guesswork is stated here rather than folded in.
-        */}
-        {day && day.hours.people.length > 0 && (
-          <>
-            <h3 className="dr-h3">Hours on the clock</h3>
-            <table className="dr-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th className="num">Hours</th>
-                  <th className="num">Brought in</th>
-                  <th className="num">Per hour</th>
-                </tr>
-              </thead>
-              <tbody>
-                {day.hours.people.map((h) => {
-                  const tech = day.mechanics.find((m) => m.employeeId === h.employeeId);
-                  const perHour =
-                    h.knownMinutes > 0 && tech
-                      ? Math.round((tech.salesCents / h.knownMinutes) * 60)
-                      : null;
-                  return (
-                    <tr key={h.employeeId}>
-                      <td>
-                        {h.name}
-                        {h.onTheClock && <span className="dr-tag">still on</span>}
-                      </td>
-                      {/* Both halves, because they are different facts: hours
-                          somebody clocked out of, and hours the 9pm auto-close
-                          guessed at. Added together silently they would make a
-                          guess look like a measurement. */}
-                      <td className="num">
-                        {((h.knownMinutes + h.assumedMinutes) / 60).toFixed(1)}
-                        {h.assumedMinutes > 0 && (
-                          <div className="dr-note">
-                            {(h.assumedMinutes / 60).toFixed(1)} estimated
-                          </div>
-                        )}
-                      </td>
-                      <td className="num">{tech ? formatCents(tech.salesCents) : "—"}</td>
-                      <td className="num">{perHour === null ? "—" : formatCents(perHour)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <p className="dr-foot">
-              {day.hours.confidencePct === 100
-                ? "Everybody clocked out, so every hour here is a real one."
-                : `${day.hours.confidencePct}% of these hours were clocked out properly. The rest were closed automatically at 9pm and are an estimate — the per-hour figures ignore them.`}
-            </p>
-          </>
+        {day && (
+          <p className="dr-foot">
+            {day.hours.confidencePct === 100
+              ? "Everybody clocked out, so every hour here is a real one."
+              : `${day.hours.confidencePct}% of these hours were clocked out properly. The rest were closed automatically at 9pm and are an estimate — the per-hour figures ignore them.`}
+          </p>
+        )}
+        {day && day.hours.people.some((h) => !day.mechanics.some((m) => m.employeeId === h.employeeId)) && (
+          <p className="dr-foot">
+            On the clock today with no work credited to them:{" "}
+            {day.hours.people
+              .filter((h) => !day.mechanics.some((m) => m.employeeId === h.employeeId))
+              .map((h) => h.name)
+              .join(", ")}
+            . That is ordinary for anybody not turning wrenches — it is who the counter and the
+            office were.
+          </p>
         )}
       </Section>
 
       {/* ══════════ 10b. WHEN THE SHOP IS BUSY ══════════ */}
       <Section
-        n="11"
+        n="12"
         title="How the day ran, hour by hour"
         lead="How many customers stood at the counter in each hour of TODAY, with the same day last week beside it. Two Saturdays are the only fair comparison a tire shop has, and the shape matters as much as the total — the same forty customers arriving in three hours or spread over nine are two very different days to staff."
         breakBefore
@@ -1526,14 +1586,20 @@ export default function DayReportPage() {
                       <div className="dr-hour-bars">
                         <div
                           className="dr-hour-bar dr-hour-today"
-                          style={{ height: `${(a / max) * 100}%` }}
+                          style={{
+                            height: `${(a / max) * 100}%`,
+                            background: a === 0 ? "transparent" : busyColor(a / max),
+                          }}
                         >
                           {a > 0 && <span className="dr-hour-n">{a}</span>}
                         </div>
                         {lastWeek && (
                           <div
                             className="dr-hour-bar dr-hour-prev"
-                            style={{ height: `${(b / max) * 100}%` }}
+                            style={{
+                              height: `${(b / max) * 100}%`,
+                              borderColor: b === 0 ? "#d1d5db" : busyColor(b / max),
+                            }}
                           >
                             {b > 0 && <span className="dr-hour-n">{b}</span>}
                           </div>
@@ -1594,7 +1660,7 @@ export default function DayReportPage() {
         it stays next to the day it gives context to.
       */}
       <Section
-        n="12"
+        n="13"
         title="When the shop is busy"
         lead="The last four weeks as a grid: which hours of which days actually carry the shop. Darker is busier. This is the one page here that settles a rota argument — a shop can feel busy on a Saturday and take most of its money on a Thursday."
       >
@@ -1646,17 +1712,15 @@ export default function DayReportPage() {
                         </th>
                         {cols2.map((h) => {
                           const n = at(wd, h);
-                          /* Ink, not hue. A printer rendering a blue-to-red
-                             scale in grey gives the busiest hour and the
-                             quietest the same tone; density does not have that
-                             problem, and it reads at arm's length. */
-                          const shade = n === 0 ? 0 : 0.12 + (n / max2) * 0.78;
+                          const share = n === 0 ? 0 : n / max2;
                           return (
                             <td
                               key={h}
-                              style={{ background: `rgba(10,37,64,${shade.toFixed(2)})` }}
+                              style={{
+                                background: n === 0 ? "#f9fafb" : busyColor(share),
+                              }}
                             >
-                              <span style={{ color: shade > 0.55 ? "#fff" : "#111827" }}>
+                              <span style={{ color: n === 0 ? "#9ca3af" : busyInk(share) }}>
                                 {n || ""}
                               </span>
                             </td>
@@ -1678,7 +1742,7 @@ export default function DayReportPage() {
 
       {/* ══════════ 11. THINGS THAT NEED AN EYE ══════════ */}
       <Section
-        n="13"
+        n="14"
         title="Prices changed at the counter"
         lead="Tires sold for something other than the price on the rack. Every one of them may have been the right call — this is the record of the calls, not a list of mistakes."
         breakBefore
@@ -1719,7 +1783,7 @@ export default function DayReportPage() {
       </Section>
 
       <Section
-        n="14"
+        n="15"
         title="Tickets changed after they were finished"
         lead="Money moved on a ticket that had already been completed. Legitimate every day — a wrong tender, a refund, a discount agreed after the fact — and worth a glance, because a finished ticket is supposed to stay finished."
       >
