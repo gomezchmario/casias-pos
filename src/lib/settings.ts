@@ -61,6 +61,8 @@ export type SettingsMap = {
    * tires with a real cost recorded.
    */
   assumed_tire_markup_bp: string; // 2000 = 20%
+  /** What the shop assumes it paid on the IMPORTED years. See assumedCostSql. */
+  assumed_history_markup_bp: string; // 2000 = 20%
   quote_mount_balance_cents: string;
   quote_round_to_cents: string; // 1000 = round up to the next $10
 
@@ -160,6 +162,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
 
   quote_margin_bp: "2000", // 20%
   assumed_tire_markup_bp: "2000", // 20%
+  assumed_history_markup_bp: "2000", // 20%
   quote_mount_balance_cents: "3500", // $35
   quote_round_to_cents: "1000", // next $10
 

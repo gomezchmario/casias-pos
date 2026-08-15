@@ -967,6 +967,36 @@ function CostsCard({ onError }: { onError: (m: string | null) => void }) {
     if (data && data.coverage.pct < 80) setOpen(true);
   }, [data]);
 
+  /**
+   * Give every listed tire a cost worked back from what it actually sold for.
+   *
+   * Confirmed by hand because it writes a real figure to every tire on the
+   * list, and somebody should know that before pressing it rather than
+   * afterwards. It skips anything already costed, so pressing it twice cannot
+   * overwrite work done by hand.
+   */
+  async function fillProductCosts(count: number) {
+    if (
+      !window.confirm(
+        `Give ${count} ${count === 1 ? "tire" : "tires"} a cost worked back from what each one sold for, at 20% markup?\n\nThis is an estimate, not an invoice. Anything already costed is left alone, and any of them can be corrected in Inventory afterwards.`,
+      )
+    )
+      return;
+    setBusy("__fill__");
+    onError(null);
+    const res = await fetch("/api/pos/costs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fillProducts: true }),
+    });
+    setBusy(null);
+    if (!res.ok) {
+      onError(tr("That did not save"));
+      return;
+    }
+    setData(await res.json());
+  }
+
   const load = useCallback(async () => {
     const res = await fetch("/api/pos/costs");
     if (!res.ok) return;
@@ -1201,6 +1231,31 @@ function CostsCard({ onError }: { onError: (m: string | null) => void }) {
                   </span>
                 ))}
               </div>
+              {/*
+                One press for the whole list.
+
+                Typing a cost for each of these means finding an invoice that in
+                most cases no longer exists — they are tires sold years ago, or
+                sizes the shop has stopped carrying. Worked back from what each
+                one ACTUALLY SOLD FOR, so a \$340 tire gets a \$283 cost and a
+                \$45 one gets \$37: an estimate the right size, rather than no
+                margin at all on those lines forever.
+
+                It writes to the same field somebody would type into, so a real
+                invoice later is one edit — and the next receipt of that tire
+                records its true cost against the lot regardless.
+              */}
+              <button
+                type="button"
+                className="btn btn-outline mt-2"
+                style={{ height: 32, fontSize: 12 }}
+                disabled={busy !== null}
+                onClick={() => void fillProductCosts(data.productsMissing.length)}
+              >
+                {busy === "__fill__"
+                  ? tr("Working…")
+                  : `${tr("Give all of them a cost at 20% markup")} (${data.productsMissing.length})`}
+              </button>
             </div>
           )}
         </>

@@ -1,4 +1,5 @@
 import { getDb } from "./db";
+import { currentBusinessDate } from "./business-date";
 import { getSetting } from "./settings";
 import { inTx } from "./tx";
 import { nowLocalIso } from "./time";
@@ -93,9 +94,64 @@ export const COST_JOINS = `
  * so this can never quietly turn a guess into a measurement. Set
  * `assumed_tire_markup_bp` to 0 to switch it off.
  */
+/**
+ * The imported years, told apart from the shop's own record.
+ *
+ * By ticket number rather than by date, because the two overlap: the workbook
+ * import runs to 2026-08-07 and the register's first real ticket is 2026-08-03,
+ * so any date cutover would either swallow live tickets or leak imported ones.
+ * The prefix is unambiguous — H- was written by the importer and nothing else
+ * writes it.
+ */
+export const IMPORTED = "s.sale_no LIKE 'H-%'";
+export const LIVE = "s.sale_no NOT LIKE 'H-%'";
+
+/** The day the shop's own record starts — the first ticket this register rang. */
+export function liveFromDate(): string {
+  // Written out rather than reusing LIVE with its alias stripped: that trick
+  // holds only until somebody renames the alias, and this date is what every
+  // coverage figure on the costs screen is measured from. Deleted tickets are
+  // excluded so a struck test ticket cannot drag the start date backwards.
+  const r = getDb()
+    .prepare(
+      `SELECT MIN(business_date) AS d FROM sales
+        WHERE deleted = 0 AND sale_no NOT LIKE 'H-%'`,
+    )
+    .get() as { d: string | null };
+  return r.d ?? currentBusinessDate();
+}
+
 export function assumedCostSql(): string {
   const bp = Number(getSetting("assumed_tire_markup_bp"));
-  if (!Number.isFinite(bp) || bp <= 0) return UNIT_COST_SQL;
+  /*
+    THE IMPORTED YEARS, COSTED AT THE SHOP'S FLOOR MARKUP.
+
+    The old cashier workbooks recorded what a customer paid and nothing about
+    what the shop paid, so two and a half years of margin read as "not enough
+    cost data" — true, and useless. 20% on cost is the floor this shop works to,
+    which makes the assumed cost price ÷ 1.2.
+
+    ONLY on imported lines. A line rung on this register with no cost against it
+    is a question somebody can still answer, and covering it with a guess would
+    hide the one kind of gap still worth chasing. That is the whole point of
+    keeping the two apart: the past is estimated once and left alone, the
+    present is measured.
+
+    Reported separately from real costs wherever it is used — see
+    \`costCoverage\`, which never folds an assumption into the covered figure.
+  */
+  const histBp = Number(getSetting("assumed_history_markup_bp"));
+  const history =
+    Number.isFinite(histBp) && histBp > 0
+      ? `
+      CASE WHEN ${IMPORTED} AND i.unit_price_cents > 0
+           THEN CAST(i.unit_price_cents * 10000.0 / ${10000 + histBp} AS INTEGER)
+      END,`
+      : "";
+  if (!Number.isFinite(bp) || bp <= 0)
+    return history
+      ? `COALESCE(NULLIF(i.unit_cost_cents, 0), NULLIF(p.default_cost_cents, 0), sc.cost_cents, ${history.replace(/,$/, "")})`
+      : UNIT_COST_SQL;
   return `
     COALESCE(
       NULLIF(i.unit_cost_cents, 0),
@@ -111,7 +167,8 @@ export function assumedCostSql(): string {
                   IN ('new_tire', 'used_tire')
                 AND i.unit_price_cents > 0
            THEN CAST(i.unit_price_cents * 10000.0 / ${10000 + bp} AS INTEGER)
-      END
+      END,
+      ${history.replace(/,$/, "")}
     )`;
 }
 
@@ -171,6 +228,13 @@ export function serviceCosts(limit = 30): ServiceCost[] {
           -- this shop's new-tire money arrives without a product row; it gets
           -- the assumed markup instead -- see assumedCostSql.
           AND (c.code IS NULL OR c.code NOT IN ('new_tire', 'used_tire'))
+          -- The shop's own record only. The imported years hold 1,346 distinct
+          -- descriptions, most of them typed once by somebody who has left, and
+          -- a list of questions about them is a list nobody can answer. What is
+          -- rung on this register is what the shop still sells and still knows
+          -- the cost of — and the old lines are already carried by the history
+          -- assumption above.
+          AND ${LIVE}
      GROUP BY key
      ORDER BY sc.cost_cents IS NULL, revenueCents DESC
         LIMIT ?`,
@@ -240,14 +304,98 @@ export function productsMissingCost(): {
               COALESCE(SUM(i.line_total_cents), 0) AS revenueCents
          FROM products p
     LEFT JOIN sale_items i ON i.product_id = p.id AND i.voided = 0
+    LEFT JOIN sales s ON s.id = i.sale_id
         WHERE p.deleted = 0 AND p.active = 1
           AND COALESCE(p.default_cost_cents, 0) = 0
+          -- Sold on this register, not merely somewhere in the imported years.
+          -- A tire the shop last moved in 2024 under a description nobody uses
+          -- any more is not a question worth putting in front of anybody.
+          AND ${LIVE}
      GROUP BY p.id
        HAVING lines > 0
      ORDER BY revenueCents DESC
         LIMIT 40`,
     )
     .all() as { productId: number; name: string; lines: number; revenueCents: number }[];
+}
+
+/**
+ * Give every un-costed tire on the list a cost, worked back from its own
+ * selling price at the shop's floor markup.
+ *
+ * WHY THIS IS ALLOWED TO BE A GUESS. A tire's real cost is on a supplier
+ * invoice, and for the ones on this list nobody typed it in — often years ago,
+ * often for a size the shop no longer stocks. The alternative to a worked-back
+ * figure is not a better figure, it is no margin at all on that line forever.
+ *
+ * WHY IT IS STILL HONEST. It is worked from what each tire ACTUALLY SOLD FOR,
+ * not from a flat rate applied to everything: a $340 tire gets a $283 cost and
+ * a $45 one gets $37, so the answer is at least the right size. And it is
+ * written to `default_cost_cents`, which is the same field somebody types into
+ * — so the moment a real invoice arrives it is one edit to correct, and the
+ * next receipt of that tire records its true cost against the lot anyway.
+ *
+ * Skips anything already costed, so it can be pressed twice without undoing
+ * work somebody did by hand. Audited per product, with the price it was worked
+ * from, so "where did that cost come from" has an answer.
+ */
+export function fillProductCostsFromPrice(
+  user: PosUser,
+  markupBp?: number,
+): Result & { filled?: number } {
+  if (!can(user.role, "manageSettings"))
+    return { ok: false, error: "Only a manager can set what things cost" };
+
+  const bp = Number.isFinite(markupBp as number) && (markupBp as number) > 0
+    ? (markupBp as number)
+    : Number(getSetting("assumed_history_markup_bp"));
+  if (!Number.isFinite(bp) || bp <= 0) return { ok: false, error: "No markup to work from" };
+
+  const db = getDb();
+  const targets = productsMissingCost();
+  if (targets.length === 0) return { ok: true, filled: 0 };
+
+  return inTx(() => {
+    let filled = 0;
+    for (const t of targets) {
+      // The average of what it has actually sold for, off the same lines the
+      // list ranked it by. A tire sold once at $340 and once at $300 gets its
+      // cost from $320, which is the best the record can say.
+      const avg = db
+        .prepare(
+          `SELECT CAST(AVG(NULLIF(i.unit_price_cents, 0)) AS INTEGER) AS p
+             FROM sale_items i JOIN sales s ON s.id = i.sale_id
+            WHERE i.product_id = ? AND i.voided = 0
+              AND s.deleted = 0 AND s.status = 'completed' AND s.kind = 'sale'`,
+        )
+        .get(t.productId) as { p: number | null };
+      if (!avg.p || avg.p <= 0) continue;
+
+      const cost = Math.round((avg.p * 10000) / (10000 + bp));
+      if (cost <= 0) continue;
+
+      db.prepare("UPDATE products SET default_cost_cents = ? WHERE id = ?").run(cost, t.productId);
+      logActorAudit({
+        type: "employee",
+        employeeId: user.employeeId,
+        name: user.name,
+        role: user.role,
+      } satisfies Actor, {
+        action: "product.update",
+        targetType: "product",
+        targetId: t.productId,
+        details: {
+          why: "cost worked back from the selling price at the shop's floor markup",
+          markup_bp: bp,
+          from_avg_price_cents: avg.p,
+        },
+        before: { default_cost_cents: 0 },
+        after: { default_cost_cents: cost },
+      });
+      filled += 1;
+    }
+    return { ok: true as const, filled };
+  });
 }
 
 type Result = { ok: true } | { ok: false; error: string };
