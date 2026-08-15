@@ -2041,22 +2041,43 @@ export default function RegisterPage() {
                 onTenderChange={setAccountTender}
                 onError={setError}
                 onDone={finishTicket}
+                otherEndings={
+                  <button
+                    type="button"
+                    className="btn btn-outline-danger w-full mt-2"
+                    style={{ height: 44, fontSize: 14 }}
+                    onClick={() => setAskUnpaid(true)}
+                    disabled={busy}
+                  >
+                    {`Close it unpaid — customer owes ${formatCents(owedCents)}`}
+                  </button>
+                }
               />
             ))}
 
-          {/* Work done, money not collected.
-              For a cashier this is the exception — the customer coming back
-              Friday with the rest — so it sits under the payment panel,
-              outlined rather than filled: findable without being the thing a
-              thumb lands on when the money is on the counter. It used to be
-              small underlined text, which is the treatment a footnote gets, and
-              tickets that should have closed owing forty dollars got rung for
-              nothing instead.
+          {/* Work done, money not collected — the writer's copy of it.
 
-              For a WRITER it is the ordinary ending, so it is the solid button
-              and it comes first. Same action, same dialog, same ledger — only
-              the weight on the screen changes with whose job it is. */}
-          {sale && liveItems.length > 0 && sale.kind !== "purchase" && (
+              For a WRITER this is the ordinary ending of a ticket, so it is the
+              solid button and it stands alone: he is outside at the car, the
+              customer pays inside, and there is no payment panel on his screen
+              to put it in. The cashier's copy is the outlined one handed into
+              the panel above, findable without being the thing a thumb lands on
+              when the money is on the counter. Same action, same dialog, same
+              ledger — only the weight on the screen changes with whose job it
+              is. It used to be small underlined text for both, which is the
+              treatment a footnote gets, and tickets that should have closed
+              owing forty dollars got rung for nothing instead. */}
+          {/*
+            Rendered here only when there is no payment panel to put it in.
+
+            A writer who has not opened the money has nothing above this, so the
+            button stands on its own exactly as it always did. Everybody else
+            gets it handed INTO the panel as `otherEndings`, so Complete sale,
+            Split payment and this one read as the three answers to one question
+            they are — and the discount, which changes the price rather than
+            ending the ticket, sits below all three instead of in among them.
+          */}
+          {sale && liveItems.length > 0 && sale.kind !== "purchase" && writing && !takingPayment && (
             /* Two lines, not one long one.
                The button says the ACTION and the amount sits under it, because
                they are answers to different questions — what this does, and how
@@ -2072,30 +2093,22 @@ export default function RegisterPage() {
                up against the figure it reads as part of the same block, and the
                one thing that must not happen at a car window is pressing the
                ending of a ticket while looking at its total. */
-            <div className={writing ? "mt-3" : undefined}>
+            <div className="mt-3">
               <button
                 type="button"
-                className={
-                  writing ? "btn btn-danger w-full" : "btn btn-outline-danger w-full mt-2"
-                }
-                style={
-                  writing ? { height: 52, fontSize: 17 } : { height: 44, fontSize: 14 }
-                }
+                className="btn btn-danger w-full"
+                style={{ height: 52, fontSize: 17 }}
                 onClick={() => setAskUnpaid(true)}
                 disabled={busy}
               >
-                {writing
-                  ? "Create Ticket"
-                  : `Close it unpaid — customer owes ${formatCents(owedCents)}`}
+                Create Ticket
               </button>
-              {writing && (
-                <div
-                  className="text-center mt-1 font-semibold tabular-nums"
-                  style={{ color: "#a71d24", fontSize: 14 }}
-                >
-                  {formatCents(owedCents)} to pay at cashier
-                </div>
-              )}
+              <div
+                className="text-center mt-1 font-semibold tabular-nums"
+                style={{ color: "#a71d24", fontSize: 14 }}
+              >
+                {formatCents(owedCents)} to pay at cashier
+              </div>
             </div>
           )}
 

@@ -1,0 +1,688 @@
+/*
+  THE DAILY BUSINESS REPORT, SET FOR PAPER.
+
+  This stylesheet has one job the screen stylesheets do not: it is designing a
+  DOCUMENT, and a document has pages. Everything below follows from that.
+
+  MEASURED IN POINTS AND MILLIMETRES, not in rem. A rem is a browser's idea of
+  comfortable reading and it means nothing to a sheet of Letter — 9pt is 9pt in
+  the tray. Screen preview inherits the same figures so what is on the glass is
+  what comes out.
+
+  COLOUR THAT SURVIVES. Every tint here is either structural (a rule, a header
+  band) or a plain grey, and nothing carries meaning by hue alone: the verdict
+  says which way it went in words, the difference column prints a sign. A shop
+  prints this on whatever is loaded, and half of those are mono.
+
+  BREAKS ARE DECIDED HERE, NOT BY THE PRINTER. A table split across a page
+  boundary with its heading left behind is the single most common way a printed
+  report becomes unreadable, so headers repeat, rows stay whole, and a heading
+  never prints as the last thing on a page.
+*/
+
+.dr {
+  --ink: #111827;
+  --soft: #6b7280;
+  --line: #d1d5db;
+  --rule: #0a2540;
+  --band: #f3f4f6;
+  --bad: #991b1b;
+  max-width: 210mm;
+  margin: 0 auto;
+  padding: 0 4mm 12mm;
+  color: var(--ink);
+  font-size: 10pt;
+  line-height: 1.45;
+  /*
+    Paints its own paper.
+
+    Every colour below is chosen against white because that is what it prints
+    on, and a document that inherits its background from whatever is behind it
+    renders as near-black text on a dark ground the moment somebody opens it on
+    a screen set to dark. This is one of the few pages in the app that is a
+    picture of a sheet of paper rather than part of an interface, so it is white
+    on purpose and in both places.
+  */
+  background: #fff;
+}
+
+/* The one interactive strip, and it never prints. */
+.dr-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0 14px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 14px;
+  font-size: 11pt;
+}
+
+/* ── Masthead ─────────────────────────────────────────────────────────── */
+
+.dr-masthead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16mm;
+  padding-bottom: 4mm;
+  border-bottom: 2.5pt solid var(--rule);
+}
+
+.dr-mast-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.dr-logo {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+}
+
+.dr-shop {
+  font-size: 16pt;
+  font-weight: 800;
+  letter-spacing: -0.2pt;
+  line-height: 1.1;
+}
+
+/* The document's own name, quiet under the shop's. Somebody filing this needs
+   to know what it is at a glance six months later. */
+.dr-doc {
+  font-size: 9pt;
+  text-transform: uppercase;
+  letter-spacing: 1.6pt;
+  color: var(--soft);
+  margin-top: 2px;
+}
+
+.dr-mast-right {
+  text-align: right;
+  flex: none;
+}
+
+.dr-mast-date {
+  font-size: 12pt;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+
+/* Who printed it, when, and what it covers. A definition list because that is
+   what it is, and because the two columns stay aligned without a table. */
+.dr-meta {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 1px 8px;
+  justify-content: end;
+  font-size: 8.5pt;
+  color: var(--soft);
+  margin: 0;
+}
+
+.dr-meta dt {
+  text-align: right;
+  text-transform: uppercase;
+  letter-spacing: 0.6pt;
+}
+
+.dr-meta dd {
+  margin: 0;
+  text-align: right;
+  color: var(--ink);
+}
+
+/* ── The verdict ──────────────────────────────────────────────────────── */
+
+/*
+  The first thing on the page and the only thing on it set at this size.
+
+  A left rule rather than a filled panel: filled blocks are what a low toner
+  cartridge ruins first, and this is the sentence that must survive the worst
+  printer in the building.
+*/
+.dr-verdict {
+  margin: 5mm 0 4mm;
+  padding: 3mm 0 3mm 5mm;
+  border-left: 4pt solid var(--rule);
+  break-inside: avoid;
+}
+
+.dr-verdict-tag {
+  font-size: 8pt;
+  text-transform: uppercase;
+  letter-spacing: 1.4pt;
+  color: var(--soft);
+  margin-bottom: 2px;
+}
+
+.dr-verdict-head {
+  font-size: 15pt;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.dr-verdict-body {
+  font-size: 9.5pt;
+  color: #374151;
+  margin-top: 3px;
+  max-width: 155mm;
+}
+
+.dr-verdict-ok {
+  border-left-color: #15803d;
+}
+.dr-verdict-over {
+  border-left-color: #b45309;
+}
+.dr-verdict-short {
+  border-left-color: var(--bad);
+}
+.dr-verdict-short .dr-verdict-head {
+  color: var(--bad);
+}
+.dr-verdict-wait {
+  border-left-color: var(--soft);
+}
+
+/* ── The four headline figures ────────────────────────────────────────── */
+
+.dr-headline {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr 1.2fr;
+  gap: 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 6mm;
+  break-inside: avoid;
+}
+
+.dr-stat {
+  padding: 3mm 4mm;
+  border-left: 1px solid var(--line);
+}
+
+.dr-stat:first-child {
+  border-left: none;
+  padding-left: 0;
+}
+
+.dr-stat-label {
+  font-size: 8pt;
+  text-transform: uppercase;
+  letter-spacing: 1pt;
+  color: var(--soft);
+}
+
+.dr-stat-value {
+  font-size: 17pt;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  margin-top: 1px;
+}
+
+.dr-stat-lead .dr-stat-value {
+  font-size: 21pt;
+}
+
+.dr-stat-sub {
+  font-size: 8pt;
+  color: var(--soft);
+  margin-top: 2px;
+}
+
+.dr-owed {
+  color: var(--bad);
+}
+
+/* ── Sections ─────────────────────────────────────────────────────────── */
+
+.dr-sec {
+  margin-bottom: 7mm;
+}
+
+/* A heading must never be the last thing on a page — `break-after: avoid`
+   keeps it with at least the lead line and the first rows under it. */
+.dr-h2 {
+  font-size: 12pt;
+  font-weight: 800;
+  letter-spacing: -0.1pt;
+  padding-bottom: 1.5mm;
+  border-bottom: 1.5pt solid var(--rule);
+  margin-bottom: 2mm;
+  break-after: avoid;
+}
+
+/* The number is a finding aid, not decoration: it is how somebody on the phone
+   says "look at four" instead of "the drawer one, near the middle". */
+.dr-h2-n {
+  display: inline-block;
+  min-width: 7mm;
+  color: var(--soft);
+  font-weight: 700;
+}
+
+/*
+  The one-line explanation under every heading.
+
+  Not a subtitle — it is the section saying what it is for, in the words used on
+  the floor. The people this is written for did not grow up reading management
+  accounts, and a table of figures with no sentence above it is a table that
+  gets skipped. Kept to one measure so it reads as a line, not a paragraph.
+*/
+.dr-lead {
+  font-size: 9pt;
+  color: #374151;
+  max-width: 165mm;
+  margin: 0 0 2.5mm;
+  break-after: avoid;
+}
+
+/* A sub-heading inside a section — "Hours on the clock" under Who did the
+   work. Set well below the section rule so it reads as part of that section
+   rather than as a section of its own. */
+.dr-h3 {
+  font-size: 10pt;
+  font-weight: 700;
+  margin: 4mm 0 1.5mm;
+  padding-bottom: 1mm;
+  border-bottom: 1px solid var(--line);
+  break-after: avoid;
+}
+
+/* ── The busy-hours grid ──────────────────────────────────────────────── */
+
+/*
+  Density rather than hue.
+
+  The screen version runs blue-to-red, which is the right choice on a monitor
+  and the wrong one here: a printer rendering that scale in grey gives the
+  busiest hour and the quietest hour the same tone, and the whole grid says
+  nothing. Ink density survives any printer, and it survives a photocopy of a
+  photocopy, which is what actually happens to a report like this.
+*/
+.dr-heat {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 7pt;
+  font-variant-numeric: tabular-nums;
+  break-inside: avoid;
+}
+
+.dr-heat th {
+  font-size: 7pt;
+  font-weight: 700;
+  color: var(--soft);
+  padding: 1mm 0.5mm;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.dr-heat tbody th {
+  text-align: left;
+  padding-right: 2mm;
+  color: var(--ink);
+}
+
+.dr-heat td {
+  text-align: center;
+  padding: 1.4mm 0.5mm;
+  border: 1px solid #fff;
+  min-width: 6mm;
+}
+
+.dr-none {
+  font-size: 9.5pt;
+  color: var(--soft);
+  font-style: italic;
+  margin: 0;
+  padding: 2mm 0;
+}
+
+/* Said under a table: the caveat, the definition, the thing worth knowing. */
+.dr-foot {
+  font-size: 8.5pt;
+  color: #374151;
+  margin: 2mm 0 0;
+  max-width: 170mm;
+}
+
+.dr-callout {
+  margin-top: 3mm;
+  padding: 2.5mm 3mm;
+  border: 1px solid #d1d5db;
+  border-left: 3pt solid #b45309;
+  break-inside: avoid;
+}
+
+.dr-callout-head {
+  font-weight: 700;
+  font-size: 9.5pt;
+}
+
+.dr-callout-body {
+  font-size: 9pt;
+  margin: 1mm 0 0;
+}
+
+/* ── Tables ───────────────────────────────────────────────────────────── */
+
+.dr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+}
+
+.dr-table thead th {
+  text-align: left;
+  font-size: 7.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.8pt;
+  color: var(--soft);
+  font-weight: 700;
+  padding: 1.5mm 2mm;
+  border-bottom: 1px solid var(--rule);
+  white-space: nowrap;
+}
+
+.dr-table tbody td {
+  padding: 1.5mm 2mm;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: top;
+}
+
+/* Zebra, because these tables are read across a row and the eye loses the line
+   on anything wider than about five columns. */
+.dr-table tbody tr:nth-child(even) {
+  background: #f9fafb;
+}
+
+.dr-table tfoot td {
+  padding: 2mm;
+  border-top: 1.5pt solid var(--rule);
+  font-weight: 700;
+  background: var(--band);
+}
+
+.dr-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dr-table .dr-mono {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 8.5pt;
+  white-space: nowrap;
+}
+
+.dr-time {
+  white-space: nowrap;
+  color: var(--soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.dr-note {
+  font-size: 8pt;
+  color: var(--soft);
+}
+
+.dr-off {
+  color: var(--bad);
+  font-weight: 700;
+}
+
+.dr-tag {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  font-size: 7pt;
+  text-transform: uppercase;
+  letter-spacing: 0.5pt;
+  color: var(--soft);
+  vertical-align: 1px;
+}
+
+/* A struck row is still a row. It happened, it was undone, and a report that
+   simply dropped it would be telling a different story from the ledger. */
+.dr-struck td {
+  color: var(--soft);
+  text-decoration: line-through;
+}
+.dr-struck .dr-note {
+  text-decoration: none;
+}
+
+.dr-compact {
+  max-width: 120mm;
+}
+
+/* ── The eight-day chart ──────────────────────────────────────────────── */
+
+/*
+  Bars, in CSS, because a chart on this page has one job: to show whether today
+  is taller or shorter than the days around it. Anything that needs a library to
+  draw is a chart that is answering a question nobody asked at a close-out.
+*/
+.dr-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 3mm;
+  height: 34mm;
+  margin-bottom: 4mm;
+  break-inside: avoid;
+}
+
+.dr-bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  min-width: 0;
+}
+
+.dr-bar-amt {
+  font-size: 7pt;
+  color: var(--soft);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dr-bar-track {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+
+.dr-bar-fill {
+  width: 100%;
+  background: #9ca3af;
+  border: 1px solid #6b7280;
+}
+
+/* Today is solid; the same weekday a week ago is outlined. Two different
+   treatments rather than two colours, so it still reads in mono. */
+.dr-bar-fill.is-today {
+  background: var(--rule);
+  border-color: var(--rule);
+}
+
+.dr-bar-fill.is-lastweek {
+  background: repeating-linear-gradient(
+    45deg,
+    #d1d5db,
+    #d1d5db 2px,
+    #fff 2px,
+    #fff 4px
+  );
+  border-color: #6b7280;
+}
+
+.dr-bar-day {
+  font-size: 7.5pt;
+  font-weight: 700;
+  margin-top: 1mm;
+  text-align: center;
+  line-height: 1.1;
+}
+
+.dr-bar-date {
+  display: block;
+  font-weight: 400;
+  color: var(--soft);
+  font-size: 6.5pt;
+}
+
+.dr-bar-n {
+  font-size: 6.5pt;
+  color: var(--soft);
+}
+
+/* The share bar beside a category row. */
+.dr-barcell {
+  width: 34mm;
+  vertical-align: middle !important;
+}
+
+.dr-hbar {
+  height: 2.6mm;
+  background: var(--rule);
+  min-width: 0.4mm;
+}
+
+/* ── Signatures ───────────────────────────────────────────────────────── */
+
+.dr-sign {
+  break-inside: avoid;
+}
+
+.dr-sign-rows {
+  display: flex;
+  gap: 8mm;
+  margin-top: 8mm;
+}
+
+.dr-sign-row {
+  flex: 1;
+}
+
+.dr-sign-line {
+  border-bottom: 1px solid var(--ink);
+  height: 9mm;
+}
+
+.dr-sign-label {
+  font-size: 8pt;
+  text-transform: uppercase;
+  letter-spacing: 1pt;
+  color: var(--soft);
+  margin-top: 1.5mm;
+}
+
+.dr-colophon {
+  margin-top: 6mm;
+  padding-top: 2mm;
+  border-top: 1px solid var(--line);
+  font-size: 7.5pt;
+  color: var(--soft);
+  text-align: center;
+}
+
+/* The appendix ledger runs long and gets its own tighter setting. */
+.dr-ledger {
+  font-size: 8pt;
+}
+
+.dr-ledger tbody td {
+  padding: 1mm 1.5mm;
+}
+
+/* ── Paper ────────────────────────────────────────────────────────────── */
+
+@page {
+  size: letter;
+  margin: 14mm 12mm 12mm;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .dr {
+    max-width: none;
+    padding: 0;
+    font-size: 9.5pt;
+  }
+
+  /*
+    Print the tints.
+
+    Without this the zebra, the header bands and the bars all come out white,
+    and every one of them is doing structural work — the zebra is what keeps a
+    six-column row readable, and the bars ARE the chart. Browsers default to
+    dropping backgrounds to save ink; here that would be saving ink by throwing
+    away the document.
+  */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Where a new page is DECIDED rather than allowed to happen. */
+  .dr-break {
+    break-before: page;
+  }
+
+  /* Nothing gets orphaned: a card, a callout or a signature block splits across
+     a page only if it genuinely cannot fit on one. */
+  .dr-sec,
+  .dr-verdict,
+  .dr-headline,
+  .dr-callout,
+  .dr-chart,
+  .dr-sign {
+    break-inside: avoid;
+  }
+
+  /*
+    A long table is the exception — it MUST be allowed to split, or the appendix
+    would push itself onto a page of its own and overflow it. So the table
+    breaks, the individual ROWS do not, and the heading repeats at the top of
+    every page it lands on. That last part is what `thead` is for, and it is the
+    difference between a second page of figures and a second page of numbers.
+  */
+  .dr-sec .dr-table {
+    break-inside: auto;
+  }
+
+  .dr-table thead {
+    display: table-header-group;
+  }
+
+  .dr-table tfoot {
+    display: table-footer-group;
+  }
+
+  .dr-table tr {
+    break-inside: avoid;
+  }
+
+  /* A heading with nothing under it is a heading on the wrong page. */
+  .dr-h2,
+  .dr-lead {
+    break-after: avoid;
+  }
+
+  a {
+    text-decoration: none;
+    color: inherit;
+  }
+}

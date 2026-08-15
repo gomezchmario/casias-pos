@@ -202,9 +202,12 @@ export function OrderStockConfirm({
               <span className="text-brand-400">
                 {stocked.size === 0
                   ? "None of these were added to the inventory — the shop is about to book them in and straight back out."
-                  : `${stocked.size} of these ${
-                      stocked.size === 1 ? "is" : "are"
-                    } already on the rack and will only be taken off.`}
+                  : /* The count came out, because it was answering a question
+                       nobody asked. "1 of these is already on the rack" reads
+                       as though the other four are a problem, when this line is
+                       only ever confirming the ones being taken off — the
+                       tires themselves are listed above it, by name. */
+                    "These are already on the rack and will only be taken off."}
               </span>
             </span>
           </label>

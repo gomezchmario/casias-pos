@@ -39,6 +39,7 @@ export function PaymentPanel({
   onDone,
   onSaleChanged,
   onRecloseAsIs,
+  otherEndings,
 }: {
   sale: Sale;
   methods: PaymentMethod[];
@@ -71,6 +72,12 @@ export function PaymentPanel({
    * time on a ticket that is already paid.
    */
   onRecloseAsIs?: () => void;
+  /**
+   * Endings that belong to the page rather than to the panel — the register's
+   * "close it unpaid". Rendered under Complete sale and Split payment, above
+   * the discount, so every way of finishing a ticket reads as one group.
+   */
+  otherEndings?: React.ReactNode;
   /**
    * The ticket changed underneath the panel — a discount came off it.
    *
@@ -697,51 +704,6 @@ export function PaymentPanel({
         </label>
       )}
 
-      {/*
-        THE DISCOUNT, UNDER THE TENDER ROW AND ALWAYS THERE.
-
-        It had no home on the register at all — the only way to take money
-        off a ticket was to open it again from Logs afterwards, which is both
-        slower and a different screen from the one the customer is standing at.
-
-        ALWAYS SHOWN, not only once a tender is chosen. It used to appear under
-        Other, on the reasoning that a discount is not a way of paying and
-        should not sit in the tender row looking like one. That much is still
-        true — it is below the row, not in it — but hiding it until somebody
-        picked a particular tender hid it from the moment it is actually
-        wanted: the discount is agreed with the customer BEFORE anybody decides
-        how they are paying, and a cashier who has not pressed Other has no way
-        of knowing the control exists at all.
-
-        Applying one re-reads the ticket, so the total the Complete button
-        charges against is the discounted one — see goodsCents.
-      */}
-      {can("discountSale") && discountMax !== undefined && (
-          <div className="mb-2">
-            <DiscountTicket
-              quiet
-              subtotalCents={sale.subtotal_cents}
-              currentCents={sale.discount_cents}
-              maxCents={discountMax}
-              busy={busy}
-              onSet={async (amountCents, reason) => {
-                const res = await fetch(`/api/pos/sales/${sale.id}/discount`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ amountCents, reason }),
-                });
-                const d = await res.json().catch(() => ({}));
-                if (!res.ok) {
-                  onError(d.error || "Could not take that off");
-                  return false;
-                }
-                onError(null);
-                if (d.sale) onSaleChanged?.(d.sale);
-                return true;
-              }}
-            />
-          </div>
-        )}
 
       {method?.allows_tip === 1 && (
         <>
@@ -876,6 +838,71 @@ export function PaymentPanel({
           onClick={startSplit}
         >{tr("Split payment, or take only part of it")}</button>
       )}
+      {/*
+        The page's own ways of ending a ticket, dropped in here rather than
+        rendered after the panel.
+
+        The register closes a ticket unpaid, and that button belongs with
+        Complete sale and Split payment rather than adrift below the panel they
+        live in — they are three answers to one question. Handed in as a slot so
+        the panel does not have to know what a writer is, and so the ticket
+        drawer, which has no such ending, gets nothing extra.
+      */}
+      {otherEndings}
+
+      {/*
+        THE DISCOUNT, LAST OF ALL.
+
+        It had no home on the register at all — the only way to take money
+        off a ticket was to open it again from Logs afterwards, which is both
+        slower and a different screen from the one the customer is standing at.
+
+        ALWAYS SHOWN, not only once a tender is chosen. It used to appear under
+        Other, on the reasoning that a discount is not a way of paying and
+        should not sit in the tender row looking like one. That much is still
+        true — it is below the row, not in it — but hiding it until somebody
+        picked a particular tender hid it from the moment it is actually
+        wanted: the discount is agreed with the customer BEFORE anybody decides
+        how they are paying, and a cashier who has not pressed Other has no way
+        of knowing the control exists at all.
+
+        BELOW THE ENDINGS, not above them. It sat between the tender row and
+        Complete sale, which put a control that changes the PRICE in the middle
+        of the run of controls that END the ticket — so a thumb travelling down
+        to finish passed over it every time. Bottom of the panel, under the
+        unpaid button the page hands in, it is still one press from anywhere
+        and no longer in the path of the two buttons pressed on every ticket.
+
+        Applying one re-reads the ticket, so the total the Complete button
+        charges against is the discounted one — see goodsCents.
+      */}
+      {can("discountSale") && discountMax !== undefined && (
+          <div className="mb-2">
+            <DiscountTicket
+              quiet
+              subtotalCents={sale.subtotal_cents}
+              currentCents={sale.discount_cents}
+              maxCents={discountMax}
+              busy={busy}
+              onSet={async (amountCents, reason) => {
+                const res = await fetch(`/api/pos/sales/${sale.id}/discount`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ amountCents, reason }),
+                });
+                const d = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                  onError(d.error || "Could not take that off");
+                  return false;
+                }
+                onError(null);
+                if (d.sale) onSaleChanged?.(d.sale);
+                return true;
+              }}
+            />
+          </div>
+        )}
+
       <ConfirmModal
         open={vinAsk}
         onCancel={() => setVinAsk(false)}

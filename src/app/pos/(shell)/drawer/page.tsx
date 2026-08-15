@@ -1158,26 +1158,36 @@ export default function CloseoutV3Page() {
             >
               {tr("Print the close-out")}
             </button>
-            {/* The previous close-out's sheet, printed FROM the previous
-                close-out. Deliberately not a copy of that layout living here:
-                one printed document should have one source, and two copies
-                look identical the day they are made and disagree within a
-                month with nobody able to say which is the real one. That page
-                is off the nav but still runs; this opens it, it prints itself,
-                and it closes. */}
+            {/* The whole day, written as a document rather than as a screen.
+
+                This used to open the old close-out page and print THAT — a
+                working screen with its typing boxes and its buttons hidden by
+                a print rule, which put a photograph of a workbench in the tray.
+                It now opens a page whose only job is to be printed: the verdict
+                first, then the money, the work, the stock, and the full ledger
+                behind them.
+
+                Same endpoint as the close-out, deliberately. One calculation,
+                two renderings — so this document and the screen it was printed
+                from can never disagree about a figure. It opens, prints itself,
+                and closes. */}
             <button
               type="button"
               className="btn btn-outline"
               disabled={!mayPrint}
               title={
                 registerLogged
-                  ? "Print the previous close-out sheet"
+                  ? "Print the whole day — every figure, with the ledger behind it"
                   : mayPrint
-                    ? "The register is not logged — this sheet will say so"
+                    ? "The register is not logged — the report will say so"
                     : "Log the register first"
               }
               onClick={() =>
-                window.open("/pos/eod?print=1", "_blank", "noopener,width=1100,height=800")
+                window.open(
+                  `/pos/drawer/report?date=${data.businessDate}&print=1`,
+                  "_blank",
+                  "noopener,width=1100,height=800",
+                )
               }
             >
               {tr("Print full report")}
