@@ -559,6 +559,27 @@ export default function DayReportPage() {
         { saleNo: string; at: string; entry: DayEntry; lines: DayEntry[]; money: DayEntry[] }
       >();
       for (const e of data.entries) {
+        /*
+          STRUCK LINES DO NOT PRINT.
+
+          A line taken off a ticket is not part of what the shop sold, and the
+          ledger keeps it only so the correction can be traced. Printed, it does
+          two bad things at once: the ticket shows work that was never done —
+          S-2026-000615 listed four tires against a customer who bought two —
+          and the header total sums them, so the ticket read $550 on a page
+          whose own money sections said $220.
+
+          The ticket drawer has always hidden these behind its eye toggle. Paper
+          has no toggle, and a printed figure that disagrees with the figure
+          above it is worse than a missing one, so the sheet takes the drawer's
+          default and keeps it.
+
+          A wholly VOIDED TICKET still prints, struck through. That is a
+          different fact — the whole thing happened and was undone — and it is
+          named in Voids by name as well.
+        */
+        if (e.kind === "line" && e.voided) continue;
+
         let g = by.get(e.saleNo);
         if (!g) {
           g = { saleNo: e.saleNo, at: e.at, entry: e, lines: [], money: [] };
@@ -1473,7 +1494,27 @@ export default function DayReportPage() {
           <Nothing>Nobody was credited with work today.</Nothing>
         ) : (
           (() => {
-            const rows = day.mechanics.map((m) => {
+            /*
+              Unassigned sits at the foot of the table, whatever it is worth.
+
+              It is not a person and it does not belong in a ranking of people:
+              on a day where a lot went out without a name on it, it lands at
+              the top and reads as the shop's best technician. Sorted down, the
+              list above it is people and the line below it is the work nobody
+              was credited with — which is the honest shape, and it also puts
+              that figure where somebody is looking when they wonder why it is
+              there at all.
+
+              A stable sort, so everybody else keeps the order the server put
+              them in — by what they brought in, which is the ranking this table
+              is for.
+            */
+            const rows = [...day.mechanics]
+              .sort(
+                (a, b) =>
+                  Number(a.name === "Unassigned") - Number(b.name === "Unassigned"),
+              )
+              .map((m) => {
               const b = data.mechanicBaseline.find((x) => x.employeeId === m.employeeId);
               const h = day.hours.people.find((x) => x.employeeId === m.employeeId);
               const tip = data.leaderboard.techs.find(
@@ -1614,17 +1655,38 @@ export default function DayReportPage() {
               : `${day.hours.confidencePct}% of these hours were clocked out properly. The rest were closed automatically at 9pm and are an estimate.`}
           </p>
         )}
-        {day && day.hours.people.some((h) => !day.mechanics.some((m) => m.employeeId === h.employeeId)) && (
-          <p className="dr-foot">
-            On the clock today with no work credited to them:{" "}
-            {day.hours.people
-              .filter((h) => !day.mechanics.some((m) => m.employeeId === h.employeeId))
-              .map((h) => h.name)
-              .join(", ")}
-            . Ordinary for anybody not turning wrenches — it is who the counter and the office
-            were.
-          </p>
-        )}
+        {/*
+          TECHNICIANS ONLY, and the filter is the whole point of the line.
+
+          It used to name everybody on the clock with nothing credited, which on
+          most days means the owner and whoever was on the counter — people who
+          are not supposed to have work against their name, listed under a
+          heading that says "who did the work" as though something were missing.
+          Naming them there invites the wrong question every single day.
+
+          A TECHNICIAN in that state is the opposite: it is worth ten seconds,
+          because either they were on something that never got rung or their
+          lines went out under somebody else's name. So the line stays and only
+          the people it can mean something about are on it.
+        */}
+        {(() => {
+          if (!day) return null;
+          const idle = day.hours.people.filter(
+            (h) =>
+              h.role === "technician" &&
+              !day.mechanics.some((m) => m.employeeId === h.employeeId),
+          );
+          if (idle.length === 0) return null;
+          return (
+            <p className="dr-foot">
+              <strong>
+                On the clock with no work credited to them: {idle.map((h) => h.name).join(", ")}.
+              </strong>{" "}
+              Worth a look — either what they did was never rung, or it went out under somebody
+              else&apos;s name.
+            </p>
+          );
+        })()}
       </Section>
 
       {/* ══════════ 10b. WHEN THE SHOP IS BUSY ══════════ */}
