@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { usePosAuth } from "@/components/pos/PosShell";
 import { formatCents } from "@/lib/money";
 import { workStatusTitle } from "@/lib/work-status";
@@ -20,7 +21,7 @@ import type { DrawerMovement } from "@/lib/drawer";
 import type { RegisterCheck } from "@/lib/register-checks";
 import type { Standings } from "@/lib/leaderboard";
 import type { CloseoutV2 } from "@/lib/day-report";
-import type { HourCell } from "@/lib/reports-bi";
+import type { HourCell, WeekdayRow } from "@/lib/reports-bi";
 import "./report.css";
 
 /**
@@ -147,6 +148,16 @@ function clockOf(at: string): string {
 const shownVariance = (varianceCents: number, isCard: number) =>
   isCard ? -varianceCents : varianceCents;
 
+/**
+ * The tenders a close-out actually counts.
+ *
+ * The same pair the close-out screen holds under the same name, for the same
+ * reason stated there: cash is the drawer in hand and `cc` is the batch the
+ * terminal prints, and they are the only two figures a person physically
+ * produces at close.
+ */
+const COUNTABLE = new Set(["cash", "cc"]);
+
 const signed = (cents: number) =>
   cents === 0 ? formatCents(0) : `${cents > 0 ? "+" : "−"}${formatCents(Math.abs(cents))}`;
 
@@ -176,6 +187,78 @@ function Section({
   );
 }
 
+/**
+ * How today sits against its own weekday — "+18% on the last 4 Saturdays".
+ *
+ * A sign and a percentage, never a bare arrow: an arrow says a direction and
+ * this has to survive being read off a photocopy by somebody who was not here.
+ * Nothing is drawn at all when there is no baseline, because a comparison
+ * against nothing is worse than no comparison.
+ */
+function Against({
+  now,
+  base,
+  days,
+  weekday,
+}: {
+  now: number;
+  base: number;
+  days: number;
+  weekday: string;
+}) {
+  if (base <= 0) return null;
+  const pct = Math.round(((now - base) / base) * 100);
+  return (
+    <div className={`dr-vs${pct >= 0 ? " dr-vs-up" : " dr-vs-down"}`}>
+      {pct >= 0 ? "+" : ""}
+      {pct}% on the last {days} {weekday}
+      {days === 1 ? "" : "s"}
+    </div>
+  );
+}
+
+/**
+ * How many separate tickets were opened in each hour of a day.
+ *
+ * Counted off the day's own entries rather than asked of the server, for two
+ * reasons: it costs nothing, and it means today's chart and last week's chart
+ * are produced by one function — two queries that agree on the day they are
+ * written are two queries that disagree by Christmas.
+ *
+ * DISTINCT TICKETS, not lines. A ticket with four tires on it is one customer
+ * at the counter, and the question this answers is how many people the shop had
+ * to serve in that hour, not how much work went on the paper.
+ *
+ * EACH TICKET COUNTED ONCE, IN THE HOUR IT STARTED. Counting a ticket in every
+ * hour it touched was the obvious way to write this and it is wrong twice over:
+ * a ticket rung at 9:58 and paid at 10:02 landed in both hours, so the bars
+ * summed to more tickets than the day actually had — measured on a real
+ * Saturday, 45 against 42 — and the chart would have quietly contradicted the
+ * count printed at the top of the same page. Two figures disagreeing on one
+ * sheet is worse than either being slightly coarse.
+ *
+ * IT STILL WILL NOT EQUAL THE TICKET COUNT ON PAGE ONE, and that is correct
+ * rather than a rounding difference. This counts everybody who stood at the
+ * counter, which includes somebody coming in today to settle a ticket rung last
+ * Friday — a real customer in a real hour, and not one of today's tickets. On
+ * the day this was checked that was exactly one person, S-2026-000206 from the
+ * week before. So the two figures are labelled as the different things they
+ * are: page one counts TICKETS OPENED, this counts PEOPLE SERVED.
+ */
+function ticketsByHour(entries: DayEntry[]): Map<number, number> {
+  const firstHour = new Map<string, number>();
+  for (const e of entries) {
+    if (e.saleStatus === "voided") continue;
+    const h = Number(e.at.slice(11, 13));
+    if (!Number.isFinite(h)) continue;
+    const seen = firstHour.get(e.saleNo);
+    if (seen === undefined || h < seen) firstHour.set(e.saleNo, h);
+  }
+  const byHour = new Map<number, number>();
+  for (const h of firstHour.values()) byHour.set(h, (byHour.get(h) ?? 0) + 1);
+  return byHour;
+}
+
 /** Said once, where a section has nothing in it — a blank space reads as a bug. */
 function Nothing({ children }: { children: React.ReactNode }) {
   return <p className="dr-none">{children}</p>;
@@ -183,6 +266,7 @@ function Nothing({ children }: { children: React.ReactNode }) {
 
 export default function DayReportPage() {
   const { user, can } = usePosAuth();
+  const router = useRouter();
   const [data, setData] = useState<EodData | null>(null);
   /*
     THREE ENDPOINTS, BECAUSE THE DAY IS ANSWERED IN THREE PLACES.
@@ -202,6 +286,16 @@ export default function DayReportPage() {
   */
   const [day, setDay] = useState<CloseoutV2 | null>(null);
   const [heatmap, setHeatmap] = useState<HourCell[] | null>(null);
+  const [weekdays, setWeekdays] = useState<WeekdayRow[] | null>(null);
+  /*
+    The same weekday a week ago, fetched whole rather than as a summary.
+
+    It comes off the SAME endpoint as today, so both days are bucketed by the
+    identical function below and cannot disagree about what an hour is. A
+    summary figure from a different query would have been cheaper and would
+    have had to be trusted; this can be checked against that day's own report.
+  */
+  const [lastWeek, setLastWeek] = useState<EodData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [printedAt, setPrintedAt] = useState("");
   const printedOnce = useRef(false);
@@ -213,19 +307,64 @@ export default function DayReportPage() {
       setError("Could not load the day");
       return;
     }
-    setData(await res.json());
+    /* Held rather than only pushed into state: the fetches below key off the
+       business date this payload reports, and reading a Response twice is not
+       something it will let you do. */
+    const eod = (await res.json()) as EodData;
+    setData(eod);
 
     const d = await fetch(`/api/pos/reports/closeout${date ? `?date=${date}` : ""}`);
     if (d.ok) setDay(await d.json());
 
-    /* Ninety days of trading behind the heatmap. A week would be one of each
-       weekday and therefore no pattern at all; a year would average away the
-       season. Ninety days is roughly a quarter, which is the span the shop
-       already thinks in. */
-    const b = await fetch("/api/pos/reports/business");
+    /* Seven days back from the day the SERVER says this is, not from whatever
+       was in the query string — asked without a date it answers for the current
+       business day, and that is the day this must line up against. */
+    const prev = new Date(`${eod.businessDate}T00:00:00Z`);
+    prev.setUTCDate(prev.getUTCDate() - 7);
+    const lw = await fetch(`/api/pos/reports/eod?date=${prev.toISOString().slice(0, 10)}`);
+    if (lw.ok) setLastWeek(await lw.json());
+
+    /*
+      FOUR WEEKS, AND THE WINDOW IS THE WHOLE ARGUMENT.
+
+      This is what today gets measured against, so it decides whether the
+      comparison means anything. Three windows were candidates:
+
+        YESTERDAY is useless here. A tire shop's Saturday and its Tuesday are
+        different businesses — comparing them says which day of the week it is,
+        not how the shop is doing.
+
+        THE SAME DAY LAST WEEK is fair on the weekday and is one sample. One
+        rained-off Saturday, or one fleet dropping six trucks in at once, moves
+        it enough to report a collapse or a boom that did not happen.
+
+        FOUR OF THE SAME WEEKDAY is both. It cancels the weekday effect the way
+        a same-day comparison does, and four samples is enough that one odd
+        Saturday cannot carry it. Twenty-eight days is also recent enough to
+        still be describing how the shop trades NOW, which a quarter or a year
+        would quietly stop doing.
+
+      So: the twenty-eight days ending today, and today's own figures are taken
+      back out of the average below — a day cannot be part of what it is being
+      measured against.
+
+      The heatmap rides on the same window rather than asking for a wider one
+      of its own. Four of each weekday is enough to show the shape of a week,
+      and one request is one request.
+    */
+    /* The server's business date again, not the browser's calendar date: the
+       shop's day runs past midnight, so at 12:30am those two are different and
+       only one of them is the day being reported on. */
+    const to = eod.businessDate;
+    const fromD = new Date(`${to}T00:00:00Z`);
+    fromD.setUTCDate(fromD.getUTCDate() - 27);
+    const b = await fetch(
+      `/api/pos/reports/business?from=${fromD.toISOString().slice(0, 10)}&to=${to}`,
+    );
     if (b.ok) {
       const bi = await b.json();
       setHeatmap(bi.heatmap ?? []);
+      setWeekdays(bi.weekdays ?? []);
     }
   }, []);
 
@@ -235,25 +374,29 @@ export default function DayReportPage() {
   }, [load]);
 
   /*
-    Opened by the drawer purely to reach a printer.
+    Reached from the drawer purely to produce paper.
 
     Fires once the figures have landed — a print fired on mount puts an empty
-    sheet in the tray — and closes afterwards, because this window has no other
-    job. Without `?print=1` it is an ordinary page somebody can read on screen,
-    which is what makes it checkable without wasting paper.
+    sheet in the tray — and goes back to the drawer when the dialog closes,
+    because that is where whoever pressed the button was standing. It NAVIGATES
+    rather than calling window.close(), which only ever worked on a window this
+    page had opened itself and does nothing at all in a tab somebody browsed to.
+
+    Without `?print=1` it is an ordinary page somebody can read on screen, which
+    is what makes it checkable without wasting paper.
   */
   useEffect(() => {
     if (printedOnce.current || !data) return;
     if (new URLSearchParams(window.location.search).get("print") !== "1") return;
     printedOnce.current = true;
-    const done = () => window.close();
+    const done = () => router.push("/pos/drawer");
     window.addEventListener("afterprint", done);
     const t = setTimeout(() => window.print(), 400);
     return () => {
       clearTimeout(t);
       window.removeEventListener("afterprint", done);
     };
-  }, [data]);
+  }, [data, router]);
 
   /** Every derived figure the document quotes, worked out once. */
   const facts = useMemo(() => {
@@ -276,7 +419,6 @@ export default function DayReportPage() {
        has. Saturday is not Tuesday and never will be. */
     const days = data.trend;
     const today = days[days.length - 1];
-    const sameDayLastWeek = days.length >= 8 ? days[days.length - 8] : null;
     const priorDays = days.slice(0, -1);
     const avgGoods =
       priorDays.length > 0
@@ -299,6 +441,31 @@ export default function DayReportPage() {
       ticket is dropped — the same nine rows print, under the two headings that
       describe them.
     */
+    /*
+      Today against the average of the other same weekdays in the window.
+
+      Today is subtracted out of both the total and the count first, so this is
+      genuinely "the other four Saturdays" and not a figure that includes the
+      day it is judging. Null when there is nothing left to compare against —
+      a first Saturday on a new register has no baseline, and inventing one by
+      dividing by zero, or by quietly falling back to a different weekday, is
+      how a report starts lying on its most prominent line.
+    */
+    const wd = (() => {
+      if (!weekdays) return null;
+      const [yy, mm, dd] = data.businessDate.split("-").map(Number);
+      const dow = new Date(yy, mm - 1, dd).getDay();
+      const row = weekdays.find((w) => w.weekday === dow);
+      if (!row || row.days <= 1) return null;
+      const others = row.days - 1;
+      return {
+        dow,
+        days: others,
+        tickets: (row.tickets - t.saleCount) / others,
+        goods: (row.goodsCents - t.goodsCents) / others,
+      };
+    })();
+
     const owes = data.outstanding.filter((o) => o.balanceCents > 0);
     const waiting = data.outstanding.filter((o) => o.balanceCents <= 0);
     const owed = owes.reduce((s, o) => s + o.balanceCents, 0);
@@ -373,6 +540,7 @@ export default function DayReportPage() {
       }));
 
     return {
+      wd,
       tiresSold,
       owes,
       waiting,
@@ -381,7 +549,6 @@ export default function DayReportPage() {
       counted,
       offBy,
       today,
-      sameDayLastWeek,
       avgGoods,
       owed,
       onAccount,
@@ -431,9 +598,22 @@ export default function DayReportPage() {
         <div>
           <strong>Daily Business Report</strong> · {longDate(data.businessDate)}
         </div>
-        <button type="button" className="btn btn-primary" onClick={() => window.print()}>
-          Print
-        </button>
+        {/* A way back, because this is a page in the same tab now rather than a
+            window that could be shut. Somebody who opened it to read rather
+            than to print needs to leave it without using the browser's own
+            back button, which on a kiosk-mode screen is not always there. */}
+        <span className="dr-bar-actions">
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => router.push("/pos/drawer")}
+          >
+            Back to the Drawer
+          </button>
+          <button type="button" className="btn btn-primary" onClick={() => window.print()}>
+            Print
+          </button>
+        </span>
       </div>
 
       {/* ══════════ MASTHEAD ══════════ */}
@@ -481,6 +661,14 @@ export default function DayReportPage() {
         <div className="dr-stat dr-stat-lead">
           <div className="dr-stat-label">Money taken in</div>
           <div className="dr-stat-value">{formatCents(facts.takenIn)}</div>
+          {facts.wd && (
+            <Against
+              now={facts.takenIn}
+              base={facts.wd.goods}
+              days={facts.wd.days}
+              weekday={DAY_NAMES[facts.wd.dow]}
+            />
+          )}
           <div className="dr-stat-sub">
             {formatCents(t.goodsCents)} sold
             {t.discountsCents > 0 && <> · less {formatCents(t.discountsCents)} discounts</>}
@@ -491,6 +679,14 @@ export default function DayReportPage() {
         <div className="dr-stat">
           <div className="dr-stat-label">Tickets</div>
           <div className="dr-stat-value">{t.saleCount}</div>
+          {facts.wd && (
+            <Against
+              now={t.saleCount}
+              base={facts.wd.tickets}
+              days={facts.wd.days}
+              weekday={DAY_NAMES[facts.wd.dow]}
+            />
+          )}
           <div className="dr-stat-sub">
             {t.voidedCount > 0 ? `${t.voidedCount} voided as well` : "none voided"}
           </div>
@@ -498,6 +694,14 @@ export default function DayReportPage() {
         <div className="dr-stat">
           <div className="dr-stat-label">Average ticket</div>
           <div className="dr-stat-value">{formatCents(facts.avgTicket)}</div>
+          {facts.wd && facts.wd.tickets > 0 && (
+            <Against
+              now={facts.avgTicket}
+              base={facts.wd.goods / facts.wd.tickets}
+              days={facts.wd.days}
+              weekday={DAY_NAMES[facts.wd.dow]}
+            />
+          )}
           <div className="dr-stat-sub">what a customer spent, on average</div>
         </div>
         <div className="dr-stat">
@@ -517,7 +721,7 @@ export default function DayReportPage() {
       <Section
         n="1"
         title="How today compares"
-        lead="The last eight days of sales, this day last. The fair comparison is the same day a week ago — a Saturday is not a Tuesday — so that bar is marked."
+        lead="The week leading up to today, so the run of days can be seen rather than described. It is a shape, not a scorecard — a single day either side of today says little on its own, which is why the figures at the top are measured against four weeks of the same weekday instead."
       >
         {data.trend.length === 0 ? (
           <Nothing>No earlier days to compare against yet.</Nothing>
@@ -528,7 +732,7 @@ export default function DayReportPage() {
                 const max = Math.max(...data.trend.map((d) => d.goodsCents), 1);
                 return data.trend.map((d, i) => {
                   const isToday = i === data.trend.length - 1;
-                  const isSameDay = i === 0 && data.trend.length >= 8;
+                  const isSameDay = false;
                   return (
                     <div key={d.businessDate} className="dr-bar-col">
                       <div className="dr-bar-amt">{formatCents(d.goodsCents)}</div>
@@ -550,36 +754,77 @@ export default function DayReportPage() {
                 });
               })()}
             </div>
-            <table className="dr-table dr-compact">
+            {/*
+              Two columns, because a comparison read down a column of labels is
+              not a comparison. Today on the left, the baseline on the right,
+              and the three measures that answer different questions: how much
+              came in, how many people came, and what each of them spent.
+
+              The third is the one that cannot be read off the other two. A day
+              can take the same money from half the customers at twice the
+              ticket, and that is a completely different day — one worth
+              understanding rather than filing.
+            */}
+            <table className="dr-table dr-compare">
+              <thead>
+                <tr>
+                  <th />
+                  <th className="num">Today</th>
+                  <th className="num">
+                    {facts.wd
+                      ? `Last ${facts.wd.days} ${DAY_NAMES[facts.wd.dow]}${facts.wd.days === 1 ? "" : "s"}`
+                      : "The days before"}
+                  </th>
+                  <th className="num">Difference</th>
+                </tr>
+              </thead>
               <tbody>
-                <tr>
-                  <td>Sold today</td>
-                  <td className="num">{formatCents(t.goodsCents)}</td>
-                  <td className="dr-note">across {t.saleCount} tickets</td>
-                </tr>
-                {facts.sameDayLastWeek && (
-                  <tr>
-                    <td>Same day last week</td>
-                    <td className="num">{formatCents(facts.sameDayLastWeek.goodsCents)}</td>
-                    <td className="dr-note">
-                      {(() => {
-                        const diff = t.goodsCents - facts.sameDayLastWeek.goodsCents;
-                        if (facts.sameDayLastWeek.goodsCents === 0) return "nothing to compare";
-                        const pct = Math.round(
-                          (diff / facts.sameDayLastWeek.goodsCents) * 100,
-                        );
-                        return diff >= 0
-                          ? `${formatCents(diff)} better (${pct}% up)`
-                          : `${formatCents(Math.abs(diff))} worse (${Math.abs(pct)}% down)`;
-                      })()}
-                    </td>
-                  </tr>
-                )}
-                <tr>
-                  <td>Average of the days before</td>
-                  <td className="num">{formatCents(facts.avgGoods)}</td>
-                  <td className="dr-note">the seven days leading up to today</td>
-                </tr>
+                {(() => {
+                  const base = facts.wd;
+                  const rows: {
+                    label: string;
+                    now: number;
+                    was: number | null;
+                    fmt: (n: number) => string;
+                  }[] = [
+                    {
+                      label: "Sold",
+                      now: t.goodsCents,
+                      was: base ? base.goods : facts.avgGoods,
+                      fmt: formatCents,
+                    },
+                    {
+                      label: "Tickets",
+                      now: t.saleCount,
+                      was: base ? base.tickets : null,
+                      fmt: (n) => String(Math.round(n)),
+                    },
+                    {
+                      label: "Average ticket",
+                      now: facts.avgTicket,
+                      was: base && base.tickets > 0 ? base.goods / base.tickets : null,
+                      fmt: formatCents,
+                    },
+                  ];
+                  return rows.map((r) => {
+                    const pct =
+                      r.was && r.was > 0 ? Math.round(((r.now - r.was) / r.was) * 100) : null;
+                    return (
+                      <tr key={r.label}>
+                        <td>{r.label}</td>
+                        <td className="num dr-now">{r.fmt(r.now)}</td>
+                        <td className="num">{r.was === null ? "—" : r.fmt(r.was)}</td>
+                        <td
+                          className={`num${
+                            pct === null ? "" : pct >= 0 ? " dr-vs-up" : " dr-vs-down"
+                          }`}
+                        >
+                          {pct === null ? "—" : `${pct >= 0 ? "+" : ""}${pct}%`}
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()}
               </tbody>
             </table>
           </>
@@ -610,7 +855,21 @@ export default function DayReportPage() {
                 <tr key={m.methodId}>
                   <td>
                     {m.label}
-                    {!m.counted && <span className="dr-tag">not counted</span>}
+                    {/*
+                      Only on the two that CAN be counted.
+
+                      Cash and the card batch are the two a person physically
+                      produces at close; everything else — the house accounts,
+                      financing, PO — is money that never passes through
+                      anybody's hands here, so there was never a count to miss.
+                      Badging all seven made the sheet read as though five
+                      things had been skipped, which is the opposite of what it
+                      says, and it drowned the badge on the one tender where it
+                      actually means somebody has not finished.
+                    */}
+                    {COUNTABLE.has(m.code) && !m.counted && (
+                      <span className="dr-tag">not counted</span>
+                    )}
                   </td>
                   <td className="num">{formatCents(m.takingsCents)}</td>
                   <td className="num">
@@ -1216,71 +1475,171 @@ export default function DayReportPage() {
       </Section>
 
       {/* ══════════ 10b. WHEN THE SHOP IS BUSY ══════════ */}
-      {heatmap && heatmap.length > 0 && (
-        <Section
-          n="11"
-          title="When the shop is busy"
-          lead="The last three months of tickets, by hour and by day of the week. Darker is busier. This is the one page here that settles a rota argument — a shop can feel busy on a Saturday and take most of its money on a Thursday."
-          breakBefore
-        >
-          {(() => {
-            /* The hours the shop actually trades in, taken from the tickets
-               rather than assumed. A fixed 8–6 grid would cut off the evening
-               of the one week somebody stayed late, which is the week worth
-               looking at. */
-            const hrs = heatmap.map((c) => c.hour);
-            const lo = Math.min(...hrs);
-            const hi = Math.max(...hrs);
-            const cols = Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
-            const max = Math.max(...heatmap.map((c) => c.tickets), 1);
-            const at = (wd: number, hr: number) =>
-              heatmap.find((c) => c.weekday === wd && c.hour === hr)?.tickets ?? 0;
-            const label = (h: number) =>
-              `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? "a" : "p"}`;
-            return (
-              <table className="dr-heat">
-                <thead>
-                  <tr>
-                    <th />
-                    {cols.map((h) => (
-                      <th key={h}>{label(h)}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {DAY_NAMES.map((name, wd) => (
-                    <tr key={wd}>
-                      <th>{name.slice(0, 3)}</th>
-                      {cols.map((h) => {
-                        const n = at(wd, h);
-                        /* Ink, not hue. A printer that renders a blue-to-red
-                           scale in grey turns the busiest hour and the quietest
-                           into the same tone; density does not have that
-                           problem, and it reads at arm's length. */
-                        const shade = n === 0 ? 0 : 0.12 + (n / max) * 0.78;
-                        return (
-                          <td
-                            key={h}
-                            style={{ background: `rgba(10,37,64,${shade.toFixed(2)})` }}
+      <Section
+        n="11"
+        title="How the day ran, hour by hour"
+        lead="How many customers stood at the counter in each hour of TODAY, with the same day last week beside it. Two Saturdays are the only fair comparison a tire shop has, and the shape matters as much as the total — the same forty customers arriving in three hours or spread over nine are two very different days to staff."
+        breakBefore
+      >
+        {(() => {
+          const mine = ticketsByHour(data.entries);
+          const theirs = lastWeek ? ticketsByHour(lastWeek.entries) : new Map<number, number>();
+          const hrs = [...mine.keys(), ...theirs.keys()];
+          if (hrs.length === 0)
+            return <Nothing>No tickets were opened today.</Nothing>;
+          const lo = Math.min(...hrs);
+          const hi = Math.max(...hrs);
+          const cols = Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
+          const max = Math.max(...[...mine.values(), ...theirs.values()], 1);
+          const label = (h: number) => `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? "a" : "p"}`;
+          const mineTotal = [...mine.values()].reduce((a, b) => a + b, 0);
+          const theirsTotal = [...theirs.values()].reduce((a, b) => a + b, 0);
+          return (
+            <>
+              {/*
+                Two bars per hour, today always on the left and always solid.
+
+                The current day is the subject of this whole document, so it is
+                never the outlined one and never has to be looked for: it is the
+                filled bar, it is first in every pair, and it is named in the key
+                with its own date. Last week is drawn hollow — the same height
+                scale, visibly a different thing, and it survives a mono printer
+                where two shades of grey would not.
+              */}
+              <div className="dr-hours">
+                {cols.map((h) => {
+                  const a = mine.get(h) ?? 0;
+                  const b = theirs.get(h) ?? 0;
+                  return (
+                    <div key={h} className="dr-hour">
+                      <div className="dr-hour-bars">
+                        <div
+                          className="dr-hour-bar dr-hour-today"
+                          style={{ height: `${(a / max) * 100}%` }}
+                        >
+                          {a > 0 && <span className="dr-hour-n">{a}</span>}
+                        </div>
+                        {lastWeek && (
+                          <div
+                            className="dr-hour-bar dr-hour-prev"
+                            style={{ height: `${(b / max) * 100}%` }}
                           >
-                            <span style={{ color: shade > 0.55 ? "#fff" : "#111827" }}>
-                              {n || ""}
-                            </span>
-                          </td>
-                        );
-                      })}
+                            {b > 0 && <span className="dr-hour-n">{b}</span>}
+                          </div>
+                        )}
+                      </div>
+                      <div className="dr-hour-label">{label(h)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="dr-key">
+                <span className="dr-key-item">
+                  <span className="dr-key-swatch dr-hour-today" />
+                  <strong>Today</strong> — {longDate(data.businessDate)} · {mineTotal} served
+                </span>
+                {lastWeek && (
+                  <span className="dr-key-item">
+                    <span className="dr-key-swatch dr-hour-prev" />
+                    Same day last week — {longDate(lastWeek.businessDate)} · {theirsTotal} served
+                  </span>
+                )}
+              </div>
+              {lastWeek && theirsTotal > 0 && (
+                <p className="dr-foot">
+                  <strong>
+                    {mineTotal > theirsTotal
+                      ? `${mineTotal - theirsTotal} more `
+                      : mineTotal < theirsTotal
+                        ? `${theirsTotal - mineTotal} fewer `
+                        : "The same number of "}
+                    customer{Math.abs(mineTotal - theirsTotal) === 1 ? "" : "s"} than the same day
+                    last week.
+                  </strong>{" "}
+                  A customer here is anybody served at the counter — including somebody
+                  settling a ticket rung on an earlier day, which is why this can differ by
+                  one or two from the ticket count on page one.{" "}
+                  The busiest hour today was{" "}
+                  {label([...mine.entries()].sort((x, y) => y[1] - x[1])[0][0])} with{" "}
+                  {Math.max(...mine.values())} ticket
+                  {Math.max(...mine.values()) === 1 ? "" : "s"}.
+                </p>
+              )}
+            </>
+          );
+        })()}
+
+        {/*
+          The whole week behind the two days above.
+
+          A single day, even against its own last week, cannot say whether a
+          quiet Tuesday afternoon is a problem or simply what Tuesday afternoons
+          are. Four weeks of every weekday can, and it is the grid that settles a
+          rota argument. Today's row is boxed so the day this report is about is
+          never something to go hunting for.
+        */}
+        {heatmap && heatmap.length > 0 && (
+          <>
+            <h3 className="dr-h3">The usual week — the last four</h3>
+            {(() => {
+              const hrs2 = heatmap.map((c) => c.hour);
+              const lo2 = Math.min(...hrs2);
+              const hi2 = Math.max(...hrs2);
+              const cols2 = Array.from({ length: hi2 - lo2 + 1 }, (_, i) => lo2 + i);
+              const max2 = Math.max(...heatmap.map((c) => c.tickets), 1);
+              const at = (wd: number, hr: number) =>
+                heatmap.find((c) => c.weekday === wd && c.hour === hr)?.tickets ?? 0;
+              const label2 = (h: number) => `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? "a" : "p"}`;
+              const [yy, mm, dd] = data.businessDate.split("-").map(Number);
+              const todayDow = new Date(yy, mm - 1, dd).getDay();
+              return (
+                <table className="dr-heat">
+                  <thead>
+                    <tr>
+                      <th />
+                      {cols2.map((h) => (
+                        <th key={h}>{label2(h)}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            );
-          })()}
-          <p className="dr-foot">
-            Each square is how many tickets were opened in that hour across the whole window. Empty
-            squares are hours the shop took nothing.
-          </p>
-        </Section>
-      )}
+                  </thead>
+                  <tbody>
+                    {DAY_NAMES.map((name, wd) => (
+                      <tr key={wd} className={wd === todayDow ? "dr-heat-today" : undefined}>
+                        <th>
+                          {name.slice(0, 3)}
+                          {wd === todayDow && <span className="dr-heat-mark">today</span>}
+                        </th>
+                        {cols2.map((h) => {
+                          const n = at(wd, h);
+                          /* Ink, not hue. A printer rendering a blue-to-red
+                             scale in grey gives the busiest hour and the
+                             quietest the same tone; density does not have that
+                             problem, and it reads at arm's length. */
+                          const shade = n === 0 ? 0 : 0.12 + (n / max2) * 0.78;
+                          return (
+                            <td
+                              key={h}
+                              style={{ background: `rgba(10,37,64,${shade.toFixed(2)})` }}
+                            >
+                              <span style={{ color: shade > 0.55 ? "#fff" : "#111827" }}>
+                                {n || ""}
+                              </span>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              );
+            })()}
+            <p className="dr-foot">
+              Every ticket opened in that hour over the last four weeks, all four of each weekday
+              added together. The boxed row is the day this report covers.
+            </p>
+          </>
+        )}
+      </Section>
 
       {/* ══════════ 11. THINGS THAT NEED AN EYE ══════════ */}
       <Section

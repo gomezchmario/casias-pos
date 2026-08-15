@@ -58,6 +58,12 @@
   font-size: 11pt;
 }
 
+.dr-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* ── Masthead ─────────────────────────────────────────────────────────── */
 
 .dr-masthead {
@@ -238,6 +244,38 @@
   color: var(--bad);
 }
 
+/*
+  How today sits against the same weekday, under the figure it qualifies.
+
+  A signed percentage, never a bare arrow or a lone colour. This gets read off a
+  photocopy by somebody who was not in the building, and "+18%" survives that
+  where a green triangle does not — the colour is a second, weaker signal for
+  whoever is holding the original.
+*/
+.dr-vs {
+  font-size: 8.5pt;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  margin-top: 1px;
+}
+
+.dr-vs-up {
+  color: #15803d;
+}
+
+.dr-vs-down {
+  color: #b45309;
+}
+
+/* Today's column, set against the baseline beside it. */
+.dr-compare .dr-now {
+  font-weight: 700;
+}
+
+.dr-compare thead th {
+  border-bottom-width: 1px;
+}
+
 /* ── Sections ─────────────────────────────────────────────────────────── */
 
 .dr-sec {
@@ -332,6 +370,129 @@
   padding: 1.4mm 0.5mm;
   border: 1px solid #fff;
   min-width: 6mm;
+}
+
+/*
+  The row for the day this report is about.
+
+  Boxed rather than tinted, because every cell in the grid is already carrying a
+  tint that means something — shading the row too would fight the very scale it
+  sits in. A rule around it says "this one" without touching the data.
+*/
+.dr-heat-today th,
+.dr-heat-today td {
+  border-top: 1.2pt solid var(--rule);
+  border-bottom: 1.2pt solid var(--rule);
+}
+
+.dr-heat-today th:first-child {
+  border-left: 1.2pt solid var(--rule);
+}
+
+.dr-heat-today td:last-child {
+  border-right: 1.2pt solid var(--rule);
+}
+
+.dr-heat-mark {
+  display: inline-block;
+  margin-left: 1.5mm;
+  padding: 0 1mm;
+  background: var(--rule);
+  color: #fff;
+  font-size: 6pt;
+  text-transform: uppercase;
+  letter-spacing: 0.6pt;
+  vertical-align: 1px;
+}
+
+/* ── Today, hour by hour, against the same day last week ──────────────── */
+
+.dr-hours {
+  display: flex;
+  align-items: flex-end;
+  gap: 1.5mm;
+  height: 32mm;
+  break-inside: avoid;
+}
+
+.dr-hour {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+}
+
+.dr-hour-bars {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0.6mm;
+}
+
+.dr-hour-bar {
+  width: 50%;
+  min-height: 0.3mm;
+  position: relative;
+}
+
+/*
+  Today is solid and first in every pair; last week is hollow.
+
+  Fill against outline rather than two shades, so the pair still reads on a mono
+  printer and on a photocopy — which is where this document spends most of its
+  life. The current day never needs looking for: it is the filled one.
+*/
+.dr-hour-today {
+  background: var(--rule);
+}
+
+.dr-hour-prev {
+  background: #fff;
+  border: 1px solid #9ca3af;
+  border-bottom: none;
+}
+
+.dr-hour-n {
+  position: absolute;
+  top: -3.4mm;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 6.5pt;
+  font-variant-numeric: tabular-nums;
+  color: var(--soft);
+}
+
+.dr-hour-label {
+  text-align: center;
+  font-size: 7pt;
+  font-weight: 700;
+  margin-top: 1mm;
+  white-space: nowrap;
+}
+
+.dr-key {
+  display: flex;
+  gap: 8mm;
+  flex-wrap: wrap;
+  margin-top: 2.5mm;
+  font-size: 8.5pt;
+  color: #374151;
+}
+
+.dr-key-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.5mm;
+}
+
+.dr-key-swatch {
+  display: inline-block;
+  width: 3.5mm;
+  height: 3.5mm;
+  flex: none;
 }
 
 .dr-none {

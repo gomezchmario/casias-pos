@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { usePosAuth } from "@/components/pos/PosShell";
 import { useLang } from "@/components/pos/LangToggle";
 import { ShopLogo } from "@/components/ui/ShopLogo";
@@ -57,6 +58,7 @@ const varianceWords = (cents: number) =>
 
 export default function CloseoutV3Page() {
   const { can, user } = usePosAuth();
+  const router = useRouter();
   /*
     THE SCREEN IS TRANSLATED; THE SHEET IS NOT.
 
@@ -1169,8 +1171,13 @@ export default function CloseoutV3Page() {
 
                 Same endpoint as the close-out, deliberately. One calculation,
                 two renderings — so this document and the screen it was printed
-                from can never disagree about a figure. It opens, prints itself,
-                and closes. */}
+                from can never disagree about a figure.
+
+                IN THIS TAB, not a popup. A new window is a thing that has to be
+                allowed by the browser, found on the taskbar, and closed again,
+                and on the shop's one machine it arrived behind the register
+                often enough that people pressed the button twice. The report
+                prints itself and comes straight back here afterwards. */}
             <button
               type="button"
               className="btn btn-outline"
@@ -1183,11 +1190,7 @@ export default function CloseoutV3Page() {
                     : "Log the register first"
               }
               onClick={() =>
-                window.open(
-                  `/pos/drawer/report?date=${data.businessDate}&print=1`,
-                  "_blank",
-                  "noopener,width=1100,height=800",
-                )
+                router.push(`/pos/drawer/report?date=${data.businessDate}&print=1`)
               }
             >
               {tr("Print full report")}
