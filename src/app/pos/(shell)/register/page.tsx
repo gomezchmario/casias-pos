@@ -1361,9 +1361,9 @@ export default function RegisterPage() {
                 */
                 const ring =
                   m.clock === "checked_in"
-                    ? "2px solid #15803d"
+                    ? "3px solid #15803d"
                     : m.clock === "on_break"
-                      ? "2px solid #b91c1c"
+                      ? "3px solid #b91c1c"
                       : "2px solid rgba(10,37,64,0.15)";
                 return (
                   <button
