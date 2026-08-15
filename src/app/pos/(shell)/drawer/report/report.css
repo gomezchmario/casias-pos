@@ -850,13 +850,18 @@
     The POS shell's chrome leaves the paper. The report renders inside the
     same navigation every other register screen does, and an authenticated
     test print showed it at the top of page one — "Main · New sale · Logs …
-    Test Viewer VIEWER" above the masthead of a filed document. The close-out
-    page has hidden exactly this since it first printed; the same selectors,
-    for the same reason.
+    Test Viewer VIEWER" above the masthead of a filed document.
+
+    NOT the close-out's blanket `header { display: none }`, and the difference
+    was learned by printing: these documents' own masthead IS a <header> — the
+    honest element for it — and the blanket rule took the shop's name, the
+    date and the printed-by line off page one of the first sheet Mario
+    printed after the fix. The shell's bar is a <header> too, so the masthead
+    is excluded by the class that makes it a document rather than chrome.
   */
   nav,
-  header,
-  .pos-nav {
+  .pos-nav,
+  header:not(.dr-masthead) {
     display: none !important;
   }
 
