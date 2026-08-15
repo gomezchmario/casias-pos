@@ -1284,13 +1284,19 @@ export default function RegisterPage() {
               onBlur={() => setQty(String(qtyNum))}
               onStep={stepQty}
             />
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={submitManual}
-              disabled={busy}
-            >{tr("Add")}</button>
-          </div>
+            {/* Add and the switch share the third column, side by side.
+                The switch was on a line of its own underneath, which cost a
+                row of the card to say something that belongs to the button
+                next to it — and left the eye travelling down and back up
+                between the two controls that decide how a line gets rung. */}
+            <div className="flex items-center gap-2 min-w-0">
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ flex: 1, minWidth: 0 }}
+                onClick={submitManual}
+                disabled={busy}
+              >{tr("Add")}</button>
           {/*
             The switch for the two-tap behaviour, beside the button it replaces.
 
@@ -1303,20 +1309,22 @@ export default function RegisterPage() {
             A switch labelled with its own opposite is the classic way to get
             somebody to turn a thing on twice.
           */}
-          <button
-            type="button"
-            className="reg-autoadd"
-            aria-pressed={autoAdd}
-            onClick={toggleAutoAdd}
+              <button
+              type="button"
+              className="reg-autoadd"
+              aria-pressed={autoAdd}
+              onClick={toggleAutoAdd}
             title={
               autoAdd
                 ? "A service and a price ring the line by themselves, once a mechanic is picked. Tap to make every line wait for Add."
                 : "Every line waits for Add. Tap to let a service and a price ring it by themselves."
             }
           >
-            <span className={`reg-autoadd-dot${autoAdd ? " is-on" : ""}`} />
-            {autoAdd ? tr("Rings by itself") : tr("Waits for Add")}
-          </button>
+              <span className={`reg-autoadd-dot${autoAdd ? " is-on" : ""}`} />
+              {autoAdd ? tr("Rings by itself") : tr("Waits for Add")}
+              </button>
+            </div>
+          </div>
           {/* The counterpart to "Order it in" over in the tire card. A car gets
               left for work, not for a tire off the rack, so the question belongs
               to this half of the register and is asked while the work is being
