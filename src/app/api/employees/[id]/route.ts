@@ -35,6 +35,7 @@ export async function PATCH(
     role?: string | null;
     posRole?: string;
     active?: boolean;
+    hourlyRateCents?: number | null;
   };
   try {
     body = await req.json();
@@ -58,6 +59,29 @@ export async function PATCH(
     targetId: empId,
     details: body,
   });
+
+  /*
+    A pay change gets its own line too, with both figures on it.
+
+    Same reasoning as the permission log below: this is a fact about somebody's
+    money that one person can alter from a form, and "what was it before" is the
+    question asked when it is queried. Kept out of the general update line
+    because that one carries the whole body and would bury it.
+  */
+  if (
+    body.hourlyRateCents !== undefined &&
+    body.hourlyRateCents !== existing.hourly_rate_cents
+  ) {
+    logAudit({
+      adminId: auth.admin.adminId,
+      adminUsername: auth.admin.username,
+      action: "employee.update",
+      targetType: "employee",
+      targetId: empId,
+      before: { hourly_rate_cents: existing.hourly_rate_cents },
+      after: { hourly_rate_cents: body.hourlyRateCents },
+    });
+  }
 
   // A permission change is worth its own log line — it's the record of who
   // granted whom the ability to touch money.

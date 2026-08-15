@@ -657,6 +657,7 @@ export default function CloseoutV2Page() {
                     <th>{tr("Name")}</th>
                     <th className="r">{tr("Hours")}</th>
                     <th className="r">{tr("Sold per hour")}</th>
+                    <th className="r">{tr("Cost of the shift")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -688,6 +689,32 @@ export default function CloseoutV2Page() {
                             </span>
                           ) : (
                             `${formatCents(perHour)}/h`
+                          )}
+                        </td>
+                        {/*
+                          What the shift cost, over EVERY hour on the clock —
+                          the auto-closed ones included, because the shop pays
+                          for a shift it could not measure exactly as surely as
+                          for one it could. That is the opposite of the rule for
+                          sold-per-hour beside it, which divides only by hours
+                          somebody really clocked out of, and the two differ for
+                          a good reason: a guessed hour makes a rate
+                          meaningless, and makes a wage bill slightly wrong.
+                          Slightly wrong is the right answer for money owed.
+                        */}
+                        <td className="r n">
+                          {h.hourlyRateCents === null ? (
+                            <span className="text-brand-300" title={tr("No pay recorded for this person")}>
+                              {tr("not set")}
+                            </span>
+                          ) : (
+                            formatCents(
+                              Math.round(
+                                (h.hourlyRateCents *
+                                  (h.knownMinutes + h.assumedMinutes)) /
+                                  60,
+                              ),
+                            )
                           )}
                         </td>
                       </tr>

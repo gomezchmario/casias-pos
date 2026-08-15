@@ -43,6 +43,16 @@ export type EmployeeHours = {
   employeeId: number;
   name: string;
   role: string;
+  /**
+   * Cents an hour, or null where nobody has set one.
+   *
+   * Carried on the hours rather than looked up beside them, so that anything
+   * costing a shift is costing it at the rate belonging to THAT person and
+   * cannot drift onto a default. Null stays null all the way to the screen —
+   * "not set" is a different answer from "free" and the reports have to be able
+   * to print the difference.
+   */
+  hourlyRateCents: number | null;
   /** Minutes whose start AND end were both recorded by somebody. */
   knownMinutes: number;
   /** Minutes whose end was assumed by the auto-close, or is still running. */
@@ -73,7 +83,7 @@ export function hoursForDay(businessDate: string): DayHours {
   const rows = getDb()
     .prepare(
       `SELECT t.id, t.employee_id AS employeeId, t.type, t.timestamp, t.flag_reason AS flagReason,
-              e.name, e.pos_role AS role
+              e.name, e.pos_role AS role, e.hourly_rate_cents AS hourlyRateCents
          FROM time_entries t
          JOIN employees e ON e.id = t.employee_id
         WHERE substr(t.timestamp, 1, 10) = ?
@@ -87,6 +97,7 @@ export function hoursForDay(businessDate: string): DayHours {
     flagReason: string | null;
     name: string;
     role: string;
+    hourlyRateCents: number | null;
   }[];
 
   const byPerson = new Map<number, EmployeeHours>();
@@ -100,6 +111,7 @@ export function hoursForDay(businessDate: string): DayHours {
         employeeId: r.employeeId,
         name: r.name,
         role: r.role,
+        hourlyRateCents: r.hourlyRateCents,
         knownMinutes: 0,
         assumedMinutes: 0,
         intervals: [],

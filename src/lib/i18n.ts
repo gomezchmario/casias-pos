@@ -1019,6 +1019,10 @@ const ES: Record<string, string> = {
   Hours: "Horas",
   // Not their wage — what they SOLD in each hour they were on the clock.
   "Sold per hour": "Vendido por hora",
+  // This one IS the wage: hours on the clock × their rate.
+  "Cost of the shift": "Costo del turno",
+  "No pay recorded for this person": "No hay pago registrado para esta persona",
+  "not set": "sin registrar",
   "All clocked out.": "Todos con salida marcada.",
   "Nobody clocked in.": "Nadie marcó entrada.",
   "still on": "todavía dentro",

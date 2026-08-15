@@ -10,12 +10,14 @@ export type Employee = {
   role: string | null;
   pos_role: PosRole;
   active: number;
+  /** Cents an hour. Null means nobody has said — not that they are unpaid. */
+  hourly_rate_cents: number | null;
   created_at: string;
   updated_at: string;
 };
 
 const EMPLOYEE_COLUMNS =
-  "id, name, role, pos_role, active, created_at, updated_at";
+  "id, name, role, pos_role, active, hourly_rate_cents, created_at, updated_at";
 
 export type EmployeeWithState = Employee & {
   current_state: "checked_out" | "checked_in" | "on_break";
@@ -90,7 +92,14 @@ export function createEmployee(args: {
 
 export function updateEmployee(
   id: number,
-  args: { name?: string; role?: string | null; posRole?: string; active?: boolean },
+  args: {
+    name?: string;
+    role?: string | null;
+    posRole?: string;
+    active?: boolean;
+    /** Cents an hour, or null for "nobody has said" — see 046_employee_wage. */
+    hourlyRateCents?: number | null;
+  },
 ): { ok: true } | { ok: false; error: string } {
   const fields: string[] = [];
   const values: (string | number | null)[] = [];
@@ -112,6 +121,18 @@ export function updateEmployee(
   if (args.active !== undefined) {
     fields.push("active = ?");
     values.push(args.active ? 1 : 0);
+  }
+  if (args.hourlyRateCents !== undefined) {
+    /*
+      Null clears it back to "not known", which is a real state and not the same
+      as zero — see the migration. A negative rate is refused rather than
+      clamped: it can only be a typo, and a wage bill quietly computed from
+      minus four dollars an hour is worse than a rejected form.
+    */
+    if (args.hourlyRateCents !== null && (!Number.isInteger(args.hourlyRateCents) || args.hourlyRateCents < 0))
+      return { ok: false, error: "That is not an hourly rate" };
+    fields.push("hourly_rate_cents = ?");
+    values.push(args.hourlyRateCents);
   }
   if (fields.length === 0) return { ok: true };
   fields.push("updated_at = ?");

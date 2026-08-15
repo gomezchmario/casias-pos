@@ -10,6 +10,8 @@ type Employee = {
   name: string;
   role: string | null;
   pos_role: PosRole;
+  /** Cents an hour, or null where nobody has said. */
+  hourly_rate_cents: number | null;
   active: number;
   current_state: "checked_out" | "checked_in" | "on_break";
   last_event_at: string | null;
@@ -305,16 +307,36 @@ function EditEmployeeModal({ employee, onClose, onSaved }: { employee: Employee;
   const [name, setName] = useState(employee.name);
   const [role, setRole] = useState(employee.role || "");
   const [posRole, setPosRole] = useState<PosRole>(employee.pos_role);
+  /*
+    Held as the typed string rather than as cents, so an empty box stays empty.
+
+    The difference matters: blank means "nobody has said" and saves as null,
+    which is not the same as $0.00 and must not become it. Somebody clearing the
+    field is withdrawing a figure, not declaring that this person works free.
+  */
+  const [wage, setWage] = useState(
+    employee.hourly_rate_cents === null ? "" : (employee.hourly_rate_cents / 100).toFixed(2),
+  );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function submit() {
     setError(null);
+    const typed = wage.trim();
+    let hourlyRateCents: number | null = null;
+    if (typed !== "") {
+      const n = Number(typed.replace(/[$,\s]/g, ""));
+      if (!Number.isFinite(n) || n < 0) {
+        setError("That is not an hourly rate");
+        return;
+      }
+      hourlyRateCents = Math.round(n * 100);
+    }
     setBusy(true);
     const res = await fetch(`/api/employees/${employee.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, role: role || null, posRole }),
+      body: JSON.stringify({ name, role: role || null, posRole, hourlyRateCents }),
     });
     const d = await res.json();
     setBusy(false);
@@ -346,6 +368,40 @@ function EditEmployeeModal({ employee, onClose, onSaved }: { employee: Employee;
           <input className="input mt-1 w-full" value={role} onChange={(e) => setRole(e.target.value)} />
         </label>
         <PosRoleSelect value={posRole} onChange={setPosRole} />
+        {/*
+          Pay, on the record that already holds the job title and the
+          permissions — which is where somebody setting up a new hire is
+          already standing, rather than a payroll screen of its own for one
+          number.
+
+          It buys the figure the reports could not show: the shop could always
+          see what somebody BROUGHT IN per hour and never what that hour cost,
+          so the more useful of the two was unavailable. Left blank it stays
+          unknown, and every report that uses it says "not set" rather than
+          quietly costing the hour at nothing.
+        */}
+        <label className="text-sm text-brand-400">
+          Pay, per hour
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-brand-300">$</span>
+            <input
+              className="input w-full tabular-nums"
+              value={wage}
+              inputMode="decimal"
+              placeholder="not set"
+              onChange={(ev) => setWage(ev.target.value)}
+              onBlur={() => {
+                const n = Number(wage.trim().replace(/[$,\s]/g, ""));
+                if (wage.trim() !== "" && Number.isFinite(n)) setWage(n.toFixed(2));
+              }}
+            />
+          </div>
+          <span className="block mt-1 text-xs text-brand-300">
+            Used to work out what a shift costs against what it brought in. Leave it empty if you
+            would rather not record it — the reports will say it is not set rather than treat the
+            hour as free.
+          </span>
+        </label>
         {error && <div className="text-sm text-red-700">{error}</div>}
       </div>
     </Modal>

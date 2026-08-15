@@ -1,0 +1,18 @@
+-- What the shop pays somebody, so hours worked can be read as money.
+--
+-- The shop has always been able to see what a technician BROUGHT IN per hour
+-- and never what that hour cost, which makes the more useful of the two figures
+-- unavailable: revenue per hour on its own says who is busy, and revenue
+-- against wage says whether the day paid for itself. The absence was also
+-- actively misleading — a "$25.10/h" beside somebody's name with no wage
+-- anywhere in the system reads as their pay, and was read as exactly that.
+--
+-- IN CENTS, like every other money column here, for the reason stated across
+-- this schema: a rate stored as 16.53 is a float, and a float that gets
+-- multiplied by 2,000 hours a year is a number that drifts.
+--
+-- NULL means nobody has said. That is deliberately different from zero: zero is
+-- a claim that this person is unpaid, and every report that uses this has to be
+-- able to tell "we do not know" from "nothing", the same way a tire with no
+-- cost recorded is not a tire that was free.
+ALTER TABLE employees ADD COLUMN hourly_rate_cents INTEGER;
