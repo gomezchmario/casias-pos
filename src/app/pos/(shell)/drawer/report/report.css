@@ -785,7 +785,24 @@
   background: #f5f6f8;
 }
 
-.dr-tk {
+/*
+  NO break-inside: avoid HERE, and it was removed on evidence.
+
+  A real print of this page came back as a hundred-plus sheets — each ticket
+  group alone on a page followed by three blank ones, which is Chrome's
+  fragmenter mishandling unbreakable tbody groups inside a table whose header
+  repeats. The state could not be reproduced on demand (the same day printed
+  16 clean pages an hour later), which is precisely why the rule cannot stay:
+  a trigger nobody can reproduce is a trigger nobody can test for.
+
+  What the rule bought is kept the cheaper way: the head row is glued to the
+  first line under it, so a ticket may split across pages but its heading can
+  never be orphaned at the foot of one. A split ticket is readable — the
+  zebra band and the rule above each heading carry it — and a readable split
+  beats an unprintable guarantee.
+*/
+.dr-tk-head {
+  break-after: avoid;
   break-inside: avoid;
 }
 
@@ -826,6 +843,20 @@
 
 @media print {
   .no-print {
+    display: none !important;
+  }
+
+  /*
+    The POS shell's chrome leaves the paper. The report renders inside the
+    same navigation every other register screen does, and an authenticated
+    test print showed it at the top of page one — "Main · New sale · Logs …
+    Test Viewer VIEWER" above the masthead of a filed document. The close-out
+    page has hidden exactly this since it first printed; the same selectors,
+    for the same reason.
+  */
+  nav,
+  header,
+  .pos-nav {
     display: none !important;
   }
 
