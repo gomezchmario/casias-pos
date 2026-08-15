@@ -135,11 +135,12 @@ const MOVE_REASON: Record<string, string> = {
 type Data = {
   sections: RimSection[];
   /**
-   * The unsorted pile of used tires. Always present, even at zero and even
-   * before one has ever been opened — `productId` is null until then. Not in
-   * `sections`: it has no size, so it belongs to no rim.
+   * The unsorted pile of used tires — one row, the whole product, shaped like
+   * the batteries so it can use the same Count sheet. Null until the shop
+   * first receives a load into one. Not in `sections`: it has no size, so it
+   * belongs to no rim.
    */
-  usedPool: { productId: number | null; name: string; onHand: number } | null;
+  usedPool: Tire | null;
   batteries: Tire[];
   misc: Tire[];
   lastCheck: InventoryCheck;
@@ -1305,86 +1306,6 @@ export default function InventoryPage() {
         </div>
       )}
 
-      {/*
-        The pile, above the racks it drains into.
-
-        Used tires are bought by the truckload and arrive with no sizes on them,
-        so for a while the shop owns "a hundred and forty used tires" and nothing
-        finer. This is that number, and it belongs at the TOP rather than filed
-        under a rim heading: whoever is working the pile down needs to see it
-        fall as they list sizes, and whoever is counting the racks needs to know
-        there is a pile that has not been counted into them yet.
-
-        It prints. A count sheet that leaves out a hundred and forty tires is
-        wrong by a hundred and forty tires.
-
-        It stands at zero too, and goes quiet rather than away: an empty pile
-        means everything the shop owns is listed by size, which is worth being
-        able to see, and the buttons on it are how the next load gets in. Amber
-        is for a pile with tires in it — the colour is the state, so a full pile
-        is never something you have to go and look for.
-      */}
-      {data?.usedPool && (
-        <div className="inv-section">
-          {(() => {
-            const n = data.usedPool.onHand;
-            const tone =
-              n < 0
-                ? { bg: "#fef2f2", line: "#fecaca", head: "#991b1b", body: "#b91c1c" }
-                : n > 0
-                  ? { bg: "#fffbeb", line: "#fcd34d", head: "#78350f", body: "#92400e" }
-                  : { bg: "#fff", line: "rgba(10,37,64,0.12)", head: "#0a2540", body: "#6b7a90" };
-            return (
-          <section
-            className="inv-group rounded-xl p-4 mb-3"
-            style={{ background: tone.bg, border: `1px solid ${tone.line}` }}
-          >
-            <div className="flex items-baseline gap-3 flex-wrap">
-              <h2 className="text-lg font-bold" style={{ color: tone.head }}>
-                {tr("Used tires not yet listed by size")}
-              </h2>
-              <span
-                className="text-2xl font-bold tabular-nums ml-auto"
-                style={{ color: tone.head }}
-              >
-                {n}
-              </span>
-            </div>
-            <p className="text-xs mt-1" style={{ color: tone.body }}>
-              {n === 0
-                ? tr(
-                    "Nothing waiting. Every used tire the shop has is listed by size — when a load comes in with no sizes on it, it goes here first.",
-                  )
-                : tr(
-                    "Bought by the load, so nobody has written a size on them yet. As they get listed by size the count here comes down — tick “Listing tires we already have” when you receive them.",
-                  )}
-            </p>
-            {can("receiveInventory") && (
-              <div className="flex gap-2 mt-2 no-print">
-                <button
-                  type="button"
-                  className="btn btn-outline"
-                  style={{ height: 32, fontSize: 12 }}
-                  onClick={() => setSheet({ mode: "receive", pool: true })}
-                >
-                  {tr("A load came in")}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-outline"
-                  style={{ height: 32, fontSize: 12 }}
-                  onClick={() => setSheet({ mode: "receive", used: true })}
-                >
-                  {tr("List some by size")}
-                </button>
-              </div>
-            )}
-          </section>
-            );
-          })()}
-        </div>
-      )}
-
       {sections.map((s) => (
         <div key={s.key} className="inv-section">
           {/*
@@ -1666,6 +1587,80 @@ export default function InventoryPage() {
       ))}
 
       {/*
+        The unsorted pile, under the racks and above the other shelves that
+        are not rim sections.
+
+        It gets one line and the same buttons every other line has,
+        because it is one number: how many used tires nobody has put a size on
+        yet. It was a panel at the top of the page for about a day, which was a
+        lot of screen for one figure and made the racks look more complicated
+        than they are.
+
+        It prints. A count sheet that leaves out a pile of tires is wrong by a
+        pile of tires — and unlike a "Used: 0" size line, this row is worth
+        printing at zero too, because zero here is a real statement: everything
+        the shop owns is listed by size.
+      */}
+      {data && (
+        <div className="inv-section">
+          <div className="inv-rim flex items-baseline gap-3 mt-5 mb-2">
+            <h2 className="text-xl font-bold text-brand-500">{tr("General pool")}</h2>
+            <span className="text-xs text-brand-300">
+              {tr("bought by the load — listed by size as somebody works through it")}
+            </span>
+          </div>
+
+          <section className="inv-group bg-white rounded-xl shadow-sm p-4 mb-3">
+            <table className="inv-table w-full text-sm">
+              <tbody>
+                <tr>
+                  <td className="inv-c-name py-1">
+                    <span className="inv-tire-name text-brand-500">
+                      {tr("General pool used tires")}
+                    </span>
+                  </td>
+                  <td
+                    className={`inv-c-qty py-1 text-right tabular-nums w-12 font-semibold ${
+                      (data.usedPool?.on_hand ?? 0) < 0 ? "text-red-700" : "text-brand-500"
+                    }`}
+                  >
+                    {data.usedPool?.on_hand ?? 0}
+                  </td>
+                  <td className="inv-c-note py-1 text-right w-8 print-only">
+                    <span className="inv-count-box">&nbsp;</span>
+                  </td>
+                  <td className="py-1 text-right w-32 no-print whitespace-nowrap">
+                    {can("receiveInventory") && (
+                      <button
+                        type="button"
+                        className="text-xs text-brand-400 hover:text-brand-500 underline"
+                        onClick={() => setSheet({ mode: "receive", pool: true })}
+                      >{tr("Add")}</button>
+                    )}
+                    {/* Count needs the row to exist. Until the first load goes
+                        in there is nothing to count, and Add is what makes it. */}
+                    {data.usedPool && can("adjustInventory") && (
+                      <button
+                        type="button"
+                        className="text-xs text-brand-400 hover:text-brand-500 underline ml-3"
+                        onClick={() =>
+                          setSheet({
+                            mode: "count",
+                            product: data.usedPool!,
+                            size: data.usedPool!.name,
+                          })
+                        }
+                      >{tr("Count")}</button>
+                    )}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+        </div>
+      )}
+
+      {/*
         Batteries, last, and not pretending to be tires.
 
         Kept out of the rim sections on purpose: those headings are rack
@@ -1831,7 +1826,7 @@ export default function InventoryPage() {
           initialSize={sheet.size}
           usedOnly={sheet.used}
           poolOnly={sheet.pool}
-          poolOnHand={data?.usedPool?.onHand ?? 0}
+          poolOnHand={data?.usedPool?.on_hand ?? 0}
           quoteDefaults={data?.quoteDefaults ?? null}
           onClose={() => setSheet(null)}
           onSaved={() => {
@@ -2059,9 +2054,20 @@ function ReceiveModal({
   // invoice; used trickles in a couple at a time on buybacks. The "Add" link on
   // a used line still opens straight into the used tab, so that path is no
   // longer for it either.
-  const [tab, setTab] = useState<"used" | "new" | "pool">(
-    poolOnly ? "pool" : usedOnly ? "used" : "new",
-  );
+  const [tab, setTab] = useState<"used" | "new">(usedOnly || poolOnly ? "used" : "new");
+  /**
+   * These have no size on them at all — they go on the pile.
+   *
+   * A checkbox on the used tab rather than a tab of its own. It is the same
+   * act as any other used receive, differing only in that nobody has read a
+   * size off them yet, and a whole third tab for that made the window look
+   * like it had three jobs when it has one.
+   *
+   * Ticked, the size box goes away: there is no size to type, and a disabled
+   * field somebody has already filled in is how a tire ends up on the pile
+   * with a size sitting in a box nobody saved.
+   */
+  const [toPool, setToPool] = useState(!!poolOnly);
   /**
    * These tires are being DESCRIBED, not delivered.
    *
@@ -2177,7 +2183,7 @@ function ReceiveModal({
     }
 
     let body: Record<string, unknown>;
-    if (tab === "pool") {
+    if (tab === "used" && toPool) {
       body = { usedPool: true, qty: n };
     } else if (tab === "used") {
       if (!size.trim()) {
@@ -2261,7 +2267,7 @@ function ReceiveModal({
     setRunningIn((rows) => [
       ...rows,
       {
-        what: tab === "pool"
+        what: tab === "used" && toPool
           ? "used, no size yet"
           : tab === "used" ? `Used ${size.trim()}` : adding
           ? [newBrand.trim(), newModel.trim(), newSize.trim()].filter(Boolean).join(" ")
@@ -2387,7 +2393,7 @@ function ReceiveModal({
 
         {!usedOnly && (
           <div className="flex gap-1">
-            {(["used", "new", "pool"] as const).map((t) => (
+            {(["used", "new"] as const).map((t) => (
               <button
                 key={t}
                 type="button"
@@ -2397,29 +2403,45 @@ function ReceiveModal({
                 style={tab === t ? undefined : { border: "1px solid rgba(10,37,64,0.12)" }}
                 onClick={() => setTab(t)}
               >
-                {t === "used" ? tr("Used tires") : t === "new" ? tr("New tires") : tr("A load, no sizes")}
+                {t === "used" ? tr("Used tires") : tr("New tires")}
               </button>
             ))}
           </div>
         )}
 
-        {tab === "pool" ? (
-          <div
-            className="rounded-lg px-3 py-2 text-sm"
-            style={{ background: "#fffbeb", border: "1px solid #fcd34d", color: "#78350f" }}
-          >
-            <b>{tr("A load of used tires, no sizes yet")}</b>
-            <span className="block text-xs mt-0.5" style={{ color: "#92400e" }}>
-              {tr(
-                "Type how many came off the truck. Somebody can list them by size later, and the count here comes down as they do.",
-              )}
-            </span>
-            <span className="block text-xs mt-1" style={{ color: "#92400e" }}>
-              {poolOnHand} {tr("on the pile now")}
-            </span>
-          </div>
-        ) : tab === "used" ? (
+        {tab === "used" ? (
           <>
+            {/* Above the size box because it decides whether there is one. */}
+            <label
+              className="flex items-start gap-2 text-sm rounded-lg px-3 py-2"
+              style={{ background: "#fffbeb", border: "1px solid #fcd34d", color: "#78350f" }}
+            >
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={toPool}
+                onChange={(e) => {
+                  setToPool(e.target.checked);
+                  // The two boxes are opposites — one puts tires on the pile,
+                  // the other takes them off it — so ticking either clears the
+                  // other rather than leaving a form that contradicts itself.
+                  if (e.target.checked) setFromPool(false);
+                  setPoolShort(null);
+                }}
+              />
+              <span>
+                {tr("A whole load, no sizes yet")}
+                <span className="block text-xs" style={{ color: "#92400e" }}>
+                  {tr(
+                    "Goes to the general pool. Somebody can list them by size later, and the pool comes down as they do.",
+                  )}
+                  {" · "}
+                  {poolOnHand} {tr("on the pile now")}
+                </span>
+              </span>
+            </label>
+            {!toPool && (
+            <>
             <label className="text-sm text-brand-400">{tr("Size")}<input
                 className="input mt-1 w-full tabular-nums"
                 value={size}
@@ -2450,12 +2472,15 @@ function ReceiveModal({
                 </span>
               </span>
             </label>
+            </>
+            )}
             {/*
               The one control that decides whether this is stock arriving or
               stock being described. Beside the size rather than at the foot of
               the form, because it changes what the number above it MEANS, and a
               decision like that read after the fact is a decision made wrong.
             */}
+            {!toPool && (
             <label
               className="flex items-start gap-2 text-sm rounded-lg px-3 py-2"
               style={{ background: "#fffbeb", border: "1px solid #fcd34d", color: "#78350f" }}
@@ -2480,6 +2505,7 @@ function ReceiveModal({
                 </span>
               </span>
             </label>
+            )}
             {poolShort !== null && (
               <div
                 className="rounded-lg px-3 py-2 text-xs"
@@ -2490,11 +2516,15 @@ function ReceiveModal({
                 )}
               </div>
             )}
-            <p className="text-xs text-brand-300">
-              {tr(
-                "A used tire is recorded by size only. No brand, price or cost — the price is set at the counter when it sells.",
-              )}
-            </p>
+            {/* Hidden when the load is going on the pile, because it would be
+                telling somebody the opposite of what they are doing. */}
+            {!toPool && (
+              <p className="text-xs text-brand-300">
+                {tr(
+                  "A used tire is recorded by size only. No brand, price or cost — the price is set at the counter when it sells.",
+                )}
+              </p>
+            )}
           </>
         ) : (
           <>

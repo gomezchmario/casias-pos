@@ -9,7 +9,6 @@ import {
   listProducts,
   withStock,
   getUsedPool,
-  USED_POOL_NAME,
 } from "@/lib/products";
 import { lotIntegrityCheck } from "@/lib/inventory";
 import { pricingFlags } from "@/lib/pricing-flags";
@@ -120,11 +119,12 @@ export async function GET(req: NextRequest) {
     */
     usedPool: (() => {
       const pool = getUsedPool();
-      return {
-        productId: pool?.id ?? null,
-        name: pool?.name ?? USED_POOL_NAME,
-        onHand: pool?.on_hand ?? 0,
-      };
+      if (!pool) return null;
+      // The whole row, shaped like every other shelf on this payload, so the
+      // page can hand it to the same Count sheet the batteries use. No cost:
+      // a used tire has none, and `cost_code` is a haggling tool for a tire
+      // somebody is standing in front of, not for a pile with no size.
+      return { ...pool, default_cost_cents: showCosts ? pool.default_cost_cents : null, cost_code: null };
     })(),
     lastCheck: readInventoryCheck(),
     showCosts,

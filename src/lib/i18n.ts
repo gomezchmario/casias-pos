@@ -1234,6 +1234,13 @@ const ES: Record<string, string> = {
     physical heap of tires somebody walks up to and counts, and the word has to
     be the one that gets used while standing next to it.
   */
+  "General pool": "Montón general",
+  "bought by the load — listed by size as somebody works through it":
+    "compradas por camionada — se apuntan por medida conforme alguien las va revisando",
+  "General pool used tires": "Llantas usadas del montón general",
+  "A whole load, no sizes yet": "Una camionada entera, todavía sin medidas",
+  "Goes to the general pool. Somebody can list them by size later, and the pool comes down as they do.":
+    "Se va al montón general. Después alguien las puede apuntar por medida, y el montón va bajando conforme lo hace.",
   "Used tires not yet listed by size": "Llantas usadas todavía sin apuntar por medida",
   "Bought by the load, so nobody has written a size on them yet. As they get listed by size the count here comes down — tick “Listing tires we already have” when you receive them.":
     "Se compran por camionada, así que todavía nadie les ha apuntado la medida. Conforme se van apuntando por medida, esta cuenta va bajando — marque “Apuntando llantas que ya tenemos” cuando las reciba.",
