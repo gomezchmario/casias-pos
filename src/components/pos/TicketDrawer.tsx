@@ -270,18 +270,30 @@ export function TicketDrawer({
                 body: JSON.stringify({ mechanicId }),
               })
             }
-            /* Re-pricing is a manager's, and only on a ticket that is finished
-               and not voided. On an open one the register is the place to fix a
-               price — it is right there and the ticket has not been counted yet.
-               `updateItem` enforces this too; this only decides what is drawn. */
-            repriceable={
-              detail.sale.status === "completed" && can("editCompletedSale")
+            /* Any ticket that is not voided. It used to be finished ones only,
+               on the reasoning that an open ticket should be fixed at the
+               register — true when the register is where you are, and useless
+               when you have the ticket open in front of you from Today or the
+               orders board. A voided ticket stays read-only: there is nothing
+               left on it to price. `updateItem` enforces the rank itself; this
+               only decides what is drawn. */
+            repriceable={detail.sale.status !== "voided" && can("editCompletedSale")}
+            /* Taking a line off a ticket, which had no way in from here at
+               all — the only route was the register, and a ticket opened from
+               Today or the orders board is not at the register. A voided line
+               is struck, not deleted: the stock it moved goes back and the row
+               stays as the record that it once said this. */
+            onRemoveLine={(itemId, reason) =>
+              send(
+                `/api/pos/sales/${saleId}/items/${itemId}?reason=${encodeURIComponent(reason)}`,
+                { method: "DELETE" },
+              )
             }
-            onReprice={(itemId, qty, unitPriceCents) =>
+            onReprice={(itemId, qty, unitPriceCents, description) =>
               send(`/api/pos/sales/${saleId}/items/${itemId}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ qty, unitPriceCents }),
+                body: JSON.stringify({ qty, unitPriceCents, description }),
               })
             }
           />
@@ -672,6 +684,7 @@ function Lines({
   onFitted,
   repriceable,
   onReprice,
+  onRemoveLine,
 }: {
   items: SaleItem[];
   mechanics: Mechanic[];
@@ -686,15 +699,32 @@ function Lines({
     mechanicName: string | null,
   ) => void;
   onFitted: (itemId: number, mechanicId: number | null) => void;
-  /** Manager and up, on a completed ticket — see `updateItem`. */
+  /** Manager and up, on any ticket that is not voided — see `updateItem`. */
   repriceable: boolean;
-  onReprice: (itemId: number, qty: number, unitPriceCents: number) => Promise<boolean>;
+  /** Strike a line off the ticket — see `voidItem`. */
+  onRemoveLine: (itemId: number, reason: string) => Promise<boolean>;
+  onReprice: (
+    itemId: number,
+    qty: number,
+    unitPriceCents: number,
+    description: string,
+  ) => Promise<boolean>;
 }) {
   const { t: tr } = useLang();
   /** Which line is being re-priced, and what is typed into it. */
   const [pricing, setPricing] = useState<number | null>(null);
   const [qty, setQty] = useState("1");
   const [price, setPrice] = useState("");
+  /**
+   * What the line SAYS, which is the field people actually come here to fix.
+   *
+   * A tire rung as the wrong size, a service typed with a customer's name in
+   * it, "TEST" left on a real ticket — none of those are price problems, and
+   * until now the only way to correct one was to void the line and ring it
+   * again, which moves stock and leaves two lines where the customer bought
+   * one thing.
+   */
+  const [descr, setDescr] = useState("");
   /**
    * What this line says about who did it, in words.
    *
@@ -791,11 +821,12 @@ function Lines({
                 <button
                   type="button"
                   className="ml-2 text-xs text-brand-300 underline decoration-brand-300/40 underline-offset-2 hover:text-brand-500 hover:decoration-current transition-colors"
-                  title={tr("Fix a price that was rung wrong")}
+                  title={tr("Correct what this line says, how many, or the price")}
                   onClick={() => {
                     setPricing(i.id);
                     setQty(String(i.qty));
                     setPrice((i.unit_price_cents / 100).toFixed(2));
+                    setDescr(i.description);
                   }}
                 >
                   fix
@@ -809,12 +840,22 @@ function Lines({
               <td colSpan={3} className="pb-2">
                 <div className="p-2 rounded-lg bg-white border border-black/10">
                   <p className="text-xs text-brand-400 mb-2">
-                    Re-prices this line and re-freezes the ticket.{" "}
+                    Corrects this line and re-freezes the ticket.{" "}
                     {/* Said before it happens, because the number it moves is
                         one the day has already counted. */}
                     The change is listed on tonight&apos;s close-out with your
                     name on it.
                   </p>
+                  {/* First, because it is what people open this to change.
+                      Full width: a tire's description is long and a box that
+                      shows half of it is a box you cannot proofread. */}
+                  <input
+                    className="input w-full mb-2"
+                    style={{ height: 34, fontSize: 13 }}
+                    title={tr("What this line says")}
+                    value={descr}
+                    onChange={(e) => setDescr(e.target.value)}
+                  />
                   <div className="flex items-center gap-2 mb-2">
                     <input
                       className="input tabular-nums"
@@ -848,6 +889,23 @@ function Lines({
                       style={{ height: 34, fontSize: 13, flex: 1 }}
                       onClick={() => setPricing(null)}
                     >{tr("Cancel")}</button>
+                    {/* In here rather than on every row: removing a line is
+                        rarer than correcting one and much harder to undo, and
+                        a delete beside every line on a busy ticket is a delete
+                        somebody eventually hits by accident. */}
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      style={{ height: 34, fontSize: 13, color: "#b91c1c", borderColor: "rgba(185,28,28,0.3)" }}
+                      disabled={busy}
+                      onClick={async () => {
+                        const why = window.prompt(
+                          `Take "${i.description}" off this ticket?\n\nSay why — it goes on the log and any stock comes back.`,
+                        );
+                        if (!why || !why.trim()) return;
+                        if (await onRemoveLine(i.id, why.trim())) setPricing(null);
+                      }}
+                    >{tr("Remove")}</button>
                     <button
                       type="button"
                       className="btn btn-primary"
@@ -857,14 +915,16 @@ function Lines({
                         !Number.isInteger(parseInt(qty, 10)) ||
                         parseInt(qty, 10) < 1 ||
                         parseCents(price) === null ||
+                        !descr.trim() ||
                         (parseInt(qty, 10) === i.qty &&
-                          parseCents(price) === i.unit_price_cents)
+                          parseCents(price) === i.unit_price_cents &&
+                          descr.trim() === i.description)
                       }
                       onClick={async () => {
                         const cents = parseCents(price);
                         const n = parseInt(qty, 10);
                         if (cents === null || !Number.isInteger(n)) return;
-                        if (await onReprice(i.id, n, cents)) setPricing(null);
+                        if (await onReprice(i.id, n, cents, descr.trim())) setPricing(null);
                       }}
                     >
                       {busy ? "Working…" : "Change the price"}
@@ -1078,11 +1138,17 @@ function Money({
           "Wrong tender on the Credit Card?Wrong tender on the Cash?" — which
           reads as gibberish and gives neither a click target you can aim at.
           One per line, each only as wide as its own words. */}
-      {/* With the eye closed these come off too. They are the tools for
-          changing what the ticket says, and a clean read of the ticket is
-          precisely the moment nobody is using them — three of them stacked
-          under the figures was most of what made this panel hard to scan. */}
-      {showFixes && fixable.length > 0 && (
+      {/*
+        ALWAYS OFFERED, never behind the eye.
+
+        These were folded away with the reversal rows on the reasoning that
+        they are tools rather than figures. That was wrong in a way that cost
+        real work: correcting a tender is one of the most common repairs on a
+        ticket, and hiding it behind a control nobody had been told about made
+        it look as though the ability had been removed. The eye hides what
+        ALREADY HAPPENED to a ticket. It must never hide what you can DO to one.
+      */}
+      {fixable.length > 0 && (
         <div className="mt-2 flex flex-col items-start gap-1.5">
           {fixable.map((p) => (
             <Fragment key={p.id}>
