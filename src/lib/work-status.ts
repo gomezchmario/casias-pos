@@ -14,26 +14,43 @@
  */
 
 /**
- * The colours are the whole interface at counter distance — nobody reads four
- * small words across a room, they read four colours. So they are picked to be
- * told apart at a glance and in that order:
+ * ONE COLOUR PER MEANING, ACROSS BOTH THIS LIST AND ORDER_PILLS.
  *
- *   orange  waiting on us       — the shop owes them something
- *   yellow  working on it       — under way, in hand
- *   blue    waiting on delivery — out of the shop's hands, nothing to chase
- *   green   ready for pickup    — done, go and get them
+ * The two sets share a column. The Outstanding box on Main shows one pill per
+ * ticket and picks which set it comes from by whether the ticket is an order or
+ * a car — see `shownSide` — so a column of a dozen tickets is a mix of the two,
+ * and a colour that means one thing on this list and something else on that one
+ * is worse than no colour at all.
  *
- * Pale fills with dark text of the same hue, not saturated fills with white.
- * A screen showing a dozen outstanding tickets at once is a dozen of these in a
- * column, and at full strength that column shouts loudly enough that no single
- * row stands out — which is the one job it has. Pastel keeps the hues telling
- * each other apart while letting the eye rest.
+ * They used to collide three times. "Ready — call them" here and "Waiting for
+ * pickup" over there were the same green, which is the pair somebody has to
+ * tell apart most: one is a phone call the shop owes, the other is a customer
+ * the shop is waiting on, and nothing can be done about the second.
+ *
+ * The scheme is by MEANING, so the two lists agree where they genuinely say the
+ * same thing:
+ *
+ *   red     nothing started yet     (an order not placed)
+ *   orange  the shop owes work
+ *   yellow  work under way
+ *   indigo  waiting on a supplier
+ *   blue    waiting on a delivery van
+ *   green   done — ring the customer
+ *   purple  rang them, no answer
+ *   teal    told them, waiting on them to come
+ *   lime    fitted
+ *   grey    finished
+ *   rose    cancelled
+ *
+ * Pale fills with dark text of the same hue, not saturated fills with white. A
+ * dozen of these in a column at full strength shouts loudly enough that no
+ * single row stands out — which is the one job the column has. Pastel keeps the
+ * hues telling each other apart while letting the eye rest.
  *
  * The text is dark in every case, including yellow. White on yellow is the one
- * combination here that fails outright — it is unreadable on a bright screen on
- * a counter by a window, which is exactly where this thing lives — and once the
- * fills are pale, white fails on all four. Dark-on-pale is the only rule that
- * holds for the whole set.
+ * combination here that fails outright — unreadable on a bright screen on a
+ * counter by a window, which is exactly where this lives — and once the fills
+ * are pale, white fails on all of them. Dark-on-pale holds for the whole set.
  */
 export const WORK_PILLS = [
   {
@@ -87,17 +104,23 @@ export const WORK_PILLS = [
     value: "no_answer",
     label: "Called — no answer",
     title: "Called — no answer",
-    bg: "#ffedd5",
-    fg: "#9a3412",
-    border: "#fdba74",
+    // Purple, not the orange it shared with Waiting. Both are the shop's turn
+    // again, which is exactly why they need telling apart: one has never been
+    // rung, the other has been rung and did not pick up.
+    bg: "#ede9fe",
+    fg: "#6d28d9",
+    border: "#c4b5fd",
   },
   {
     value: "waiting_pickup",
     label: "Waiting for pickup",
     title: "Waiting for pickup",
-    bg: "#dbeafe",
-    fg: "#1e40af",
-    border: "#93c5fd",
+    // Teal, not the blue it shared with On delivery. Blue means waiting on
+    // somebody who is not the customer; this is waiting on the customer, and
+    // the difference decides whether anybody picks up a phone.
+    bg: "#ccfbf1",
+    fg: "#115e59",
+    border: "#5eead4",
   },
   {
     value: "picked_up",

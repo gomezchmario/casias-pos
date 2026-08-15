@@ -539,6 +539,18 @@ export function TicketDrawer({
           })() && (
           <div className="td-fix">
             <div className="td-fix-label">{tr("Fix something on this ticket")}</div>
+            {/*
+              Two columns, because a single file of five links reads as a menu
+              of last resorts and takes the whole bottom of the drawer to say
+              four short things.
+
+              The openers get their own container rather than the group taking
+              the grid, so "the last one centres itself when it is alone on its
+              row" is one CSS rule counting one kind of child. With the heading
+              and the void block in the same grid, that count would include them
+              and the rule would land on the wrong element half the time.
+            */}
+            <div className="td-fix-grid">
 
           {/* A tip that should not be on the ticket, taken off the row that
               carries it. One control per tipped payment, because a ticket can
@@ -555,7 +567,11 @@ export function TicketDrawer({
                   !detail.payments.some((r) => r.reverses_payment_id === p.id),
               )
               .map((p) => (
-                <div key={`tip-${p.id}`} className="flex flex-col gap-1">
+                /* A fragment, not a wrapper: two controls in one grid cell
+                   would leave a tipped ticket with a short column beside a
+                   tall one. As siblings they fill the grid like everything
+                   else. */
+                <Fragment key={`tip-${p.id}`}>
                   {/*
                     Moving it comes FIRST, because it is nearly always the
                     right answer. A tip on the wrong name is not a tip that
@@ -589,7 +605,7 @@ export function TicketDrawer({
                       })
                     }
                   />
-                </div>
+                </Fragment>
               ))}
 
           {/* Money back on a ticket that stands, which is not a void — see
@@ -683,8 +699,11 @@ export function TicketDrawer({
             />
           )}
 
-          {/* Alone under its own rule. Voiding is the one act here that
-              cannot be walked back by another control on this list. */}
+            </div>
+
+          {/* Alone under its own rule, outside the grid. Voiding is the one act
+              here that cannot be walked back by another control on this list,
+              and it should never sit shoulder to shoulder with one that can. */}
           {detail.sale.status !== "voided" && can("voidSale") && (
             <div className="td-fix-danger">
               <VoidTicket

@@ -679,3 +679,52 @@ html, body {
   text-decoration-color: currentColor;
   background: rgb(10 37 64 / 0.04);
 }
+
+/*
+ * The corrections at the foot of the ticket drawer, two across.
+ *
+ * A single file of five links read as a menu of last resorts and took the whole
+ * bottom of the drawer to say four short things. Two columns halves the height
+ * and lets the eye take them in as a set.
+ *
+ * Its own container rather than putting the grid on `.td-fix`: the heading and
+ * the void block are also children of that, and the "centre the last one when
+ * it is alone" rule below counts children. Counting three kinds of thing would
+ * land it on the wrong element as soon as a ticket had no tip on it.
+ */
+.td-fix-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem 0.75rem;
+  align-items: start;
+}
+
+/*
+ * An odd number of controls leaves the last one alone on its row, where half a
+ * row of empty space beside it reads as something that failed to load. Spanning
+ * both columns lets it centre under the pair above — which is what every other
+ * opener in this drawer already does.
+ */
+.td-fix-grid > *:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+/*
+ * An armed control is a form, and a form in half a column is unusable — the
+ * reason box ends up four characters wide. `:has()` catches it without either
+ * side having to know about the other: a collapsed opener is a bare button, an
+ * open one contains a field.
+ */
+.td-fix-grid > *:has(input),
+.td-fix-grid > *:has(select),
+.td-fix-grid > *:has(textarea) {
+  grid-column: 1 / -1;
+}
+
+/* One column on a narrow drawer — two half-width links wrap into unreadable
+   two-line stubs long before the drawer itself gets tight. */
+@media (max-width: 26rem) {
+  .td-fix-grid {
+    grid-template-columns: 1fr;
+  }
+}

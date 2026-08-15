@@ -98,21 +98,21 @@ export const OURS: FulfillmentStatus[] = ["arrived", "no_answer", "installed"];
 /**
  * A stage as one coloured pill, for the Outstanding panel on Main.
  *
- * Deliberately the same colours as `WORK_PILLS`, carrying the same meaning:
- * orange is the shop holding things up, blue is out of the shop's hands, green
- * is done and go and get them. The two lists are different questions — where is
- * the car, where is the tire — but they now share one dropdown in one column,
- * and giving them separate palettes would mean learning the colours twice to
- * read one panel.
+ * ONE COLOUR PER MEANING, SHARED WITH `WORK_PILLS` — see the long note there.
  *
- * Orange for BOTH 'pending' and 'arrived', because both are jobs somebody here
- * has to do: one is a supplier who has not been rung yet, the other is a
- * customer who has not been. Only 'ordered' is genuinely somebody else's turn.
+ * The two lists ask different questions, where is the car and where is the
+ * tire, but they share one column on Main: the Outstanding panel shows one pill
+ * per ticket and picks the list by whether the ticket is an order. So the
+ * colours are assigned by what a row MEANS rather than by which list it came
+ * from, and the two agree wherever they genuinely say the same thing — 'arrived'
+ * here and 'ready' there are both "it is done, ring the customer", and both are
+ * green.
  *
- * Grey — not a fifth colour — for 'delivered' and 'cancelled'. Those two are the
- * answers that mean nobody has to do anything, and they are the reason a ticket
- * drops off the panel entirely; a colour would put them back in the eye of
- * somebody scanning the screen for work.
+ * They used to collide instead of agree. 'arrived' shared orange with a car
+ * merely waiting on us, 'waiting_pickup' shared green with a car that still
+ * needed ringing, 'installed' shared green with 'waiting_pickup', and
+ * 'cancelled' shared grey with 'delivered' — a job that never happened painted
+ * the same as one that finished.
  *
  * Pale fills with dark text, matching `WORK_PILLS` shade for shade. The panel
  * stacks a dozen of these in a column and at full strength the whole column
@@ -131,20 +131,31 @@ export const ORDER_PILLS: Partial<
   // anybody. Every other stage on this board is work in progress; this one is
   // work not started, and it is the one that should catch an eye first.
   pending: { bg: "#fee2e2", fg: "#b91c1c", border: "#fca5a5" },
-  ordered: { bg: "#dbeafe", fg: "#1e40af", border: "#93c5fd" },
-  arrived: { bg: "#ffedd5", fg: "#9a3412", border: "#fdba74" },
-  // Purple, and its own colour rather than Arrived's orange. The two used to
-  // match on the reasoning that both mean "a phone call is owed" — but that is
-  // exactly what makes them worth telling apart on a board somebody scans from
-  // across the counter: Arrived is a call nobody has made, no answer is a call
-  // already made once, and the second needs a different decision from the
-  // first. Green like Fitted for Waiting for pickup: the shop has done
-  // everything it can and is waiting on the customer.
+  // Indigo, not blue: blue is a delivery van on the way here, this is a
+  // supplier who has not sent one yet. Both are out of the shop's hands and
+  // they are chased differently.
+  ordered: { bg: "#e0e7ff", fg: "#3730a3", border: "#a5b4fc" },
+  // Green, the same green as a car that is Ready — call them. They are the
+  // same instruction to the same person: the thing is done, ring the customer.
+  // Sharing it is the point of colouring by meaning rather than by list.
+  arrived: { bg: "#dcfce7", fg: "#166534", border: "#86efac" },
+  // Purple, and its own colour rather than the green of Arrived. Both mean a
+  // phone call is owed, which is exactly what makes them worth telling apart on
+  // a board somebody scans from across the counter: Arrived is a call nobody has
+  // made, no answer is a call already made once, and the second needs a
+  // different decision from the first.
   no_answer: { bg: "#ede9fe", fg: "#6d28d9", border: "#c4b5fd" },
-  waiting_pickup: { bg: "#dcfce7", fg: "#166534", border: "#86efac" },
-  installed: { bg: "#dcfce7", fg: "#166534", border: "#86efac" },
+  // Teal, matching the car's Waiting for pickup, and no longer the green of
+  // Ready — call them. That pair was the one worth separating most: a call the
+  // shop owes against a customer the shop is waiting on.
+  waiting_pickup: { bg: "#ccfbf1", fg: "#115e59", border: "#5eead4" },
+  // Lime, so a tire on the car reads differently from one still on the rack
+  // waiting to be collected.
+  installed: { bg: "#ecfccb", fg: "#3f6212", border: "#bef264" },
   delivered: { bg: "#f1f5f9", fg: "#475569", border: "#cbd5e1" },
-  cancelled: { bg: "#f1f5f9", fg: "#475569", border: "#cbd5e1" },
+  // Rose. Cancelled and picked up were the same grey, and one of them is a job
+  // that never happened.
+  cancelled: { bg: "#ffe4e6", fg: "#9f1239", border: "#fda4af" },
 };
 
 /**
