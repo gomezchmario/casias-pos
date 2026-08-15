@@ -532,7 +532,9 @@ export function TicketDrawer({
               discountMax !== undefined;
             const voidable = live && can("voidSale");
             const reopenable =
-              detail.sale.status === "completed" && can("editCompletedSale");
+              detail.sale.status === "completed" &&
+              can("editCompletedSale") &&
+              (detail.sale.business_date === detail.today || can("reopenClosedDay"));
             return tippable || refundable || discountable || voidable || reopenable;
           })() && (
           <div className="td-fix">
@@ -650,7 +652,20 @@ export function TicketDrawer({
             lines that were ADDED, because applySaleMovements skips anything
             that already went out. That guard is what makes this offerable.
           */}
-          {detail.sale.status === "completed" && can("editCompletedSale") && (
+          {detail.sale.status === "completed" &&
+            can("editCompletedSale") &&
+            /*
+              A manager may reopen TODAY's tickets; an older one is the owner's
+              alone. Today is still being worked — nothing counted, nothing
+              signed — and a manager fixing a ticket an hour after it was paid
+              is the ordinary running of the shop. An earlier day belongs to a
+              close-out somebody put their name to.
+
+              Not drawn at all rather than drawn and refused: a control that
+              only ever answers no teaches people the screen is broken.
+              reopenSale enforces the same rule, which is where it counts.
+            */
+            (detail.sale.business_date === detail.today || can("reopenClosedDay")) && (
             <ReopenTicket
               paidCents={detail.sale.paid_cents}
               /* Its own day, not today: reopening last Tuesday's ticket changes

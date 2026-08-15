@@ -217,6 +217,17 @@ export const CAPABILITIES = {
   // out of the drawer.
   reverseSpecialOrder: "manager",
   editCompletedSale: "manager",
+  /*
+    Reopening a ticket that belongs to a day already closed.
+
+    A manager may reopen TODAY's tickets — that is covered by
+    editCompletedSale, and it is the ordinary running of the shop: the drawer
+    has not been counted and nothing has been signed. An earlier day is a
+    different act. Its close-out has somebody's name on it, and adding a line
+    changes what that day sold after the fact, so it is the owner's decision
+    rather than the floor's.
+  */
+  reopenClosedDay: "owner",
   voidSale: "manager",
   // Fixing what a payment says: the tender it was taken on, the amount, or
   // both. Its own permission rather than borrowing the void one, because it is
@@ -516,6 +527,7 @@ export const CAPABILITY_INFO: Record<
   },
 
   editCompletedSale: { label: "Edit a paid ticket", group: "Fixing mistakes" },
+  reopenClosedDay: { label: "Reopen a ticket from an earlier day", group: "Fixing mistakes" },
   voidSale: { label: "Void a ticket", group: "Fixing mistakes" },
   correctPayment: {
     label: "Correct a payment — tender or amount",

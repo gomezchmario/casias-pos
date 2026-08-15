@@ -912,6 +912,27 @@ export function reopenSale(user: PosUser, saleId: number, reason: string): Resul
     return { ok: false, error: "Only a manager can reopen a ticket" };
   if (sale.status === "voided") return { ok: false, error: "This ticket is voided" };
   if (sale.status === "open") return { ok: true, sale };
+
+  /*
+    A MANAGER MAY REOPEN TODAY'S TICKETS. ONLY THE OWNER MAY REOPEN AN OLDER ONE.
+
+    The difference is what the day has already been through. Today is still
+    being worked: the drawer has not been counted, nothing has been signed, and
+    a manager fixing a ticket an hour after it was paid is the ordinary running
+    of the shop. A ticket from an earlier day belongs to a close-out somebody
+    put their name to — adding a line to it changes what that day sold after the
+    fact, and that is the owner's decision to make rather than the floor's.
+
+    Checked against the ticket's OWN business date, not the calendar: the shop's
+    day rolls on a rule of its own, and a ticket rung at half past midnight
+    belongs to the day before.
+  */
+  if (sale.business_date !== currentBusinessDate() && user.role !== "owner")
+    return {
+      ok: false,
+      error: `That ticket belongs to ${sale.business_date}, and that day has been closed — only the owner can reopen it`,
+    };
+
   const why = reason.trim();
   if (!why) return { ok: false, error: "Say why it is being reopened" };
 
