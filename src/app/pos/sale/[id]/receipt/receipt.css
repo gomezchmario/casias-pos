@@ -253,6 +253,36 @@
   margin-top: 2px;
 }
 
+/* Who the charge lands on, when a fleet driver puts a ticket on the house.
+
+   Boxed rather than run in as another line under the driver, because it is not
+   a further detail about the person standing at the counter — it is a different
+   party, and it is the one this receipt has to be matched to at the end of the
+   month. Left rule and a tint, so somebody in the company's office finds it
+   without reading the sheet. It prints: this is the whole reason it exists.
+   Its own id line inherits .receipt-party-id, which stays quiet — the company's
+   name is the thing to see, the number is for the counter. */
+.receipt-billed {
+  margin-top: 6px;
+  padding: 4px 0 4px 8px;
+  border-left: 3px solid #0a2540;
+  background: rgba(10, 37, 64, 0.04);
+}
+
+.receipt-billed-head {
+  display: block;
+  font-size: 8pt;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #777;
+}
+
+.receipt-billed-name {
+  display: block;
+  font-weight: 700;
+  font-size: 11pt;
+}
+
 .receipt-items,
 .receipt-totals {
   width: 100%;

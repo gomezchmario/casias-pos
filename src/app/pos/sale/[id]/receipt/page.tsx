@@ -61,7 +61,12 @@ export default async function ReceiptPage({
     sale.status === "voided"
       ? allPayments
       : allPayments.filter((p) => p.reverses_payment_id == null && !undone.has(p.id));
-  const methods = new Map(listPaymentMethods().map((m) => [m.id, m.label]));
+  const allMethods = listPaymentMethods();
+  const methods = new Map(allMethods.map((m) => [m.id, m.label]));
+  /** The tenders that put a ticket on somebody's tab rather than in the drawer. */
+  const houseAccountMethodIds = new Set(
+    allMethods.filter((m) => m.kind === "house_account").map((m) => m.id),
+  );
 
   // Buying over the counter collects no sales tax, so a purchase receipt shows
   // no tax line rather than one back-calculated from the retail rate.
@@ -151,16 +156,46 @@ export default async function ReceiptPage({
    */
   const customer = sale.customer_id
     ? (getDb()
-        .prepare("SELECT customer_no, name, phone, notes FROM customers WHERE id = ?")
+        .prepare("SELECT customer_no, name, phone, notes, fleet_id FROM customers WHERE id = ?")
         .get(sale.customer_id) as
         | {
             customer_no: string;
             name: string;
             phone: string | null;
             notes: string | null;
+            fleet_id: number | null;
           }
         | undefined)
     : undefined;
+
+  /**
+   * The company the charge lands on, when a driver puts one on the house.
+   *
+   * A fleet driver's receipt named the driver and stopped there, which is the
+   * wrong name for the only question this piece of paper has to settle. The
+   * driver did not agree to pay anything — their company did, and the driver
+   * is handing this receipt to somebody at that company who has to match it
+   * against a statement that arrives at the end of the month under the
+   * COMPANY'S name. Without that name on the paper the two cannot be put
+   * together by anybody except the shop.
+   *
+   * ONLY WHEN THE ACCOUNT WAS ACTUALLY CHARGED, which is why this is keyed on
+   * the tender and not on the customer. The same driver pays cash for their own
+   * tires on a Saturday, and a receipt telling them their employer was billed
+   * for those would be a lie on a document somebody files. `house_account` is
+   * read off the method's kind rather than matching the code by name, so a
+   * second account tender added later is covered without anybody remembering
+   * this line exists.
+   */
+  const chargedToAccount = payments.some(
+    (p) => p.kind === "payment" && houseAccountMethodIds.has(p.method_id),
+  );
+  const billedTo =
+    chargedToAccount && customer?.fleet_id
+      ? (getDb()
+          .prepare("SELECT customer_no, name FROM customers WHERE id = ? AND deleted = 0")
+          .get(customer.fleet_id) as { customer_no: string; name: string } | undefined)
+      : undefined;
   const vehicle = sale.vehicle_id
     ? (getDb()
         .prepare(
@@ -249,12 +284,24 @@ export default async function ReceiptPage({
           >
             {customer && (
               <div className="receipt-party">
-                <div className="receipt-party-head">Customer</div>
+                <div className="receipt-party-head">{billedTo ? "Driver" : "Customer"}</div>
                 <div className="receipt-party-name">{customer.name}</div>
                 {customer.phone && <div>{customer.phone}</div>}
                 {/* The shop's own number for them, printed small. It is what
                     somebody rings the counter and reads out. */}
                 <div className="receipt-party-id">{customer.customer_no}</div>
+                {/* The company that owes this, under the person who signed for
+                    it. Set apart rather than run in with the phone number
+                    because it is not another detail about the driver — it is
+                    who the money is coming from, and it is the line the
+                    company's office will look for first. */}
+                {billedTo && (
+                  <div className="receipt-billed">
+                    <span className="receipt-billed-head">Billed to</span>
+                    <span className="receipt-billed-name">{billedTo.name}</span>
+                    <span className="receipt-party-id">{billedTo.customer_no}</span>
+                  </div>
+                )}
                 {customer.notes && <div className="receipt-party-note">{customer.notes}</div>}
               </div>
             )}
