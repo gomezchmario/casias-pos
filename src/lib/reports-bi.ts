@@ -391,7 +391,11 @@ export function staffingNeed(from: string, to: string): Staffing {
            FROM time_entries t
            JOIN employees e ON e.id = t.employee_id
           WHERE e.pos_role = 'technician'
-            AND t.type = 'check_in'
+            -- BOTH kinds of start. A day with a lunch break in it is two work
+            -- stretches, not one: check_in opens the morning and break_end
+            -- opens the afternoon. Counting only check_in silently loses every
+            -- hour after lunch, which is more than half the day.
+            AND t.type IN ('check_in', 'break_end')
             AND substr(t.timestamp, 1, 10) BETWEEN ? AND ?`,
       )
       .get(from, to) as { mins: number }

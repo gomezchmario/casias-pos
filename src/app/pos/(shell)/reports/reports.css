@@ -205,6 +205,38 @@
   gap: 12px;
 }
 
+/*
+  A panel that fills its half of the row instead of sitting in a short box.
+
+  Two panels side by side almost never want to be the same height, and the
+  shorter one ends up as a small card with a third of a column of white under
+  it. This makes the panel stretch to the row and lets its bars breathe into
+  the space rather than bunching at the top — the chart gets bigger, which is
+  the only thing that was wrong with it.
+
+  Opt-in, because it is only right where the content can USE the height. A
+  short list stretched to a tall row is the same whitespace with the gaps moved
+  into the middle.
+*/
+.rp-two > .rp-fill {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0;
+}
+
+.rp-fill .rp-ranked {
+  flex: 1;
+  justify-content: space-around;
+}
+
+.rp-fill .rp-rank-row {
+  font-size: 13px;
+}
+
+.rp-fill .rp-rank-track {
+  height: 14px;
+}
+
 /* `min-width: 0`, and it is load-bearing rather than tidying.
  *
  * A grid item defaults to `min-width: auto`, which means it refuses to shrink
@@ -472,6 +504,20 @@
   border-radius: 3px;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
+}
+
+/* The variant that carries its own figure. Taller, because 20px of colour is
+   enough to see and not enough to read; centred both ways so a column of them
+   lines up whatever the digits are. Tabular figures for the same reason. */
+.rp-heat-cell-n {
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 /* The key under the grid. Needed only since the scale gained hues — "darker is

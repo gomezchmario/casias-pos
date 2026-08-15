@@ -1016,6 +1016,9 @@ const ES: Record<string, string> = {
   "person": "persona",
   "people": "personas",
   "Hours on the clock": "Horas en el reloj",
+  Hours: "Horas",
+  // Not their wage — what they SOLD in each hour they were on the clock.
+  "Sold per hour": "Vendido por hora",
   "All clocked out.": "Todos con salida marcada.",
   "Nobody clocked in.": "Nadie marcó entrada.",
   "still on": "todavía dentro",
@@ -1300,6 +1303,10 @@ const ES: Record<string, string> = {
   "customers by. Everything below is still counted from real tickets — only the last table needs you to pick a line rather than being told one. If the technicians clocked in and out, this would answer itself.":
     "clientes. Todo lo de abajo se sigue contando de tickets reales — nada más la última tabla necesita que usted escoja una línea en vez de que se la digan. Si los técnicos marcaran entrada y salida, esto se contestaría solo.",
   "Open the printable staffing report": "Abrir el reporte de personal para imprimir",
+  "These are the customers we served, not the ones who wanted serving.":
+    "Estos son los clientes que sí atendimos, no los que querían que los atendiéramos.",
+  "Somebody who saw the wait and drove off left no ticket, so they are in none of these squares. The busier an hour is the more it turns away, which means the busiest hours are the most understated — read every figure here as a floor rather than as demand.":
+    "Quien vio la espera y se fue no dejó ticket, así que no está en ninguno de estos cuadros. Entre más pesada la hora, más gente se va — o sea que las horas más pesadas son las que más se quedan cortas. Lea cada cifra de aquí como un mínimo, no como la demanda real.",
 
   // ── Things that go wrong ───────────────────────────────────────────────
   "That did not save": "Eso no se guardó",

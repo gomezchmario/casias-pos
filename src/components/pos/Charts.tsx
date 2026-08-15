@@ -387,6 +387,7 @@ export function Heatmap({
   emptyLabel = "No tickets in this window.",
   quietLabel = "Quiet",
   busyLabel = "Busiest",
+  showValues = false,
 }: {
   cells: { weekday: number; hour: number; value: number }[];
   /** The hours to draw, so a shop open 8–6 does not get a grid of empty nights. */
@@ -395,6 +396,20 @@ export function Heatmap({
   emptyLabel?: string;
   quietLabel?: string;
   busyLabel?: string;
+  /**
+   * Print the figure inside each square as well as colouring it.
+   *
+   * Off by default, and that default is right for a heatmap of raw counts: a
+   * grid of four-digit totals is a table wearing a colour scheme, and the whole
+   * point of the shape is that it is read at a glance rather than digit by
+   * digit.
+   *
+   * On where the figures are small and ACTIONABLE — an average of 8.6 customers
+   * in an hour is a number somebody rosters against, and having to hover a
+   * square to read it makes the grid useless on paper and awkward on a screen
+   * somebody is pointing at with another person beside them.
+   */
+  showValues?: boolean;
 }) {
   if (cells.length === 0) return <Empty label={emptyLabel} />;
   const max = Math.max(...cells.map((c) => c.value), 1);
@@ -413,7 +428,16 @@ export function Heatmap({
           </div>
         ))}
         {DAYS.map((d, w) => (
-          <Row key={d} day={d} weekday={w} hours={hours} at={at} max={max} format={format} />
+          <Row
+            key={d}
+            day={d}
+            weekday={w}
+            hours={hours}
+            at={at}
+            max={max}
+            format={format}
+            showValues={showValues}
+          />
         ))}
       </div>
 
@@ -442,6 +466,7 @@ function Row({
   at,
   max,
   format,
+  showValues,
 }: {
   day: string;
   weekday: number;
@@ -449,24 +474,30 @@ function Row({
   at: Map<string, number>;
   max: number;
   format: (n: number) => string;
+  showValues?: boolean;
 }) {
   return (
     <>
       <div className="rp-heat-day">{day}</div>
       {hours.map((h) => {
         const v = at.get(`${weekday}-${h}`) ?? 0;
+        const share = v === 0 ? 0 : 0.08 + (v / max) * 0.92;
         return (
           <div
             key={`${weekday}-${h}`}
-            className="rp-heat-cell"
+            className={`rp-heat-cell${showValues ? " rp-heat-cell-n" : ""}`}
             title={`${day} ${h}:00 · ${format(v)}`}
             style={{
               // An hour with nothing in it is left almost white rather than
               // given the bottom of the scale: "shut" and "one ticket" are
               // different facts and the coldest colour has to mean the second.
-              background: v === 0 ? "rgba(10,37,64,0.045)" : heatColor(0.08 + (v / max) * 0.92),
+              background: v === 0 ? "rgba(10,37,64,0.045)" : heatColor(share),
+              // White type once the square is dark enough to swallow navy.
+              color: share > 0.62 ? "#fff" : "#0a2540",
             }}
-          />
+          >
+            {showValues && v !== 0 ? v : ""}
+          </div>
         );
       })}
     </>

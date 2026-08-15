@@ -726,6 +726,13 @@ export default function ReportsPage() {
         title={tr("How many people the week needs")}
         note={tr("Customers to expect in each hour, and the cover that takes. The shape is counted off every ticket; the number of people needs one thing the tickets cannot say — how long a job takes — so pick the line that matches the bay.")}
       >
+        {/* The same caveat the printable carries, and for the same reason —
+            it has to be read before the grid, not after it. */}
+        <div className="rp-note rp-note-warn">
+          <strong>{tr("These are the customers we served, not the ones who wanted serving.")}</strong>{" "}
+          {tr("Somebody who saw the wait and drove off left no ticket, so they are in none of these squares. The busier an hour is the more it turns away, which means the busiest hours are the most understated — read every figure here as a floor rather than as demand.")}
+        </div>
+
         {!data.staffing.paceFromData && (
           <div className="rp-note rp-note-warn">
             <strong>{tr("The shop cannot work out its own pace yet.")}</strong>{" "}
@@ -767,9 +774,15 @@ export default function ReportsPage() {
             emptyLabel={tr("No tickets in this window.")}
             quietLabel={tr("Quiet")}
             busyLabel={tr("Busiest")}
+            showValues
           />
         </Panel>
 
+        {/* Side by side: the pace table and the day ranking are read against
+            each other — "Saturday needs five, and Saturday is the busiest day"
+            is one thought, and splitting it across a scroll breaks it. The
+            ranking stretches to match the taller panel rather than sitting in
+            a half-empty box; see .rp-fill. */}
         <div className="rp-two">
           <Panel
             title={tr("Technicians needed at the busiest hour")}
@@ -807,6 +820,7 @@ export default function ReportsPage() {
           </Panel>
 
           <Panel
+            fill
             title={tr("Busiest days first")}
             note={tr("The order to staff them in. The gap top to bottom is the argument for moving somebody's day off.")}
           >
@@ -1575,13 +1589,16 @@ function Panel({
   title,
   note,
   children,
+  fill,
 }: {
   title: string;
   note?: string;
   children: React.ReactNode;
+  /** Stretch to the height of the row and let the content use it — .rp-fill. */
+  fill?: boolean;
 }) {
   return (
-    <div className="rp-panel">
+    <div className={`rp-panel${fill ? " rp-fill" : ""}`}>
       <div className="rp-panel-head">
         <span>{title}</span>
         {note && <em>{note}</em>}

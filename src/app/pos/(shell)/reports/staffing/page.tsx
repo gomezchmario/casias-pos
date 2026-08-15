@@ -171,6 +171,30 @@ export default function StaffingReportPage() {
         </div>
       </div>
 
+      {/*
+        THE FLOOR, NOT THE DEMAND — and it says so before the first table
+        rather than in a footnote after the last one. See the note in the
+        scripted edit that added this: under-staffing hides itself, so this
+        caveat has to be read before the numbers are, not after.
+      */}
+      <div className="dr-callout">
+        <div className="dr-callout-head">
+          These are the customers the shop SERVED — not the ones who wanted serving
+        </div>
+        <p className="dr-callout-body">
+          Every figure here is counted off tickets, and a ticket only exists for somebody who
+          waited. The customer who looked at the queue on a Saturday morning and drove to the shop
+          down the road left no ticket and no trace, so they are not in any of these squares.
+        </p>
+        <p className="dr-callout-body">
+          <strong>That does not cut both ways.</strong> The busier an hour is, the more people it
+          turns away — so the busiest hours are the ones most understated, which is exactly where
+          this report is being used to decide cover. <strong>Read every number below as a
+          floor.</strong> The real demand at the peak is higher by however many people left, and
+          nobody knows that figure.
+        </p>
+      </div>
+
       {/* ══════════ 1. WHEN ══════════ */}
       <section className="dr-sec">
         <h2 className="dr-h2">
@@ -221,7 +245,8 @@ export default function StaffingReportPage() {
         <p className="dr-foot">
           Averages, not totals — what to expect on a given day, not what happened across the whole
           window. The reddest square is the busiest hour of the week and everything else is shaded
-          against it.
+          against it. Every square counts customers served; anybody who left rather than wait is in
+          none of them.
         </p>
       </section>
 
@@ -287,6 +312,12 @@ export default function StaffingReportPage() {
           lobby. Away from the peak the same days need fewer — the grid above shows exactly where,
           and the difference between the two is the case for a split shift rather than a second
           full one.
+        </p>
+        <p className="dr-foot">
+          <strong>These are minimums.</strong> The customers counted are the ones who stayed, so
+          staffing exactly to this table keeps the shop exactly as busy as it already is — and
+          keeps turning away whoever it is already turning away. Staffing one above it is how the
+          shop finds out whether there is more work than it has been seeing.
         </p>
       </section>
 
@@ -399,12 +430,23 @@ export default function StaffingReportPage() {
             </tr>
             <tr>
               <td>
+                Walmart Auto Care, San Antonio
+                <div className="dr-note">ZipRecruiter and Glassdoor postings, 2026</div>
+              </td>
+              <td className="num">$26.00</td>
+              <td className="num">$54,100</td>
+              <td>
+                Advertised <strong>$22–$30</strong>, plus shift premiums of up to $3
+              </td>
+            </tr>
+            <tr>
+              <td>
                 Costco, San Antonio
                 <div className="dr-note">Indeed, reported by staff</div>
               </td>
               <td className="num">$25.32</td>
               <td className="num">$52,700</td>
-              <td>The top of the tire-fitting market here</td>
+              <td>The other big-box shop, and about the same money</td>
             </tr>
             <tr>
               <td>
@@ -438,9 +480,15 @@ export default function StaffingReportPage() {
 
         <p className="dr-foot">
           <strong>Two different jobs are on this table, and the gap between them is the point.</strong>{" "}
-          A tire technician in San Antonio is a $15–$17 hire. A qualified automotive technician is a
-          $26–$30 one — close to double. Which of the two the shop is hiring for moves the wage bill
-          far more than haggling over a dollar inside either band.
+A tire technician at an independent shop in San Antonio is a $15–$17 hire. A qualified
+          automotive technician is a $26–$30 one — close to double. Which of the two the shop is
+          hiring for moves the wage bill far more than haggling over a dollar inside either band.
+        </p>
+        <p className="dr-foot">
+          <strong>The big-box shops sit with the mechanics, not with the tire fitters.</strong>{" "}
+          Walmart and Costco both pay around $25–$26 for what is largely tire work. That is who a
+          good fitter is being recruited away by, and it is roughly $9 an hour above the
+          independent average — about $18,000 a year on one person.
         </p>
         <p className="dr-foot">
           <strong>Costing the cover.</strong> At the San Antonio tire-technician average of $16.00,

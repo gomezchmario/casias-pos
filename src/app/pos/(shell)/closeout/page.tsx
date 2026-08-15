@@ -642,6 +642,23 @@ export default function CloseoutV2Page() {
               <div className="rp-empty">{tr("Nobody clocked in.")}</div>
             ) : (
               <table className="rp-table">
+                {/*
+                  A header, because the last column was being read as a wage.
+
+                  "$2,151.43/h" beside somebody's name and their hours is a
+                  sentence about pay to anybody who has not been told otherwise
+                  — and this shop has no wage field at all, so there was nothing
+                  it could have been. It is what they SOLD per hour on the
+                  clock, which is a completely different fact about the same
+                  person, and the column now says so.
+                */}
+                <thead>
+                  <tr>
+                    <th>{tr("Name")}</th>
+                    <th className="r">{tr("Hours")}</th>
+                    <th className="r">{tr("Sold per hour")}</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {data.hours.people.map((h) => {
                     // Per hour ONLY over hours that were really clocked out. A
