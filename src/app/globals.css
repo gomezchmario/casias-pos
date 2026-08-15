@@ -600,8 +600,7 @@ html, body {
   color: var(--color-brand-500, #0a2540);
 }
 
-/* The quiet one on the register keeps its blue-grey — see td-fix-open-quiet
-   below, which now only has to say the colour. */
+/* The register keeps its own quieter treatment — see td-fix-open-quiet below. */
 
 .td-fix-open-danger {
   color: #b91c1c;
@@ -680,27 +679,31 @@ html, body {
 /*
  * Apply Discount on the register: present, not prominent.
  *
- * Light blue-grey — the brand's own #8ea4be rather than a neutral grey, so it
- * reads as part of this screen's palette and not as a disabled control. Money
- * off is the exception on a ticket, not a step in ringing one, and a control
- * sitting at full link strength among Cash / Card / Complete gets pressed like
- * one of them.
+ * A very light red rather than a grey, so it reads as a deliberate exception
+ * rather than as a disabled control. Money off is the exception on a ticket,
+ * not a step in ringing one, and a control at full strength among Cash / Card /
+ * Complete gets pressed like one of them.
  *
- * Still underlined, still hovers, still takes focus in the normal order. Quiet
- * is not the same as hidden, and a discount somebody cannot find is a discount
- * given verbally and never recorded — which is the exact hole this control was
- * built to close.
+ * Quiet is not the same as hidden. It keeps its border, its hover and its place
+ * in the focus order, and it is on screen whatever tender is chosen — a
+ * discount somebody cannot find is a discount given verbally and never
+ * recorded, which is the exact hole this control was built to close.
+ *
+ * Text at #b4483f on #fef2f2 is 4.87:1, which clears the floor; the obvious
+ * softer red for "very light" came in at 3.96:1 and was not readable on a
+ * counter screen by a window.
  */
 .td-fix-open-quiet {
   width: auto;
   margin: 0 auto;
-  color: #8ea4be;
-  border-color: rgb(142 164 190 / 0.35);
+  background: #fef2f2;
+  color: #b4483f;
+  border-color: rgb(185 28 28 / 0.22);
 }
 .td-fix-open-quiet:hover {
-  color: var(--color-brand-400, #1f3f64);
-  border-color: rgb(142 164 190 / 0.6);
-  background: rgb(10 37 64 / 0.04);
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: rgb(185 28 28 / 0.45);
 }
 
 /*

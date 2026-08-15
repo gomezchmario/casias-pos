@@ -212,7 +212,7 @@
 }
 
 /*
- * The switch for the two-tap behaviour, beside the Add button.
+ * The switch for the two-tap behaviour, on the row under the line.
  *
  * Deliberately small and quiet. It is a preference somebody sets once and then
  * forgets, and at full button weight it would compete with Add — which is the
@@ -223,12 +223,11 @@
  * tell "Rings by itself" from "Waits for Add".
  */
 .reg-autoadd {
-  /* Sits beside Add in the same grid cell, so it takes its own width and
-     nothing else: no auto margins, no top gap, and it must not shrink when the
-     card is narrow — Add gives up the width instead, because a squeezed Add is
-     still a button and a squeezed pill is unreadable. */
+  /* On the row under the line, at its right end. Never shrinks: a squeezed
+     pill is unreadable, and there is nothing beside it competing for room. */
   display: flex;
   flex: none;
+  margin-left: auto;
   align-items: center;
   gap: 0.4rem;
   padding: 0.2rem 0.6rem;

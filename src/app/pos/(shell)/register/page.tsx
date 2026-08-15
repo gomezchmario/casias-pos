@@ -1284,46 +1284,12 @@ export default function RegisterPage() {
               onBlur={() => setQty(String(qtyNum))}
               onStep={stepQty}
             />
-            {/* Add and the switch share the third column, side by side.
-                The switch was on a line of its own underneath, which cost a
-                row of the card to say something that belongs to the button
-                next to it — and left the eye travelling down and back up
-                between the two controls that decide how a line gets rung. */}
-            <div className="flex items-center gap-2 min-w-0">
-              <button
-                type="button"
-                className="btn btn-primary"
-                style={{ flex: 1, minWidth: 0 }}
-                onClick={submitManual}
-                disabled={busy}
-              >{tr("Add")}</button>
-          {/*
-            The switch for the two-tap behaviour, beside the button it replaces.
-
-            Here rather than in Settings because it is a decision somebody makes
-            for the next five minutes — while training, while fixing a ticket,
-            while working out what a customer actually wants — and a preference
-            you have to leave the register to change is one nobody uses.
-
-            It says which state it is IN, not which state it would move to.
-            A switch labelled with its own opposite is the classic way to get
-            somebody to turn a thing on twice.
-          */}
-              <button
+            <button
               type="button"
-              className="reg-autoadd"
-              aria-pressed={autoAdd}
-              onClick={toggleAutoAdd}
-            title={
-              autoAdd
-                ? "A service and a price ring the line by themselves, once a mechanic is picked. Tap to make every line wait for Add."
-                : "Every line waits for Add. Tap to let a service and a price ring it by themselves."
-            }
-          >
-              <span className={`reg-autoadd-dot${autoAdd ? " is-on" : ""}`} />
-              {autoAdd ? tr("Rings by itself") : tr("Waits for Add")}
-              </button>
-            </div>
+              className="btn btn-primary"
+              onClick={submitManual}
+              disabled={busy}
+            >{tr("Add")}</button>
           </div>
           {/* The counterpart to "Order it in" over in the tire card. A car gets
               left for work, not for a tire off the rack, so the question belongs
@@ -1334,16 +1300,53 @@ export default function RegisterPage() {
               key first and gets told the price second, so waiting for a line to
               be rung meant the question was not on screen at the moment it was
               being answered. Pressing it opens the ticket. */}
-          {!purchasing && !pendingVehicle && !sale?.work_status && (
+          {/*
+            The two small decisions under the line, on one row: what happens to
+            the car, and whether the register rings a line by itself.
+
+            The switch sat beside Add, which gave a preference the same weight
+            as the button that posts the line. Down here it keeps company with
+            the other thing you decide once and then leave alone, and the row
+            above is back to being three controls that all do the same job.
+
+            The switch is here rather than in Settings because it is a decision
+            somebody makes for the next five minutes — while training, while
+            fixing a ticket, while a customer is still deciding — and a
+            preference you have to leave the register to change is one nobody
+            uses. It says which state it is IN, not which state it would move
+            to; a switch labelled with its own opposite is the classic way to
+            get somebody to turn a thing on twice.
+          */}
+          <div className="mt-3 flex items-center gap-3">
+            {!purchasing && !pendingVehicle && !sale?.work_status && (
+              <button
+                type="button"
+                className="text-xs underline text-amber-800 hover:text-amber-900"
+                onClick={() => void markVehicle(true)}
+                disabled={busy}
+              >
+                Is the client leaving their vehicle?
+              </button>
+            )}
+            {/* Pushed right by its own margin rather than by `justify-between`,
+                so it stays put when the vehicle question is not being asked —
+                which is most of the time on a ticket that already has an
+                answer. */}
             <button
               type="button"
-              className="mt-3 text-xs underline text-amber-800 hover:text-amber-900"
-              onClick={() => void markVehicle(true)}
-              disabled={busy}
+              className="reg-autoadd"
+              aria-pressed={autoAdd}
+              onClick={toggleAutoAdd}
+              title={
+                autoAdd
+                  ? "A service and a price ring the line by themselves, once a mechanic is picked. Tap to make every line wait for Add."
+                  : "Every line waits for Add. Tap to let a service and a price ring it by themselves."
+              }
             >
-              Is the client leaving their vehicle?
+              <span className={`reg-autoadd-dot${autoAdd ? " is-on" : ""}`} />
+              {autoAdd ? tr("Rings by itself") : tr("Waits for Add")}
             </button>
-          )}
+          </div>
         </div>
         )}
 
@@ -1749,16 +1752,11 @@ export default function RegisterPage() {
               <strong>{resumed}</strong> {tr("was reopened.")}{" "}
               {formatCents(sale.paid_cents)} {tr("is already collected on it.")}{" "}
               {tr("Add what is missing, or close it again as it stands.")}
+              {/* The button moved down to the payment panel, where the two ways
+                  of finishing a ticket sit together and can be told apart. What
+                  stays here is what a banner is for: saying what the ticket is,
+                  and what closing it would leave. */}
               <div className="mt-2 flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  className="btn btn-outline"
-                  style={{ height: 30, fontSize: 12 }}
-                  disabled={busy}
-                  onClick={() => void recloseAsIs()}
-                >
-                  {tr("Close it again as it is")}
-                </button>
                 {sale.subtotal_cents - sale.discount_cents !== sale.paid_cents && (
                   <span>
                     {tr("It now comes to")}{" "}
@@ -1978,6 +1976,10 @@ export default function RegisterPage() {
                 mechanics={ticketMechanics}
                 roster={data.mechanics}
                 onSaleChanged={setSale}
+                /* Only on a reopened ticket: open, and already carrying money.
+                   An ordinary draft has no payments on it, so nothing extra is
+                   offered and the panel is exactly as it was. */
+                onRecloseAsIs={sale.paid_cents > 0 ? () => void recloseAsIs() : undefined}
                 commPerCents={data.settings.tipCommPerCents}
                 commChargeCents={data.settings.tipCommChargeCents}
                 onTenderChange={setAccountTender}

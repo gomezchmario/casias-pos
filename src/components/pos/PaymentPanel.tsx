@@ -38,6 +38,7 @@ export function PaymentPanel({
   onError,
   onDone,
   onSaleChanged,
+  onRecloseAsIs,
 }: {
   sale: Sale;
   methods: PaymentMethod[];
@@ -59,6 +60,17 @@ export function PaymentPanel({
   onTenderChange?: (isAccount: boolean) => void;
   onError: (msg: string | null) => void;
   onDone: (saleId: number) => void;
+  /**
+   * Close a reopened ticket without touching the money — set only when there
+   * is one.
+   *
+   * A ticket that is open and already carries payments was reopened to be
+   * added to, and the commonest outcome of reopening is finding that nothing
+   * needed adding. Without this the only way back to a closed ticket is the
+   * panel below, which exists to TAKE money and would ask for it a second
+   * time on a ticket that is already paid.
+   */
+  onRecloseAsIs?: () => void;
   /**
    * The ticket changed underneath the panel — a discount came off it.
    *
@@ -90,6 +102,17 @@ export function PaymentPanel({
   const [methodId, setMethodId] = useState<number | null>(null);
   /** Is the Financing group open? See the tender row. */
   const [pickingFinance, setPickingFinance] = useState(false);
+  /**
+   * What "Other" actually was, in the cashier's words. Optional.
+   *
+   * Other is the tender that says nothing: it is on the close-out as a figure
+   * with no explanation, and by the time anybody asks, the person who rang it
+   * has gone home. A box here costs one optional line at the counter and turns
+   * an unexplained total into "trade — old rims" on the day's sheet.
+   *
+   * Optional on purpose. Made compulsory it would be filled with a full stop.
+   */
+  const [otherNote, setOtherNote] = useState("");
   /**
    * The cashier's ceiling on a discount, or null for somebody who has none.
    *
@@ -353,6 +376,10 @@ export function PaymentPanel({
         amountCents: frozenSubtotal + (splitting ? 0 : tipCents + commCents),
         tipCents: splitting ? 0 : tipCents,
         mechanicId: tipMechanicId === "" ? null : tipMechanicId,
+        // Only ever on Other. Every other tender says what it is by its own
+        // name, and a note on a card payment would be a second place to look
+        // for something the label already answers.
+        note: method?.code === "other" ? otherNote.trim() || null : null,
       }),
     });
     const paid = await payRes.json().catch(() => ({}));
@@ -552,44 +579,70 @@ export function PaymentPanel({
         A single active financing method is shown under its own name, because
         "Financing → SNAP" with nothing else to choose is a tap for nothing.
       */}
+      {/*
+        ONE ORDERED LIST, so `sort_order` decides the layout and not this file.
+
+        The Financing group used to be appended after the plain methods, which
+        pinned it to the end of the grid however the methods table was sorted —
+        and the grid reads two across, so the order decides which tenders sit
+        beside each other. It now takes the position of its first provider and
+        the whole row order is a shop decision: see 043_tender_order.sql.
+      */}
       <div className="grid grid-cols-2 gap-2 mb-3">
-        {plainMethods.map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            onClick={() => setMethodId(m.id)}
-            className="btn text-sm"
-            style={{
-              height: 42,
-              background: m.id === methodId ? "#0a2540" : "rgba(10,37,64,0.06)",
-              color: m.id === methodId ? "#fff" : "#0a2540",
-            }}
-          >
-            {m.label}
-          </button>
-        ))}
-        {financing.length > 1 && (
-          <button
-            type="button"
-            onClick={() => {
-              // Opening the group does not choose a provider. Nothing is
-              // selected until somebody names one, so a ticket cannot be
-              // completed on "Financing" — which is not a thing money arrives
-              // from.
-              setPickingFinance((v) => !v);
-              if (financingChosen) setMethodId(null);
-            }}
-            aria-expanded={pickingFinance || !!financingChosen}
-            className="btn text-sm"
-            style={{
-              height: 42,
-              background: financingChosen ? "#0a2540" : "rgba(10,37,64,0.06)",
-              color: financingChosen ? "#fff" : "#0a2540",
-            }}
-          >
-            {financingChosen ? `${tr("Financing")} · ${financingChosen.label}` : tr("Financing")}
-          </button>
-        )}
+        {[
+          ...plainMethods.map((m) => ({ key: `m${m.id}`, at: m.sort_order, method: m })),
+          ...(financing.length > 1
+            ? [
+                {
+                  key: "financing",
+                  at: Math.min(...financing.map((m) => m.sort_order)),
+                  method: null,
+                },
+              ]
+            : []),
+        ]
+          .sort((a, b) => a.at - b.at)
+          .map((cell) =>
+            cell.method ? (
+              <button
+                key={cell.key}
+                type="button"
+                onClick={() => setMethodId(cell.method!.id)}
+                className="btn text-sm"
+                style={{
+                  height: 42,
+                  background: cell.method.id === methodId ? "#0a2540" : "rgba(10,37,64,0.06)",
+                  color: cell.method.id === methodId ? "#fff" : "#0a2540",
+                }}
+              >
+                {cell.method.label}
+              </button>
+            ) : (
+              <button
+                key={cell.key}
+                type="button"
+                onClick={() => {
+                  // Opening the group does not choose a provider. Nothing is
+                  // selected until somebody names one, so a ticket cannot be
+                  // completed on "Financing" — which is not a thing money
+                  // arrives from.
+                  setPickingFinance((v) => !v);
+                  if (financingChosen) setMethodId(null);
+                }}
+                aria-expanded={pickingFinance || !!financingChosen}
+                className="btn text-sm"
+                style={{
+                  height: 42,
+                  background: financingChosen ? "#0a2540" : "rgba(10,37,64,0.06)",
+                  color: financingChosen ? "#fff" : "#0a2540",
+                }}
+              >
+                {financingChosen
+                  ? `${tr("Financing")} · ${financingChosen.label}`
+                  : tr("Financing")}
+              </button>
+            ),
+          )}
       </div>
 
       {/* Which provider. Only while the group is open or one is already
@@ -618,7 +671,34 @@ export function PaymentPanel({
       )}
 
       {/*
-        THE DISCOUNT LIVES BEHIND "OTHER".
+        WHAT "OTHER" ACTUALLY WAS.
+
+        Other is the one tender that says nothing on its own: it reaches the
+        close-out as a figure with no explanation, and by the time anybody asks
+        about it the person who rang it has gone home. One optional line here
+        turns that into "trade — old rims" on the day's sheet.
+
+        Optional, and deliberately so. Made compulsory it would be filled with a
+        full stop, and a required field answered with punctuation is worse than
+        an empty one — it looks answered.
+      */}
+      {method?.code === "other" && (
+        <label className="block mb-3">
+          <span className="text-xs text-brand-400">
+            {tr("What was it? (optional)")}
+          </span>
+          <input
+            className="input w-full mt-1"
+            placeholder="Trade — old rims · gift card · staff"
+            value={otherNote}
+            onChange={(e) => setOtherNote(e.target.value)}
+            maxLength={120}
+          />
+        </label>
+      )}
+
+      {/*
+        THE DISCOUNT, UNDER THE TENDER ROW AND ALWAYS THERE.
 
         It had no home on the register at all — the only way to take money
         off a ticket was to open it again from Logs afterwards, which is both
@@ -742,10 +822,41 @@ export function PaymentPanel({
       )}
       <div className="mb-3" />
 
+      {/*
+        THE WAY BACK OUT OF A REOPENED TICKET, and while it is here it is the
+        likeliest thing anybody wants.
+
+        Green rather than navy, and above Complete sale rather than below it,
+        because on a reopened ticket the two buttons answer different questions
+        and pressing the wrong one costs money: Complete sale is for taking
+        payment, and this ticket has already been paid.
+
+        So the order and the colour say which is which, and Complete sale drops
+        to the outline treatment Split payment already uses — still there, still
+        one press, no longer the thing the eye lands on first.
+      */}
+      {onRecloseAsIs && (
+        <button
+          type="button"
+          className="btn w-full mb-2"
+          style={{
+            height: 52,
+            fontSize: 17,
+            background: "#dcfce7",
+            color: "#166534",
+            border: "1px solid #86efac",
+          }}
+          onClick={onRecloseAsIs}
+          disabled={busy}
+        >
+          {tr("Close it again as it is")}
+        </button>
+      )}
+
       <button
         type="button"
-        className="btn btn-primary w-full"
-        style={{ height: 52, fontSize: 17 }}
+        className={`btn w-full ${onRecloseAsIs ? "btn-outline" : "btn-primary"}`}
+        style={onRecloseAsIs ? { height: 44, fontSize: 14 } : { height: 52, fontSize: 17 }}
         onClick={() => void complete()}
         disabled={busy || !method || tipNeedsAName}
       >
