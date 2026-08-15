@@ -487,6 +487,46 @@ export default function DayReportPage() {
     const receivedUnits = data.received.reduce((s, r) => s + r.qty, 0);
 
     /*
+      THE DAY BY TICKET, NOT BY CLOCK.
+
+      A flat chronological ledger is the truest record of the order things
+      happened in and the hardest possible shape to read. Every ticket on a busy
+      Saturday is torn into pieces and scattered down fourteen pages: two tires
+      rung at 9:04, the disposal at 9:06, the card payment at 9:41 after the car
+      came off the lift — with eleven other tickets interleaved between them. To
+      answer "what did this customer actually pay for" somebody has to read the
+      whole appendix with a finger on the ticket number.
+
+      Grouped, the same rows answer it at a glance: the ticket, what went on it,
+      then what was taken for it. Tickets stay in the order they were STARTED,
+      so the day still reads front to back, and within a ticket the lines come
+      before the money because that is the order they happened in and the order
+      the question is asked in.
+    */
+    const tickets = (() => {
+      const by = new Map<
+        string,
+        { saleNo: string; at: string; entry: DayEntry; lines: DayEntry[]; money: DayEntry[] }
+      >();
+      for (const e of data.entries) {
+        let g = by.get(e.saleNo);
+        if (!g) {
+          g = { saleNo: e.saleNo, at: e.at, entry: e, lines: [], money: [] };
+          by.set(e.saleNo, g);
+        }
+        if (e.at < g.at) {
+          g.at = e.at;
+          /* The earliest row is the one that carries the ticket's own facts —
+             its customer and its status — so the header describes the ticket
+             rather than whichever payment happened to sort first. */
+          g.entry = e;
+        }
+        (e.kind === "money" ? g.money : g.lines).push(e);
+      }
+      return [...by.values()].sort((a, b) => a.at.localeCompare(b.at));
+    })();
+
+    /*
       Every new tire that left the building today, one line each.
 
       The body of the report says how many and how much; this is the list behind
@@ -513,6 +553,7 @@ export default function DayReportPage() {
       }));
 
     return {
+      tickets,
       wd,
       tiresSold,
       owes,
@@ -1829,40 +1870,86 @@ export default function DayReportPage() {
           <span className="dr-h2-n">C</span>Appendix — everything rung today
         </h2>
         <p className="dr-lead">
-          Every line and every payment, in the order it happened. Nothing here is a summary; it is
-          the record the rest of this report is worked out from, kept so any figure above can be
-          traced back to the ticket it came off.
+          Every ticket of the day in the order it was started, with the work on it listed
+          underneath and the money taken for it tucked in below that. Nothing here is a summary —
+          it is the record the rest of this report is worked out from, kept so any figure above can
+          be traced back to the ticket it came off.
         </p>
-        {data.entries.length === 0 ? (
+        {facts.tickets.length === 0 ? (
           <Nothing>Nothing was rung today.</Nothing>
         ) : (
           <table className="dr-table dr-ledger">
             <thead>
               <tr>
                 <th>Time</th>
-                <th>Ticket</th>
-                <th>Kind</th>
                 <th>What</th>
+                <th>Who</th>
                 <th>Detail</th>
                 <th className="num">Amount</th>
               </tr>
             </thead>
-            <tbody>
-              {data.entries.map((e) => (
-                <tr key={e.key} className={e.saleStatus === "voided" ? "dr-struck" : undefined}>
-                  <td className="dr-time">{clockOf(e.at)}</td>
-                  <td className="dr-mono">{e.saleNo}</td>
-                  <td>{e.kind === "money" ? "Payment" : e.category || "—"}</td>
-                  <td>
-                    {e.what}
-                    {e.customerName && <div className="dr-note">{e.customerName}</div>}
-                    {e.voidReason && <div className="dr-note">voided — {e.voidReason}</div>}
-                  </td>
-                  <td className="dr-note">{e.detail}</td>
-                  <td className="num">{formatCents(e.amountCents)}</td>
-                </tr>
-              ))}
-            </tbody>
+            {/*
+              One tbody per ticket, which is what keeps a ticket whole when the
+              table runs over a page: a group that would be split has its own
+              break rule, so a ticket's payment never lands on the page after
+              the work it paid for.
+            */}
+            {facts.tickets.map((tk) => {
+              const lines = tk.lines.reduce((n, l) => n + l.amountCents, 0);
+              const paid = tk.money.reduce((n, m) => n + m.amountCents, 0);
+              return (
+                <tbody key={tk.saleNo} className="dr-tk">
+                  <tr
+                    className={`dr-tk-head${
+                      tk.entry.saleStatus === "voided" ? " dr-struck" : ""
+                    }`}
+                  >
+                    <td className="dr-time">{clockOf(tk.at)}</td>
+                    <td className="dr-mono">{tk.saleNo}</td>
+                    <td>{tk.entry.customerName ?? "no name taken"}</td>
+                    <td className="dr-note">
+                      {tk.entry.saleStatus === "voided"
+                        ? `voided${tk.entry.voidReason ? ` — ${tk.entry.voidReason}` : ""}`
+                        : tk.entry.saleBalanceCents > 0
+                          ? `owes ${formatCents(tk.entry.saleBalanceCents)}`
+                          : ""}
+                    </td>
+                    <td className="num">{formatCents(lines)}</td>
+                  </tr>
+                  {tk.lines.map((e) => (
+                    <tr key={e.key} className="dr-tk-line">
+                      <td />
+                      <td className="dr-in">{e.what}</td>
+                      <td className="dr-note">{e.who ?? ""}</td>
+                      <td className="dr-note">
+                        {[e.category, e.detail].filter(Boolean).join(" · ")}
+                      </td>
+                      <td className="num">{formatCents(e.amountCents)}</td>
+                    </tr>
+                  ))}
+                  {/* The money, a step further in again — what was TAKEN for the
+                      work above it, rather than more of the work. */}
+                  {tk.money.map((e) => (
+                    <tr key={e.key} className="dr-tk-money">
+                      <td className="dr-time">{clockOf(e.at)}</td>
+                      <td className="dr-in dr-in-2">↳ {e.what}</td>
+                      <td className="dr-note">{e.who ?? ""}</td>
+                      <td className="dr-note">{e.detail}</td>
+                      <td className="num">{formatCents(e.amountCents)}</td>
+                    </tr>
+                  ))}
+                  {tk.money.length > 0 && paid !== lines && (
+                    <tr className="dr-tk-money">
+                      <td />
+                      <td className="dr-in dr-in-2 dr-note">taken on this ticket</td>
+                      <td />
+                      <td />
+                      <td className="num dr-note">{formatCents(paid)}</td>
+                    </tr>
+                  )}
+                </tbody>
+              );
+            })}
           </table>
         )}
       </section>

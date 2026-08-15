@@ -731,6 +731,52 @@
   padding: 1mm 1.5mm;
 }
 
+/* ── The ledger, grouped by ticket ────────────────────────────────────── */
+
+/*
+  A ticket is one block, and it is drawn as one.
+
+  The zebra that helps a flat table hurts a grouped one — it stripes ACROSS the
+  grouping and fights the very thing the reader is being asked to see. So the
+  stripe comes off and the ticket is separated by a rule above its heading
+  instead, which is a boundary rather than a rhythm.
+*/
+.dr-ledger tbody tr:nth-child(even) {
+  background: none;
+}
+
+.dr-tk {
+  break-inside: avoid;
+}
+
+.dr-tk-head td {
+  border-top: 1px solid var(--rule);
+  border-bottom: none;
+  padding-top: 1.6mm;
+  font-weight: 700;
+}
+
+.dr-tk-line td,
+.dr-tk-money td {
+  border-bottom: none;
+}
+
+/* The work sits in from the ticket; the money sits in again from the work.
+   Two steps, because they are two different kinds of thing — what was done,
+   and what was taken for it. */
+.dr-in {
+  padding-left: 5mm !important;
+}
+
+.dr-in-2 {
+  padding-left: 9mm !important;
+  color: var(--soft);
+}
+
+.dr-tk-money td {
+  color: var(--soft);
+}
+
 /* ── Paper ────────────────────────────────────────────────────────────── */
 
 @page {
