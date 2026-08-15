@@ -1363,6 +1363,14 @@ export function tireMonth(
           LEFT JOIN sales s ON s.id = m.sale_id
               WHERE m.business_date LIKE ?
                 AND m.reason = 'receive'
+                -- The opening count is not buying. Every tire already on a rack
+                -- on day one had to be entered as a receipt, because a receipt
+                -- is the only way stock comes to exist here — 151 of them on
+                -- 2026-08-04 — and listing them as August purchases put an
+                -- opening stock valuation in a column that is read as "what we
+                -- spent this month". The amber caveat on the sheet said so; the
+                -- rows are better off out of it.
+                AND COALESCE(m.note, '') NOT LIKE 'Opening count imported from%'
                 AND p.kind = 'tire' AND p.condition = 'new'
            ORDER BY m.business_date, m.id`,
           )

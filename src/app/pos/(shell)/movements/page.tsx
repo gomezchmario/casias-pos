@@ -280,18 +280,16 @@ export default function MovementsPage() {
           {report.kind === "received" && report.seedMonth === report.month && (
             <div className="mb-3 rounded-lg border-2 border-amber-500 bg-amber-50 px-3 py-2 text-sm text-amber-900">
               <strong>
-                This is the month the shop&apos;s existing stock was entered into the
-                system.
+                The opening count is not on this sheet.
               </strong>{" "}
-              Every tire already on a rack had to be recorded as a receipt, because
-              a receipt is the only way stock comes to exist here — so the figures
-              below are the opening count and this month&apos;s genuine purchases
-              added together, and nothing distinguishes the two after the fact.
-              Read this total as an opening stock valuation rather than as a
-              month&apos;s buying, and do not compare it against later months.
+              This is the month the shop&apos;s existing stock was entered into the
+              system, and every tire already on a rack had to be recorded as a
+              receipt — a receipt being the only way stock comes to exist here.
+              Those rows are left out, so what is below is this month&apos;s
+              genuine buying and can be compared against any other month.
               <div className="mt-1">
-                If the shop genuinely opened for business in {report.month}, the
-                figures are correct as they stand.
+                The racks themselves are unaffected: the opening count still put
+                the stock there, and still shows on the stock ledger.
               </div>
             </div>
           )}
