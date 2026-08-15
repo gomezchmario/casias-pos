@@ -9,6 +9,7 @@ import {
 import { listPayments } from "@/lib/payments";
 import { listMechanics } from "@/lib/employees";
 import { getDb } from "@/lib/db";
+import { currentBusinessDate } from "@/lib/business-date";
 
 export async function GET(
   _req: NextRequest,
@@ -117,6 +118,11 @@ export async function GET(
 
   return NextResponse.json({
     sale,
+    // Which day the shop is on, so the drawer can tell a ticket from today
+    // apart from one belonging to a day already counted. Sent rather than
+    // worked out on the client, because the business day rolls on a rule that
+    // lives in one place and must not be guessed at in a second.
+    today: currentBusinessDate(),
     cashierName: cashier?.name ?? null,
     tireItemIds,
     customer,

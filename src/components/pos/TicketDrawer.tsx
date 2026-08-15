@@ -26,6 +26,7 @@ type Detail = {
   sale: Sale;
   /** Who opened the ticket, as opposed to who worked it or who took the money. */
   cashierName: string | null;
+  today: string;
   customer: KnownDetails["customer"];
   vehicle: KnownDetails["vehicle"];
   items: SaleItem[];
@@ -530,7 +531,9 @@ export function TicketDrawer({
               can("discountSale") &&
               discountMax !== undefined;
             const voidable = live && can("voidSale");
-            return tippable || refundable || discountable || voidable;
+            const reopenable =
+              detail.sale.status === "completed" && can("editCompletedSale");
+            return tippable || refundable || discountable || voidable || reopenable;
           })() && (
           <div className="td-fix">
             <div className="td-fix-label">{tr("Fix something on this ticket")}</div>
@@ -633,6 +636,37 @@ export function TicketDrawer({
                 }
               />
             )}
+
+          {/*
+            Reopening, so a ticket can be added to after it was paid.
+
+            `addItem` has always refused a finished ticket with the words
+            "Reopen it to add lines" and there was no way to do it — a customer
+            back at the counter for a valve stem two minutes after paying meant
+            a second ticket for a dollar, or the line written onto the next job.
+
+            The money does not move and the stock does not move: the payments
+            stay where they are, and completing again only books stock for the
+            lines that were ADDED, because applySaleMovements skips anything
+            that already went out. That guard is what makes this offerable.
+          */}
+          {detail.sale.status === "completed" && can("editCompletedSale") && (
+            <ReopenTicket
+              paidCents={detail.sale.paid_cents}
+              /* Its own day, not today: reopening last Tuesday's ticket changes
+                 last Tuesday's figures, and that day has been counted. */
+              staleDay={detail.sale.business_date !== detail.today}
+              businessDate={detail.sale.business_date}
+              busy={busy}
+              onReopen={async (reason) =>
+                send(`/api/pos/sales/${saleId}/reopen`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ reason }),
+                })
+              }
+            />
+          )}
 
           {/* Alone under its own rule. Voiding is the one act here that
               cannot be walked back by another control on this list. */}
@@ -2096,6 +2130,94 @@ function MoveTip({
           onClick={() => void onMove(Number(to), reason.trim())}
         >
           {tr("Move it")}
+        </button>
+        <button type="button" className="btn btn-ghost" onClick={() => setArming(false)}>
+          {tr("Cancel")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Put a finished ticket back into the open state.
+ *
+ * A reason is required, as it is for every other act in this group, and for a
+ * sharper version of the same reason: this one changes what a day sold after
+ * that day was counted, and "why" is the only part of it that cannot be
+ * reconstructed from the rows afterwards.
+ *
+ * A ticket from an earlier day says so before it happens. Not refused — the
+ * shop has real reasons to correct an old ticket — but the person doing it
+ * should know they are moving a figure somebody has already signed for.
+ */
+function ReopenTicket({
+  paidCents,
+  staleDay,
+  businessDate,
+  busy,
+  onReopen,
+}: {
+  paidCents: number;
+  staleDay: boolean;
+  businessDate: string;
+  busy: boolean;
+  onReopen: (reason: string) => Promise<boolean>;
+}) {
+  const { t: tr } = useLang();
+  const [arming, setArming] = useState(false);
+  const [reason, setReason] = useState("");
+
+  if (!arming)
+    return (
+      <button type="button" className="td-fix-open" onClick={() => setArming(true)}>
+        {tr("Reopen this ticket to add lines")}
+      </button>
+    );
+
+  return (
+    <div className="rounded-xl bg-black/[0.03] p-3">
+      <div className="text-xs text-brand-400 mb-2">
+        {tr(
+          "The ticket goes back to open so lines can be added. The payments stay where they are and the tires already fitted stay out of stock — finishing it again only books what you add.",
+        )}
+        {paidCents > 0 && (
+          <>
+            {" "}
+            {tr("It has")} <strong>{formatCents(paidCents)}</strong>{" "}
+            {tr("collected on it, which stays collected.")}
+          </>
+        )}
+      </div>
+      {staleDay && (
+        <div
+          className="text-xs mb-2 rounded-lg px-2 py-1.5"
+          style={{ background: "rgba(217,119,6,0.12)", color: "#7c2d12" }}
+        >
+          {tr("This ticket belongs to")} {businessDate}, {tr("not today")} —{" "}
+          {tr("that day has already been counted, and adding to it changes what it sold.")}
+        </div>
+      )}
+      <div className="flex items-end gap-2">
+        <label className="text-xs text-brand-400 flex-1">
+          {tr("Reason")}
+          <input
+            className="input mt-1 w-full"
+            autoFocus
+            placeholder="Customer came back for a valve stem"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </label>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={busy || !reason.trim()}
+          onClick={async () => {
+            if (await onReopen(reason.trim())) setArming(false);
+          }}
+        >
+          {tr("Reopen it")}
         </button>
         <button type="button" className="btn btn-ghost" onClick={() => setArming(false)}>
           {tr("Cancel")}

@@ -889,11 +889,36 @@ export default function CloseoutV3Page() {
             stripped at the route, not here, so nothing on the floor's screen
             depends on a client remembering to leave them out.
           */}
-          {can("drawerCash") && data.drawer.movements.length > 0 && (
+          {(() => {
+            /*
+              A MOVEMENT THAT WAS UNDONE IS NOT A MOVEMENT.
+
+              "Gorditas −$12.00" followed by "Entered by mistake +$12.00" is one
+              mistake and its correction, and showing both put two lines on the
+              screen describing nothing that happened to the drawer. They were
+              struck through, which was still two lines to read past.
+
+              Both halves go, never one: the pair sums to zero, so dropping them
+              together leaves the net figure on the summary line exactly as it
+              was. Dropping only the reversal would leave a withdrawal on screen
+              that the arithmetic no longer counts, which is worse than either.
+
+              They are still in the database and in the audit log — this is what
+              the list shows, not what the shop keeps.
+            */
+            const undone = new Set<number>();
+            for (const m of data.drawer.movements) {
+              if (m.reverses_id != null) {
+                undone.add(m.id);
+                undone.add(m.reverses_id);
+              }
+            }
+            const shown = data.drawer.movements.filter((m) => !undone.has(m.id));
+            if (!can("drawerCash") || shown.length === 0) return null;
+            return (
             <details className="cv3-moves">
               <summary>
-                {data.drawer.movements.length}{" "}
-                {data.drawer.movements.length === 1 ? "movement" : "movements"} today
+                {shown.length} {shown.length === 1 ? "movement" : "movements"} today
                 <span className="cv3-moves-net">
                   {data.drawer.movementsCents >= 0 ? "+" : "−"}
                   {formatCents(Math.abs(data.drawer.movementsCents))} on the drawer
@@ -901,8 +926,8 @@ export default function CloseoutV3Page() {
               </summary>
               <table className="cv3-moves-table">
                 <tbody>
-                  {data.drawer.movements.map((m) => (
-                    <tr key={m.id} className={m.reverses_id != null || m.reversed_by_id != null ? "is-undone" : ""}>
+                  {shown.map((m) => (
+                    <tr key={m.id}>
                       <td className="t">{m.created_at.slice(11, 16)}</td>
                       <td>
                         {editingMove === m.id ? (
@@ -972,7 +997,8 @@ export default function CloseoutV3Page() {
                 </p>
               )}
             </details>
-          )}
+            );
+          })()}
         </div>
 
         {/* ── Who is still on the clock ──────────────────────────────────

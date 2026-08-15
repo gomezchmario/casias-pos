@@ -33,6 +33,10 @@ export type AuditAction =
   | "sale.create"
   | "sale.update"
   | "sale.complete"
+  // A finished ticket put back into the open state so it can be added to. Its
+  // own action because "who reopened this" is the first question asked when a
+  // day's takings change after it was counted.
+  | "sale.reopen"
   | "sale.void"
   | "sale.discount"
   | "sale.seq_update"

@@ -879,6 +879,69 @@ export function completeSale(user: PosUser, saleId: number): Result<{ sale: Sale
 /** Not enough stock, and nobody present may override it. */
 class StockError extends Error {}
 
+/**
+ * Put a finished ticket back into the open state.
+ *
+ * WHY THIS EXISTS: `addItem` has always refused a completed ticket with the
+ * words "Reopen it to add lines", and there was no way to reopen one. A
+ * customer who comes back to the counter for a valve stem two minutes after
+ * paying left the shop ringing a second ticket for a dollar, or writing the
+ * line onto the next job.
+ *
+ * WHAT IT DOES NOT TOUCH, and this is the whole safety of it:
+ *
+ *   - The payments stay exactly where they are, on the day they were taken and
+ *     in the shift that took them. Reopening is not a refund; the money that
+ *     came in is still in.
+ *   - The stock stays out. The tires left on the original completion, and
+ *     `applySaleMovements` skips any line that already has a sale movement — so
+ *     completing a second time moves only what was ADDED, never the same tire
+ *     twice. That guard is what makes this safe to offer at all.
+ *
+ * Manager and up, the same rank that may edit a paid ticket, because it is the
+ * same act with a bigger opening.
+ *
+ * A ticket from an earlier day is allowed but is not a small thing: its day has
+ * been counted and very likely signed. The screen says so before it happens;
+ * the audit row records the business date so the change can be found later.
+ */
+export function reopenSale(user: PosUser, saleId: number, reason: string): Result<{ sale: Sale }> {
+  const sale = getSale(saleId);
+  if (!sale) return { ok: false, error: "Sale not found" };
+  if (!canEditCompleted(user))
+    return { ok: false, error: "Only a manager can reopen a ticket" };
+  if (sale.status === "voided") return { ok: false, error: "This ticket is voided" };
+  if (sale.status === "open") return { ok: true, sale };
+  const why = reason.trim();
+  if (!why) return { ok: false, error: "Say why it is being reopened" };
+
+  return inTx(() => {
+    const now = nowLocalIso();
+    getDb()
+      .prepare("UPDATE sales SET status = 'open', completed_at = NULL, updated_at = ? WHERE id = ?")
+      .run(now, saleId);
+    recalcMoney(saleId);
+    const after = getSale(saleId)!;
+    logActorAudit(actorOf(user), {
+      action: "sale.reopen",
+      targetType: "sale",
+      targetId: saleId,
+      details: {
+        sale_no: sale.sale_no,
+        reason: why,
+        // The day it belongs to, not today. Reopening last Tuesday's ticket
+        // changes last Tuesday's goods figure, and this is what makes that
+        // findable afterwards.
+        sale_business_date: sale.business_date,
+        paid_cents: sale.paid_cents,
+      },
+      before: { status: sale.status, total_cents: sale.total_cents },
+      after: { status: "open" },
+    });
+    return { ok: true as const, sale: after };
+  });
+}
+
 /** The most a cashier may take off without a manager, in cents. */
 export function cashierDiscountMaxCents(): number {
   return Number(getSetting("discount_cashier_max_cents"));
