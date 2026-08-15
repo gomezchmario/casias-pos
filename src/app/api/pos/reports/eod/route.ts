@@ -11,6 +11,7 @@ import {
   outstandingTickets,
   stockReceivedForDay,
   ticketEditsForDay,
+  mechanicBaseline,
 } from "@/lib/pos-reports";
 import {
   byCashier,
@@ -247,6 +248,22 @@ function build(
       onHand: p.on_hand,
       reorderPoint: p.reorder_point,
     })),
+    /*
+      What a normal day looks like for each technician, over the four weeks
+      ending on this one.
+
+      Four weeks because it is enough working days for one quiet Tuesday not to
+      move somebody's average, and recent enough to still describe how they are
+      working now. It ends ON the business date rather than the day before —
+      today's own figures are taken back out where the comparison is drawn, so
+      the window can be stated as a plain "the last four weeks" without having
+      to explain an off-by-one to anybody reading the sheet.
+    */
+    mechanicBaseline: (() => {
+      const start = new Date(`${businessDate}T00:00:00Z`);
+      start.setUTCDate(start.getUTCDate() - 27);
+      return mechanicBaseline(start.toISOString().slice(0, 10), businessDate);
+    })(),
     shopName: getSetting("company_name") ?? "Casias Tire Shop",
   };
 }

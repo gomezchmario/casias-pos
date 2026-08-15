@@ -315,6 +315,62 @@ export function dayByMechanic(businessDate: string): MechanicTotal[] {
     .all(businessDate) as MechanicTotal[];
 }
 
+export type MechanicBaseline = {
+  employeeId: number | null;
+  /** Days in the window this person was credited with anything at all. */
+  days: number;
+  salesCents: number;
+  lineCount: number;
+  /** Money on their best single day in the window — the top of their own range. */
+  bestDayCents: number;
+};
+
+/**
+ * What a normal day looks like for each technician, over a window.
+ *
+ * The day report says what somebody did today; on its own that is a number
+ * without a scale. $1,100 is a fine Saturday for one fitter and a poor one for
+ * another, and neither the owner nor the technician can read the figure without
+ * knowing which. This is the scale: their own recent work, so each person is
+ * measured against themselves rather than against the best person in the shop.
+ *
+ * PER DAY WORKED, NOT PER CALENDAR DAY. Dividing by 28 would punish anybody
+ * part-time for being part-time and would quietly reward whoever happens to be
+ * rostered most — it would be measuring attendance and calling it performance.
+ * `days` counts only the dates they were actually credited with something, so
+ * the average answers "on a day this person works, what do they usually do".
+ *
+ * The credit rules are copied from `dayByMechanic` deliberately, down to the
+ * completed/undeleted/kind='sale'/voided=0 clauses. If the baseline counted a
+ * line the day figure did not, every comparison drawn from the two would be
+ * wrong by that line and nothing on the page would say so.
+ */
+export function mechanicBaseline(from: string, to: string): MechanicBaseline[] {
+  return getDb()
+    .prepare(
+      `SELECT employeeId,
+              COUNT(*)                      AS days,
+              COALESCE(SUM(cents), 0)       AS salesCents,
+              COALESCE(SUM(lines), 0)       AS lineCount,
+              COALESCE(MAX(cents), 0)       AS bestDayCents
+         FROM (
+           SELECT i.mechanic_id AS employeeId,
+                  s.business_date,
+                  SUM(i.line_total_cents) AS cents,
+                  COUNT(*)                AS lines
+             FROM sale_items i
+             JOIN sales s ON s.id = i.sale_id
+            WHERE s.business_date BETWEEN ? AND ?
+              AND s.deleted = 0 AND s.status = 'completed'
+              AND s.kind = 'sale' AND i.voided = 0
+              AND i.mechanic_id IS NOT NULL
+            GROUP BY i.mechanic_id, s.business_date
+         )
+        GROUP BY employeeId`,
+    )
+    .all(from, to) as MechanicBaseline[];
+}
+
 export type OutstandingTicket = {
   saleId: number;
   saleNo: string;

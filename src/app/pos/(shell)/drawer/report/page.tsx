@@ -101,6 +101,14 @@ type EodData = {
     acted on. Kept on the type because the endpoint still sends it.
   */
   lowStock: { productId: number; name: string; onHand: number; reorderPoint: number }[];
+  /** What a normal day looks like for each technician — see mechanicBaseline. */
+  mechanicBaseline: {
+    employeeId: number | null;
+    days: number;
+    salesCents: number;
+    lineCount: number;
+    bestDayCents: number;
+  }[];
   shopName: string;
 };
 
@@ -793,16 +801,21 @@ export default function DayReportPage() {
                 const max = Math.max(...data.trend.map((d) => d.goodsCents), 1);
                 return data.trend.map((d, i) => {
                   const isToday = i === data.trend.length - 1;
-                  const isSameDay = false;
                   return (
                     <div key={d.businessDate} className="dr-bar-col">
                       <div className="dr-bar-amt">{formatCents(d.goodsCents)}</div>
                       <div className="dr-bar-track">
+                        {/* The same scale as the two charts further down, so a
+                            busy day here is the colour a busy hour is there.
+                            Today keeps its dark outline over the top: the hue
+                            says how the day went, the outline says which day
+                            this report is about. */}
                         <div
-                          className={`dr-bar-fill${isToday ? " is-today" : ""}${
-                            isSameDay ? " is-lastweek" : ""
-                          }`}
-                          style={{ height: `${Math.max(2, (d.goodsCents / max) * 100)}%` }}
+                          className={`dr-bar-fill${isToday ? " is-today" : ""}`}
+                          style={{
+                            height: `${Math.max(2, (d.goodsCents / max) * 100)}%`,
+                            background: busyColor(d.goodsCents / max),
+                          }}
                         />
                       </div>
                       <div className="dr-bar-day">
@@ -1432,104 +1445,173 @@ export default function DayReportPage() {
       <Section
         n="11"
         title="Who did the work"
-        lead="What each technician was credited with TODAY, and the hours they were on the clock for it. Credit follows the line on the ticket, so a ticket with two jobs on it is split between the two people who did them."
+        lead="What each technician was credited with TODAY, set against their own usual day over the last four weeks. Everybody is measured against themselves — a good day for one fitter is a quiet one for another, and a figure with no scale beside it cannot be read by the person it is about."
       >
         {/*
-          TODAY, NOT THE WEEK.
+          EACH PERSON AGAINST THEMSELVES, ON A BULLET BAR.
 
-          This table used to print the week-so-far board, which is a real and
-          useful figure and the wrong one on a page headed with a single date:
-          somebody who worked Monday and was off today appeared on today's
-          report with work against their name. On a sheet an owner reads to see
-          how the day went, that is worse than showing nothing — it is a name
-          attached to work that did not happen today.
+          The bar is today. The notch is their own usual day. That one picture
+          answers the question the table under it takes four columns to state,
+          and it answers it for everybody at once — which is the point of
+          putting it on paper rather than leaving it on a screen somebody can
+          sort.
 
-          The week's board still exists on its own screen. This is the day.
+          The scale is shared across all the bars, so the lengths are honestly
+          comparable between people as well; what is personal is the notch. The
+          two readings are different questions — "who carried today" and "who
+          had a good day for them" — and both are worth having.
+
+          USUAL EXCLUDES TODAY. A day cannot be part of the average it is being
+          judged against, and on somebody who only works one day a week it would
+          otherwise be most of it.
+
+          Only people credited with work today appear. The board for the week
+          lives on its own screen; a name on a page headed with one date should
+          mean that person worked that date.
         */}
         {!day || day.mechanics.length === 0 ? (
           <Nothing>Nobody was credited with work today.</Nothing>
         ) : (
-          <table className="dr-table">
-            <thead>
-              <tr>
-                <th>Technician</th>
-                <th className="num">Lines</th>
-                {data.canSeeTechIncomeCash && <th className="num">Brought in</th>}
-                <th className="num">Hours</th>
-                {data.canSeeTechIncomeCash && <th className="num">Per hour</th>}
-                <th className="num">Tips today</th>
-              </tr>
-            </thead>
-            <tbody>
-              {day.mechanics.map((m) => {
-                const h = day.hours.people.find((x) => x.employeeId === m.employeeId);
-                const tip = data.leaderboard.techs.find(
-                  (x) => x.employeeId === m.employeeId,
-                )?.tipCentsToday;
-                /* Per hour ONLY over hours somebody really clocked out of. The
-                   rest were closed automatically at nine, which is a
-                   placeholder rather than a time anybody went home, and money
-                   divided by a placeholder is a figure that looks like a fact. */
-                const perHour =
-                  h && h.knownMinutes > 0
-                    ? Math.round((m.salesCents / h.knownMinutes) * 60)
-                    : null;
-                return (
-                  <tr key={m.employeeId ?? m.name}>
-                    <td>
-                      {m.name}
-                      {h?.onTheClock && <span className="dr-tag">still on</span>}
-                    </td>
-                    <td className="num">{m.lineCount}</td>
-                    {data.canSeeTechIncomeCash && (
-                      <td className="num">{formatCents(m.salesCents)}</td>
-                    )}
-                    <td className="num">
-                      {h ? ((h.knownMinutes + h.assumedMinutes) / 60).toFixed(1) : "—"}
-                      {h && h.assumedMinutes > 0 && (
-                        <div className="dr-note">
-                          {(h.assumedMinutes / 60).toFixed(1)} estimated
-                        </div>
-                      )}
-                    </td>
-                    {data.canSeeTechIncomeCash && (
-                      <td className="num">{perHour === null ? "—" : formatCents(perHour)}</td>
-                    )}
-                    <td className="num">{tip ? formatCents(tip) : "—"}</td>
+          (() => {
+            const rows = day.mechanics.map((m) => {
+              const b = data.mechanicBaseline.find((x) => x.employeeId === m.employeeId);
+              const h = day.hours.people.find((x) => x.employeeId === m.employeeId);
+              const tip = data.leaderboard.techs.find(
+                (x) => x.employeeId === m.employeeId,
+              )?.tipCentsToday;
+              const otherDays = b ? b.days - (m.salesCents > 0 ? 1 : 0) : 0;
+              const usual =
+                b && otherDays > 0 ? (b.salesCents - m.salesCents) / otherDays : null;
+              return {
+                m,
+                h,
+                tip,
+                usual,
+                days: otherDays,
+                pct: usual && usual > 0 ? Math.round(((m.salesCents - usual) / usual) * 100) : null,
+              };
+            });
+            const scale = Math.max(
+              ...rows.map((r) => Math.max(r.m.salesCents, r.usual ?? 0)),
+              1,
+            );
+            return (
+              <table className="dr-table">
+                <thead>
+                  <tr>
+                    <th>Technician</th>
+                    <th className="num">Lines</th>
+                    {data.canSeeTechIncomeCash && <th className="num">Today</th>}
+                    {data.canSeeTechIncomeCash && <th className="num">Their usual day</th>}
+                    {data.canSeeTechIncomeCash && <th className="num">vs usual</th>}
+                    <th className="dr-bullet-h">Today against their usual</th>
+                    <th className="num">Hours</th>
+                    <th className="num">Tips</th>
                   </tr>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td>Everybody</td>
-                <td className="num">
-                  {day.mechanics.reduce((n, m) => n + m.lineCount, 0)}
-                </td>
-                {data.canSeeTechIncomeCash && (
-                  <td className="num">
-                    {formatCents(day.mechanics.reduce((n, m) => n + m.salesCents, 0))}
-                  </td>
-                )}
-                <td className="num">
-                  {(
-                    day.hours.people.reduce(
-                      (n, h) => n + h.knownMinutes + h.assumedMinutes,
-                      0,
-                    ) / 60
-                  ).toFixed(1)}
-                </td>
-                {data.canSeeTechIncomeCash && <td className="num" />}
-                <td className="num">{formatCents(data.dayTotals.tipCents)}</td>
-              </tr>
-            </tfoot>
-          </table>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.m.employeeId ?? r.m.name}>
+                      <td>
+                        {r.m.name}
+                        {r.h?.onTheClock && <span className="dr-tag">still on</span>}
+                      </td>
+                      <td className="num">{r.m.lineCount}</td>
+                      {data.canSeeTechIncomeCash && (
+                        <td className="num dr-now">{formatCents(r.m.salesCents)}</td>
+                      )}
+                      {data.canSeeTechIncomeCash && (
+                        <td className="num">
+                          {r.usual === null ? "—" : formatCents(Math.round(r.usual))}
+                          {r.usual !== null && (
+                            <div className="dr-note">over {r.days} day{r.days === 1 ? "" : "s"}</div>
+                          )}
+                        </td>
+                      )}
+                      {data.canSeeTechIncomeCash && (
+                        <td
+                          className={`num${
+                            r.pct === null ? "" : r.pct >= 0 ? " dr-vs-up" : " dr-vs-down"
+                          }`}
+                        >
+                          {r.pct === null ? "—" : `${r.pct >= 0 ? "+" : ""}${r.pct}%`}
+                        </td>
+                      )}
+                      <td className="dr-bullet-h">
+                        {/* The bar is today; the notch is their own normal. */}
+                        <div className="dr-bullet">
+                          <div
+                            className="dr-bullet-bar"
+                            style={{
+                              width: `${(r.m.salesCents / scale) * 100}%`,
+                              background:
+                                r.pct === null ? "#6b7280" : r.pct >= 0 ? "#15803d" : "#b45309",
+                            }}
+                          />
+                          {r.usual !== null && (
+                            <div
+                              className="dr-bullet-mark"
+                              style={{ left: `${(r.usual / scale) * 100}%` }}
+                            />
+                          )}
+                        </div>
+                      </td>
+                      <td className="num">
+                        {r.h ? ((r.h.knownMinutes + r.h.assumedMinutes) / 60).toFixed(1) : "—"}
+                        {r.h && r.h.assumedMinutes > 0 && (
+                          <div className="dr-note">
+                            {(r.h.assumedMinutes / 60).toFixed(1)} est.
+                          </div>
+                        )}
+                      </td>
+                      <td className="num">{r.tip ? formatCents(r.tip) : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td>Everybody</td>
+                    <td className="num">{day.mechanics.reduce((n, m) => n + m.lineCount, 0)}</td>
+                    {data.canSeeTechIncomeCash && (
+                      <td className="num">
+                        {formatCents(day.mechanics.reduce((n, m) => n + m.salesCents, 0))}
+                      </td>
+                    )}
+                    {data.canSeeTechIncomeCash && <td className="num" />}
+                    {data.canSeeTechIncomeCash && <td className="num" />}
+                    <td className="dr-bullet-h" />
+                    <td className="num">
+                      {(
+                        day.hours.people.reduce(
+                          (n, h) => n + h.knownMinutes + h.assumedMinutes,
+                          0,
+                        ) / 60
+                      ).toFixed(1)}
+                    </td>
+                    <td className="num">{formatCents(data.dayTotals.tipCents)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            );
+          })()
         )}
+        <p className="dr-foot">
+          <span className="dr-key-item">
+            <span className="dr-key-swatch" style={{ background: "#15803d" }} /> the bar is today
+          </span>
+          {"   "}
+          <span className="dr-key-item">
+            <span className="dr-bullet-mark dr-key-swatch" style={{ position: "static" }} /> the
+            notch is their usual day
+          </span>
+          . Green means today beat their usual, amber means it did not. A dash means the shop has
+          no other day for them in the last four weeks to compare against.
+        </p>
         {day && (
           <p className="dr-foot">
             {day.hours.confidencePct === 100
               ? "Everybody clocked out, so every hour here is a real one."
-              : `${day.hours.confidencePct}% of these hours were clocked out properly. The rest were closed automatically at 9pm and are an estimate — the per-hour figures ignore them.`}
+              : `${day.hours.confidencePct}% of these hours were clocked out properly. The rest were closed automatically at 9pm and are an estimate.`}
           </p>
         )}
         {day && day.hours.people.some((h) => !day.mechanics.some((m) => m.employeeId === h.employeeId)) && (
@@ -1539,8 +1621,8 @@ export default function DayReportPage() {
               .filter((h) => !day.mechanics.some((m) => m.employeeId === h.employeeId))
               .map((h) => h.name)
               .join(", ")}
-            . That is ordinary for anybody not turning wrenches — it is who the counter and the
-            office were.
+            . Ordinary for anybody not turning wrenches — it is who the counter and the office
+            were.
           </p>
         )}
       </Section>
@@ -1693,6 +1775,10 @@ export default function DayReportPage() {
               const label2 = (h: number) => `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? "a" : "p"}`;
               const [yy, mm, dd] = data.businessDate.split("-").map(Number);
               const todayDow = new Date(yy, mm - 1, dd).getDay();
+              /* How many of each weekday the window actually held, so the
+                 average divides by the right number rather than by four. */
+              const dayCount: Record<number, number> = {};
+              for (const w of weekdays ?? []) dayCount[w.weekday] = w.days;
               return (
                 <table className="dr-heat">
                   <thead>
@@ -1713,6 +1799,17 @@ export default function DayReportPage() {
                         {cols2.map((h) => {
                           const n = at(wd, h);
                           const share = n === 0 ? 0 : n / max2;
+                          /* The AVERAGE for that slot, not the four weeks
+                             added up. A pile of twelve is a number somebody has
+                             to divide before it means anything, and the
+                             question being asked here — how many people should
+                             I expect at ten on a Tuesday — is answered by three.
+                             One decimal below ten, where the fraction still
+                             changes the answer; whole numbers above it, where
+                             it does not. */
+                          const per = n / Math.max(1, dayCount[wd] || 1);
+                          const shown =
+                            per === 0 ? "" : per < 10 ? per.toFixed(1) : String(Math.round(per));
                           return (
                             <td
                               key={h}
@@ -1721,7 +1818,7 @@ export default function DayReportPage() {
                               }}
                             >
                               <span style={{ color: n === 0 ? "#9ca3af" : busyInk(share) }}>
-                                {n || ""}
+                                {shown}
                               </span>
                             </td>
                           );
@@ -1733,8 +1830,9 @@ export default function DayReportPage() {
               );
             })()}
             <p className="dr-foot">
-              Every ticket opened in that hour over the last four weeks, all four of each weekday
-              added together. Darker is busier. The boxed row is the day this report covers.
+              How many customers to expect in that hour on that day — the average across the last
+              four weeks, not the total. Darker is busier. The boxed row is the day this report
+              covers.
             </p>
           </>
         )}

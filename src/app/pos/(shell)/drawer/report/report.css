@@ -9,10 +9,13 @@
   the tray. Screen preview inherits the same figures so what is on the glass is
   what comes out.
 
-  COLOUR THAT SURVIVES. Every tint here is either structural (a rule, a header
-  band) or a plain grey, and nothing carries meaning by hue alone: the verdict
-  says which way it went in words, the difference column prints a sign. A shop
-  prints this on whatever is loaded, and half of those are mono.
+  COLOUR THAT SURVIVES. The three charts run a shared blue-to-red scale, and it
+  is real information — asked for, and worth it: a grid of numbers does not show
+  a Tuesday afternoon the way a band of red does. But nothing is left to hue
+  ALONE. Every chart also carries the figure itself, the verdict says which way
+  it went in words, the difference column prints a sign, and today is marked by
+  a heavy outline rather than by being a different colour. Printed in mono the
+  document loses a glance and keeps every fact.
 
   BREAKS ARE DECIDED HERE, NOT BY THE PRINTER. A table split across a page
   boundary with its heading left behind is the single most common way a printed
@@ -490,6 +493,43 @@
   flex: none;
 }
 
+/* ── Today against a person's own usual day ───────────────────────────── */
+
+/*
+  A bullet bar: the bar is what happened, the notch is what normally happens.
+
+  It is the one chart shape that puts a measurement and its own target in the
+  same 30mm of paper without a second axis or a legend on every row, which is
+  why it is the right thing for a table with one row per person. The bar
+  lengths share a scale so people can be read against each other; the notch is
+  personal, so each row can also be read on its own terms.
+*/
+.dr-bullet-h {
+  width: 34mm;
+}
+
+.dr-bullet {
+  position: relative;
+  height: 3.2mm;
+  background: #eef0f3;
+  margin-top: 0.8mm;
+}
+
+.dr-bullet-bar {
+  height: 100%;
+  min-width: 0.4mm;
+}
+
+/* Full height and darker than either bar, so it reads as a threshold crossed
+   rather than as part of the bar it sits on. */
+.dr-bullet-mark {
+  position: absolute;
+  top: -0.6mm;
+  width: 0.9mm;
+  height: 4.4mm;
+  background: #0a2540;
+}
+
 .dr-none {
   font-size: 9.5pt;
   color: var(--soft);
@@ -663,22 +703,14 @@
   border: 1px solid #6b7280;
 }
 
-/* Today is solid; the same weekday a week ago is outlined. Two different
-   treatments rather than two colours, so it still reads in mono. */
+/*
+   The colour is set inline from the shared busy scale — see busyColor. What
+   is left here is the mark that says WHICH DAY the report is about: a heavy
+   outline over whatever colour the day earned, so it is found instantly
+   without the hue having to mean two things at once.
+*/
 .dr-bar-fill.is-today {
-  background: var(--rule);
-  border-color: var(--rule);
-}
-
-.dr-bar-fill.is-lastweek {
-  background: repeating-linear-gradient(
-    45deg,
-    #d1d5db,
-    #d1d5db 2px,
-    #fff 2px,
-    #fff 4px
-  );
-  border-color: #6b7280;
+  border: 1.6pt solid var(--rule);
 }
 
 .dr-bar-day {
