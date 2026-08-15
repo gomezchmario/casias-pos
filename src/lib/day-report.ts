@@ -376,7 +376,35 @@ export function closeoutV2(businessDate: string): CloseoutV2 {
     No arithmetic changes: `movementsCents` comes from the drawer adjustment
     query, which has always counted only the visible ones.
   */
-  const movements = drawerMovementsForDay(businessDate, { includeHidden: true });
+  const allMovements = drawerMovementsForDay(businessDate, { includeHidden: true });
+
+  /*
+    A MOVEMENT THAT WAS UNDONE IS NOT A MOVEMENT, AND IT IS DROPPED HERE.
+
+    "Gorditas −$12.00" followed by "Entered by mistake +$12.00" is one mistake
+    and its correction. Two lines on a screen describing nothing that happened
+    to the drawer, on every screen that lists them — and there are three: the
+    Drawer page's fold, the Daily Report's panel, and the reason list printed on
+    the close-out sheet. Filtering in each of them is how the first two ended up
+    disagreeing with the third; the pair kept coming back because another list
+    had never been told.
+
+    BOTH HALVES GO, NEVER ONE. They sum to zero, so dropping them together
+    leaves every total untouched. Dropping only the reversal would leave a
+    withdrawal on screen that the arithmetic no longer counts, which is worse
+    than showing both.
+
+    The rows are still in the table and in the audit log. This is what the day
+    SHOWS, not what the shop keeps.
+  */
+  const undoneIds = new Set<number>();
+  for (const m of allMovements) {
+    if (m.reverses_id != null) {
+      undoneIds.add(m.id);
+      undoneIds.add(m.reverses_id);
+    }
+  }
+  const movements = allMovements.filter((m) => !undoneIds.has(m.id));
   const drawer = {
     floatCents,
     floatCountedAt: firstShift?.float_counted_at ?? null,

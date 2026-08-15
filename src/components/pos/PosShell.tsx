@@ -61,11 +61,14 @@ const NAV: {
   // The day read rather than worked — view-only. Opened to managers by the
   // owner's explicit instruction, consequences deferred ("we will fix later").
   { href: "/pos/closeout", label: "Daily Report", capability: "viewReports" },
-  // V3 took the name and the spot; the page everyone knew keeps working
-  // under "(Old)" until the new one has survived a few real closes.
+  // Called Drawer, not Close-out: four of its six steps are daytime jobs —
+  // the morning float count and every cash in and out — and somebody recording
+  // a gas run at eleven should not have to open something called Close-out to
+  // do it. Closing the day is a step ON this screen, not the name of it.
+  //
   // Gated on READING it, not on closing it — a viewer opens the page and is
   // refused by every button on it. See viewCloseout.
-  { href: "/pos/closeout-v3", label: "Close-out", capability: "viewCloseout" },
+  { href: "/pos/drawer", label: "Drawer", capability: "viewCloseout" },
   // The old close-out is off the nav now that V3 is the close-out. The page
   // itself still works and is still reachable by URL — hidden rather than
   // deleted, so a night that goes wrong has somewhere to fall back to. Delete
