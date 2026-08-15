@@ -12,6 +12,7 @@ import {
   employeeSparks,
   headline,
   hourHeatmap,
+  staffingNeed,
   lostDemand,
   productMovement,
   purchaseSummary,
@@ -114,6 +115,10 @@ export async function GET(req: NextRequest) {
     tenders: tenderMix(from, to),
     heatmap: hourHeatmap(from, to),
     weekdays: weekdayProfile(from, to),
+    // Where the week's work actually falls, and what that means for cover.
+    // Rides on this endpoint because it is built from the same heatmap the
+    // line above it is — one pass over the tickets, two answers.
+    staffing: staffingNeed(from, to),
     /**
      * The sellers, deepest first, cut at a hundred.
      *

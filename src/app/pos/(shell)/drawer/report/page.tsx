@@ -21,7 +21,7 @@ import type { DrawerMovement } from "@/lib/drawer";
 import type { RegisterCheck } from "@/lib/register-checks";
 import type { Standings } from "@/lib/leaderboard";
 import type { CloseoutV2 } from "@/lib/day-report";
-import type { HourCell, WeekdayRow } from "@/lib/reports-bi";
+import type { HourCell, WeekdayRow, Staffing } from "@/lib/reports-bi";
 import "./report.css";
 
 /**
@@ -336,6 +336,7 @@ export default function DayReportPage() {
   const [day, setDay] = useState<CloseoutV2 | null>(null);
   const [heatmap, setHeatmap] = useState<HourCell[] | null>(null);
   const [weekdays, setWeekdays] = useState<WeekdayRow[] | null>(null);
+  const [staffing, setStaffing] = useState<Staffing | null>(null);
   /*
     The same weekday a week ago, fetched whole rather than as a summary.
 
@@ -413,6 +414,7 @@ export default function DayReportPage() {
       const bi = await b.json();
       setHeatmap(bi.heatmap ?? []);
       setWeekdays(bi.weekdays ?? []);
+      setStaffing(bi.staffing ?? null);
     }
   }, []);
 
@@ -1838,9 +1840,176 @@ export default function DayReportPage() {
         )}
       </Section>
 
+      {/* ══════════ 13b. HOW MANY PEOPLE THE WEEK NEEDS ══════════ */}
+      {staffing && (
+        <Section
+          n="14"
+          title="How many technicians the week needs"
+          lead="Read off the two charts above: where the week's work actually falls, and how many people that takes. The shape is counted off every ticket the shop rang. Turning it into a number of people needs one more thing the shop knows better than this report does — how long a job takes — so the table hands you the answer at four paces and you pick the line that matches the bay."
+          breakBefore
+        >
+          {/*
+            WHAT THIS KNOWS AND WHAT IT DOES NOT.
+
+            The shape of the week is solid: it is every ticket, bucketed by the
+            hour it was opened. The number of PEOPLE is not something the
+            tickets can answer on their own — it needs a pace, and the only
+            honest source for that is the shop's own time clock, tickets served
+            divided by technician-hours clocked.
+
+            Where those hours exist this uses them. Where they do not, it says
+            so and refuses to invent one. Substituting an industry figure would
+            produce a confident-looking grid built on somebody else's shop, and
+            a staffing decision made from that is worse than one made from
+            memory, because it looks like it came from the books.
+          */}
+          {!staffing.paceFromData && (
+            <div className="dr-callout">
+              <div className="dr-callout-head">
+                The shop cannot work out its own pace yet
+              </div>
+              <p className="dr-callout-body">
+                Over these four weeks the time clock recorded{" "}
+                <strong>{staffing.techHours.toFixed(1)} technician hours</strong>. That is not
+                enough to divide {staffing.tickets.toLocaleString()} customers by — one person&apos;s
+                odd afternoon would set the pace for the whole shop. Everything below is still
+                real; only the last table needs you to pick a line rather than being told one.
+              </p>
+              <p className="dr-callout-body">
+                <strong>If the technicians clocked in and out, this page would answer it by
+                itself</strong> — and every per-hour figure elsewhere in this report would firm up
+                with it.
+              </p>
+            </div>
+          )}
+
+          <h3 className="dr-h3">Customers to expect, hour by hour</h3>
+          {(() => {
+            const label = (h: number) => `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? "a" : "p"}`;
+            const [yy, mm, dd] = data.businessDate.split("-").map(Number);
+            const todayDow = new Date(yy, mm - 1, dd).getDay();
+            return (
+              <table className="dr-heat">
+                <thead>
+                  <tr>
+                    <th />
+                    {staffing.hours.map((h) => (
+                      <th key={h}>{label(h)}</th>
+                    ))}
+                    <th>All day</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {DAY_NAMES.map((name, wd) => {
+                    const d = staffing.days.find((x) => x.weekday === wd);
+                    return (
+                      <tr key={wd} className={wd === todayDow ? "dr-heat-today" : undefined}>
+                        <th>
+                          {name.slice(0, 3)}
+                          {wd === todayDow && <span className="dr-heat-mark">today</span>}
+                        </th>
+                        {staffing.hours.map((h) => {
+                          const slot = staffing.slots.find(
+                            (x) => x.weekday === wd && x.hour === h,
+                          );
+                          const share = slot?.share ?? 0;
+                          const n = slot?.avgTickets ?? 0;
+                          return (
+                            <td
+                              key={h}
+                              style={{ background: n < 0.05 ? "#f9fafb" : busyColor(share) }}
+                            >
+                              <span style={{ color: n < 0.05 ? "#9ca3af" : busyInk(share) }}>
+                                {n < 0.05 ? "" : n.toFixed(1)}
+                              </span>
+                            </td>
+                          );
+                        })}
+                        <td style={{ fontWeight: 700 }}>{d ? Math.round(d.tickets) : 0}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            );
+          })()}
+          <p className="dr-foot">
+            Averages over the last four weeks, not totals. The busiest hour of the week is the
+            reddest square; everything else is shaded against it.
+          </p>
+
+          <h3 className="dr-h3">Technicians needed at each day&apos;s busiest hour</h3>
+          <table className="dr-table">
+            <thead>
+              <tr>
+                <th>If one technician handles</th>
+                {DAY_NAMES.map((d) => (
+                  <th key={d} className="num">
+                    {d.slice(0, 3)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {staffing.atPace.map((row) => (
+                <tr key={row.perHour}>
+                  <td>
+                    <strong>{row.perHour} an hour</strong>
+                    <div className="dr-note">{row.label}</div>
+                  </td>
+                  {row.peak.map((c) => (
+                    <td key={c.weekday} className="num" style={{ fontWeight: 700 }}>
+                      {c.techs || "—"}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="dr-foot">
+            This is cover for the PEAK hour of each day, rounded up — half a technician cannot fit
+            a tire, and the cost of rounding down is a customer sitting in the lobby. Away from the
+            peak the same days need fewer: the grid above shows where.
+          </p>
+
+          <h3 className="dr-h3">What the week says</h3>
+          <table className="dr-table">
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th className="num">Customers</th>
+                <th className="num">Busiest hour</th>
+                <th className="num">At its busiest</th>
+                <th className="num">Trading hours</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...staffing.days]
+                .sort((a, b) => b.tickets - a.tickets)
+                .map((d) => {
+                  const label = (h: number) => `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? "am" : "pm"}`;
+                  return (
+                    <tr key={d.weekday}>
+                      <td>{DAY_NAMES[d.weekday]}</td>
+                      <td className="num">{Math.round(d.tickets)}</td>
+                      <td className="num">{label(d.peakHour)}</td>
+                      <td className="num">{d.peakTickets.toFixed(1)}</td>
+                      <td className="num">{d.openHours}</td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
+          <p className="dr-foot">
+            Busiest days first. This is the order to staff them in, and the gap between the top and
+            the bottom of this column is the argument for moving somebody&apos;s day off.
+          </p>
+        </Section>
+      )}
+
       {/* ══════════ 11. THINGS THAT NEED AN EYE ══════════ */}
       <Section
-        n="14"
+        n="15"
         title="Prices changed at the counter"
         lead="Tires sold for something other than the price on the rack. Every one of them may have been the right call — this is the record of the calls, not a list of mistakes."
         breakBefore
@@ -1881,7 +2050,7 @@ export default function DayReportPage() {
       </Section>
 
       <Section
-        n="15"
+        n="16"
         title="Tickets changed after they were finished"
         lead="Money moved on a ticket that had already been completed. Legitimate every day — a wrong tender, a refund, a discount agreed after the fact — and worth a glance, because a finished ticket is supposed to stay finished."
       >
@@ -2122,6 +2291,128 @@ export default function DayReportPage() {
             })}
           </table>
         )}
+      </section>
+
+      {/* ══════════ APPENDIX D — WHAT THE TOWN PAYS ══════════ */}
+      {/*
+        THE ONLY PAGE IN THIS DOCUMENT NOT MADE FROM THE SHOP'S OWN BOOKS, and
+        it is fenced off as its own appendix for exactly that reason. Everything
+        else here can be traced to a ticket. This cannot: it is what other
+        employers in San Antonio were advertising and reporting, gathered in
+        August 2026, and it will drift. It is printed with its date and its
+        sources on the page so nobody two years from now reads it as current.
+
+        It sits next to the staffing table on purpose. "Six technicians on a
+        Saturday" is a number with no weight until it is also a number of
+        dollars, and the two questions get asked in the same breath.
+      */}
+      <section className="dr-sec dr-break">
+        <h2 className="dr-h2">
+          <span className="dr-h2-n">D</span>Appendix — what technicians are paid in San Antonio
+        </h2>
+        <p className="dr-lead">
+          What other shops in this town were paying, as of August 2026. This is the one page here
+          that does not come from the shop&apos;s own books — it is the going rate outside, for
+          setting wages against and for costing the staffing table earlier in this report.
+        </p>
+
+        <table className="dr-table">
+          <thead>
+            <tr>
+              <th>Role, and who is reporting it</th>
+              <th className="num">Hourly</th>
+              <th className="num">A year, full time</th>
+              <th>What it covers</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <strong>Tire technician — San Antonio average</strong>
+                <div className="dr-note">ZipRecruiter, July 2026</div>
+              </td>
+              <td className="num dr-now">$16.00</td>
+              <td className="num">$33,300</td>
+              <td>
+                Most fall between <strong>$14.09</strong> and <strong>$17.36</strong>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                Tire technician — Texas average
+                <div className="dr-note">ZipRecruiter, June 2026</div>
+              </td>
+              <td className="num">$16.53</td>
+              <td className="num">$34,400</td>
+              <td>Slightly above the San Antonio figure</td>
+            </tr>
+            <tr>
+              <td>
+                Discount Tire, San Antonio
+                <div className="dr-note">Indeed, reported by staff</div>
+              </td>
+              <td className="num">$15.64</td>
+              <td className="num">$32,500</td>
+              <td>Their own postings run $15.00–$16.00</td>
+            </tr>
+            <tr>
+              <td>
+                Costco, San Antonio
+                <div className="dr-note">Indeed, reported by staff</div>
+              </td>
+              <td className="num">$25.32</td>
+              <td className="num">$52,700</td>
+              <td>The top of the tire-fitting market here</td>
+            </tr>
+            <tr>
+              <td>
+                <strong>Automotive service technician — San Antonio</strong>
+                <div className="dr-note">Indeed, May 2026</div>
+              </td>
+              <td className="num">$26.67</td>
+              <td className="num">$55,500</td>
+              <td>A qualified mechanic, not a tire fitter</td>
+            </tr>
+            <tr>
+              <td>
+                Automotive technician — San Antonio
+                <div className="dr-note">Glassdoor, 2026</div>
+              </td>
+              <td className="num">$30.00</td>
+              <td className="num">$62,600</td>
+              <td>Same role, a second source, higher</td>
+            </tr>
+            <tr>
+              <td>
+                Automotive service technicians — national
+                <div className="dr-note">US Bureau of Labor Statistics, May 2024</div>
+              </td>
+              <td className="num">$23.88</td>
+              <td className="num">$49,670</td>
+              <td>The median across the whole country</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p className="dr-foot">
+          <strong>Two different jobs are on this table and the gap between them is the point.</strong>{" "}
+          A tire technician in San Antonio is a $15–$17 hire. A qualified automotive technician is
+          a $26–$30 one — nearly double. Which of the two a shop is hiring for decides the wage
+          bill far more than haggling over a dollar inside either band.
+        </p>
+        <p className="dr-foot">
+          <strong>Costing the staffing table.</strong> At the San Antonio tire-technician average of
+          $16.00, one technician on the floor for a ten-hour trading day costs about{" "}
+          <strong>$160</strong> in wages before tax and overhead. A Saturday needing six of them at
+          its busiest hour is not six all day — the grid shows where the load actually is, and
+          that is the difference between staffing the peak and paying for the lulls.
+        </p>
+        <p className="dr-foot">
+          Figures gathered August 2026 from ZipRecruiter, Indeed, Glassdoor and the US Bureau of
+          Labor Statistics. Advertised and self-reported pay both run ahead of and behind what is
+          actually paid, so treat these as the shape of the market rather than as quotes. Worth
+          checking again before any hiring decision — the market moves and this page does not.
+        </p>
       </section>
 
       <footer className="dr-colophon">

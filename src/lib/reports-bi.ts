@@ -296,6 +296,179 @@ export function hourHeatmap(from: string, to: string): HourCell[] {
     .all(from, to) as HourCell[];
 }
 
+export type StaffingSlot = {
+  weekday: number;
+  hour: number;
+  /** Customers to expect in that hour, averaged over the window. */
+  avgTickets: number;
+  /** How this hour compares with the busiest hour of the week, 0–1. */
+  share: number;
+};
+
+export type Staffing = {
+  from: string;
+  to: string;
+  tickets: number;
+  /** Technician hours the time clock actually recorded in the window. */
+  techHours: number;
+  /**
+   * Whether there are enough recorded hours to work a pace out of.
+   *
+   * FALSE IS THE INTERESTING CASE and the reason this flag exists rather than a
+   * silent fallback. If the technicians are not clocking in, the shop cannot be
+   * told how many technicians it needs — only how the work is spread. A report
+   * that quietly substituted a made-up pace would answer the question with a
+   * number nobody could trace, which is worse than saying it does not know.
+   */
+  paceFromData: boolean;
+  /** The trading hours the grid covers, low to high. */
+  hours: number[];
+  slots: StaffingSlot[];
+  /** Per weekday: the busiest hour and the customers that day carries. */
+  days: {
+    weekday: number;
+    peakHour: number;
+    peakTickets: number;
+    openHours: number;
+    tickets: number;
+  }[];
+  /**
+   * The answer at several plausible paces, because the shop knows its own.
+   *
+   * Rather than inventing one figure for how long a job takes, the report hands
+   * over the arithmetic at a few rates and lets whoever reads it pick the line
+   * that matches what they see on the floor. A mount-and-balance set is not a
+   * flat repair, and nobody in this office knows that better than the owner.
+   */
+  atPace: { perHour: number; label: string; peak: { weekday: number; techs: number }[] }[];
+};
+
+/**
+ * How the work is spread across the week, and what that means for cover.
+ *
+ * WHAT THIS CAN AND CANNOT SAY. The shape of the week is solid — it is counted
+ * off every ticket the shop rang, and it says exactly where the load falls.
+ * What it cannot do on its own is turn that into a number of people, because
+ * that needs a pace: how many customers one technician gets through in an hour.
+ *
+ * The honest source for that pace is the shop's own time clock — tickets served
+ * divided by technician-hours clocked. Where those hours exist this reports
+ * them. Where they do not, `paceFromData` comes back false and the report says
+ * so plainly instead of substituting a figure from somebody else's shop and
+ * presenting the result as arithmetic.
+ *
+ * Either way `atPace` gives the answer at several rates, so the owner can read
+ * off the line that matches what actually happens in the bay.
+ */
+export function staffingNeed(from: string, to: string): Staffing {
+  const db = getDb();
+
+  const cells = hourHeatmap(from, to);
+  const tickets = cells.reduce((n, c) => n + c.tickets, 0);
+
+  /*
+    Technician minutes on the clock: every check-in paired with that person's
+    next entry the same day, capped at nine at night the way the auto-close
+    caps it, so a shift left open cannot read as twelve hours. The types are
+    `check_in`/`check_out` — the timeclock's own words, and worth naming here
+    because guessing them wrong is silent: the query returns zero, which is
+    indistinguishable from nobody having clocked in.
+  */
+  const minutes = (
+    db
+      .prepare(
+        `SELECT COALESCE(SUM(
+                  MIN(
+                    (julianday(COALESCE(
+                       (SELECT MIN(t2.timestamp) FROM time_entries t2
+                         WHERE t2.employee_id = t.employee_id
+                           AND t2.timestamp > t.timestamp
+                           AND substr(t2.timestamp,1,10) = substr(t.timestamp,1,10)),
+                       substr(t.timestamp,1,10) || 'T21:00:00'))
+                     - julianday(t.timestamp)) * 1440,
+                    720)
+                ), 0) AS mins
+           FROM time_entries t
+           JOIN employees e ON e.id = t.employee_id
+          WHERE e.pos_role = 'technician'
+            AND t.type = 'check_in'
+            AND substr(t.timestamp, 1, 10) BETWEEN ? AND ?`,
+      )
+      .get(from, to) as { mins: number }
+  ).mins;
+
+  const techHours = minutes / 60;
+  /* Twenty hours is roughly one technician for half a week. Below that there is
+     not enough on the clock to divide by — one person's odd afternoon would set
+     the pace for the whole shop. */
+  const paceFromData = techHours >= 20;
+
+  // How many of each weekday the window held, so an average is an average.
+  const dayCount = new Array(7).fill(0);
+  const cur = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  while (cur <= end) {
+    dayCount[cur.getUTCDay()] += 1;
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+
+  const hoursSeen = cells.map((c) => c.hour);
+  const lo = hoursSeen.length ? Math.min(...hoursSeen) : 8;
+  const hi = hoursSeen.length ? Math.max(...hoursSeen) : 18;
+  const hours = Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
+
+  const raw: StaffingSlot[] = [];
+  for (let wd = 0; wd < 7; wd++) {
+    for (const h of hours) {
+      const cell = cells.find((c) => c.weekday === wd && c.hour === h);
+      raw.push({
+        weekday: wd,
+        hour: h,
+        avgTickets: (cell?.tickets ?? 0) / Math.max(1, dayCount[wd]),
+        share: 0,
+      });
+    }
+  }
+  const busiest = Math.max(...raw.map((s) => s.avgTickets), 0.001);
+  const slots = raw.map((s) => ({ ...s, share: s.avgTickets / busiest }));
+
+  const days = Array.from({ length: 7 }, (_, wd) => {
+    const mine = slots.filter((s) => s.weekday === wd);
+    const peak = mine.reduce((a, b) => (b.avgTickets > a.avgTickets ? b : a), mine[0]);
+    return {
+      weekday: wd,
+      peakHour: peak?.hour ?? lo,
+      peakTickets: peak?.avgTickets ?? 0,
+      openHours: mine.filter((s) => s.avgTickets >= 0.5).length,
+      tickets: mine.reduce((n, s) => n + s.avgTickets, 0),
+    };
+  });
+
+  /*
+    The same peak read at four paces. Stated as minutes per customer as well as
+    customers per hour, because that is the form somebody standing in the bay
+    can check against a watch.
+  */
+  const paces: [number, string][] = [
+    [1.5, "40 minutes a customer — a set of four, mounted and balanced"],
+    [2, "30 minutes a customer — a pair, or a set on a good day"],
+    [3, "20 minutes a customer — flats, rotations, single tires"],
+    [4, "15 minutes a customer — quick jobs, everything ready"],
+  ];
+  const atPace = paces.map(([perHour, label]) => ({
+    perHour,
+    label,
+    peak: days.map((d) => ({
+      weekday: d.weekday,
+      // Rounded UP: half a technician cannot fit a tire, and the cost of
+      // rounding down is a customer waiting in the lobby.
+      techs: d.peakTickets === 0 ? 0 : Math.max(1, Math.ceil(d.peakTickets / perHour)),
+    })),
+  }));
+
+  return { from, to, tickets, techHours, paceFromData, hours, slots, days, atPace };
+}
+
 export type WeekdayRow = { weekday: number; tickets: number; goodsCents: number; days: number };
 
 /**
