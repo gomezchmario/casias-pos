@@ -1214,18 +1214,6 @@ export type TireMonthRow = {
 export type TireMonthReport = {
   month: string;
   kind: "sold" | "received" | "disposal";
-  /**
-   * The first month the stock ledger has anything in it — which is the month
-   * the shop's existing racks were typed into the system.
-   *
-   * Every tire already on a rack on day one had to be entered as a receipt,
-   * because a receipt is the only way stock exists here. That makes the first
-   * month's "received" total the opening count plus whatever was genuinely
-   * bought, with no way to tell the two apart after the fact: both are the same
-   * row with the same reason. Reported so the sheet can say so rather than
-   * present an opening balance as a month's buying.
-   */
-  seedMonth: string | null;
   rows: TireMonthRow[];
   qty: number;
   grossCents: number;
@@ -1389,14 +1377,9 @@ export function tireMonth(
     if (r.ordered) orderedQty += r.qty;
   }
 
-  const seed = db
-    .prepare("SELECT substr(MIN(business_date), 1, 7) AS m FROM inventory_movements")
-    .get() as { m: string | null };
-
   return {
     month,
     kind,
-    seedMonth: seed.m,
     rows: rows.map(({ taxRateBp: _drop, ...r }) => r),
     qty,
     grossCents: gross,

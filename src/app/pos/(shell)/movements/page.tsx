@@ -83,7 +83,6 @@ type MonthReport = {
   taxCents: number;
   netCents: number;
   taxRateBp: number;
-  seedMonth: string | null;
   orderedQty: number;
   stockQty: number;
 };
@@ -268,31 +267,14 @@ export default function MovementsPage() {
           </div>
 
           {/*
-            The opening count, said out loud, on the one sheet it distorts.
+            No caveat about the opening count any more.
 
-            Only on `received`, and only for the first month the ledger has: the
-            sold side is unaffected, because a tire entered onto a rack was not
-            sold to anybody. It prints with the sheet deliberately — this is the
-            page that gets filed and handed to whoever does the books, and the
-            caveat is worth nothing if it only exists on the screen of the person
-            who already knew.
+            It existed because the sheet mixed the opening count in with the
+            month's buying and somebody had to be warned. The query leaves those
+            rows out now — see the note on the received branch in
+            `tireMonth` — so the figures need no explaining, and a warning about
+            a distortion that is gone is just something else to read past.
           */}
-          {report.kind === "received" && report.seedMonth === report.month && (
-            <div className="mb-3 rounded-lg border-2 border-amber-500 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-              <strong>
-                The opening count is not on this sheet.
-              </strong>{" "}
-              This is the month the shop&apos;s existing stock was entered into the
-              system, and every tire already on a rack had to be recorded as a
-              receipt — a receipt being the only way stock comes to exist here.
-              Those rows are left out, so what is below is this month&apos;s
-              genuine buying and can be compared against any other month.
-              <div className="mt-1">
-                The racks themselves are unaffected: the opening count still put
-                the stock there, and still shows on the stock ledger.
-              </div>
-            </div>
-          )}
 
           <div className="flex items-baseline justify-between gap-3 mb-2 tm-hide-on-print">
             <h2 className="text-lg font-semibold text-brand-500">
