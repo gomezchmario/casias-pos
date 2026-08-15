@@ -809,22 +809,31 @@ export default function RegisterPage() {
   // Untracked stock (a can of oil, a disposal fee) has no count to be out of,
   // so it is never hidden — only things the racks are actually meant to hold.
   //
-  // Used sizes are never hidden either, for a different reason: a used tire can
-  // arrive without anybody receiving it. Somebody leaves their old set behind at
-  // a change and an hour later the next customer wants one off it. The count
-  // reads zero because the count is about what was written down, not about what
-  // is leaning against the wall — so hiding the row would make the one tire the
-  // shop can definitely sell the one tire the register refuses to find.
-  //
-  // The general pool rides in on the same clause — it is a used row — and that
-  // is deliberate rather than incidental. It is the row somebody reaches for
-  // when there is a tire in their hand and no size on the screen, which is
-  // exactly the moment a filter would hide it.
+  /*
+    THE GENERAL POOL IS THE ONE ROW AT ZERO THAT STAYS.
+
+    Every used SIZE used to be exempt from this box, on the reasoning that a
+    used tire can turn up without anybody receiving it — somebody leaves their
+    old set behind at a change and an hour later the next customer wants one off
+    it — so a zero there meant "not written down" rather than "not here".
+
+    That was true, and the pool is what makes it stop being true. There is now
+    somewhere to ring an unrecorded used tire that is honest about not knowing
+    the size, so a used size sitting at zero no longer has to be kept on screen
+    to cover for it. Leaving them all on turned a search for "used" into six
+    rows reading none, which is six chances to pick the wrong one with a
+    customer waiting.
+
+    So the pool is exempt and nothing else is. It is the row somebody reaches
+    for when there is a tire in their hand and no size on the screen, which is
+    exactly the moment a filter must not hide it — and unticking the box still
+    brings every size back for anyone who wants to ring the size properly.
+  */
   const stockFilter = useMemo(
     () =>
       onlyInStock
         ? (p: FoundProduct) =>
-            p.track_inventory !== 1 || p.on_hand > 0 || p.condition === "used"
+            p.track_inventory !== 1 || p.on_hand > 0 || p.sku === USED_POOL_SKU
         : undefined,
     [onlyInStock],
   );

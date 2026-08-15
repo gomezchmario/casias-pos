@@ -451,7 +451,7 @@ export function ensureUsedTire(
 // import this one — the note beside it there says why. Callers reach for
 // products.ts, which is where the rest of the pool lives.
 export { USED_POOL_SKU };
-export const USED_POOL_NAME = "Used tires — general (no size yet)";
+export const USED_POOL_NAME = "Used Tires - General";
 
 const usedPoolRow = (): Product | undefined =>
   getDb()

@@ -2183,14 +2183,18 @@ function ReceiveModal({
     }
 
     let body: Record<string, unknown>;
+    // Both used shapes carry the paperwork now; the server already passed
+    // supplier and invoice straight to receiveStock and was simply never given
+    // them from this half of the form.
+    const paper = { supplier: supplier || null, reference: reference || null };
     if (tab === "used" && toPool) {
-      body = { usedPool: true, qty: n };
+      body = { usedPool: true, qty: n, ...paper };
     } else if (tab === "used") {
       if (!size.trim()) {
         setError("Which size?");
         return;
       }
-      body = { usedSize: size, qty: n, specialized, fromPool };
+      body = { usedSize: size, qty: n, specialized, fromPool, ...paper };
     } else {
       const common = {
         qty: n,
@@ -2746,22 +2750,37 @@ function ReceiveModal({
                 )}
               </label>
             )}
-            <div className="flex gap-3">
-              <label className="text-sm text-brand-400 flex-1">{tr("Supplier")}<input
-                  className="input mt-1 w-full"
-                  value={supplier}
-                  onChange={(e) => setSupplier(e.target.value)}
-                />
-              </label>
-              <label className="text-sm text-brand-400 flex-1">{tr("Invoice")}<input
-                  className="input mt-1 w-full"
-                  value={reference}
-                  onChange={(e) => setReference(e.target.value)}
-                />
-              </label>
-            </div>
           </>
         )}
+
+        {/*
+          Who it came from and on what piece of paper — the same two fields for
+          both tabs, because they are facts about the DELIVERY and not about the
+          tire. Used tires arrive on an invoice exactly like new ones do; a
+          truckload of them arrives on the biggest invoice the shop sees all
+          month. They were only ever on the new tab because that is where
+          receiving started, and a used receive quietly recorded no supplier at
+          all — so the one delivery nobody could look up afterwards was the one
+          nobody wrote a size on either.
+
+          "More from this invoice" already keeps these two across lines while
+          clearing everything about the tire, so on a load being listed by size
+          they are typed once for forty lines.
+        */}
+        <div className="flex gap-3">
+          <label className="text-sm text-brand-400 flex-1">{tr("Supplier")}<input
+              className="input mt-1 w-full"
+              value={supplier}
+              onChange={(e) => setSupplier(e.target.value)}
+            />
+          </label>
+          <label className="text-sm text-brand-400 flex-1">{tr("Invoice")}<input
+              className="input mt-1 w-full"
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+            />
+          </label>
+        </div>
 
         <label className="text-sm text-brand-400">{tr("How many")}<input
             className="input mt-1 w-full tabular-nums"
