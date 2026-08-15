@@ -3,6 +3,7 @@ import { findEmployeeByPin, isValidPinFormat } from "@/lib/pin";
 import { getEmployeeState } from "@/lib/employees";
 import { maybeAutoClose } from "@/lib/api-helpers";
 import { getDb } from "@/lib/db";
+import { hoursForDay } from "@/lib/hours";
 import { can, isPosRole } from "@/lib/roles";
 import {
   clearPinFailures,
@@ -88,6 +89,22 @@ export async function POST(req: NextRequest) {
 
   const stateInfo = getEmployeeState(employee.id);
 
+  /*
+    What this person's day looks like so far, and what the roster expects of
+    them — the two facts the greeting was missing. Somebody typing a PIN at 2pm
+    wants three things off this screen: am I clocked in, how long have I worked,
+    and when am I here until. The state machine answered only the first, so the
+    other two were a walk to the office.
+  */
+  const today = (getDb().prepare("SELECT date('now','localtime') AS d").get() as { d: string }).d;
+  const mine = hoursForDay(today).people.find((x) => x.employeeId === employee.id);
+  const shift = getDb()
+    .prepare(
+      `SELECT start_minute AS startMinute, end_minute AS endMinute
+         FROM schedule_shifts WHERE employee_id = ? AND work_date = ?`,
+    )
+    .get(employee.id, today) as { startMinute: number; endMinute: number } | undefined;
+
   let actions: ("check_in" | "check_out" | "break_start" | "break_end")[];
   switch (stateInfo.state) {
     case "checked_out":
@@ -139,6 +156,12 @@ export async function POST(req: NextRequest) {
       canRegister: can(posRole, "browseRegister"),
     },
     state: stateInfo.state,
+    /** Minutes worked so far today, the auto-close guess included. */
+    todayMinutes: mine ? mine.knownMinutes + mine.assumedMinutes : 0,
+    /** When the current stretch started, if they are on the clock. */
+    since: mine?.onTheClock ? mine.since : null,
+    /** Today's rostered shift, or null if the roster has nothing for them. */
+    shift: shift ?? null,
     lastEventAt: stateInfo.lastEventAt,
     lastEventType: stateInfo.lastEventType,
     actions: clocks ? actions : [],

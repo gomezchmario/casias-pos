@@ -32,6 +32,13 @@ type WeeklyReport = {
   rows: EmployeeWeekly[];
 };
 
+/** Minutes as "41:30", the shape the per-person columns already use. */
+function hhmm(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  return `${h}:${String(m).padStart(2, "0")}`;
+}
+
 function isoDate(d: Date) {
   return d.toISOString().slice(0, 10);
 }
@@ -167,6 +174,49 @@ export default function ReportsPage() {
           </span>
         </div>
 
+        {/*
+          The same rows as bars, because the table answers "how many hours did
+          Jerry work" and cannot answer "who worked the most" without reading
+          every line and holding them in your head. Payroll asks the first
+          question; fairness arguments ask the second, and they happen at this
+          screen with two people looking at it.
+        */}
+        {report && report.rows.length > 1 && (
+          <div className="mb-6">
+            {(() => {
+              const max = Math.max(...report.rows.map((r) => r.netWorkedMinutes), 1);
+              return [...report.rows]
+                .sort((a, b) => b.netWorkedMinutes - a.netWorkedMinutes)
+                .map((r) => (
+                  <div key={r.employee_id} className="flex items-center gap-3 py-1">
+                    <span
+                      className="text-sm text-brand-500 truncate text-right"
+                      style={{ width: 120, flex: "none" }}
+                    >
+                      {r.employee_name}
+                    </span>
+                    <div className="flex-1 rounded-md" style={{ background: "rgba(10,37,64,0.05)" }}>
+                      <div
+                        className="rounded-md"
+                        style={{
+                          width: `${Math.max(1, (r.netWorkedMinutes / max) * 100)}%`,
+                          height: 16,
+                          background: "linear-gradient(90deg, #1f3f64, #0a2540)",
+                        }}
+                      />
+                    </div>
+                    <span
+                      className="text-sm tabular-nums font-semibold text-brand-500 text-right"
+                      style={{ width: 64, flex: "none" }}
+                    >
+                      {r.netHHMM}
+                    </span>
+                  </div>
+                ));
+            })()}
+          </div>
+        )}
+
         {report && (
           <table className="w-full text-sm">
             <thead style={{ background: "rgba(10,37,64,0.03)" }}>
@@ -191,6 +241,37 @@ export default function ReportsPage() {
                 </tr>
               )}
             </tbody>
+            {/*
+              The line payroll actually copies out. Every column summed, because
+              this table's whole destination is a wage calculation and the sheet
+              was making somebody add a column of h:mm figures by hand — which
+              is the one kind of arithmetic people reliably get wrong.
+            */}
+            {report.rows.length > 1 && (
+              <tfoot>
+                <tr
+                  className="border-t-2"
+                  style={{ borderColor: "rgba(10,37,64,0.2)" }}
+                >
+                  <td className="px-3 py-3 font-semibold text-brand-500">
+                    Everybody · {report.rows.length}
+                  </td>
+                  <td className="px-3 py-3 text-right tabular-nums font-semibold">
+                    {hhmm(report.rows.reduce((n, r) => n + r.totalWorkedMinutes, 0))}
+                  </td>
+                  <td className="px-3 py-3 text-right tabular-nums font-semibold">
+                    {(report.rows.reduce((n, r) => n + r.totalWorkedMinutes, 0) / 60).toFixed(2)}
+                  </td>
+                  <td className="px-3 py-3 text-right tabular-nums text-brand-400">
+                    {hhmm(report.rows.reduce((n, r) => n + r.totalBreakMinutes, 0))}
+                  </td>
+                  <td className="px-3 py-3 text-right tabular-nums font-bold text-brand-500">
+                    {hhmm(report.rows.reduce((n, r) => n + r.netWorkedMinutes, 0))}
+                  </td>
+                  <td />
+                </tr>
+              </tfoot>
+            )}
           </table>
         )}
       </div>

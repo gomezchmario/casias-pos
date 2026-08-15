@@ -22,12 +22,26 @@ type LookupResult = {
     canRegister: boolean;
   };
   state: "checked_out" | "checked_in" | "on_break";
+  /** Minutes worked so far today, and when the current stretch began. */
+  todayMinutes: number;
+  since: string | null;
+  /** Today's rostered shift, when the schedule has one for this person. */
+  shift: { startMinute: number; endMinute: number } | null;
   actions: EntryType[];
   /** Set when this account has no clock buttons at all — see the lookup route. */
   noClockReason?: string | null;
 };
 
 type Phase = "idle" | "looking_up" | "ready" | "submitting" | "result";
+
+/** "8am" / "6:30pm" from minutes past midnight, for the shift line. */
+function clockOfMinute(m: number): string {
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  const ampm = h >= 12 ? "pm" : "am";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return mm === 0 ? `${h12}${ampm}` : `${h12}:${String(mm).padStart(2, "0")}${ampm}`;
+}
 
 type Toast = {
   kind: "success" | "error" | "info";
@@ -275,12 +289,34 @@ export default function KioskPage() {
               <div className="text-2xl font-semibold text-white">
                 Hi, {lookup?.employee.name}
               </div>
+              {/*
+                The line under the name answers the question the person came
+                with, not just the state machine's. "You're currently working"
+                told them what they already knew; since-when and hours-so-far
+                are what they walked over to find out, and the rostered shift
+                is when they get to go home. All three were a walk to the
+                office before this.
+              */}
               <div className="text-sm text-white/70 mt-1">
                 {lookup?.state === "checked_out" &&
-                  "You're currently checked out."}
-                {lookup?.state === "checked_in" && "You're currently working."}
-                {lookup?.state === "on_break" && "You're currently on break."}
+                  (lookup.todayMinutes > 0
+                    ? `Checked out — ${(lookup.todayMinutes / 60).toFixed(1)} h worked today.`
+                    : "You're currently checked out.")}
+                {lookup?.state === "checked_in" &&
+                  `Working${
+                    lookup.since
+                      ? ` since ${new Date(lookup.since).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`
+                      : ""
+                  } · ${(lookup.todayMinutes / 60).toFixed(1)} h today.`}
+                {lookup?.state === "on_break" &&
+                  `On break · ${(lookup.todayMinutes / 60).toFixed(1)} h today.`}
               </div>
+              {lookup?.shift && (
+                <div className="text-xs text-white/50 mt-1">
+                  Scheduled today {clockOfMinute(lookup.shift.startMinute)}–
+                  {clockOfMinute(lookup.shift.endMinute)}
+                </div>
+              )}
             </div>
           )}
         </div>
