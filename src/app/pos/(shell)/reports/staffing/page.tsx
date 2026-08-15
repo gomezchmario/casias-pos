@@ -43,6 +43,39 @@ function longDate(iso: string): string {
   return `${d} ${MONTHS[m - 1]} ${y}`;
 }
 
+/*
+  THE SHOP'S OWN DAY, and it is the input every figure in Appendix B rests on.
+
+  Open 8 to 7 with an hour for lunch: eleven hours on the premises, ten of them
+  paid. Written here as one constant rather than typed into each sum, because if
+  the shop changes its hours the wage table has to move with it or it becomes
+  the most confidently wrong page in the report.
+*/
+const OPEN_HOUR = 8;
+const CLOSE_HOUR = 19;
+const LUNCH_HOURS = 1;
+const PAID_HOURS_A_DAY = CLOSE_HOUR - OPEN_HOUR - LUNCH_HOURS;
+
+/** Overtime starts after this many hours in a WEEK — see Appendix B. */
+const OT_AFTER = 40;
+const OT_MULTIPLIER = 1.5;
+
+/**
+ * The rates worth costing: the band the shop is choosing inside, and the two
+ * big-box employers it is competing with for the same people.
+ */
+const WAGE_ROWS: { rate: number; label: string }[] = [
+  { rate: 16, label: "" },
+  { rate: 17, label: "" },
+  { rate: 18, label: "" },
+  { rate: 19, label: "" },
+  { rate: 25.32, label: "Costco" },
+  { rate: 26, label: "Walmart Auto Care" },
+];
+
+const usd = (n: number) =>
+  `${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 const hourLabel = (h: number) => `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? "a" : "p"}`;
 const hourLong = (h: number) =>
   h === 0 ? "12am" : h < 12 ? `${h}am` : h === 12 ? "12pm" : `${h - 12}pm`;
@@ -502,6 +535,148 @@ A tire technician at an independent shop in San Antonio is a $15–$17 hire. A q
           Statistics. Advertised and self-reported pay both run ahead of and behind what is really
           paid, so read these as the shape of the market rather than as quotes — and check them
           again before any hiring decision, because the market moves and this page does not.
+        </p>
+      </section>
+
+      {/* ══════════ APPENDIX B — WHAT A DAY COSTS ══════════ */}
+      {/*
+        THE CORRECTION THIS PAGE EXISTS TO MAKE.
+
+        The shop's assumption going in was that a 10-hour day earns overtime by
+        being long. In Texas it does not: there is no state overtime law and the
+        federal rule counts WEEKS, not days — nothing is owed until the week
+        passes forty hours, however the hours are stacked inside it.
+
+        That correction cuts both ways and both halves are worth printing. A
+        five-day week of these shifts is 50 hours and already carries 10 hours
+        of overtime; a six-day week is 60 and carries 20. So the shop probably
+        owes MORE than it thinks rather than less — just on a different trigger
+        than the one it had in mind.
+      */}
+      <section className="dr-sec dr-break">
+        <h2 className="dr-h2">
+          <span className="dr-h2-n">B</span>Appendix — what a day costs, and when overtime starts
+        </h2>
+        <p className="dr-lead">
+          The shop is open {hourLong(OPEN_HOUR)} to {hourLong(CLOSE_HOUR)}, which is{" "}
+          {CLOSE_HOUR - OPEN_HOUR} hours on the premises and{" "}
+          <strong>{PAID_HOURS_A_DAY} paid hours</strong> once an hour of lunch comes out. Every
+          figure below is built on that day.
+        </p>
+
+        <div className="dr-callout">
+          <div className="dr-callout-head">
+            A long day is not overtime in Texas — a long WEEK is
+          </div>
+          <p className="dr-callout-body">
+            Texas has no overtime law of its own and follows the federal rule, which counts hours by
+            the week rather than by the day. <strong>Nothing is owed for working {PAID_HOURS_A_DAY}{" "}
+            hours in a day.</strong> Overtime starts once somebody passes{" "}
+            <strong>{OT_AFTER} hours in a week</strong>, and from there every extra hour is paid at{" "}
+            <strong>one and a half times</strong> their normal rate. California has a daily rule;
+            Texas does not.
+          </p>
+          <p className="dr-callout-body">
+            <strong>That is worse for the shop, not better.</strong> Five of these shifts is{" "}
+            {PAID_HOURS_A_DAY * 5} hours, which is already {PAID_HOURS_A_DAY * 5 - OT_AFTER} hours
+            of overtime. Six is {PAID_HOURS_A_DAY * 6}, which is{" "}
+            {PAID_HOURS_A_DAY * 6 - OT_AFTER}. Weeks cannot be averaged against each other either —
+            a heavy week followed by a light one still owes the overtime from the heavy one.
+          </p>
+        </div>
+
+        <h3 className="dr-h3">One {PAID_HOURS_A_DAY}-hour day</h3>
+        <table className="dr-table">
+          <thead>
+            <tr>
+              <th>Pay rate</th>
+              <th className="num">Straight time</th>
+              <th className="num">At the overtime rate</th>
+              <th className="num">The difference</th>
+            </tr>
+          </thead>
+          <tbody>
+            {WAGE_ROWS.map((w) => {
+              const straight = w.rate * PAID_HOURS_A_DAY;
+              const over = w.rate * OT_MULTIPLIER * PAID_HOURS_A_DAY;
+              return (
+                <tr key={w.rate}>
+                  <td>
+                    <strong>{usd(w.rate)} an hour</strong>
+                    {w.label && <div className="dr-note">{w.label}</div>}
+                  </td>
+                  <td className="num dr-now">{usd(straight)}</td>
+                  <td className="num">{usd(over)}</td>
+                  <td className="num">+{usd(over - straight)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <p className="dr-foot">
+          The middle column is what the day costs once that person is already past {OT_AFTER} hours
+          for the week — the last days of a busy week, not the first. A day early in the week costs
+          the straight-time column.
+        </p>
+
+        <h3 className="dr-h3">A whole week of them</h3>
+        <table className="dr-table">
+          <thead>
+            <tr>
+              <th>Pay rate</th>
+              <th className="num">5 days · {PAID_HOURS_A_DAY * 5} hrs</th>
+              <th className="num">of which overtime</th>
+              <th className="num">6 days · {PAID_HOURS_A_DAY * 6} hrs</th>
+              <th className="num">of which overtime</th>
+            </tr>
+          </thead>
+          <tbody>
+            {WAGE_ROWS.map((w) => {
+              const week = (days: number) => {
+                const hours = PAID_HOURS_A_DAY * days;
+                const otHours = Math.max(0, hours - OT_AFTER);
+                const base = Math.min(hours, OT_AFTER) * w.rate;
+                const extra = otHours * w.rate * OT_MULTIPLIER;
+                return { total: base + extra, otHours, extra };
+              };
+              const five = week(5);
+              const six = week(6);
+              return (
+                <tr key={w.rate}>
+                  <td>
+                    <strong>{usd(w.rate)} an hour</strong>
+                    {w.label && <div className="dr-note">{w.label}</div>}
+                  </td>
+                  <td className="num dr-now">{usd(five.total)}</td>
+                  <td className="num">
+                    {five.otHours} hrs
+                    <div className="dr-note">{usd(five.extra)}</div>
+                  </td>
+                  <td className="num dr-now">{usd(six.total)}</td>
+                  <td className="num">
+                    {six.otHours} hrs
+                    <div className="dr-note">{usd(six.extra)}</div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <p className="dr-foot">
+          <strong>Read the two overtime columns before anything else.</strong> On a six-day roster
+          a third of the week is paid at time and a half, so a $16 technician costs{" "}
+          {usd(WAGE_ROWS[0].rate * OT_AFTER + (PAID_HOURS_A_DAY * 6 - OT_AFTER) * WAGE_ROWS[0].rate * OT_MULTIPLIER)}{" "}
+          a week rather than the {usd(WAGE_ROWS[0].rate * PAID_HOURS_A_DAY * 6)} a straight
+          multiplication suggests. Two people on shorter weeks can cost less than one person on a
+          long one, which is the case the staffing grid in section 1 is really making.
+        </p>
+        <p className="dr-foot">
+          <strong>This is a rate calculation, not legal advice.</strong> It assumes an hourly,
+          non-exempt employee on a standard workweek and ignores everything else that lands on a
+          wage — payroll taxes, insurance, breaks, and any agreement with the employee themselves.
+          Have an accountant confirm it before it is used to set anybody&apos;s pay. Rule checked
+          August 2026 against the Texas Workforce Commission&apos;s position and the federal Fair
+          Labor Standards Act.
         </p>
       </section>
 
