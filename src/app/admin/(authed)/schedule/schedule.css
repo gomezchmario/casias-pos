@@ -1,0 +1,224 @@
+/* The roster grid.
+ *
+ * A week is seven columns and a shop is five to eight people, so the whole
+ * thing fits on one screen without scrolling — which is the only reason a grid
+ * beats a list here. Everything below is in service of that: tight cells, small
+ * type, and no decoration that costs a row. */
+
+.sch {
+  padding-bottom: 40px;
+}
+
+.sch-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.sch-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #0a2540;
+}
+
+.sch-sub {
+  font-size: 13px;
+  color: rgba(10, 37, 64, 0.6);
+  margin-top: 2px;
+}
+
+.sch-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sch-week {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0a2540;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+.sch-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+/* The grid can outgrow a narrow window; it scrolls in its own box rather than
+   pushing the page sideways. Same rule as the reports panels. */
+.sch-scroll {
+  overflow-x: auto;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgb(10 37 64 / 0.05);
+  padding: 12px;
+}
+
+.sch-grid {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 860px;
+}
+
+.sch-grid th,
+.sch-grid td {
+  padding: 4px;
+  vertical-align: top;
+}
+
+.sch-grid thead th {
+  border-bottom: 2px solid rgba(10, 37, 64, 0.12);
+  padding-bottom: 8px;
+  text-align: center;
+}
+
+/* The name column, which never scrolls out of reach horizontally. */
+.sch-who {
+  width: 150px;
+  min-width: 150px;
+  text-align: left !important;
+  position: sticky;
+  left: 0;
+  background: #fff;
+  z-index: 1;
+}
+
+.sch-name {
+  font-weight: 650;
+  font-size: 14px;
+  color: #0a2540;
+}
+
+.sch-role {
+  font-size: 11px;
+  color: rgba(10, 37, 64, 0.45);
+  text-transform: capitalize;
+}
+
+.sch-day {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0a2540;
+}
+
+.sch-date {
+  font-size: 11px;
+  color: rgba(10, 37, 64, 0.5);
+}
+
+/*
+  Rostered against needed — the line this screen exists for.
+
+  Red when the day is short, and red rather than amber on purpose: this is not a
+  caveat about the figures, it is a day that will be short-handed unless
+  somebody does something about it before it arrives.
+*/
+.sch-need {
+  margin-top: 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: rgba(10, 37, 64, 0.6);
+  font-variant-numeric: tabular-nums;
+}
+
+.sch-need.is-short {
+  color: #b91c1c;
+}
+
+.sch-cust {
+  font-size: 10.5px;
+  color: rgba(10, 37, 64, 0.4);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A cell is a button whether or not it holds a shift: an empty day has to be
+   as easy to fill as a full one is to change, and a plus sign that only appears
+   on hover is a plus sign nobody finds on a touchscreen. */
+.sch-cell {
+  width: 100%;
+  min-height: 46px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  border: 1px dashed rgba(10, 37, 64, 0.18);
+  border-radius: 9px;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.sch-cell:hover {
+  background: rgba(10, 37, 64, 0.04);
+  border-color: rgba(10, 37, 64, 0.35);
+}
+
+.sch-cell.is-on {
+  border-style: solid;
+  border-color: rgba(10, 37, 64, 0.2);
+  background: rgba(10, 37, 64, 0.05);
+}
+
+.sch-time {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: #0a2540;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.sch-hrs {
+  font-size: 10.5px;
+  color: rgba(10, 37, 64, 0.5);
+  font-variant-numeric: tabular-nums;
+}
+
+.sch-add {
+  font-size: 18px;
+  color: rgba(10, 37, 64, 0.25);
+  line-height: 1;
+}
+
+.sch-grid tfoot td {
+  border-top: 2px solid rgba(10, 37, 64, 0.12);
+  padding-top: 8px;
+  font-weight: 700;
+  font-size: 12.5px;
+  color: #0a2540;
+}
+
+.sch-total {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.sch-legend {
+  margin-top: 14px;
+  max-width: 88ch;
+}
+
+.sch-legend p {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: rgba(10, 37, 64, 0.65);
+  margin-bottom: 6px;
+}
+
+.sch-sum {
+  border-top: 1px solid rgba(10, 37, 64, 0.1);
+  padding-top: 10px;
+  font-size: 13px;
+  color: #0a2540;
+}

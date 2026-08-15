@@ -10,6 +10,9 @@ const NAV = [
   { href: "/admin/employees", label: "Employees", icon: "👥" },
   { href: "/admin/permissions", label: "Permissions", icon: "🔑" },
   { href: "/admin/entries", label: "Time Entries", icon: "🕒" },
+  // Next to Time Entries because they are the same subject from two ends:
+  // entries are what happened, the schedule is what was meant to.
+  { href: "/admin/schedule", label: "Schedule", icon: "🗓" },
   { href: "/admin/reports", label: "Reports", icon: "📈" },
   { href: "/admin/audit", label: "Audit Log", icon: "📜" },
   { href: "/admin/settings", label: "Settings", icon: "⚙" },
