@@ -6,6 +6,7 @@ import { nowLocalIso } from "./time";
 import { getSetting } from "./settings";
 import { logActorAudit, type Actor } from "./audit";
 import { can } from "./roles";
+import { USED_POOL_SKU } from "./tire-size";
 import type { PosUser } from "./pos-session";
 
 /**
@@ -22,6 +23,26 @@ import type { PosUser } from "./pos-session";
  * transaction as the movement that caused it, and `lotIntegrityCheck` exists to
  * prove the two still agree.
  */
+
+/*
+  The general pool's identity comes from tire-size.ts, which is the one module
+  both the server and the browser can import — the register has to recognise the
+  pool too. Re-exported here and again from products.ts so callers can keep
+  reaching for whichever of the three they already import; the note beside the
+  constant itself says why it lives where it does.
+
+  `applySaleMovements` below needs the pool to draw a sale off it, which is why
+  the lookup is here rather than in products.ts: products.ts imports this file,
+  so this file cannot import it back.
+*/
+export { USED_POOL_SKU };
+
+const usedPoolId = (): number | null =>
+  ((
+    getDb()
+      .prepare("SELECT id FROM products WHERE sku = ? AND deleted = 0")
+      .get(USED_POOL_SKU) as { id: number } | undefined
+  )?.id ?? null);
 
 export type MovementReason =
   | "receive"
@@ -638,6 +659,20 @@ function stockedLinesFor(saleId: number): StockLine[] {
  * does not move stock. That is not a fudge: the tire that walked in unrecorded
  * walked out unrecorded, and the ledger is telling the exact truth about the
  * only thing it ever knew about.
+ *
+ * THE GENERAL POOL NARROWS THAT HOLE. When the shortfall is a used size and the
+ * pool has tires in it, the missing units come off the pool instead of being
+ * dropped — because that is where they physically were. A truckload arrives
+ * counted but unsorted, somebody sells a 205-55-16 off the pile before anybody
+ * has listed it by size, and the sized row says zero for the ordinary reason
+ * that nobody has got to it yet. Taking it off the pool is the only entry that
+ * describes what happened: the pile is one tire lighter.
+ *
+ * The pool floors at zero too, and the leftover is dropped exactly as before.
+ * An empty pool is the old situation — a tire that arrived unrecorded — and
+ * driving the pool negative would turn the count of a real pile into a number
+ * that cannot be walked out to and verified, which is the one thing this row is
+ * good for.
  */
 export function applySaleMovements(
   user: PosUser,
@@ -661,6 +696,36 @@ export function applySaleMovements(
       if (already) continue;
 
       const { allocations, short: rawShort } = allocateFifo(line.product_id, line.qty);
+
+      /*
+        A used size short of stock goes to the pool before it goes nowhere.
+
+        Skipped when the line IS the pool: the pool covering its own shortfall
+        would be a row drawing on itself, which is both meaningless and a way to
+        drive it negative through the back door.
+      */
+      let fromPool = 0;
+      if (line.condition === "used" && rawShort > 0) {
+        const poolId = usedPoolId();
+        if (poolId !== null && poolId !== line.product_id) {
+          fromPool = Math.min(rawShort, Math.max(0, stockOnHand(poolId)));
+          if (fromPool > 0) {
+            const poolLot = ensureDefaultLot(poolId, 0);
+            consumeLot(poolLot.id, -fromPool);
+            writeMovement(user, {
+              productId: poolId,
+              lotId: poolLot.id,
+              qtyDelta: -fromPool,
+              unitCostCents: 0,
+              reason: "sale",
+              saleId,
+              saleItemId: line.id,
+              note: `Sold as ${line.name} before it was listed by size`,
+            });
+          }
+        }
+      }
+
       // Dropped rather than booked for used sizes — see the note above. Every
       // decision below keys off this, so the floor-at-zero rule is stated once.
       const short = line.condition === "used" ? 0 : rawShort;
@@ -769,6 +834,75 @@ export function reverseSaleMovements(
       });
     }
     return { ok: true as const, returned: originals.length };
+  });
+}
+
+/**
+ * Take tires off the general pool because they have just been listed by size.
+ *
+ * The other half of a `fromPool` receive: the sized row goes up by twelve and
+ * the pool comes down by twelve, in one transaction, because it is twelve tires
+ * being described rather than twelve tires arriving. Without this the shop
+ * would count the same truckload twice — once in the pile and once on the rack
+ * — and the stock sheet would say it holds twice what the building holds.
+ *
+ * IT TAKES `receiveInventory`, NOT `adjustInventory`, and that is deliberate.
+ * Listing a pile by size is the job of whoever is standing at the pile, and it
+ * is the same act as receiving — the counterpart of a delivery, not a manager
+ * correcting a miscount. Gating it behind the manager permission would mean the
+ * only people able to do the work could not record it, which is how it goes
+ * back to being done on paper and then not at all.
+ *
+ * THE POOL FLOORS AT ZERO. Listing forty of a size out of a pool holding ten is
+ * not a reason to refuse the forty — those tires are really there and the sized
+ * count is the better record. But the pool is a count of a pile somebody can
+ * walk out to, and −30 is not a pile. So it empties, the sized row still gets
+ * its full forty, and the shortfall is handed back to the caller to say out
+ * loud rather than swallowed.
+ */
+export function takeFromUsedPool(
+  user: PosUser,
+  args: { qty: number; note: string },
+): Result<{ taken: number; short: number; poolOnHand: number }> {
+  if (!can(user.role, "receiveInventory"))
+    return { ok: false, error: "Your account cannot record stock" };
+  if (!Number.isInteger(args.qty) || args.qty < 1)
+    return { ok: false, error: "How many?" };
+
+  const poolId = usedPoolId();
+  // No pool row at all means the shop has never received a truckload into one.
+  // Nothing to draw on, and creating one here just to empty it would put a row
+  // on the inventory page that has never held anything.
+  if (poolId === null)
+    return { ok: true, taken: 0, short: args.qty, poolOnHand: 0 };
+
+  return inTx(() => {
+    const have = Math.max(0, stockOnHand(poolId));
+    const taken = Math.min(args.qty, have);
+    if (taken > 0) {
+      const lot = ensureDefaultLot(poolId, 0);
+      consumeLot(lot.id, -taken);
+      writeMovement(user, {
+        productId: poolId,
+        lotId: lot.id,
+        qtyDelta: -taken,
+        unitCostCents: 0,
+        reason: "adjust",
+        note: args.note,
+      });
+      logActorAudit(actorOf(user), {
+        action: "inventory.adjust",
+        targetType: "product",
+        targetId: poolId,
+        details: { qty_delta: -taken, reason: "adjust", note: args.note, pool: true },
+      });
+    }
+    return {
+      ok: true as const,
+      taken,
+      short: args.qty - taken,
+      poolOnHand: stockOnHand(poolId),
+    };
   });
 }
 

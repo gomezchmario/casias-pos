@@ -6,6 +6,7 @@ import { getEmployeeState, listMechanics } from "@/lib/employees";
 import { getSetting } from "@/lib/settings";
 import { currentBusinessDate } from "@/lib/business-date";
 import { getDb } from "@/lib/db";
+import { USED_POOL_SKU } from "@/lib/tire-size";
 
 /** Everything the register screen needs to render, in one round trip. */
 export async function GET() {
@@ -42,6 +43,22 @@ export async function GET() {
           .all() as { id: number; code: string }[]
       ).map((c) => [c.code, c.id]),
     ) as { new_tire?: number; used_tire?: number },
+    /*
+      The general pool's row id, so the register can recognise a line already on
+      the ticket as having come off the unsorted pile.
+
+      The sku would do for a tire being picked — `USED_POOL_SKU` is imported
+      straight into the browser for exactly that — but a line that has already
+      been rung carries only `product_id`, and the note asking for the size has
+      to survive the ticket being reopened later. Null until the shop opens a
+      pool, which no line can match, which is correct.
+    */
+    usedPoolProductId:
+      (
+        getDb()
+          .prepare("SELECT id FROM products WHERE sku = ? AND deleted = 0")
+          .get(USED_POOL_SKU) as { id: number } | undefined
+      )?.id ?? null,
     settings: {
       tipCommPerCents: Number(getSetting("tip_comm_per_cents")),
       tipCommChargeCents: Number(getSetting("tip_comm_charge_cents")),

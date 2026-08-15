@@ -8,6 +8,20 @@
  */
 
 /**
+ * The sku of the general pool — the used tires nobody has put a size on yet.
+ *
+ * It is here rather than with the rest of the pool (`ensureUsedPool`, in
+ * products.ts) for this file's whole reason for existing: the register has to
+ * recognise the pool the moment it is picked, so it can ask for a size, and it
+ * cannot import products.ts to find out what the pool is called.
+ *
+ * A sku rather than an id because an id is whatever the row happened to get on
+ * the machine it was created on, and this shop's database is not the only one
+ * this code will ever run against.
+ */
+export const USED_POOL_SKU = "USED-GENERAL";
+
+/**
  * Put a tire size into one canonical shape: 195-65-15.
  *
  * Dashes, not the 195/65R15 the sidewall uses, because dashes are what the shop

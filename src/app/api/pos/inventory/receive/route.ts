@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jsonError, requirePos } from "@/lib/api-helpers";
-import { receiveStock, stockOnHand } from "@/lib/inventory";
-import { createProduct, ensureUsedTire } from "@/lib/products";
+import { receiveStock, stockOnHand, takeFromUsedPool } from "@/lib/inventory";
+import { createProduct, ensureUsedPool, ensureUsedTire, getUsedPool } from "@/lib/products";
 import { inTx } from "@/lib/tx";
 
 /** Thrown to unwind the transaction below; the message is shown to the user. */
@@ -14,6 +14,17 @@ export async function POST(req: NextRequest) {
   let body: {
     productId?: number;
     usedSize?: string;
+    /**
+     * A truckload of used tires, counted but not sorted. Goes to the general
+     * pool — see `ensureUsedPool`.
+     */
+    usedPool?: boolean;
+    /**
+     * This sized receive is somebody LISTING tires the shop already has, not
+     * tires arriving. The same count comes back off the general pool, so the
+     * truckload is not counted twice.
+     */
+    fromPool?: boolean;
     /** A tire the shop has never carried, being created as it is unloaded. */
     newTire?: {
       brand?: string | null;
@@ -43,6 +54,14 @@ export async function POST(req: NextRequest) {
     // stock, no invoice and nobody who knows to delete it.
     const result = inTx(() => {
       let productId = body.productId;
+
+      // Straight into the pile. No size, because there is no size to give: the
+      // load was bought by the load.
+      if (!productId && body.usedPool) {
+        const pool = ensureUsedPool(auth.user);
+        if (!pool.ok) throw new ReceiveError(pool.error);
+        productId = pool.product.id;
+      }
 
       // Received by SIZE rather than by product id: whoever is unloading them
       // knows the size, not which row of a table it maps to, and a size the
@@ -85,20 +104,43 @@ export async function POST(req: NextRequest) {
         productId,
         qty: body.qty ?? 0,
         // A used tire has no cost to record — see ensureUsedTire.
-        unitCostCents: body.usedSize ? 0 : (body.unitCostCents ?? 0),
+        unitCostCents: body.usedSize || body.usedPool ? 0 : (body.unitCostCents ?? 0),
         supplier: body.supplier ?? null,
         reference: body.reference ?? null,
         note: body.note ?? null,
       });
       if (!received.ok) throw new ReceiveError(received.error);
 
-      return { lot: received.lot, productId };
+      /*
+        The other half of a listing, inside the same transaction as the first.
+
+        If the pool draw were a second request, a browser closed between the two
+        would leave the size counted on the rack AND still sitting in the pile —
+        the double count this flag exists to prevent, arrived at by the exact
+        route that makes it hardest to spot.
+      */
+      let pool: { taken: number; short: number; poolOnHand: number } | null = null;
+      if (body.fromPool && body.usedSize) {
+        const drawn = takeFromUsedPool(auth.user, {
+          qty: body.qty ?? 0,
+          note: `Listed by size: ${body.qty} × used ${body.usedSize}`,
+        });
+        if (!drawn.ok) throw new ReceiveError(drawn.error);
+        pool = { taken: drawn.taken, short: drawn.short, poolOnHand: drawn.poolOnHand };
+      }
+
+      return { lot: received.lot, productId, pool };
     });
 
     return NextResponse.json({
       lot: result.lot,
       productId: result.productId,
       onHand: stockOnHand(result.productId),
+      // Only on a listing, and only ever as news — the receive itself has
+      // already succeeded either way, so this is something to tell somebody,
+      // never something for the page to treat as a failure.
+      pool: result.pool,
+      poolOnHand: getUsedPool()?.on_hand ?? null,
     });
   } catch (e) {
     if (e instanceof ReceiveError) return jsonError(e.message);

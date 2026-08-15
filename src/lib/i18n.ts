@@ -1227,6 +1227,37 @@ const ES: Record<string, string> = {
   "earlier entry": "captura anterior",
   "earlier entries": "capturas anteriores",
 
+  /*
+    ── The unsorted used-tire pile ────────────────────────────────────────
+
+    "El montón" for the pool, not "la reserva" or "el fondo general". It is a
+    physical heap of tires somebody walks up to and counts, and the word has to
+    be the one that gets used while standing next to it.
+  */
+  "Used tires not yet listed by size": "Llantas usadas todavía sin apuntar por medida",
+  "Bought by the load, so nobody has written a size on them yet. As they get listed by size the count here comes down — tick “Listing tires we already have” when you receive them.":
+    "Se compran por camionada, así que todavía nadie les ha apuntado la medida. Conforme se van apuntando por medida, esta cuenta va bajando — marque “Apuntando llantas que ya tenemos” cuando las reciba.",
+  "Nothing waiting. Every used tire the shop has is listed by size — when a load comes in with no sizes on it, it goes here first.":
+    "No hay nada pendiente. Todas las llantas usadas del taller están apuntadas por medida — cuando llegue una camionada sin medidas, primero cae aquí.",
+  "A load came in": "Llegó una camionada",
+  "List some by size": "Apuntar algunas por medida",
+  "A load, no sizes": "Una camionada, sin medidas",
+  "A load of used tires, no sizes yet": "Una camionada de llantas usadas, todavía sin medidas",
+  "Type how many came off the truck. Somebody can list them by size later, and the count here comes down as they do.":
+    "Escriba cuántas bajaron del camión. Después alguien las puede apuntar por medida, y esta cuenta va bajando conforme lo hace.",
+  "on the pile now": "en el montón ahora",
+  "on the pile": "en el montón",
+  "Listing tires we already have": "Apuntando llantas que ya tenemos",
+  "These came off the unsorted pile — take them off it. Leave it off for a buyback or anything genuinely arriving.":
+    "Estas salieron del montón sin apuntar — descuéntelas de ahí. Déjelo sin marcar si es una compra a un cliente o cualquier cosa que de verdad esté llegando.",
+  "The pile was empty for": "El montón ya no alcanzó para",
+  "of those, so only the rest came off it. They are all counted on the size either way — the pile was either counted light when it came in, or these came from somewhere else.":
+    "de esas, así que nada más el resto se descontó de ahí. De todos modos todas quedan contadas en la medida — o el montón se contó corto cuando llegó, o estas vinieron de otro lado.",
+  "This one is off the pile that has no sizes on it. If you can read the size off the tire, ring that size instead — it is the only way the shop ever finds out what it sells.":
+    "Esta sale del montón que no tiene medidas apuntadas. Si alcanza a leer la medida en la llanta, cóbrela con esa medida — es la única manera de que el taller se entere de qué vende.",
+  "A used tire is recorded by size only. No brand, price or cost — the price is set at the counter when it sells.":
+    "Una llanta usada se registra nada más por medida. Sin marca, sin precio y sin costo — el precio se decide en el mostrador cuando se vende.",
+
   // ── Things that go wrong ───────────────────────────────────────────────
   "That did not save": "Eso no se guardó",
   "Could not load": "No se pudo cargar",

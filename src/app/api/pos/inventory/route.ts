@@ -8,6 +8,8 @@ import {
   listNegativeStock,
   listProducts,
   withStock,
+  getUsedPool,
+  USED_POOL_NAME,
 } from "@/lib/products";
 import { lotIntegrityCheck } from "@/lib/inventory";
 import { pricingFlags } from "@/lib/pricing-flags";
@@ -100,6 +102,30 @@ export async function GET(req: NextRequest) {
       default_cost_cents: showCosts ? b.default_cost_cents : null,
       cost_code: null,
     })),
+    /*
+      The unsorted pile, on its own.
+
+      It is a tire with no size, so it is in none of the rim sections above by
+      construction — `inventoryBySize` drops it by hand rather than printing it
+      under a heading of "(no size)" among the semi tires. It rides here for the
+      same reason batteries do: one request, or the sheet renders half-loaded.
+
+      ALWAYS SENT, INCLUDING AT ZERO, and including before the shop has ever
+      opened one — `productId` is null in that case and the count is zero. This
+      is the one row on the page that earns a standing line at zero: an empty
+      pile is a fact worth stating ("everything we own is listed by size"), and
+      more to the point the pile is where a load LANDS. A card that only appears
+      once there is something in it is a card nobody can find on the morning
+      the truck arrives.
+    */
+    usedPool: (() => {
+      const pool = getUsedPool();
+      return {
+        productId: pool?.id ?? null,
+        name: pool?.name ?? USED_POOL_NAME,
+        onHand: pool?.on_hand ?? 0,
+      };
+    })(),
     lastCheck: readInventoryCheck(),
     showCosts,
     // Echoed back so the page knows the box was honoured rather than assuming

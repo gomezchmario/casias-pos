@@ -4,7 +4,7 @@ import { nowLocalIso } from "./time";
 import { currentBusinessDate } from "./business-date";
 import { logActorAudit, diffRows, type Actor } from "./audit";
 import { can } from "./roles";
-import { stockOnHandFor } from "./inventory";
+import { stockOnHandFor, USED_POOL_SKU } from "./inventory";
 import {
   looksSpecialized,
   normalizeTireSize,
@@ -168,6 +168,11 @@ export function inventoryBySize(
   const bySize = new Map<string, SizeGroup>();
 
   for (const t of tires) {
+    // The general pool is a tire with no size, and this function's whole job is
+    // to bucket tires by size — it would land under "(no size)" and print as a
+    // rack row headed by nothing, in the specialty block, next to the semi
+    // tires. It is shown on its own instead; see `getUsedPool`.
+    if (t.sku === USED_POOL_SKU) continue;
     const size = t.tire_size ?? "(no size)";
     let g = bySize.get(size);
     if (!g) {
@@ -412,6 +417,95 @@ export function ensureUsedTire(
       details: { name: `Used ${size}`, condition: "used", tire_size: size },
     });
     return { ok: true as const, product: getProduct(id)! };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// The general pool
+// ---------------------------------------------------------------------------
+
+/**
+ * The one row that holds used tires nobody has looked at yet.
+ *
+ * Used tires arrive here by the truckload, bought by the load and not by the
+ * tire: a hundred and forty of them come off a trailer and no two people would
+ * write down the same hundred and forty sizes. Until then the shop genuinely
+ * owns "a hundred and forty used tires" and nothing more precise, and a system
+ * that will only accept a size forces whoever is unloading to either invent one
+ * or write nothing — and writing nothing is what actually happened.
+ *
+ * So the pool is a real product row with a real count, and the sizes are
+ * subtracted out of it later as somebody works down the pile (`fromPool` on the
+ * receive route). Two counts of the same tires, one coarse and one fine, with
+ * the pool draining as the fine one fills.
+ *
+ * `tire_size` is NULL rather than a sentinel like "GENERAL", and that is what
+ * keeps it honest: every size query in the app — the rack sheet, the demand
+ * report, the quoter — is keyed on the size, so a pool row simply does not
+ * appear in any of them, without one of them having to know the word GENERAL.
+ * The one place it must NOT disappear from is `inventoryBySize`, which buckets
+ * a null size into "(no size)" and would print it as a rack row; that function
+ * drops it by hand and shows it separately.
+ */
+// Declared in inventory.ts and re-exported here, because that file cannot
+// import this one — the note beside it there says why. Callers reach for
+// products.ts, which is where the rest of the pool lives.
+export { USED_POOL_SKU };
+export const USED_POOL_NAME = "Used tires — general (no size yet)";
+
+const usedPoolRow = (): Product | undefined =>
+  getDb()
+    .prepare("SELECT * FROM products WHERE sku = ? AND deleted = 0")
+    .get(USED_POOL_SKU) as Product | undefined;
+
+/** The pool as it stands, or null if the shop has never used one. */
+export function getUsedPool(): ProductWithStock | null {
+  const row = usedPoolRow();
+  return row ? withStock([row])[0] : null;
+}
+
+/**
+ * The pool, created on first use.
+ *
+ * Get-or-create on the sku, which is unique among live rows, so this is safe to
+ * call from anywhere and can never end up with two pools for the counter to
+ * pick the wrong one of.
+ */
+export function ensureUsedPool(user: PosUser): Result<{ product: ProductWithStock }> {
+  const existing = usedPoolRow();
+  if (existing) return { ok: true, product: withStock([existing])[0] };
+
+  if (!can(user.role, "manageProducts"))
+    return { ok: false, error: "Only a manager can open the general pool" };
+
+  const db = getDb();
+  return inTx(() => {
+    const now = nowLocalIso();
+    const categoryId =
+      (db.prepare("SELECT id FROM service_categories WHERE code = 'used_tire'").get() as
+        | { id: number }
+        | undefined)?.id ?? null;
+
+    // Same shape as a sized used row — no price, no cost, no lots — for the
+    // same reasons, which are written out at length on `ensureUsedTire`.
+    const info = db
+      .prepare(
+        `INSERT INTO products
+           (sku, name, category_id, kind, tire_size, condition,
+            price_cents, default_cost_cents, track_inventory, track_lots,
+            specialized, active, created_at, updated_at)
+         VALUES (?, ?, ?, 'tire', NULL, 'used', 0, 0, 1, 0, 0, 1, ?, ?)`,
+      )
+      .run(USED_POOL_SKU, USED_POOL_NAME, categoryId, now, now);
+
+    const id = Number(info.lastInsertRowid);
+    logActorAudit(actorOf(user), {
+      action: "product.create",
+      targetType: "product",
+      targetId: id,
+      details: { name: USED_POOL_NAME, condition: "used", pool: true },
+    });
+    return { ok: true as const, product: withStock([getProduct(id)!])[0] };
   });
 }
 

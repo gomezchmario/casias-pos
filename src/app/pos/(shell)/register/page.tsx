@@ -13,7 +13,7 @@ import {
   type SearchAction,
 } from "@/components/pos/ProductSearch";
 import { TicketDetails } from "@/components/pos/TicketDetails";
-import { normalizeTireSize } from "@/lib/tire-size";
+import { normalizeTireSize, USED_POOL_SKU } from "@/lib/tire-size";
 import type { Sale, SaleItem } from "@/lib/sales";
 import type { PaymentMethod } from "@/lib/payments";
 import type { QuickButton } from "@/lib/quick-buttons";
@@ -31,6 +31,8 @@ type RegisterData = {
   }[];
   businessDate: string;
   tireCategories: { new_tire?: number; used_tire?: number };
+  /** The unsorted used-tire pile's row, or null until one is opened. */
+  usedPoolProductId: number | null;
   settings: {
     tipCommPerCents: number;
     tipCommChargeCents: number;
@@ -813,6 +815,11 @@ export default function RegisterPage() {
   // reads zero because the count is about what was written down, not about what
   // is leaning against the wall — so hiding the row would make the one tire the
   // shop can definitely sell the one tire the register refuses to find.
+  //
+  // The general pool rides in on the same clause — it is a used row — and that
+  // is deliberate rather than incidental. It is the row somebody reaches for
+  // when there is a tire in their hand and no size on the screen, which is
+  // exactly the moment a filter would hide it.
   const stockFilter = useMemo(
     () =>
       onlyInStock
@@ -821,6 +828,19 @@ export default function RegisterPage() {
         : undefined,
     [onlyInStock],
   );
+
+  /**
+   * Is the thing being sold off the unsorted pile?
+   *
+   * Read off the picked product and the ticket both. Picked is the usual case —
+   * the note appears as the tire goes on — but a line already rung and a ticket
+   * reopened later have to say it too, or the one ticket where somebody CAN
+   * still go and put the size in is the one that never asks.
+   */
+  const sellingFromPool =
+    picked?.sku === USED_POOL_SKU ||
+    (data?.usedPoolProductId != null &&
+      items.some((i) => !i.voided && i.product_id === data.usedPoolProductId));
 
   /**
    * Give a used size a row, then put it on the ticket.
@@ -1046,6 +1066,30 @@ export default function RegisterPage() {
             paid — a free-text "NEW 215-55-17" sells nothing off the shelf. */}
         {!purchasing && mode === "tire" && (
         <div className="bg-white rounded-2xl shadow-sm p-4 mb-4">
+          {/*
+            Asking, not blocking.
+
+            A tire off the unsorted pile sells perfectly well without a size —
+            that is the whole point of the pile, and a register that refused
+            would send the counter back to ringing it as free text, which is how
+            used tires stopped being counted at all. But the size is worth
+            something to the shop and it is only knowable while the tire is in
+            somebody's hands, so the ask goes here, once, at the top of the
+            section, and then gets out of the way.
+
+            Full width of the card because it is about everything in it. Amber
+            rather than red: nothing is wrong.
+          */}
+          {sellingFromPool && (
+            <div
+              className="rounded-lg px-3 py-2 mb-2 text-sm"
+              style={{ background: "#fffbeb", border: "1px solid #fcd34d", color: "#78350f" }}
+            >
+              {tr(
+                "This one is off the pile that has no sizes on it. If you can read the size off the tire, ring that size instead — it is the only way the shop ever finds out what it sells.",
+              )}
+            </div>
+          )}
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-3">
               <div className="text-xs uppercase tracking-wider text-brand-300">{tr("From stock")}</div>

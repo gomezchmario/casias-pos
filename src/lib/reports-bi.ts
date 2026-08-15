@@ -3,7 +3,7 @@ import { taxIncludedInCents } from "./money";
 import { getSetting } from "./settings";
 import { COST_JOINS, assumedCostSql } from "./costs";
 import { techPeriod, tipsByTech } from "./leaderboard";
-import { normalizeTireSize } from "./tire-size";
+import { normalizeTireSize, USED_POOL_SKU } from "./tire-size";
 
 /**
  * The management reports: everything the shop's own records can be made to say
@@ -498,6 +498,14 @@ export type DeadStockRow = {
  * A tire that has NEVER sold ranks with the worst of them, not off the list.
  * Never having sold is the strongest form of not selling, and reporting it as a
  * blank would hide the clearest cases.
+ *
+ * THE UNSORTED USED PILE IS THE ONE EXEMPTION. It is a row that holds stock and
+ * makes no sales of its own — the sales happen against the sizes it is listed
+ * into — so it would sit at the top of this list forever on a technicality,
+ * priced at zero because a used tire has no recorded cost. A permanent $0 row
+ * at the head of the list of where the cash is, is how a list stops being read.
+ * The tires in it are not exempt from this question, only deferred: they get
+ * counted here under their real size the moment somebody lists them.
  */
 export function deadStock(asOf: string, minDays = 60): DeadStockRow[] {
   return (
@@ -523,6 +531,7 @@ export function deadStock(asOf: string, minDays = 60): DeadStockRow[] {
                    FROM inventory_lots WHERE deleted = 0 AND qty_received > 0
                GROUP BY product_id) lot ON lot.product_id = p.id
           WHERE p.deleted = 0 AND p.track_inventory = 1 AND COALESCE(oh.qty, 0) > 0
+            AND p.sku <> '${USED_POOL_SKU}'
             AND (last.d IS NULL OR julianday(?) - julianday(last.d) >= ?)`,
       )
       .all(asOf, asOf, asOf, minDays) as (DeadStockRow & { unitCostCents: number })[]
