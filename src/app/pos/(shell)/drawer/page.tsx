@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { usePosAuth } from "@/components/pos/PosShell";
+import { useLang } from "@/components/pos/LangToggle";
 import { ShopLogo } from "@/components/ui/ShopLogo";
 import { RankedBars, Stat } from "@/components/pos/Charts";
 import { formatCents, parseCents } from "@/lib/money";
@@ -56,6 +57,17 @@ const varianceWords = (cents: number) =>
 
 export default function CloseoutV3Page() {
   const { can, user } = usePosAuth();
+  /*
+    THE SCREEN IS TRANSLATED; THE SHEET IS NOT.
+
+    Everything above the print blocks goes through tr(). Everything inside them
+    stays English deliberately — see the note at the top of i18n.ts: the
+    documents this shop files and hands to its accountant are English, and a
+    half-Spanish close-out that changes language depending on who pressed Print
+    is worse than one that is consistently in the language the paperwork is
+    kept in.
+  */
+  const { t: tr } = useLang();
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -167,7 +179,7 @@ export default function CloseoutV3Page() {
 
   // The nav already gates this; the render gate is for the URL typed by hand.
   if (!can("viewCloseout"))
-    return <div className="text-brand-400">Your account doesn&apos;t close the day.</div>;
+    return <div className="text-brand-400">{tr("Your account does not close the day.")}</div>;
   if (error)
     return <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>;
   if (!data) return <div className="text-brand-300">Adding it up…</div>;
@@ -518,11 +530,12 @@ export default function CloseoutV3Page() {
       <div className="cv3-screen">
         <div className="mb-4">
           <h1 className="text-2xl font-semibold text-brand-500">
-            Drawer · {weekday} {data.businessDate}
+            {tr("Drawer")} · {weekday} {data.businessDate}
           </h1>
           <p className="text-brand-400 text-sm">
-            Count it in the morning, log cash in and out as it happens, close it at
-            night. The printout is refused until the register is logged.
+            {tr(
+              "Count it in the morning, log cash in and out as it happens, close it at night. The printout is refused until the register is logged.",
+            )}
           </p>
         </div>
 
@@ -634,7 +647,7 @@ export default function CloseoutV3Page() {
         <div className="cv3-step">
           <div className="cv3-step-head">
             <span className="cv3-step-no">1</span>
-            <span className="cv3-step-title">Count the opening drawer</span>
+            <span className="cv3-step-title">{tr("Count the opening drawer")}</span>
           </div>
           {data.drawer.floatCountedAt ? (
             <div className="cv3-float-done">
@@ -654,7 +667,7 @@ export default function CloseoutV3Page() {
           )}
           <div className="flex items-end gap-2 flex-wrap">
             <label className="text-xs text-brand-400">
-              Counted in the drawer
+              {tr("Counted in the drawer")}
               <input
                 className="input mt-1 w-32 text-right tabular-nums"
                 inputMode="decimal"
@@ -685,19 +698,19 @@ export default function CloseoutV3Page() {
         <div className="cv3-step">
           <div className="cv3-step-head">
             <span className="cv3-step-no">2</span>
-            <span className="cv3-step-title">Count the drawer and the terminal</span>
+            <span className="cv3-step-title">{tr("Count the drawer and the terminal")}</span>
           </div>
           <p className="text-sm text-brand-400 mb-2">
-            Count the cash in hand. Settle and read the batch total off the card terminal.
+            {tr("Count the cash in hand. Settle and read the batch total off the card terminal.")}
             {" "}
             {/* Said here because the step number reads as "do this at the end",
                 and counting only at the end is what makes a difference
                 impossible to place: a drawer that is out at seven has eleven
                 hours of tickets to search, where one logged at lunch narrows it
                 to the afternoon. */}
-            Log a count whenever it suits — at a shift change, after a bank run,
-            or any time the drawer feels wrong — and again at close. The last one
-            of the day is the one this sheet is signed on.
+            {tr(
+              "Log a count whenever it suits — at a shift change, after a bank run, or any time the drawer feels wrong — and again at close. The last one of the day is the one this sheet is signed on.",
+            )}
             {blind && " What the register expects stays covered until you log your count — that is the point of counting."}
           </p>
           <table className="rp-table">
@@ -789,7 +802,7 @@ export default function CloseoutV3Page() {
         <div className="cv3-step">
           <div className="cv3-step-head">
             <span className="cv3-step-no">$</span>
-            <span className="cv3-step-title">Cash in / out of the drawer</span>
+            <span className="cv3-step-title">{tr("Cash in / out of the drawer")}</span>
           </div>
           {/* The list of what has already gone in and out lives BELOW the
               form, folded — see the fold further down. It used to be here as a
@@ -798,14 +811,14 @@ export default function CloseoutV3Page() {
               put them straight back, which is exactly what Mario saw. */}
           <div className="flex items-end gap-2 flex-wrap">
             <label className="text-xs text-brand-400">
-              What happened
+              {tr("What happened")}
               <select
                 className="input mt-1"
                 value={drawerKind}
                 onChange={(e) => setDrawerKind(e.target.value as "withdrawal" | "deposit")}
               >
-                <option value="withdrawal">Cash out of the drawer</option>
-                <option value="deposit">Cash into the drawer</option>
+                <option value="withdrawal">{tr("Cash out of the drawer")}</option>
+                <option value="deposit">{tr("Cash into the drawer")}</option>
               </select>
             </label>
             {drawerKind === "deposit" && floatWarningLive && (
@@ -813,8 +826,9 @@ export default function CloseoutV3Page() {
                 className="text-xs text-amber-900 bg-amber-50 border border-amber-300 rounded-lg px-2 py-1"
                 style={{ maxWidth: 240 }}
               >
-                The opening float is counted on its own when the shift opens — don&apos;t
-                record it here too.
+                {tr(
+                  "The opening float is counted on its own when the shift opens — do not record it here too.",
+                )}
               </div>
             )}
             <label className="text-xs text-brand-400">
@@ -847,7 +861,7 @@ export default function CloseoutV3Page() {
                   onChange={(e) => setDrawerHidden(e.target.checked)}
                 />
                 <span className={drawerHidden ? "text-amber-800 font-semibold" : "text-brand-400"}>
-                  Keep off the sheet
+                  {tr("Keep off the sheet")}
                 </span>
               </label>
             )}
@@ -983,8 +997,9 @@ export default function CloseoutV3Page() {
               </table>
               {can("editDrawerMovement") && (
                 <p className="cv3-moves-foot">
-                  Rename fixes the words. Delete is for a row where no cash moved — if
-                  it did, undo it instead so the day keeps both halves.
+                  {tr(
+                    "Rename fixes the words. Delete is for a row where no cash moved — if it did, undo it instead so the day keeps both halves.",
+                  )}
                 </p>
               )}
             </details>
@@ -1007,11 +1022,12 @@ export default function CloseoutV3Page() {
           <div className="cv3-step">
             <div className="cv3-step-head">
               <span className="cv3-step-no">⏱</span>
-              <span className="cv3-step-title">Still on the clock</span>
+              <span className="cv3-step-title">{tr("Still on the clock")}</span>
             </div>
             <p className="text-sm text-brand-400 mb-2">
-              Clock them out at the time they actually left. Anyone left on will be
-              auto-closed at 9pm tonight.
+              {tr(
+                "Clock them out at the time they actually left. Anyone left on will be auto-closed at 9pm tonight.",
+              )}
             </p>
             <table className="rp-table">
               <tbody>
@@ -1056,10 +1072,10 @@ export default function CloseoutV3Page() {
         <div className={`cv3-step ${registerLogged ? "" : "cv3-step-waiting"}`}>
           <div className="cv3-step-head">
             <span className="cv3-step-no">3</span>
-            <span className="cv3-step-title">Read the verdict</span>
+            <span className="cv3-step-title">{tr("Read the verdict")}</span>
           </div>
           {!registerLogged ? (
-            <p className="text-sm text-brand-300">Appears once the register is logged.</p>
+            <p className="text-sm text-brand-300">{tr("Appears once the register is logged.")}</p>
           ) : (
             <>
               <div
@@ -1080,9 +1096,9 @@ export default function CloseoutV3Page() {
                       : `OUT BY ${formatCents(outBy)}`}
                 {onlyOver && (
                   <div className="cv3-verdict-why">
-                    More in the drawer than the tickets account for — usually a sale
-                    rung short or not rung at all. Worth finding, but nothing is
-                    missing.
+                    {tr(
+                      "More in the drawer than the tickets account for — usually a sale rung short or not rung at all. Worth finding, but nothing is missing.",
+                    )}
                   </div>
                 )}
               </div>
@@ -1119,11 +1135,12 @@ export default function CloseoutV3Page() {
         <div className={`cv3-step ${mayPrint ? "" : "cv3-step-waiting"}`}>
           <div className="cv3-step-head">
             <span className="cv3-step-no">4</span>
-            <span className="cv3-step-title">Print and sign</span>
+            <span className="cv3-step-title">{tr("Print and sign")}</span>
           </div>
           <p className="text-sm text-brand-400 mb-2">
-            The close-out is one page: the verdict, the reconciliation and the
-            signatures. Settle the terminal batch before signing.
+            {tr(
+              "The close-out is one page: the verdict, the reconciliation and the signatures. Settle the terminal batch before signing.",
+            )}
           </p>
           <div className="flex items-center gap-2 flex-wrap">
             <button
@@ -1139,7 +1156,7 @@ export default function CloseoutV3Page() {
               }
               onClick={() => setPrintMode("page1")}
             >
-              Print the close-out
+              {tr("Print the close-out")}
             </button>
             {/* The previous close-out's sheet, printed FROM the previous
                 close-out. Deliberately not a copy of that layout living here:
@@ -1163,7 +1180,7 @@ export default function CloseoutV3Page() {
                 window.open("/pos/eod?print=1", "_blank", "noopener,width=1100,height=800")
               }
             >
-              Print full report
+              {tr("Print full report")}
             </button>
           </div>
         </div>

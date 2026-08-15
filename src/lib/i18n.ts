@@ -799,6 +799,434 @@ const ES: Record<string, string> = {
     "Ver también las búsquedas a medio escribir y otros casos raros",
   "Every search found a size we had.": "Todas las búsquedas encontraron una medida que teníamos.",
 
+  /*
+    ── The Drawer ─────────────────────────────────────────────────────────
+
+    The screen only. The close-out sheet and the cashier sheet that print off
+    this page stay in English on purpose: they are filed, signed and handed to
+    the accountant, and a document that changes language depending on who
+    happened to press Print is worse for that job than one kept consistently in
+    the language the shop's paperwork is kept in.
+
+    "Drawer" is the cash drawer itself — "Caja", not "Cajón", because on the
+    floor the drawer, the register and the day's cash are one idea and "la
+    caja" is what everybody already calls it.
+  */
+  Drawer: "Caja",
+  "Count it in the morning, log cash in and out as it happens, close it at night. The printout is refused until the register is logged.":
+    "Cuéntela en la mañana, apunte el dinero que entra y sale conforme pasa, y ciérrela en la noche. No se puede imprimir hasta que se apunte el conteo de la caja.",
+  "Count the opening drawer": "Cuente la caja al abrir",
+  "Counted in the drawer": "Contado en la caja",
+  "Count the drawer and the terminal": "Cuente la caja y la terminal",
+  "Count the cash in hand. Settle and read the batch total off the card terminal.":
+    "Cuente el efectivo que hay. Cierre el lote en la terminal de tarjetas y lea el total.",
+  "Log a count whenever it suits — at a shift change, after a bank run, or any time the drawer feels wrong — and again at close. The last one of the day is the one this sheet is signed on.":
+    "Apunte un conteo cuando convenga — al cambiar de turno, después de ir al banco, o cuando la caja se sienta rara — y otra vez al cerrar. El último del día es sobre el que se firma esta hoja.",
+  "Cash in / out of the drawer": "Dinero que entra o sale de la caja",
+  "What happened": "Qué pasó",
+  "The opening float is counted on its own when the shift opens — do not record it here too.":
+    "El fondo de apertura se cuenta aparte cuando abre el turno — no lo apunte aquí también.",
+  "Keep off the sheet": "No sale en la hoja",
+  "Rename fixes the words. Delete is for a row where no cash moved — if it did, undo it instead so the day keeps both halves.":
+    "Cambiar nombre corrige las palabras. Borrar es para una línea donde no se movió dinero — si sí se movió, mejor deshágala para que el día conserve las dos mitades.",
+  "Still on the clock": "Todavía con el reloj corriendo",
+  "Clock them out at the time they actually left. Anyone left on will be auto-closed at 9pm tonight.":
+    "Márquele la salida a la hora en que de verdad se fue. A quien quede pendiente se le cierra solo a las 9 de la noche.",
+  "Read the verdict": "Lea el resultado",
+  "Appears once the register is logged.": "Aparece en cuanto se apunte el conteo de la caja.",
+  "More in the drawer than the tickets account for — usually a sale rung short or not rung at all. Worth finding, but nothing is missing.":
+    "Hay más en la caja de lo que explican los tickets — casi siempre una venta cobrada de menos o que no se registró. Vale la pena encontrarla, pero no falta nada.",
+  "Print and sign": "Imprima y firme",
+  "The close-out is one page: the verdict, the reconciliation and the signatures. Settle the terminal batch before signing.":
+    "El corte es una sola hoja: el resultado, el cuadre y las firmas. Cierre el lote de la terminal antes de firmar.",
+  "Print full report": "Imprimir el reporte completo",
+  "Your account does not close the day.": "Su cuenta no cierra el día.",
+
+/*
+    ── The backlog ────────────────────────────────────────────────────────
+
+    Everything that was already wrapped in tr() across the register and the
+    reports but had no Spanish, done in one pass so the language toggle stops
+    dropping half a screen back into English mid-sentence — which is worse than
+    a screen that is honestly all English, because it reads as a bug.
+
+    Two rules held throughout. Shop words over dictionary words: "la caja" for
+    the drawer and the register both, "llantas", "ponchada", "el corte" for the
+    close-out, because that is what is said at this counter. And the short
+    fragments below are units and captions sitting under a number — they are
+    translated as the label they are, not as sentences.
+  */
+  "Daily Report": "Reporte del día",
+  "These figures are experimental and for the development team.":
+    "Estas cifras son experimentales y para el equipo de desarrollo.",
+  "Reports are still being built.": "Los reportes todavía se están construyendo.",
+  "The judgements first — everything below them is the evidence.":
+    "Primero las conclusiones — todo lo de abajo es la evidencia.",
+  "Nothing stands out. The rest of this page is the evidence for that sentence.":
+    "Nada llama la atención. El resto de esta página es la evidencia de esa frase.",
+  "Sections": "Secciones",
+  "The whole day, read rather than worked. Counting and signing are at":
+    "El día completo, para leerse y no para trabajarse. El conteo y las firmas están en",
+
+  // ── Alarms ─────────────────────────────────────────────────────────────
+  "Alarm": "Alerta",
+  "alarm": "alerta",
+  "Alarms": "Alertas",
+  "alarms": "alertas",
+  "Alarm log": "Registro de alertas",
+  "alarms in this range": "alertas en este rango",
+  "Everything the Daily Report has flagged, day by day. Dismissing does not switch an alarm off — it writes your name, the time and your note against it, and the alarm keeps firing while the figures underneath it say it should.":
+    "Todo lo que el Reporte del día ha marcado, día por día. Descartar no apaga una alerta — escribe su nombre, la hora y su nota junto a ella, y la alerta sigue sonando mientras las cifras de abajo digan que debe sonar.",
+  "Nothing fired in this range. Every day in it closed clean.":
+    "No sonó nada en este rango. Todos esos días cerraron limpios.",
+  "Dismiss": "Descartar",
+  "Dismiss with a note": "Descartar con una nota",
+  "Dismissed": "Descartada",
+  "Dismissed by": "Descartada por",
+  "Reviewed": "Revisada",
+  "alert dealt with": "alerta atendida",
+  "alerts dealt with": "alertas atendidas",
+  "serious": "grave",
+  "no note": "sin nota",
+  "Your account can't see the alarm log.": "Su cuenta no puede ver el registro de alertas.",
+
+  // ── The register, the drawer and the day ───────────────────────────────
+  "At the register": "En la caja",
+  "The drawer": "La caja",
+  "Register last logged": "Último conteo de la caja",
+  "Opening float": "Fondo de apertura",
+  "Cash from customers": "Efectivo de clientes",
+  "Should be in the drawer": "Debe haber en la caja",
+  "What should physically be in it: the float, plus cash from customers, plus what moved in or out without being a sale.":
+    "Lo que físicamente debe haber: el fondo, más el efectivo de clientes, más lo que entró o salió sin ser una venta.",
+  "as counted at": "contado a las",
+  "matches the tickets": "cuadra con los tickets",
+  "DOES NOT match the tickets": "NO cuadra con los tickets",
+  "did not balance": "no cuadró",
+  "balanced": "cuadró",
+  "matches, counting the ordered tires": "cuadra, contando las llantas pedidas",
+  "Of the difference:": "De la diferencia:",
+  "Cash in and out": "Entradas y salidas de efectivo",
+  "In / out": "Entra / sale",
+  "Cash is covered until the drawer has been counted on the close-out.":
+    "El efectivo queda tapado hasta que se cuente la caja en el corte.",
+  "Shown once the drawer has been counted": "Se muestra en cuanto se cuente la caja",
+  "Every non-sale movement, with its reason.": "Cada movimiento que no es venta, con su razón.",
+  "no reason given": "sin razón anotada",
+  "Where the money came from": "De dónde vino el dinero",
+  "Off the payment ledger, the same rows the drawer and the terminal answer to. Tax shown inside, because prices include it.":
+    "Del registro de pagos, las mismas líneas de las que responden la caja y la terminal. El impuesto se muestra por dentro, porque los precios lo incluyen.",
+  "Who took the money, per payment.": "Quién recibió el dinero, por cada pago.",
+  "Inside those figures: tax": "Dentro de esas cifras: impuesto",
+  "disposal fees": "cuotas de desecho",
+  "fees": "cuotas",
+  "casings": "casings",
+  "charged to house accounts": "cargado a cuentas de la casa",
+  "of it, to fleets": "de eso, a flotillas",
+  "of the day": "del día",
+  "The arithmetic": "Las cuentas",
+  "The eight days to here": "Los ocho días hasta aquí",
+  "The last bar is this day. Same-day-last-week is the fair fight; yesterday is just the neighbour.":
+    "La última barra es este día. La comparación justa es el mismo día de la semana pasada; ayer nada más es el vecino.",
+  "Against the week": "Contra la semana",
+  "Read against": "Comparado contra",
+  "last week": "la semana pasada",
+  "7-day average": "promedio de 7 días",
+  "on the 7-day average": "sobre el promedio de 7 días",
+  "average": "promedio",
+  "last": "último",
+  "Last": "Último",
+  "against": "contra",
+  "by": "por",
+  "When": "Cuándo",
+  "Days": "Días",
+  "Month": "Mes",
+  "days with something on them": "días con algo en ellos",
+  "Up to": "Hasta",
+  "Themselves": "Ellos mismos",
+  "Control": "Control",
+  "Log": "Registro",
+  "Hide log": "Ocultar el registro",
+  "Hide the list": "Ocultar la lista",
+  "Show removed": "Ver lo quitado",
+  "Working…": "Trabajando…",
+  "Reading the ledger…": "Leyendo el registro…",
+  "Reading the days…": "Leyendo los días…",
+  "Reading the account…": "Leyendo la cuenta…",
+  "That is not an amount": "Eso no es una cantidad",
+  "none": "ninguno",
+  "None today.": "Ninguno hoy.",
+  "Nothing in this window.": "Nada en este periodo.",
+  "Nothing recorded in this window.": "No se registró nada en este periodo.",
+  "Nothing collected in this window.": "No se cobró nada en este periodo.",
+  "Nothing sold in this window.": "No se vendió nada en este periodo.",
+  "No tickets in this window.": "No hay tickets en este periodo.",
+  "No named customers in this window.": "No hay clientes con nombre en este periodo.",
+  "No payments yet.": "Todavía no hay pagos.",
+  "No products sold.": "No se vendieron productos.",
+  "No service lines.": "No hay líneas de servicio.",
+  "Nobody credited yet.": "Todavía no se le ha acreditado a nadie.",
+  ", is bucketed by the shop's own business day, and excludes voided tickets except where they are being counted.":
+    ", se agrupa por el día de trabajo del taller, y no cuenta los tickets cancelados salvo donde se están contando.",
+
+  // ── Tickets, sales and voids ───────────────────────────────────────────
+  "Completed": "Terminados",
+  "Still open": "Todavía abiertos",
+  "Completed but not fully paid": "Terminados pero no pagados por completo",
+  "Completed is the day's work; open is not counted anywhere yet; voided nets to zero by construction and is listed by name below.":
+    "Terminados es el trabajo del día; los abiertos todavía no se cuentan en ningún lado; los cancelados quedan en cero por construcción y se listan por nombre abajo.",
+  "Voids, by name": "Cancelaciones, por nombre",
+  "Nothing was voided.": "No se canceló nada.",
+  "Nothing was discounted.": "No se dio ningún descuento.",
+  "No voids, no refunds, no discounts — nothing left the day after being rung.":
+    "Sin cancelaciones, sin devoluciones, sin descuentos — nada se salió del día después de haberse cobrado.",
+  "after discount of": "después de un descuento de",
+  "It now comes to": "Ahora suma",
+  "becomes": "queda en",
+  "was reopened.": "se volvió a abrir.",
+  "Add what is missing, or close it again as it stands.":
+    "Agregue lo que falta, o ciérrelo otra vez tal como está.",
+  "closing it leaves": "cerrarlo deja",
+  "is already collected on it.": "ya está cobrado en él.",
+  "overpaid.": "pagado de más.",
+  "ticket": "ticket",
+  "lines": "líneas",
+  "What sold": "Qué se vendió",
+  "Best sellers today": "Lo más vendido hoy",
+  "Best services today": "Mejores servicios hoy",
+  "Service lines": "Líneas de servicio",
+  "Materials only": "Solo materiales",
+  "— what the job consumes. Not wages: those are a cost of opening the doors and do not change with one more repair.":
+    "— lo que consume el trabajo. No los sueldos: esos son un costo de abrir las puertas y no cambian por una reparación más.",
+  "Times sold": "Veces vendido",
+  "Tire attachment": "Llantas por ticket",
+  "Tires against service is this shop's parts-against-labor. The attachment rate is the day's best selling question: of everyone who came in, how many left on new tires?":
+    "Llantas contra servicio es el refacciones-contra-mano-de-obra de este taller. El porcentaje es la mejor pregunta de venta del día: de todos los que entraron, ¿cuántos se fueron con llantas nuevas?",
+  "of tickets carried a new tire": "de los tickets llevó una llanta nueva",
+  "no name": "sin nombre",
+  "no name taken": "no se tomó nombre",
+  "Bounded by how many tickets took a name at all — the figures below describe only those.":
+    "Limitado por cuántos tickets tomaron un nombre siquiera — las cifras de abajo describen nada más a esos.",
+  "What keeps coming back": "Lo que sigue regresando",
+  "None of these is wrong by itself. What matters is the shape — one name against most of them, or a month where the count doubles.":
+    "Ninguno de estos está mal por sí solo. Lo que importa es la forma — un mismo nombre en la mayoría, o un mes donde la cuenta se duplica.",
+
+  // ── People and hours ───────────────────────────────────────────────────
+  "Technicians": "Técnicos",
+  "person": "persona",
+  "people": "personas",
+  "Hours on the clock": "Horas en el reloj",
+  "All clocked out.": "Todos con salida marcada.",
+  "Nobody clocked in.": "Nadie marcó entrada.",
+  "still on": "todavía dentro",
+  "clocked out; the rest auto-closed at 9pm and is an estimate":
+    "con salida marcada; al resto se le cerró solo a las 9 de la noche y es un estimado",
+  "No clocked-out hours to divide by": "No hay horas con salida marcada entre las cuales dividir",
+  "Per person, off the same lines the leaderboard reads. Revenue per hour uses only hours somebody actually clocked out of — the share that is still an auto-close guess is stated rather than folded in.":
+    "Por persona, de las mismas líneas que lee la tabla de posiciones. La venta por hora usa nada más las horas de las que alguien de verdad marcó salida — la parte que sigue siendo un cierre automático se dice aparte en vez de mezclarse.",
+
+  // ── Money owed ─────────────────────────────────────────────────────────
+  "Unpaid balances": "Saldos sin pagar",
+  "Owed": "Se debe",
+  "Owed now": "Se debe ahora",
+  "Owed at the start": "Se debía al empezar",
+  "Owed to the shop": "Se le debe al taller",
+  "owed on tickets": "debido en tickets",
+  "owing to account": "debido a la cuenta",
+  "on the account": "en la cuenta",
+  "outstanding": "pendiente",
+  "nothing owed": "no se debe nada",
+  "owes": "debe",
+  "to collect.": "por cobrar.",
+  "Payments received": "Pagos recibidos",
+  "Charged": "Cobrado",
+  "Charges": "Cargos",
+  "charges": "cargos",
+  "charge": "cargo",
+  "Charged, all time": "Cobrado, desde siempre",
+  "Charged to fleets": "Cobrado a flotillas",
+  "Not just today's — everything standing, aged. Money owed for ninety days is a different fact from money owed since Tuesday.":
+    "No nada más lo de hoy — todo lo pendiente, por antigüedad. Dinero debido desde hace noventa días es un hecho distinto a dinero debido desde el martes.",
+  "Two columns because they are chased by different people. A ticket balance is settled at the register; a house account is settled monthly.":
+    "Dos columnas porque las persiguen personas distintas. Un saldo de ticket se salda en la caja; una cuenta de la casa se salda cada mes.",
+  "Sold is what was charged for. Collected is what came in — a deposit today on last week's order is in one and not the other.":
+    "Vendido es lo que se cobró. Cobrado es lo que entró — un anticipo hoy sobre un pedido de la semana pasada está en uno y no en el otro.",
+  "Over the same window as everything else on this page — not the close-out's week.":
+    "Sobre el mismo periodo que todo lo demás en esta página — no la semana del corte.",
+  "Nothing charged in this period.": "No se cobró nada en este periodo.",
+  "Nothing charged for this driver.": "No se le cobró nada a este chofer.",
+  "Statement": "Estado de cuenta",
+  "Statement of account": "Estado de cuenta",
+
+  // ── Companies, drivers and vehicles ────────────────────────────────────
+  "Companies": "Empresas",
+  "companies": "empresas",
+  "company": "empresa",
+  "Company account": "Cuenta de empresa",
+  "Company email": "Correo de la empresa",
+  "account": "cuenta",
+  "This is a company others can be billed to": "Esta es una empresa a la que se le puede cargar",
+  "billed to the company": "cargado a la empresa",
+  "Bill to": "Cargar a",
+  "Billed to": "Cargado a",
+  "Billing details": "Datos de facturación",
+  "Save billing details": "Guardar los datos de facturación",
+  "Who to bill — name": "A quién cobrarle — nombre",
+  // The envelope line, not a word — "Atención:" is what goes on the statement.
+  Attn: "Atención",
+  "Street address": "Dirección",
+  "Their email": "Su correo",
+  "Their phone": "Su teléfono",
+  "Where the statement goes, and who settles it. Printed on the company's statement.":
+    "A dónde va el estado de cuenta, y quién lo paga. Se imprime en el estado de cuenta de la empresa.",
+  "Nobody is billed to this account yet.": "Todavía no se le carga a nadie en esta cuenta.",
+  "not approved": "no aprobada",
+  "not approved for credit": "no aprobada para crédito",
+  "Driver": "Chofer",
+  "driver": "chofer",
+  "drivers": "choferes",
+  "Drivers on this account": "Choferes en esta cuenta",
+  "Vehicles": "Vehículos",
+  "vehicle": "vehículo",
+  "vehicles": "vehículos",
+  "Add a car": "Agregar un carro",
+
+  // ── The racks ──────────────────────────────────────────────────────────
+  "Tires on tickets": "Llantas en tickets",
+  "Tires off the racks": "Llantas salidas del rack",
+  "Did the racks move in step": "¿Se movió el rack igual?",
+  "A sold tire leaves a line on the ticket and a movement on the stock ledger, written by different code. When the two counts agree, no tire left the building unrecorded.":
+    "Una llanta vendida deja una línea en el ticket y un movimiento en el inventario, escritos por código distinto. Cuando las dos cuentas coinciden, ninguna llanta salió del taller sin quedar registrada.",
+  "oversold": "vendidas de más",
+  "Oversells to review": "Ventas de más por revisar",
+  "sold today as orders, not yet fitted": "vendidas hoy como pedido, todavía sin montar",
+  "fitted today for tickets rung on earlier days":
+    "montadas hoy para tickets cobrados en días anteriores",
+  "booked today against other days' tickets": "cargadas hoy contra tickets de otros días",
+  "That is the special-order cycle working, not stock walking.":
+    "Eso es el ciclo de pedidos especiales funcionando, no inventario caminándose.",
+  "manual stock adjustments today — each one is on the movements ledger with a name on it.":
+    "ajustes manuales de inventario hoy — cada uno está en el registro de movimientos con un nombre.",
+  "Moved in / out": "Entradas / salidas",
+  "Last in": "Última entrada",
+  "New today": "Nuevas hoy",
+  "Received today": "Recibidas hoy",
+  "Last tires received": "Últimas llantas recibidas",
+  "Nothing has been received yet.": "Todavía no se ha recibido nada.",
+  "received on this invoice": "recibidas en esta factura",
+  "More from this invoice": "Más de esta factura",
+  "Receive": "Recibir",
+  "Receive & next": "Recibir y siguiente",
+  "deliveries": "entregas",
+  "Nothing on the racks.": "Nada en el rack.",
+  "Nothing has moved. This tire has never been received or sold.":
+    "No se ha movido nada. Esta llanta nunca se ha recibido ni vendido.",
+  "Everything that happened to this tire": "Todo lo que le pasó a esta llanta",
+  "Taken": "Quitadas",
+  "Taken off the stock list": "Quitada de la lista de inventario",
+  "removed": "quitada",
+  "Put back": "Regresar",
+  "Put it back": "Regresarla",
+  "put it back to": "regresarla a",
+  "moved to": "movida a",
+  "tires": "llantas",
+  "Stock is valued at what it actually cost — the weighted average of everything received — not at what the next one is expected to cost.":
+    "El inventario se valúa a lo que de verdad costó — el promedio ponderado de todo lo recibido — no a lo que se espera que cueste la próxima.",
+  "Stock and what is owed": "Inventario y lo que se debe",
+
+  // ── What to order, and what is standing still ──────────────────────────
+  "To-do": "Pendientes",
+  "Order": "Pedido",
+  "What to order": "Qué pedir",
+  "what to order": "qué pedir",
+  "money standing still, and what to keep stocked": "dinero parado, y qué mantener en existencia",
+  "Sizes at their reorder point, and sizes selling faster than they are stocked. Take it to the phone.":
+    "Medidas en su punto de pedido, y medidas que se venden más rápido de lo que se surten. Llévelo al teléfono.",
+  "At or under the reorder point": "En o abajo del punto de pedido",
+  "At or under the reorder point, with how fast it has been going.":
+    "En o abajo del punto de pedido, con qué tan rápido ha estado saliendo.",
+  "A level somebody set on the tire, now breached. The short, certain list.":
+    "Un nivel que alguien le puso a la llanta, ya rebasado. La lista corta y segura.",
+  "Nothing is at its reorder point.": "Nada está en su punto de pedido.",
+  "Nothing has breached its level.": "Nada ha rebasado su nivel.",
+  "Level": "Nivel",
+  "Set the reorder point to": "Poner el punto de pedido en",
+  "Use the suggested level": "Usar el nivel sugerido",
+  "Suggested": "Sugerido",
+  "A reorder level is a whole number of tires, or blank for none.":
+    "Un punto de pedido es un número entero de llantas, o vacío para ninguno.",
+  "Could not set that reorder point": "No se pudo poner ese punto de pedido",
+  "Stop watching this size": "Dejar de vigilar esta medida",
+  "Worked out from the rate of sale, whether or not anybody set a level. Type a Keep level to have the alarm watch this size — the suggestion beside the box fills it in, and ✕ or an empty box stops watching.":
+    "Calculado según qué tan rápido se vende, haya o no un nivel puesto. Escriba un nivel para que la alerta vigile esta medida — la sugerencia junto a la casilla lo llena, y la ✕ o dejarla vacía deja de vigilarla.",
+  "Selling faster than it is stocked": "Se vende más rápido de lo que se surte",
+  "to bring the racks back to where they should be.": "para regresar el rack a donde debería estar.",
+  "Missed": "Perdidas",
+  "Two different qualities of evidence, kept apart. A recorded lost sale is somebody watching a customer leave; an empty search is a keystroke.":
+    "Dos calidades distintas de evidencia, separadas a propósito. Una venta perdida anotada es alguien viendo irse a un cliente; una búsqueda vacía es una tecla.",
+  "No answer": "Sin respuesta",
+  "Unanswered": "Sin respuesta",
+  "unanswered": "sin respuesta",
+  "nobody has answered": "nadie ha contestado",
+  "They answered": "Contestaron",
+  "Never sold": "Nunca vendida",
+  "never sold": "nunca vendida",
+  "Sizes on the racks that have never sold a single unit — the hardest cases first.":
+    "Medidas en el rack que nunca han vendido ni una sola pieza — los casos más difíciles primero.",
+  "that have never sold a unit.": "que nunca han vendido una pieza.",
+  "Sold, 90 days": "Vendidas, 90 días",
+  "Every size on the racks with no sale in the window — oldest sleeper first.":
+    "Cada medida en el rack sin una venta en el periodo — la más dormida primero.",
+  "Everything on the racks has moved recently.": "Todo en el rack se ha movido hace poco.",
+  "no sale in": "sin venta en",
+  "On the racks, not sold in 45 days. Ranked by what it cost rather than by how long — the question is where the cash is.":
+    "En el rack, sin venderse en 45 días. Ordenado por lo que costó y no por cuánto tiempo lleva — la pregunta es dónde está el dinero.",
+  "45 days": "45 días",
+  "90 days": "90 días",
+  "120 days": "120 días",
+
+  // ── What things cost ───────────────────────────────────────────────────
+  "What things cost": "Cuánto cuestan las cosas",
+  "At cost": "A costo",
+  "Costs us, each": "Nos cuesta, cada una",
+  "Sells for": "Se vende en",
+  "Fill these in": "Llene estos",
+  "Tires with no cost": "Llantas sin costo",
+  "These have sold and the shop has never recorded what it paid for them. A tire's cost is set on the tire itself, in Inventory.":
+    "Estas se vendieron y el taller nunca anotó lo que pagó por ellas. El costo de una llanta se pone en la llanta misma, en Inventario.",
+  "Give all of them a cost at 20% markup": "Darles a todas un costo con 20% de margen",
+  "Margin is worked out only on the lines that carry a cost, and the tax is taken out of the price first — the shop never kept that part.":
+    "El margen se calcula nada más sobre las líneas que traen costo, y primero se le quita el impuesto al precio — esa parte el taller nunca se la quedó.",
+  "Gross Margin on the Reports tab is worked out only over the part that can. Below about a fifth it shows no figure at all, because a margin over a fifth of the shop is not a margin for the shop. Filling these in raises it.":
+    "El Margen Bruto en la pestaña de Reportes se calcula nada más sobre la parte que se puede. Abajo de más o menos una quinta parte no muestra ninguna cifra, porque un margen sobre una quinta parte del taller no es un margen del taller. Llenar estos lo sube.",
+  "assumed: tires with no cost recorded, counted at the shop's posted markup and no better":
+    "supuesto: llantas sin costo anotado, contadas al margen que el taller tiene puesto y nada mejor",
+  "of the last year's takings has a cost the shop recorded":
+    "de lo vendido el año pasado tiene un costo que el taller anotó",
+
+  // ── New Sales ──────────────────────────────────────────────────────────
+  "Rings by itself": "Se agrega solo",
+  "Waits for Add": "Espera a Agregar",
+  "What was it? (optional)": "¿Qué fue? (opcional)",
+  "Your account can't ring sales.": "Su cuenta no puede cobrar ventas.",
+  "The shop is buying, so the selling controls are put away. Type what you are buying and what you are paying for it on the right, add as many lines as you need, then pay out.":
+    "El taller está comprando, así que los controles de venta se guardan. Escriba qué está comprando y cuánto está pagando por ello a la derecha, agregue las líneas que necesite, y luego pague.",
+  "None of it counts as a sale: no commission, no technician, and nobody's week moves. It comes out of the drawer and shows on the close-out.":
+    "Nada de esto cuenta como venta: sin comisión, sin técnico, y la semana de nadie se mueve. Sale de la caja y aparece en el corte.",
+  "Cash leaves the drawer. This is not a sale: it earns no commission and counts against nobody's week.":
+    "El efectivo sale de la caja. Esto no es una venta: no gana comisión y no cuenta contra la semana de nadie.",
+  "Not on the rack? Order it in": "¿No está en el rack? Pídala",
+  "Is the client leaving their vehicle?": "¿El cliente va a dejar su vehículo?",
+  "Whatever you write shows on the ticket and the receipt. It still counts as Other on the leaderboard — a name here is a note, not somebody on the payroll.":
+    "Lo que escriba aparece en el ticket y en el recibo. De todos modos cuenta como Otro en la tabla de posiciones — un nombre aquí es una nota, no alguien en la nómina.",
+  "We have it": "Ya la tenemos",
+  "Take the money as normal. It stays on the Outstanding panel even once it is paid.":
+    "Cobre normal. Se queda en el panel de Pendientes aunque ya esté pagado.",
+  "It stays on the Outstanding panel until somebody says it is done, paid or not.":
+    "Se queda en el panel de Pendientes hasta que alguien diga que está listo, pagado o no.",
+  "earlier entry": "captura anterior",
+  "earlier entries": "capturas anteriores",
+
   // ── Things that go wrong ───────────────────────────────────────────────
   "That did not save": "Eso no se guardó",
   "Could not load": "No se pudo cargar",

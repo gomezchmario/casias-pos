@@ -899,7 +899,7 @@ export default function RegisterPage() {
     return <div className="text-brand-300">{tr("Loading register…")}</div>;
   }
   if (!can("browseRegister")) {
-    return <div className="text-brand-400">Your account can&apos;t ring sales.</div>;
+    return <div className="text-brand-400">{tr("Your account can't ring sales.")}</div>;
   }
 
   const liveItems = items.filter((i) => !i.voided);
@@ -984,14 +984,14 @@ export default function RegisterPage() {
           <div className="bg-white rounded-2xl shadow-sm p-4 text-sm text-brand-400">
             <div className="text-xs uppercase tracking-wider text-brand-300 mb-2">{tr("Cashback")}</div>
             <p>
-              The shop is buying, so the selling controls are put away. Type what
-              you are buying and what you are paying for it on the right, add as
-              many lines as you need, then pay out.
+              {tr(
+                "The shop is buying, so the selling controls are put away. Type what you are buying and what you are paying for it on the right, add as many lines as you need, then pay out.",
+              )}
             </p>
             <p className="mt-2">
-              None of it counts as a sale: no commission, no technician, and
-              nobody&apos;s week moves. It comes out of the drawer and shows on the
-              close-out.
+              {tr(
+                "None of it counts as a sale: no commission, no technician, and nobody's week moves. It comes out of the drawer and shows on the close-out.",
+              )}
             </p>
           </div>
         )}
@@ -1227,7 +1227,7 @@ export default function RegisterPage() {
                 onClick={() => void markOrder(true)}
                 disabled={busy}
               >
-                Not on the rack? Order it in
+                {tr("Not on the rack? Order it in")}
               </button>
             )}
         </div>
@@ -1325,7 +1325,7 @@ export default function RegisterPage() {
                 onClick={() => void markVehicle(true)}
                 disabled={busy}
               >
-                Is the client leaving their vehicle?
+                {tr("Is the client leaving their vehicle?")}
               </button>
             )}
             {/* Pushed right by its own margin rather than by `justify-between`,
@@ -1554,9 +1554,9 @@ export default function RegisterPage() {
                   autoFocus
                 />
                 <p className="text-xs text-brand-300 mt-2">
-                  Whatever you write shows on the ticket and the receipt. It still
-                  counts as Other on the leaderboard — a name here is a note, not
-                  somebody on the payroll.
+                  {tr(
+                    "Whatever you write shows on the ticket and the receipt. It still counts as Other on the leaderboard — a name here is a note, not somebody on the payroll.",
+                  )}
                 </p>
               </div>
             )}
@@ -1779,8 +1779,9 @@ export default function RegisterPage() {
 
           {(buying || sale?.kind === "purchase") && (
             <div className="mb-3 rounded-xl bg-red-50 px-3 py-2 text-xs text-red-800">
-              Cash leaves the drawer. This is not a sale: it earns no commission and
-              counts against nobody&apos;s week.
+              {tr(
+                "Cash leaves the drawer. This is not a sale: it earns no commission and counts against nobody's week.",
+              )}
             </div>
           )}
 
@@ -1920,12 +1921,13 @@ export default function RegisterPage() {
                       onClick={() => void markOrder(false)}
                       disabled={busy}
                     >
-                      We have it
+                      {tr("We have it")}
                     </button>
                   </div>
                   <div className="mt-0.5 text-xs text-amber-800">
-                    Take the money as normal. It stays on the Outstanding panel even
-                    once it is paid.
+                    {tr(
+                      "Take the money as normal. It stays on the Outstanding panel even once it is paid.",
+                    )}
                   </div>
                 </div>
               )}
@@ -1944,8 +1946,9 @@ export default function RegisterPage() {
                     >{tr("They took it")}</button>
                   </div>
                   <div className="mt-0.5 text-xs text-amber-800">
-                    It stays on the Outstanding panel until somebody says it is done,
-                    paid or not.
+                    {tr(
+                      "It stays on the Outstanding panel until somebody says it is done, paid or not.",
+                    )}
                   </div>
                 </div>
               )}
