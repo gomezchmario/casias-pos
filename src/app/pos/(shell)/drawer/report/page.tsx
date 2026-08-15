@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { PrintButton } from "@/components/pos/PrintButton";
 import { usePosAuth } from "@/components/pos/PosShell";
 import { formatCents } from "@/lib/money";
 import { workStatusTitle } from "@/lib/work-status";
@@ -266,7 +266,6 @@ function Nothing({ children }: { children: React.ReactNode }) {
 
 export default function DayReportPage() {
   const { user, can } = usePosAuth();
-  const router = useRouter();
   const [data, setData] = useState<EodData | null>(null);
   /*
     THREE ENDPOINTS, BECAUSE THE DAY IS ANSWERED IN THREE PLACES.
@@ -298,7 +297,6 @@ export default function DayReportPage() {
   const [lastWeek, setLastWeek] = useState<EodData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [printedAt, setPrintedAt] = useState("");
-  const printedOnce = useRef(false);
 
   const load = useCallback(async () => {
     const date = new URLSearchParams(window.location.search).get("date");
@@ -372,31 +370,6 @@ export default function DayReportPage() {
     setPrintedAt(new Date().toLocaleString());
     void load();
   }, [load]);
-
-  /*
-    Reached from the drawer purely to produce paper.
-
-    Fires once the figures have landed — a print fired on mount puts an empty
-    sheet in the tray — and goes back to the drawer when the dialog closes,
-    because that is where whoever pressed the button was standing. It NAVIGATES
-    rather than calling window.close(), which only ever worked on a window this
-    page had opened itself and does nothing at all in a tab somebody browsed to.
-
-    Without `?print=1` it is an ordinary page somebody can read on screen, which
-    is what makes it checkable without wasting paper.
-  */
-  useEffect(() => {
-    if (printedOnce.current || !data) return;
-    if (new URLSearchParams(window.location.search).get("print") !== "1") return;
-    printedOnce.current = true;
-    const done = () => router.push("/pos/drawer");
-    window.addEventListener("afterprint", done);
-    const t = setTimeout(() => window.print(), 400);
-    return () => {
-      clearTimeout(t);
-      window.removeEventListener("afterprint", done);
-    };
-  }, [data, router]);
 
   /** Every derived figure the document quotes, worked out once. */
   const facts = useMemo(() => {
@@ -598,22 +571,19 @@ export default function DayReportPage() {
         <div>
           <strong>Daily Business Report</strong> · {longDate(data.businessDate)}
         </div>
-        {/* A way back, because this is a page in the same tab now rather than a
-            window that could be shut. Somebody who opened it to read rather
-            than to print needs to leave it without using the browser's own
-            back button, which on a kiosk-mode screen is not always there. */}
-        <span className="dr-bar-actions">
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => router.push("/pos/drawer")}
-          >
-            Back to the Drawer
-          </button>
-          <button type="button" className="btn btn-primary" onClick={() => window.print()}>
-            Print
-          </button>
-        </span>
+        {/*
+          Print and Back, the same pair every other printable in the app puts
+          there, and the same component — so the way out of a document is the
+          same wherever somebody meets one.
+
+          IT NO LONGER PRINTS ITSELF. Firing the dialog on arrival meant the
+          only way to look at the report was to dismiss a print dialog first,
+          and anybody who wanted to read a figure rather than file the sheet had
+          to cancel out of the printer to do it. Landing on the page and waiting
+          to be told also means the paper is only spent when somebody meant to
+          spend it.
+        */}
+        <PrintButton />
       </div>
 
       {/* ══════════ MASTHEAD ══════════ */}
@@ -1569,8 +1539,26 @@ export default function DayReportPage() {
           );
         })()}
 
+      </Section>
+
+      {/* ══════════ 11b. THE WEEK'S SHAPE ══════════ */}
+      {/*
+        Its own numbered section rather than a sub-heading under the hour chart.
+
+        It was tucked under "How the day ran" on the reasoning that they answer
+        the same question — and they do — but a reader looking for the heatmap
+        went to the contents, found no heading with its name on it, and
+        concluded it had been dropped. A section somebody cannot find is a
+        section that is not there. Numbered, named the way it is asked for, and
+        it stays next to the day it gives context to.
+      */}
+      <Section
+        n="12"
+        title="When the shop is busy"
+        lead="The last four weeks as a grid: which hours of which days actually carry the shop. Darker is busier. This is the one page here that settles a rota argument — a shop can feel busy on a Saturday and take most of its money on a Thursday."
+      >
         {/*
-          The whole week behind the two days above.
+          The whole week behind the day above.
 
           A single day, even against its own last week, cannot say whether a
           quiet Tuesday afternoon is a problem or simply what Tuesday afternoons
@@ -1578,9 +1566,15 @@ export default function DayReportPage() {
           rota argument. Today's row is boxed so the day this report is about is
           never something to go hunting for.
         */}
-        {heatmap && heatmap.length > 0 && (
+        {heatmap === null ? (
+          <Nothing>
+            This grid is built from the shop&apos;s trading history, which only the owner&apos;s
+            account can read. Everything else on this page is here.
+          </Nothing>
+        ) : heatmap.length === 0 ? (
+          <Nothing>No tickets in the last four weeks to build a pattern from.</Nothing>
+        ) : (
           <>
-            <h3 className="dr-h3">The usual week — the last four</h3>
             {(() => {
               const hrs2 = heatmap.map((c) => c.hour);
               const lo2 = Math.min(...hrs2);
@@ -1635,7 +1629,7 @@ export default function DayReportPage() {
             })()}
             <p className="dr-foot">
               Every ticket opened in that hour over the last four weeks, all four of each weekday
-              added together. The boxed row is the day this report covers.
+              added together. Darker is busier. The boxed row is the day this report covers.
             </p>
           </>
         )}
@@ -1643,7 +1637,7 @@ export default function DayReportPage() {
 
       {/* ══════════ 11. THINGS THAT NEED AN EYE ══════════ */}
       <Section
-        n="12"
+        n="13"
         title="Prices changed at the counter"
         lead="Tires sold for something other than the price on the rack. Every one of them may have been the right call — this is the record of the calls, not a list of mistakes."
         breakBefore
@@ -1684,7 +1678,7 @@ export default function DayReportPage() {
       </Section>
 
       <Section
-        n="13"
+        n="14"
         title="Tickets changed after they were finished"
         lead="Money moved on a ticket that had already been completed. Legitimate every day — a wrong tender, a refund, a discount agreed after the fact — and worth a glance, because a finished ticket is supposed to stay finished."
       >

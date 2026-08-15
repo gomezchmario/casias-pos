@@ -1173,24 +1173,27 @@ export default function CloseoutV3Page() {
                 two renderings — so this document and the screen it was printed
                 from can never disagree about a figure.
 
-                IN THIS TAB, not a popup. A new window is a thing that has to be
-                allowed by the browser, found on the taskbar, and closed again,
-                and on the shop's one machine it arrived behind the register
-                often enough that people pressed the button twice. The report
-                prints itself and comes straight back here afterwards. */}
+                IN THIS TAB, and it does not print itself. A new window is a
+                thing that has to be allowed by the browser, found on the
+                taskbar and closed again, and on the shop's one machine it
+                arrived behind the register often enough that people pressed the
+                button twice. The report opens like any other page, with Print
+                and Back on it — the same pair the receipts have — so it can be
+                read without dismissing a print dialog first, and paper is only
+                spent when somebody meant to spend it. */}
             <button
               type="button"
               className="btn btn-outline"
               disabled={!mayPrint}
               title={
                 registerLogged
-                  ? "Print the whole day — every figure, with the ledger behind it"
+                  ? "Open the whole day — every figure, with the ledger behind it"
                   : mayPrint
                     ? "The register is not logged — the report will say so"
                     : "Log the register first"
               }
               onClick={() =>
-                router.push(`/pos/drawer/report?date=${data.businessDate}&print=1`)
+                router.push(`/pos/drawer/report?date=${data.businessDate}`)
               }
             >
               {tr("Print full report")}
