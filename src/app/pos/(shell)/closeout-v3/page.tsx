@@ -782,34 +782,11 @@ export default function CloseoutV3Page() {
             <span className="cv3-step-no">$</span>
             <span className="cv3-step-title">Cash in / out of the drawer</span>
           </div>
-          {data.drawer.movements.length > 0 && (
-            <table className="rp-table mb-2">
-              <tbody>
-                {data.drawer.movements.map((m) => (
-                  <tr key={m.id}>
-                    <td className="n">{m.created_at.slice(11, 16)}</td>
-                    <td>{m.reason}</td>
-                    <td className="r n">
-                      {m.amount_cents >= 0 ? "+" : "−"}
-                      {formatCents(Math.abs(m.amount_cents))}
-                    </td>
-                    <td className="r">
-                      {!m.reversed_by_id && m.kind !== "reversal" && (
-                        <button
-                          type="button"
-                          className="text-xs underline text-brand-400"
-                          disabled={busy}
-                          onClick={() => void undoMovement(m.id, m.amount_cents)}
-                        >
-                          undo
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+          {/* The list of what has already gone in and out lives BELOW the
+              form, folded — see the fold further down. It used to be here as a
+              flat table as well, which meant two lists of the same movements on
+              one screen: the fold filtered its undone pairs away and this one
+              put them straight back, which is exactly what Mario saw. */}
           <div className="flex items-end gap-2 flex-wrap">
             <label className="text-xs text-brand-400">
               What happened
@@ -914,7 +891,16 @@ export default function CloseoutV3Page() {
               }
             }
             const shown = data.drawer.movements.filter((m) => !undone.has(m.id));
-            if (!can("drawerCash") || shown.length === 0) return null;
+            /*
+              No capability gate on SEEING the list. The flat table this
+              replaces had none, and a cashier closing the day counts the drawer
+              against a figure these rows move — taking them off that person's
+              screen would be a regression dressed as a permission. Hidden
+              withdrawals never reach this payload for anybody below owner; they
+              are stripped at the route. Acting on a row is still gated: undo at
+              drawerCash, rename and delete at editDrawerMovement.
+            */
+            if (shown.length === 0) return null;
             return (
             <details className="cv3-moves">
               <summary>
@@ -961,10 +947,25 @@ export default function CloseoutV3Page() {
                         {m.amount_cents >= 0 ? "+" : "−"}
                         {formatCents(Math.abs(m.amount_cents))}
                       </td>
-                      {can("editDrawerMovement") && (
-                        <td className="x">
-                          {editingMove !== m.id && (
-                            <>
+                      <td className="x">
+                        {editingMove !== m.id && (
+                          <>
+                            {/* Undo writes the money back as its own row, which
+                                is the right answer when cash really moved. It
+                                stays with whoever may take cash out — the same
+                                people who could reach it before this list was
+                                folded. */}
+                            {can("drawerCash") && m.kind !== "reversal" && !m.reversed_by_id && (
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => void undoMovement(m.id, m.amount_cents)}
+                              >
+                                Undo
+                              </button>
+                            )}
+                            {can("editDrawerMovement") && (
+                              <>
                               <button
                                 type="button"
                                 onClick={() => {
@@ -982,10 +983,11 @@ export default function CloseoutV3Page() {
                               >
                                 Delete
                               </button>
-                            </>
-                          )}
-                        </td>
-                      )}
+                              </>
+                            )}
+                          </>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
