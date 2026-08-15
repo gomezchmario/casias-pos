@@ -204,9 +204,11 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Full measure, not a column. It explains the grid above it, which runs the
+   whole width — an explanation set narrower than the thing it explains reads as
+   a footnote to one side rather than as the key to the page. */
 .sch-legend {
   margin-top: 14px;
-  max-width: 88ch;
 }
 
 .sch-legend p {
@@ -221,4 +223,73 @@
   padding-top: 10px;
   font-size: 13px;
   color: #0a2540;
+}
+
+/* ── The pace, which every "needed" figure on the page divides by ─────── */
+
+/*
+  On the page it governs.
+
+  It was fixed at two an hour with a line telling the reader to change it on the
+  Reports page, where no such control exists — worse than no control, because it
+  says the setting is somebody else's and then sends you somewhere it is not.
+
+  Each option carries the rate AND the minutes, because minutes is the form
+  somebody can check against a watch while standing in the bay.
+*/
+.sch-pace {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.sch-pace-lab {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(10, 37, 64, 0.55);
+}
+
+.sch-pace-opt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 5px 11px;
+  border: 1px solid rgba(10, 37, 64, 0.15);
+  border-radius: 9px;
+  background: #fff;
+  cursor: pointer;
+  line-height: 1.2;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.sch-pace-opt strong {
+  font-size: 13px;
+  color: #0a2540;
+}
+
+.sch-pace-opt span {
+  font-size: 11px;
+  color: rgba(10, 37, 64, 0.5);
+}
+
+.sch-pace-opt:hover {
+  border-color: rgba(10, 37, 64, 0.35);
+}
+
+.sch-pace-opt.is-on {
+  background: #0a2540;
+  border-color: #0a2540;
+}
+
+.sch-pace-opt.is-on strong {
+  color: #fff;
+}
+
+.sch-pace-opt.is-on span {
+  color: rgba(255, 255, 255, 0.7);
 }

@@ -14,6 +14,7 @@ import {
   headline,
   hourHeatmap,
   staffingNeed,
+  seasonalHours,
   lostDemand,
   productMovement,
   purchaseSummary,
@@ -120,6 +121,13 @@ export async function GET(req: NextRequest) {
     // Rides on this endpoint because it is built from the same heatmap the
     // line above it is — one pass over the tickets, two answers.
     staffing: staffingNeed(from, to),
+    /*
+      The same calendar weeks in every year on record. Built from the SAME
+      month-day span as the window above, so the two grids on the staffing
+      report answer the same question over two different depths of history —
+      how the shop is trading now, and what this time of year usually asks for.
+    */
+    seasonal: seasonalHours(from.slice(5), to.slice(5)),
     // For the staffing report's masthead, which is a document rather than a
     // screen and needs to say whose shop it is.
     shopName: getSetting("company_name") ?? "Casias Tire Shop",

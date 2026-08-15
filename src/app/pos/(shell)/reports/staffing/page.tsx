@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { usePosAuth } from "@/components/pos/PosShell";
 import { PrintButton } from "@/components/pos/PrintButton";
-import type { Staffing } from "@/lib/reports-bi";
+import { translate, type Lang } from "@/lib/i18n";
+import type { Staffing, SeasonalHours } from "@/lib/reports-bi";
 import "../../drawer/report/report.css";
 
 /**
@@ -113,6 +114,18 @@ const busyInk = (share: number) => (share > 0.55 ? "#fff" : "#111827");
 export default function StaffingReportPage() {
   const { user } = usePosAuth();
   const [staffing, setStaffing] = useState<Staffing | null>(null);
+  const [seasonal, setSeasonal] = useState<SeasonalHours | null>(null);
+  /*
+    THE LANGUAGE OF THE DOCUMENT, held here rather than taken from the app.
+
+    The register's own toggle is a preference for whoever is standing at the
+    counter, and it is remembered. This is a property of one printout: an owner
+    who prints a Spanish copy for a technician has not asked for the till to
+    change language, and taking the shared setting would mean the act of
+    printing quietly reconfigured the shop.
+  */
+  const [docLang, setDocLang] = useState<Lang>("en");
+  const t = (str: string) => translate(docLang, str);
   const [shopName, setShopName] = useState("Casias Muffler and Tire Shop");
   const [error, setError] = useState<string | null>(null);
   const [printedAt, setPrintedAt] = useState("");
@@ -129,6 +142,7 @@ export default function StaffingReportPage() {
     }
     const d = await res.json();
     setStaffing(d.staffing ?? null);
+    setSeasonal(d.seasonal ?? null);
     if (d.shopName) setShopName(d.shopName);
   }, []);
 
@@ -138,7 +152,7 @@ export default function StaffingReportPage() {
   }, [load]);
 
   if (error) return <div className="p-6 text-red-700">{error}</div>;
-  if (!staffing) return <div className="p-6 text-brand-300">Reading the weeks…</div>;
+  if (!staffing) return <div className="p-6 text-brand-300">{t("Reading the weeks…")}</div>;
 
   const weeks = Math.max(
     1,
@@ -156,9 +170,32 @@ export default function StaffingReportPage() {
     <div className="dr">
       <div className="dr-bar no-print">
         <div>
-          <strong>Staffing</strong> · {longDate(staffing.from)} to {longDate(staffing.to)}
+          <strong>{t("Staffing")}</strong> · {longDate(staffing.from)} to {longDate(staffing.to)}
         </div>
-        <PrintButton />
+        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/*
+            Which language the SHEET comes out in.
+
+            Two buttons rather than a toggle, because a toggle has to be read to
+            know which way it is set and this decides what somebody hands to a
+            technician. It changes this document only — the register's own
+            language is a preference for whoever is at the counter, and printing
+            a Spanish copy is not a request to reconfigure the shop.
+          */}
+          <span className="dr-lang no-print">
+            {(["en", "es"] as const).map((l) => (
+              <button
+                key={l}
+                type="button"
+                className={docLang === l ? "is-on" : undefined}
+                onClick={() => setDocLang(l)}
+              >
+                {l === "en" ? "English" : "Español"}
+              </button>
+            ))}
+          </span>
+          <PrintButton />
+        </span>
       </div>
 
       <header className="dr-masthead">
@@ -167,7 +204,7 @@ export default function StaffingReportPage() {
           <img src="/logo.png" alt="" className="dr-logo" />
           <div>
             <div className="dr-shop">{shopName}</div>
-            <div className="dr-doc">Staffing — how many people the week needs</div>
+            <div className="dr-doc">{t("Staffing — how many people the week needs")}</div>
           </div>
         </div>
         <div className="dr-mast-right">
@@ -175,11 +212,11 @@ export default function StaffingReportPage() {
             {longDate(staffing.from)} — {longDate(staffing.to)}
           </div>
           <dl className="dr-meta">
-            <dt>Covers</dt>
+            <dt>{t("Covers")}</dt>
             <dd>
               {weeks} week{weeks === 1 ? "" : "s"} · {staffing.tickets.toLocaleString()} customers
             </dd>
-            <dt>Printed</dt>
+            <dt>{t("Printed")}</dt>
             <dd>{printedAt}</dd>
             <dt>By</dt>
             <dd>{user?.name ?? "—"}</dd>
@@ -189,7 +226,7 @@ export default function StaffingReportPage() {
 
       {/* ══════════ THE ANSWER ══════════ */}
       <div className="dr-verdict">
-        <div className="dr-verdict-tag">The bottom line</div>
+        <div className="dr-verdict-tag">{t("The bottom line")}</div>
         <div className="dr-verdict-head">
           {busiestDay && quietestDay
             ? `${DAY_NAMES[busiestDay.weekday]} carries ${Math.round(
@@ -212,31 +249,23 @@ export default function StaffingReportPage() {
       */}
       <div className="dr-callout">
         <div className="dr-callout-head">
-          These are the customers the shop SERVED — not the ones who wanted serving
+          {t("These are the customers the shop SERVED — not the ones who wanted serving")}
         </div>
         <p className="dr-callout-body">
-          Every figure here is counted off tickets, and a ticket only exists for somebody who
-          waited. The customer who looked at the queue on a Saturday morning and drove to the shop
-          down the road left no ticket and no trace, so they are not in any of these squares.
+          {t("Every figure here is counted off tickets, and a ticket only exists for somebody who waited. The customer who looked at the queue on a Saturday morning and drove to the shop down the road left no ticket and no trace, so they are not in any of these squares.")}
         </p>
         <p className="dr-callout-body">
-          <strong>That does not cut both ways.</strong> The busier an hour is, the more people it
-          turns away — so the busiest hours are the ones most understated, which is exactly where
-          this report is being used to decide cover. <strong>Read every number below as a
-          floor.</strong> The real demand at the peak is higher by however many people left, and
-          nobody knows that figure.
+          <strong>{t("That does not cut both ways.")}</strong> {t("The busier an hour is, the more people it turns away — so the busiest hours are the ones most understated, which is exactly where this report is being used to decide cover.")} <strong>{t("Read every number below as a floor.")}</strong> {t("The real demand at the peak is higher by however many people left, and nobody knows that figure.")}
         </p>
       </div>
 
       {/* ══════════ 1. WHEN ══════════ */}
       <section className="dr-sec">
         <h2 className="dr-h2">
-          <span className="dr-h2-n">1</span>Customers to expect, hour by hour
+          <span className="dr-h2-n">1</span>{t("Customers to expect, hour by hour")}
         </h2>
         <p className="dr-lead">
-          The average number of customers who walk in during each hour of each day, counted off
-          every ticket the shop rang over this window. Darker is busier. This is the part of the
-          report that is measured rather than assumed.
+          {t("The average number of customers who walk in during each hour of each day, counted off every ticket the shop rang over this window. Darker is busier. This is the part of the report that is measured rather than assumed.")}
         </p>
         <table className="dr-heat">
           <thead>
@@ -245,7 +274,7 @@ export default function StaffingReportPage() {
               {staffing.hours.map((h) => (
                 <th key={h}>{hourLabel(h)}</th>
               ))}
-              <th>All day</th>
+              <th>{t("All day")}</th>
             </tr>
           </thead>
           <tbody>
@@ -276,22 +305,17 @@ export default function StaffingReportPage() {
           </tbody>
         </table>
         <p className="dr-foot">
-          Averages, not totals — what to expect on a given day, not what happened across the whole
-          window. The reddest square is the busiest hour of the week and everything else is shaded
-          against it. Every square counts customers served; anybody who left rather than wait is in
-          none of them.
+          {t("Averages, not totals — what to expect on a given day, not what happened across the whole window. The reddest square is the busiest hour of the week and everything else is shaded against it. Every square counts customers served; anybody who left rather than wait is in none of them.")}
         </p>
       </section>
 
       {/* ══════════ 2. HOW MANY ══════════ */}
       <section className="dr-sec">
         <h2 className="dr-h2">
-          <span className="dr-h2-n">2</span>How many technicians that takes
+          <span className="dr-h2-n">2</span>{t("How many technicians that takes")}
         </h2>
         <p className="dr-lead">
-          Customers per hour becomes people on the floor once you know how long a job takes. The
-          shop knows that better than this report does, so the table gives the answer at four
-          paces — read the line that matches what actually happens in the bay.
+          {t("Customers per hour becomes people on the floor once you know how long a job takes. The shop knows that better than this report does, so the table gives the answer at four paces — read the line that matches what actually happens in the bay.")}
         </p>
 
         {/*
@@ -312,21 +336,20 @@ export default function StaffingReportPage() {
           the shop money by being skipped.
         */}
         <div className="dr-alert">
-          <div className="dr-alert-head">These are minimums, not targets</div>
+          <div className="dr-alert-head">{t("These are minimums, not targets")}</div>
           <p className="dr-alert-body">
             The customers counted are the ones who stayed. Staffing exactly to this table keeps the
             shop exactly as busy as it already is — and keeps turning away whoever it is already
             turning away, without that ever showing up in a figure.{" "}
             <strong>
-              Staffing one above it is how the shop finds out whether there is more work than it
-              has been seeing.
+              {t("Staffing one above it is how the shop finds out whether there is more work than it has been seeing.")}
             </strong>
           </p>
         </div>
 
         {!staffing.paceFromData && (
           <div className="dr-callout">
-            <div className="dr-callout-head">Why the shop is being asked instead of told</div>
+            <div className="dr-callout-head">{t("Why the shop is being asked instead of told")}</div>
             <p className="dr-callout-body">
               This could be worked out from the shop&apos;s own records — customers served divided
               by technician-hours clocked — but over this window the time clock recorded only{" "}
@@ -335,8 +358,7 @@ export default function StaffingReportPage() {
               person&apos;s odd afternoon would set the pace for the whole shop.
             </p>
             <p className="dr-callout-body">
-              <strong>If the technicians clocked in and out, this page would answer it by
-              itself</strong> — and it would keep answering it as the shop changes, without anybody
+              <strong>{t("If the technicians clocked in and out, this page would answer it by itself")}</strong> — and it would keep answering it as the shop changes, without anybody
               having to estimate again.
             </p>
           </div>
@@ -345,7 +367,7 @@ export default function StaffingReportPage() {
         <table className="dr-table">
           <thead>
             <tr>
-              <th>If one technician handles</th>
+              <th>{t("If one technician handles")}</th>
               {DAY_NAMES.map((d) => (
                 <th key={d} className="num">
                   {d.slice(0, 3)}
@@ -370,32 +392,27 @@ export default function StaffingReportPage() {
           </tbody>
         </table>
         <p className="dr-foot">
-          <strong>This is cover for the BUSIEST hour of each day, rounded up.</strong> Half a
-          technician cannot fit a tire, and the cost of rounding down is a customer sitting in the
-          lobby. Away from the peak the same days need fewer — the grid above shows exactly where,
-          and the difference between the two is the case for a split shift rather than a second
-          full one.
+          <strong>{t("This is cover for the BUSIEST hour of each day, rounded up.")}</strong> {t("Half a technician cannot fit a tire, and the cost of rounding down is a customer sitting in the lobby. Away from the peak the same days need fewer — the grid above shows exactly where, and the difference between the two is the case for a split shift rather than a second full one.")}
         </p>
       </section>
 
       {/* ══════════ 3. THE WEEK ══════════ */}
       <section className="dr-sec">
         <h2 className="dr-h2">
-          <span className="dr-h2-n">3</span>The week, busiest day first
+          <span className="dr-h2-n">3</span>{t("The week, busiest day first")}
         </h2>
         <p className="dr-lead">
-          The order to staff the week in. The gap between the top of this list and the bottom is
-          the argument for moving somebody&apos;s day off.
+          {t("The order to staff the week in. The gap between the top of this list and the bottom is the argument for moving somebody&apos;s day off.")}
         </p>
         <table className="dr-table">
           <thead>
             <tr>
               <th>Day</th>
-              <th className="num">Customers</th>
-              <th className="num">Busiest hour</th>
-              <th className="num">At its busiest</th>
-              <th className="num">Trading hours</th>
-              <th className="dr-bullet-h">Against the busiest day</th>
+              <th className="num">{t("Customers")}</th>
+              <th className="num">{t("Busiest hour")}</th>
+              <th className="num">{t("At its busiest")}</th>
+              <th className="num">{t("Trading hours")}</th>
+              <th className="dr-bullet-h">{t("Against the busiest day")}</th>
             </tr>
           </thead>
           <tbody>
@@ -427,6 +444,111 @@ export default function StaffingReportPage() {
         </table>
       </section>
 
+      {/* ══════════ APPENDIX A — THE SAME WEEKS, EVERY YEAR ══════════ */}
+      {/*
+        A DIFFERENT QUESTION FROM SECTION 1, and the reason it earns a page.
+
+        Section 1 reads four weeks: how the shop is trading NOW, which is the
+        right basis for next week's roster and no basis at all for anything
+        seasonal. A late-July grid cannot tell you that late July is itself
+        busy, because it has nothing to compare against. The same calendar
+        weeks across every year on record can — and in a tire shop, where heat
+        and holidays move the work, that is the difference between rostering
+        for the season and rostering for last Tuesday.
+
+        It shows what each year contributed rather than smoothing it away. This
+        shop's older years were kept in a workbook rather than on this register
+        and one of them holds twice the tickets of the next, which may be a
+        busier year or may be a better-kept one. An average that hid that would
+        be a confident figure resting on a difference in bookkeeping.
+      */}
+      {seasonal && seasonal.years.length > 0 && (
+        <section className="dr-sec dr-break">
+          <h2 className="dr-h2">
+            <span className="dr-h2-n">A</span>{t("Appendix — this time of year, across every year on record")}
+          </h2>
+          <p className="dr-lead">
+            The same calendar weeks — {seasonal.fromMD.replace("-", "/")} to{" "}
+            {seasonal.toMD.replace("-", "/")} — in every year the shop has records for, as customers
+            an hour. Section 1 says how the shop is trading now; this says what this part of the
+            year usually asks for.
+          </p>
+
+          <table className="dr-table dr-compact">
+            <thead>
+              <tr>
+                <th>{t("Year")}</th>
+                <th className="num">{t("Days traded")}</th>
+                <th className="num">{t("Customers")}</th>
+                <th className="num">{t("A day")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {seasonal.years.map((y) => (
+                <tr key={y.year}>
+                  <td>{y.year}</td>
+                  <td className="num">{y.days}</td>
+                  <td className="num">{y.tickets.toLocaleString()}</td>
+                  <td className="num">{(y.tickets / Math.max(1, y.days)).toFixed(1)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td>{t("All of it")}</td>
+                <td className="num">{seasonal.dayCount.reduce((a, b) => a + b, 0)}</td>
+                <td className="num">{seasonal.totalTickets.toLocaleString()}</td>
+                <td className="num">
+                  {(
+                    seasonal.totalTickets /
+                    Math.max(1, seasonal.dayCount.reduce((a, b) => a + b, 0))
+                  ).toFixed(1)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+
+          <h3 className="dr-h3">{t("Customers an hour, averaged over every year")}</h3>
+          <table className="dr-heat">
+            <thead>
+              <tr>
+                <th />
+                {seasonal.hours.map((h) => (
+                  <th key={h}>{hourLabel(h)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {DAY_NAMES.map((name, wd) => (
+                <tr key={wd}>
+                  <th>{name.slice(0, 3)}</th>
+                  {seasonal.hours.map((h) => {
+                    const slot = seasonal.slots.find((x) => x.weekday === wd && x.hour === h);
+                    const n = slot?.avgTickets ?? 0;
+                    const share = slot?.share ?? 0;
+                    return (
+                      <td key={h} style={{ background: n < 0.05 ? "#f9fafb" : busyColor(share) }}>
+                        <span style={{ color: n < 0.05 ? "#9ca3af" : busyInk(share) }}>
+                          {n < 0.05 ? "" : n.toFixed(1)}
+                        </span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="dr-foot">
+            Averaged over the {seasonal.dayCount.reduce((a, b) => a + b, 0)} days the shop actually
+            traded in this window across all those years — days it was shut are not counted against
+            it as quiet days.
+          </p>
+          <p className="dr-foot">
+            <strong>{t("Read this against section 1 rather than instead of it.")}</strong> {t("Where the two agree, the shape is the shop&apos;s and it is worth rostering to. Where they differ, something has changed — and which of the two is right depends on whether the change is the season or the business.")}
+          </p>
+        </section>
+      )}
+
       {/* ══════════ APPENDIX ══════════ */}
       {/*
         THE ONLY PAGE HERE NOT MADE FROM THE SHOP'S OWN RECORDS, and fenced off
@@ -438,127 +560,121 @@ export default function StaffingReportPage() {
       */}
       <section className="dr-sec dr-break">
         <h2 className="dr-h2">
-          <span className="dr-h2-n">A</span>Appendix — what technicians are paid in San Antonio
+          <span className="dr-h2-n">B</span>{t("Appendix — what technicians are paid in San Antonio")}
         </h2>
         <p className="dr-lead">
-          What other shops in this town were paying, as of August 2026 — for setting wages against,
-          and for costing the cover in section 2. This is the one page here that does not come from
-          the shop&apos;s own books.
+          {t("What other shops in this town were paying, as of August 2026 — for setting wages against, and for costing the cover in section 2. This is the one page here that does not come from the shop&apos;s own books.")}
         </p>
 
         <table className="dr-table">
           <thead>
             <tr>
-              <th>Role, and who is reporting it</th>
-              <th className="num">Hourly</th>
-              <th className="num">A year, full time</th>
-              <th>What it covers</th>
+              <th>{t("Role, and who is reporting it")}</th>
+              <th className="num">{t("Hourly")}</th>
+              <th className="num">{t("A year, full time")}</th>
+              <th>{t("What it covers")}</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td>
-                <strong>Tire technician — San Antonio average</strong>
-                <div className="dr-note">ZipRecruiter, July 2026</div>
+                <strong>{t("Tire technician — San Antonio average")}</strong>
+                <div className="dr-note">{t("ZipRecruiter, July 2026")}</div>
               </td>
               <td className="num dr-now">$16.00</td>
               <td className="num">$33,300</td>
               <td>
-                Most fall between <strong>$14.09</strong> and <strong>$17.36</strong>
+                {t("Most fall between")} <strong>$14.09</strong> and <strong>$17.36</strong>
               </td>
             </tr>
             <tr>
               <td>
-                Tire technician — Texas average
-                <div className="dr-note">ZipRecruiter, June 2026</div>
+                {t("Tire technician — Texas average")}
+                <div className="dr-note">{t("ZipRecruiter, June 2026")}</div>
               </td>
               <td className="num">$16.53</td>
               <td className="num">$34,400</td>
-              <td>Slightly above the San Antonio figure</td>
+              <td>{t("Slightly above the San Antonio figure")}</td>
             </tr>
             <tr>
               <td>
-                Discount Tire, San Antonio
-                <div className="dr-note">Indeed, reported by staff</div>
+                {t("Discount Tire, San Antonio")}
+                <div className="dr-note">{t("Indeed, reported by staff")}</div>
               </td>
               <td className="num">$15.64</td>
               <td className="num">$32,500</td>
-              <td>Their own postings run $15.00–$16.00</td>
+              <td>{t("Their own postings run $15.00–$16.00")}</td>
             </tr>
             <tr>
               <td>
-                Walmart Auto Care, San Antonio
-                <div className="dr-note">ZipRecruiter and Glassdoor postings, 2026</div>
+                {t("Walmart Auto Care, San Antonio")}
+                <div className="dr-note">{t("ZipRecruiter and Glassdoor postings, 2026")}</div>
               </td>
               <td className="num">$26.00</td>
               <td className="num">$54,100</td>
               <td>
-                Advertised <strong>$22–$30</strong>, plus shift premiums of up to $3
+                {t("Advertised")} <strong>$22–$30</strong>, plus shift premiums of up to $3
               </td>
             </tr>
             <tr>
               <td>
-                Costco, San Antonio
-                <div className="dr-note">Indeed, reported by staff</div>
+                {t("Costco, San Antonio")}
+                <div className="dr-note">{t("Indeed, reported by staff")}</div>
               </td>
               <td className="num">$25.32</td>
               <td className="num">$52,700</td>
-              <td>The other big-box shop, and about the same money</td>
+              <td>{t("The other big-box shop, and about the same money")}</td>
             </tr>
             <tr>
               <td>
-                <strong>Automotive service technician — San Antonio</strong>
-                <div className="dr-note">Indeed, May 2026</div>
+                <strong>{t("Automotive service technician — San Antonio")}</strong>
+                <div className="dr-note">{t("Indeed, May 2026")}</div>
               </td>
               <td className="num">$26.67</td>
               <td className="num">$55,500</td>
-              <td>A qualified mechanic, not a tire fitter</td>
+              <td>{t("A qualified mechanic, not a tire fitter")}</td>
             </tr>
             <tr>
               <td>
-                Automotive technician — San Antonio
-                <div className="dr-note">Glassdoor, 2026</div>
+                {t("Automotive technician — San Antonio")}
+                <div className="dr-note">{t("Glassdoor, 2026")}</div>
               </td>
               <td className="num">$30.00</td>
               <td className="num">$62,600</td>
-              <td>Same role, second source, higher</td>
+              <td>{t("Same role, second source, higher")}</td>
             </tr>
             <tr>
               <td>
-                Automotive service technicians — national median
-                <div className="dr-note">US Bureau of Labor Statistics, May 2024</div>
+                {t("Automotive service technicians — national median")}
+                <div className="dr-note">{t("US Bureau of Labor Statistics, May 2024")}</div>
               </td>
               <td className="num">$23.88</td>
               <td className="num">$49,670</td>
-              <td>Across the whole country</td>
+              <td>{t("Across the whole country")}</td>
             </tr>
           </tbody>
         </table>
 
         <p className="dr-foot">
-          <strong>Two different jobs are on this table, and the gap between them is the point.</strong>{" "}
+          <strong>{t("Two different jobs are on this table, and the gap between them is the point.")}</strong>{" "}
 A tire technician at an independent shop in San Antonio is a $15–$17 hire. A qualified
           automotive technician is a $26–$30 one — close to double. Which of the two the shop is
           hiring for moves the wage bill far more than haggling over a dollar inside either band.
         </p>
         <p className="dr-foot">
-          <strong>The big-box shops sit with the mechanics, not with the tire fitters.</strong>{" "}
+          <strong>{t("The big-box shops sit with the mechanics, not with the tire fitters.")}</strong>{" "}
           Walmart and Costco both pay around $25–$26 for what is largely tire work. That is who a
           good fitter is being recruited away by, and it is roughly $9 an hour above the
           independent average — about $18,000 a year on one person.
         </p>
         <p className="dr-foot">
-          <strong>Costing the cover.</strong> At the San Antonio tire-technician average of $16.00,
-          one technician on the floor for a ten-hour day is about <strong>$160</strong> in wages
+          <strong>{t("Costing the cover.")}</strong> {t("At the San Antonio tire-technician average of $16.00, one technician on the floor for a ten-hour day is about")} <strong>$160</strong> in wages
           before tax and overhead — roughly <strong>$1,120</strong> a week for one person across
           seven days. Read that against section 2: the peak needs more people than the lulls do, and
           the grid in section 1 is where the case for a short shift over a long one is made.
         </p>
         <p className="dr-foot">
-          Gathered August 2026 from ZipRecruiter, Indeed, Glassdoor and the US Bureau of Labor
-          Statistics. Advertised and self-reported pay both run ahead of and behind what is really
-          paid, so read these as the shape of the market rather than as quotes — and check them
-          again before any hiring decision, because the market moves and this page does not.
+          {t("Gathered August 2026 from ZipRecruiter, Indeed, Glassdoor and the US Bureau of Labor Statistics. Advertised and self-reported pay both run ahead of and behind what is really paid, so read these as the shape of the market rather than as quotes — and check them again before any hiring decision, because the market moves and this page does not.")}
         </p>
       </section>
 
@@ -579,7 +695,7 @@ A tire technician at an independent shop in San Antonio is a $15–$17 hire. A q
       */}
       <section className="dr-sec dr-break">
         <h2 className="dr-h2">
-          <span className="dr-h2-n">B</span>Appendix — what a day costs, and when overtime starts
+          <span className="dr-h2-n">C</span>{t("Appendix — what a day costs, and when overtime starts")}
         </h2>
         <p className="dr-lead">
           The shop is open {hourLong(OPEN_HOUR)} to {hourLong(CLOSE_HOUR)}, which is{" "}
@@ -590,18 +706,17 @@ A tire technician at an independent shop in San Antonio is a $15–$17 hire. A q
 
         <div className="dr-callout">
           <div className="dr-callout-head">
-            A long day is not overtime in Texas — a long WEEK is
+            {t("A long day is not overtime in Texas — a long WEEK is")}
           </div>
           <p className="dr-callout-body">
-            Texas has no overtime law of its own and follows the federal rule, which counts hours by
-            the week rather than by the day. <strong>Nothing is owed for working {PAID_HOURS_A_DAY}{" "}
+            {t("Texas has no overtime law of its own and follows the federal rule, which counts hours by the week rather than by the day.")} <strong>Nothing is owed for working {PAID_HOURS_A_DAY}{" "}
             hours in a day.</strong> Overtime starts once somebody passes{" "}
             <strong>{OT_AFTER} hours in a week</strong>, and from there every extra hour is paid at{" "}
             <strong>one and a half times</strong> their normal rate. California has a daily rule;
             Texas does not.
           </p>
           <p className="dr-callout-body">
-            <strong>That is worse for the shop, not better.</strong> Five of these shifts is{" "}
+            <strong>{t("That is worse for the shop, not better.")}</strong> Five of these shifts is{" "}
             {PAID_HOURS_A_DAY * 5} hours, which is already {PAID_HOURS_A_DAY * 5 - OT_AFTER} hours
             of overtime. Six is {PAID_HOURS_A_DAY * 6}, which is{" "}
             {PAID_HOURS_A_DAY * 6 - OT_AFTER}. Weeks cannot be averaged against each other either —
@@ -613,8 +728,8 @@ A tire technician at an independent shop in San Antonio is a $15–$17 hire. A q
         <table className="dr-table">
           <thead>
             <tr>
-              <th>Pay rate</th>
-              <th className="num">Straight time</th>
+              <th>{t("Pay rate")}</th>
+              <th className="num">{t("Straight time")}</th>
               {/*
                 The heading says WHEN, because the rate on its own invites the
                 wrong reading. Forty hours is exactly four of these shifts, so
@@ -624,13 +739,13 @@ A tire technician at an independent shop in San Antonio is a $15–$17 hire. A q
                 true if the shop's hours change.
               */}
               <th className="num">
-                At the overtime rate
+                {t("At the overtime rate")}
                 <div className="dr-note" style={{ fontWeight: 400 }}>
                   from day {Math.floor(OT_AFTER / PAID_HOURS_A_DAY) + 1} of the week, on{" "}
                   {PAID_HOURS_A_DAY}-hour days
                 </div>
               </th>
-              <th className="num">The difference</th>
+              <th className="num">{t("The difference")}</th>
             </tr>
           </thead>
           <tbody>
@@ -657,11 +772,11 @@ A tire technician at an independent shop in San Antonio is a $15–$17 hire. A q
           the straight-time column.
         </p>
 
-        <h3 className="dr-h3">A whole week of them</h3>
+        <h3 className="dr-h3">{t("A whole week of them")}</h3>
         <table className="dr-table">
           <thead>
             <tr>
-              <th>Pay rate</th>
+              <th>{t("Pay rate")}</th>
               <th className="num">5 days · {PAID_HOURS_A_DAY * 5} hrs</th>
               <th className="num">of which overtime</th>
               <th className="num">6 days · {PAID_HOURS_A_DAY * 6} hrs</th>
@@ -701,7 +816,7 @@ A tire technician at an independent shop in San Antonio is a $15–$17 hire. A q
           </tbody>
         </table>
         <p className="dr-foot">
-          <strong>Read the two overtime columns before anything else.</strong> On a six-day roster
+          <strong>{t("Read the two overtime columns before anything else.")}</strong> On a six-day roster
           a third of the week is paid at time and a half, so a $16 technician costs{" "}
           {usd(WAGE_ROWS[0].rate * OT_AFTER + (PAID_HOURS_A_DAY * 6 - OT_AFTER) * WAGE_ROWS[0].rate * OT_MULTIPLIER)}{" "}
           a week rather than the {usd(WAGE_ROWS[0].rate * PAID_HOURS_A_DAY * 6)} a straight
@@ -709,12 +824,7 @@ A tire technician at an independent shop in San Antonio is a $15–$17 hire. A q
           long one, which is the case the staffing grid in section 1 is really making.
         </p>
         <p className="dr-foot">
-          <strong>This is a rate calculation, not legal advice.</strong> It assumes an hourly,
-          non-exempt employee on a standard workweek and ignores everything else that lands on a
-          wage — payroll taxes, insurance, breaks, and any agreement with the employee themselves.
-          Have an accountant confirm it before it is used to set anybody&apos;s pay. Rule checked
-          August 2026 against the Texas Workforce Commission&apos;s position and the federal Fair
-          Labor Standards Act.
+          <strong>{t("This is a rate calculation, not legal advice.")}</strong> {t("It assumes an hourly, non-exempt employee on a standard workweek and ignores everything else that lands on a wage — payroll taxes, insurance, breaks, and any agreement with the employee themselves. Have an accountant confirm it before it is used to set anybody&apos;s pay. Rule checked August 2026 against the Texas Workforce Commission&apos;s position and the federal Fair Labor Standards Act.")}
         </p>
       </section>
 

@@ -473,6 +473,122 @@ export function staffingNeed(from: string, to: string): Staffing {
   return { from, to, tickets, techHours, paceFromData, hours, slots, days, atPace };
 }
 
+export type SeasonalHours = {
+  /** The calendar window, as month-day, repeated in every year of the data. */
+  fromMD: string;
+  toMD: string;
+  /** What each year contributed, so a reader can see the mix rather than trust it. */
+  years: { year: string; tickets: number; days: number }[];
+  hours: number[];
+  /** Per weekday and hour: the average customers across every year in the data. */
+  slots: { weekday: number; hour: number; avgTickets: number; share: number }[];
+  /** Days of each weekday the whole span held, which is what the averages divide by. */
+  dayCount: number[];
+  totalTickets: number;
+};
+
+/**
+ * The same weeks of the year, every year the shop has records for.
+ *
+ * WHY THIS IS A DIFFERENT QUESTION from the four-week grid beside it. Four
+ * weeks says how the shop is trading NOW, which is the right basis for next
+ * week's roster and the wrong one for anything seasonal: a late-July heatmap
+ * cannot tell you that late July is itself busy, because it has nothing to
+ * compare against. Reading the same calendar window across every year does —
+ * and for a tire shop, where heat and holidays move the work, that is the
+ * difference between rostering for the season and rostering for last Tuesday.
+ *
+ * MATCHED ON MONTH AND DAY, not on a rolling span, so the window means the same
+ * thing in each year. The wrap case is handled properly: a window running from
+ * December into January is two ranges, not one impossible BETWEEN.
+ *
+ * IT REPORTS WHAT EACH YEAR CONTRIBUTED and does not smooth it away. This shop's
+ * older years were kept in a workbook rather than on this register, and one of
+ * them holds twice the tickets of the next — which may be a busier year or may
+ * be a better-kept one. An average that hid that would be a confident number
+ * resting on a difference in bookkeeping.
+ */
+export function seasonalHours(fromMD: string, toMD: string): SeasonalHours {
+  const db = getDb();
+  // A window that runs backwards through New Year is two ranges.
+  const wraps = fromMD > toMD;
+  const inWindow = wraps
+    ? `(substr(s.business_date, 6, 5) >= '${fromMD}' OR substr(s.business_date, 6, 5) <= '${toMD}')`
+    : `substr(s.business_date, 6, 5) BETWEEN '${fromMD}' AND '${toMD}'`;
+
+  const cells = db
+    .prepare(
+      `SELECT CAST(strftime('%w', s.business_date) AS INTEGER) AS weekday,
+              CAST(strftime('%H', s.opened_at) AS INTEGER)     AS hour,
+              COUNT(*) AS tickets
+         FROM sales s
+        WHERE ${SALE} AND ${inWindow}
+     GROUP BY weekday, hour`,
+    )
+    .all() as { weekday: number; hour: number; tickets: number }[];
+
+  const years = db
+    .prepare(
+      `SELECT substr(s.business_date, 1, 4) AS year,
+              COUNT(*) AS tickets,
+              COUNT(DISTINCT s.business_date) AS days
+         FROM sales s
+        WHERE ${SALE} AND ${inWindow}
+     GROUP BY year
+     ORDER BY year`,
+    )
+    .all() as { year: string; tickets: number; days: number }[];
+
+  /*
+    How many of each weekday the whole span actually held — counted off the
+    dates that carry tickets rather than off the calendar. A shop that was shut
+    for a fortnight in one of these years should not have those Sundays counted
+    against it as quiet Sundays; the days it did not trade are days it has
+    nothing to say about.
+  */
+  const dayCount = new Array(7).fill(0);
+  const dates = db
+    .prepare(
+      `SELECT DISTINCT s.business_date AS d
+         FROM sales s
+        WHERE ${SALE} AND ${inWindow}`,
+    )
+    .all() as { d: string }[];
+  for (const { d } of dates) {
+    const [y, m, dd] = d.split("-").map(Number);
+    dayCount[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()] += 1;
+  }
+
+  const hoursSeen = cells.map((c) => c.hour);
+  const lo = hoursSeen.length ? Math.min(...hoursSeen) : 8;
+  const hi = hoursSeen.length ? Math.max(...hoursSeen) : 18;
+  const hours = Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
+
+  const raw = [];
+  for (let wd = 0; wd < 7; wd++) {
+    for (const h of hours) {
+      const cell = cells.find((c) => c.weekday === wd && c.hour === h);
+      raw.push({
+        weekday: wd,
+        hour: h,
+        avgTickets: (cell?.tickets ?? 0) / Math.max(1, dayCount[wd]),
+        share: 0,
+      });
+    }
+  }
+  const busiest = Math.max(...raw.map((r) => r.avgTickets), 0.001);
+
+  return {
+    fromMD,
+    toMD,
+    years,
+    hours,
+    dayCount,
+    slots: raw.map((r) => ({ ...r, share: r.avgTickets / busiest })),
+    totalTickets: cells.reduce((n, c) => n + c.tickets, 0),
+  };
+}
+
 export type WeekdayRow = { weekday: number; tickets: number; goodsCents: number; days: number };
 
 /**

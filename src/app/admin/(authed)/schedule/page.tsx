@@ -79,6 +79,20 @@ export default function SchedulePage() {
   const [busy, setBusy] = useState(false);
   /** Which cell is being edited: the person and the day. */
   const [editing, setEditing] = useState<{ person: ScheduledPerson; date: string } | null>(null);
+  /*
+    HOW FAST A TECHNICIAN GETS THROUGH A CUSTOMER, chosen here.
+
+    "Needed" is customers-per-hour divided by this, so it is the one number that
+    decides every recommendation on the screen — and it was fixed at two an hour
+    with a note telling the reader to change it on the Reports page, where no
+    such control exists. That is worse than no control: it says the setting is
+    somebody else's and then sends you somewhere it is not.
+
+    It lives on the screen it governs, and it starts at thirty minutes a
+    customer because that is the middle of the four the shop's own report
+    offers, not because anybody measured it.
+  */
+  const [pace, setPace] = useState(2);
 
   useEffect(() => {
     setMonday(mondayOf(new Date().toISOString().slice(0, 10)));
@@ -107,10 +121,10 @@ export default function SchedulePage() {
   /**
    * What is rostered against what is needed, per day.
    *
-   * `needed` is the shop's own peak-hour figure at the pace the owner picked on
-   * the reports page — two customers an hour, the middle of the four offered
-   * there, because a roster screen cannot ask the question and a figure has to
-   * be chosen. It is named on screen so nobody has to guess which one it is.
+   * `needed` is the shop's own peak-hour figure at whatever pace is selected
+   * above the grid. It recomputes when that changes, which is the point of
+   * putting the control on this screen: the recommendation is an opinion about
+   * how long a job takes, and the person rostering is the one who knows.
    */
   const perDay = useMemo(() => {
     if (!data) return {};
@@ -123,16 +137,16 @@ export default function SchedulePage() {
       const shifts = data.people
         .map((p) => p.byDate[d])
         .filter((s): s is Shift => Boolean(s));
-      const pace = data.staffing.atPace.find((p) => p.perHour === 2);
+      const chosen = data.staffing.atPace.find((p) => p.perHour === pace);
       out[d] = {
         rostered: shifts.length,
         hours: shifts.reduce((n, s) => n + paidHours(s), 0),
-        needed: pace?.peak.find((x) => x.weekday === wd)?.techs ?? 0,
+        needed: chosen?.peak.find((x) => x.weekday === wd)?.techs ?? 0,
         customers: data.staffing.days.find((x) => x.weekday === wd)?.tickets ?? 0,
       };
     }
     return out;
-  }, [data, days]);
+  }, [data, days, pace]);
 
   async function post(body: Record<string, unknown>) {
     setBusy(true);
@@ -197,6 +211,24 @@ export default function SchedulePage() {
             Copy last week in
           </button>
         </div>
+      </div>
+
+      {/* The one setting behind every "needed" figure on this page, on the page
+          it governs. Minutes as well as a rate, because minutes is the form
+          somebody can check against a watch in the bay. */}
+      <div className="sch-pace">
+        <span className="sch-pace-lab">One technician gets through</span>
+        {data?.staffing.atPace.map((row) => (
+          <button
+            key={row.perHour}
+            type="button"
+            className={`sch-pace-opt${pace === row.perHour ? " is-on" : ""}`}
+            onClick={() => setPace(row.perHour)}
+          >
+            <strong>{row.perHour} an hour</strong>
+            <span>{Math.round(60 / row.perHour)} min each</span>
+          </button>
+        ))}
       </div>
 
       {error && <div className="sch-error">{error}</div>}
@@ -284,8 +316,8 @@ export default function SchedulePage() {
             <p>
               <strong>&ldquo;Needed&rdquo; is this shop&apos;s own figure</strong>, worked out from
               the tickets of the last four weeks: how many technicians the busiest hour of that
-              weekday takes at a pace of two customers an hour — thirty minutes a customer. Change
-              the pace on the Reports page if that is not the bay you know.
+              weekday takes, at whichever pace is selected above. Change it if that is not the bay
+              you know — every figure on this page moves with it.
             </p>
             <p>
               It looks backwards while the roster looks forwards, so read it as what recent

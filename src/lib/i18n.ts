@@ -1377,6 +1377,146 @@ const ES: Record<string, string> = {
   "Start over": "Empezar de nuevo",
   Use: "Usar",
 
+  /*
+    ── The staffing report, printable in Spanish ──────────────────────────
+
+    A whole DOCUMENT rather than screen furniture, and the first one in this app
+    that prints in either language. The rule stated at the top of this file — the
+    paperwork stays English — holds for the close-out sheet and the receipts,
+    which are filed and handed to an accountant. This one is handed to a
+    technician to explain a rota, so it goes out in the language that person
+    reads.
+
+    Long paragraphs are kept whole where the markup allows and split only where a
+    <strong> sits inside them; the split halves are written to read correctly
+    when assembled, not as sentences on their own.
+  */
+  "Reading the weeks…": "Leyendo las semanas…",
+  Staffing: "Personal",
+  "Staffing — how many people the week needs":
+    "Personal — cuánta gente necesita la semana",
+  Covers: "Abarca",
+  Printed: "Impreso",
+  "The bottom line": "En resumen",
+
+  "These are the customers the shop SERVED — not the ones who wanted serving":
+    "Estos son los clientes que el taller SÍ atendió — no los que querían que los atendieran",
+  "Every figure here is counted off tickets, and a ticket only exists for somebody who waited. The customer who looked at the queue on a Saturday morning and drove to the shop down the road left no ticket and no trace, so they are not in any of these squares.":
+    "Cada cifra de aquí se cuenta de los tickets, y un ticket solo existe para alguien que esperó. El cliente que vio la fila un sábado en la mañana y se fue al taller de la otra cuadra no dejó ticket ni rastro, así que no está en ninguno de estos cuadros.",
+  "That does not cut both ways.": "Y esto no funciona en los dos sentidos.",
+  "The busier an hour is, the more people it turns away — so the busiest hours are the ones most understated, which is exactly where this report is being used to decide cover.":
+    "Entre más pesada la hora, más gente se va — así que las horas más pesadas son justo las que más se quedan cortas, y son exactamente las que este reporte usa para decidir cuánta gente poner.",
+  "Read every number below as a floor.": "Lea cada número de abajo como un mínimo.",
+  "The real demand at the peak is higher by however many people left, and nobody knows that figure.":
+    "La demanda real en la hora pico es más alta por toda la gente que se fue, y esa cifra nadie la sabe.",
+
+  "The average number of customers who walk in during each hour of each day, counted off every ticket the shop rang over this window. Darker is busier. This is the part of the report that is measured rather than assumed.":
+    "El promedio de clientes que entran en cada hora de cada día, contado de cada ticket que el taller cobró en este periodo. Más oscuro es más pesado. Esta es la parte del reporte que está medida, no supuesta.",
+  "All day": "Todo el día",
+  "Averages, not totals — what to expect on a given day, not what happened across the whole window. The reddest square is the busiest hour of the week and everything else is shaded against it. Every square counts customers served; anybody who left rather than wait is in none of them.":
+    "Promedios, no totales — lo que se espera en un día cualquiera, no lo que pasó en todo el periodo. El cuadro más rojo es la hora más pesada de la semana y todo lo demás se sombrea contra ella. Cada cuadro cuenta clientes atendidos; quien se fue en vez de esperar no está en ninguno.",
+
+  "How many technicians that takes": "Cuántos técnicos se necesitan para eso",
+  "Customers per hour becomes people on the floor once you know how long a job takes. The shop knows that better than this report does, so the table gives the answer at four paces — read the line that matches what actually happens in the bay.":
+    "Los clientes por hora se vuelven gente en el piso en cuanto uno sabe cuánto tarda un trabajo. El taller sabe eso mejor que este reporte, así que la tabla da la respuesta a cuatro ritmos — lea la línea que se parezca a lo que de verdad pasa en el taller.",
+  "These are minimums, not targets": "Estos son mínimos, no metas",
+  "Staffing one above it is how the shop finds out whether there is more work than it has been seeing.":
+    "Poner una persona más de las que dice la tabla es como el taller se entera de si hay más trabajo del que ha estado viendo.",
+  "Why the shop is being asked instead of told":
+    "Por qué se le pregunta al taller en vez de decírselo",
+  "If the technicians clocked in and out, this page would answer it by itself":
+    "Si los técnicos marcaran entrada y salida, esta página lo contestaría sola",
+  "If one technician handles": "Si un técnico atiende",
+  "This is cover for the BUSIEST hour of each day, rounded up.":
+    "Esto cubre la hora MÁS PESADA de cada día, redondeado hacia arriba.",
+  "Half a technician cannot fit a tire, and the cost of rounding down is a customer sitting in the lobby. Away from the peak the same days need fewer — the grid above shows exactly where, and the difference between the two is the case for a split shift rather than a second full one.":
+    "Medio técnico no monta una llanta, y redondear hacia abajo se paga con un cliente sentado en la sala. Fuera de la hora pico esos mismos días necesitan menos — la tabla de arriba muestra exactamente dónde, y la diferencia entre las dos es el argumento para un turno partido en vez de un segundo turno completo.",
+
+  "The week, busiest day first": "La semana, el día más pesado primero",
+  "The order to staff the week in. The gap between the top of this list and the bottom is the argument for moving somebody&apos;s day off.":
+    "El orden en que hay que cubrir la semana. La diferencia entre el primero y el último de esta lista es el argumento para mover el día de descanso de alguien.",
+  "Busiest hour": "Hora más pesada",
+  "At its busiest": "En su hora pico",
+  "Trading hours": "Horas abierto",
+  "Against the busiest day": "Contra el día más pesado",
+
+  "Appendix — this time of year, across every year on record":
+    "Apéndice — esta época del año, en todos los años que tenemos registrados",
+  Year: "Año",
+  "Days traded": "Días abierto",
+  "A day": "Por día",
+  "All of it": "Todo junto",
+  "Customers an hour, averaged over every year":
+    "Clientes por hora, promediado sobre todos los años",
+  "Read this against section 1 rather than instead of it.":
+    "Lea esto junto con la sección 1, no en lugar de ella.",
+  "Where the two agree, the shape is the shop&apos;s and it is worth rostering to. Where they differ, something has changed — and which of the two is right depends on whether the change is the season or the business.":
+    "Donde las dos coinciden, esa forma es la del taller y vale la pena armar el rol con ella. Donde no coinciden, algo cambió — y cuál de las dos tiene razón depende de si lo que cambió es la temporada o el negocio.",
+
+  "Appendix — what technicians are paid in San Antonio":
+    "Apéndice — cuánto se les paga a los técnicos en San Antonio",
+  "What other shops in this town were paying, as of August 2026 — for setting wages against, and for costing the cover in section 2. This is the one page here that does not come from the shop&apos;s own books.":
+    "Lo que pagaban otros talleres de esta ciudad, hasta agosto de 2026 — para comparar sueldos y para costear el personal de la sección 2. Esta es la única página que no sale de los libros del taller.",
+  "Role, and who is reporting it": "Puesto, y quién lo reporta",
+  Hourly: "Por hora",
+  "A year, full time": "Al año, tiempo completo",
+  "What it covers": "Qué incluye",
+  "Tire technician — San Antonio average": "Técnico de llantas — promedio de San Antonio",
+  "ZipRecruiter, July 2026": "ZipRecruiter, julio 2026",
+  "Most fall between": "La mayoría está entre",
+  "Tire technician — Texas average": "Técnico de llantas — promedio de Texas",
+  "ZipRecruiter, June 2026": "ZipRecruiter, junio 2026",
+  "Slightly above the San Antonio figure": "Un poco arriba de la cifra de San Antonio",
+  "Discount Tire, San Antonio": "Discount Tire, San Antonio",
+  "Indeed, reported by staff": "Indeed, reportado por empleados",
+  "Their own postings run $15.00–$16.00": "Sus propios anuncios van de $15.00 a $16.00",
+  "Walmart Auto Care, San Antonio": "Walmart Auto Care, San Antonio",
+  "ZipRecruiter and Glassdoor postings, 2026": "Anuncios de ZipRecruiter y Glassdoor, 2026",
+  Advertised: "Anunciado",
+  "Costco, San Antonio": "Costco, San Antonio",
+  "The other big-box shop, and about the same money":
+    "La otra tienda grande, y más o menos el mismo dinero",
+  "Automotive service technician — San Antonio":
+    "Técnico automotriz de servicio — San Antonio",
+  "Indeed, May 2026": "Indeed, mayo 2026",
+  "A qualified mechanic, not a tire fitter": "Un mecánico con oficio, no un llantero",
+  "Automotive technician — San Antonio": "Técnico automotriz — San Antonio",
+  "Glassdoor, 2026": "Glassdoor, 2026",
+  "Same role, second source, higher": "Mismo puesto, otra fuente, más alto",
+  "Automotive service technicians — national median":
+    "Técnicos automotrices de servicio — mediana nacional",
+  "US Bureau of Labor Statistics, May 2024":
+    "Oficina de Estadísticas Laborales de EE.UU., mayo 2024",
+  "Across the whole country": "En todo el país",
+  "Two different jobs are on this table, and the gap between them is the point.":
+    "En esta tabla hay dos puestos distintos, y la diferencia entre ellos es lo importante.",
+  "The big-box shops sit with the mechanics, not with the tire fitters.":
+    "Las tiendas grandes pagan como a mecánicos, no como a llanteros.",
+  "Costing the cover.": "Lo que cuesta cubrir el turno.",
+  "At the San Antonio tire-technician average of $16.00, one technician on the floor for a ten-hour day is about":
+    "Al promedio de San Antonio de $16.00 para técnico de llantas, un técnico en el piso por un día de diez horas cuesta como",
+  "Gathered August 2026 from ZipRecruiter, Indeed, Glassdoor and the US Bureau of Labor Statistics. Advertised and self-reported pay both run ahead of and behind what is really paid, so read these as the shape of the market rather than as quotes — and check them again before any hiring decision, because the market moves and this page does not.":
+    "Recopilado en agosto de 2026 de ZipRecruiter, Indeed, Glassdoor y la Oficina de Estadísticas Laborales de EE.UU. Tanto lo anunciado como lo que reporta la gente queda arriba y abajo de lo que de verdad se paga, así que léalo como la forma del mercado y no como cotizaciones — y vuelva a revisarlo antes de contratar, porque el mercado se mueve y esta página no.",
+
+  "Appendix — what a day costs, and when overtime starts":
+    "Apéndice — cuánto cuesta un día, y cuándo empiezan las horas extra",
+  "A long day is not overtime in Texas — a long WEEK is":
+    "Un día largo no es hora extra en Texas — una SEMANA larga sí",
+  "Texas has no overtime law of its own and follows the federal rule, which counts hours by the week rather than by the day.":
+    "Texas no tiene su propia ley de horas extra y sigue la regla federal, que cuenta las horas por semana y no por día.",
+  "That is worse for the shop, not better.": "Eso es peor para el taller, no mejor.",
+  "Pay rate": "Sueldo por hora",
+  "Straight time": "Tiempo normal",
+  "At the overtime rate": "A tarifa de hora extra",
+  "The difference": "La diferencia",
+  "A whole week of them": "Una semana entera de esos días",
+  "Read the two overtime columns before anything else.":
+    "Lea las dos columnas de horas extra antes que nada.",
+  "This is a rate calculation, not legal advice.":
+    "Esto es un cálculo de tarifas, no una asesoría legal.",
+  "It assumes an hourly, non-exempt employee on a standard workweek and ignores everything else that lands on a wage — payroll taxes, insurance, breaks, and any agreement with the employee themselves. Have an accountant confirm it before it is used to set anybody&apos;s pay. Rule checked August 2026 against the Texas Workforce Commission&apos;s position and the federal Fair Labor Standards Act.":
+    "Supone un empleado por hora, no exento, en una semana laboral normal, y no incluye nada más de lo que carga un sueldo — impuestos de nómina, seguro, descansos, ni ningún acuerdo con el propio empleado. Que un contador lo confirme antes de usarlo para fijarle el pago a alguien. Regla revisada en agosto de 2026 contra la postura de la Comisión de la Fuerza Laboral de Texas y la Ley Federal de Normas Justas de Trabajo.",
+
   // ── Things that go wrong ───────────────────────────────────────────────
   "That did not save": "Eso no se guardó",
   "Could not load": "No se pudo cargar",

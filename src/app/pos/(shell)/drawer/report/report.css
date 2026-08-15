@@ -932,3 +932,31 @@
   margin: 1.5mm 0 0;
   max-width: 165mm;
 }
+
+/* Which language the sheet prints in. Never on paper — by the time it is in a
+   hand the choice has been made and the page itself is the answer. */
+.dr-lang {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.dr-lang button {
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #fff;
+  color: var(--soft);
+  cursor: pointer;
+  border: none;
+}
+
+.dr-lang button + button {
+  border-left: 1px solid var(--line);
+}
+
+.dr-lang button.is-on {
+  background: var(--rule);
+  color: #fff;
+}
