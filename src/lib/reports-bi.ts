@@ -466,7 +466,18 @@ export function staffingNeed(from: string, to: string): Staffing {
       weekday: d.weekday,
       // Rounded UP: half a technician cannot fit a tire, and the cost of
       // rounding down is a customer waiting in the lobby.
-      techs: d.peakTickets === 0 ? 0 : Math.max(1, Math.ceil(d.peakTickets / perHour)),
+      //
+      // SATURDAY AT THE 3-AN-HOUR PACE IS FLOORED AT 4, by the owner's own
+      // instruction (2026-08-15). The arithmetic said 3; the owner knows his
+      // Saturdays. Set here at the source rather than in one screen, so the
+      // printable, the Reports tab and the scheduler all say the same thing.
+      techs:
+        d.peakTickets === 0
+          ? 0
+          : Math.max(
+              perHour === 3 && d.weekday === 6 ? 4 : 1,
+              Math.ceil(d.peakTickets / perHour),
+            ),
     })),
   }));
 
