@@ -2441,8 +2441,7 @@ function ReceiveModal({
               </span>
             </label>
             {!toPool && (
-            <>
-            <label className="text-sm text-brand-400">{tr("Size")}<input
+              <label className="text-sm text-brand-400">{tr("Size")}<input
                 className="input mt-1 w-full tabular-nums"
                 value={size}
                 onChange={(e) => {
@@ -2456,23 +2455,7 @@ function ReceiveModal({
                 autoFocus
               />
               <span className="block mt-1 text-xs text-brand-300">{tr("Any way of writing it works — 195 65 15, 195/65R15, 1956515.")}</span>
-            </label>
-            <label className="flex items-start gap-2 text-sm text-brand-400">
-              <input
-                type="checkbox"
-                className="mt-1"
-                checked={specialized}
-                onChange={(e) => setSpecialized(e.target.checked)}
-              />
-              <span>
-                18-wheeler or specialty
-                <span className="block text-xs text-brand-300">
-                  Semi, trailer, tow truck, mower. Keeps it in its own section at the
-                  end of the sheet instead of among the passenger sizes.
-                </span>
-              </span>
-            </label>
-            </>
+              </label>
             )}
             {/*
               The one control that decides whether this is stock arriving or
@@ -2505,6 +2488,33 @@ function ReceiveModal({
                 </span>
               </span>
             </label>
+            )}
+            {/*
+              Last of the three, because it is the least consequential: it
+              decides which part of the printed sheet the size lands on, not
+              what the count means. Neutral rather than amber — the other two
+              move tires between two counts, this one only sorts them.
+            */}
+            {!toPool && (
+              <label
+                className="flex items-start gap-2 text-sm rounded-lg px-3 py-2 text-brand-400"
+                style={{ border: "1px solid rgba(10,37,64,0.12)" }}
+              >
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={specialized}
+                  onChange={(e) => setSpecialized(e.target.checked)}
+                />
+                <span>
+                  {tr("18-wheeler or specialty")}
+                  <span className="block text-xs text-brand-300">
+                    {tr(
+                      "Semi, trailer, tow truck, mower. Keeps it in its own section at the end of the sheet instead of among the passenger sizes.",
+                    )}
+                  </span>
+                </span>
+              </label>
             )}
             {poolShort !== null && (
               <div

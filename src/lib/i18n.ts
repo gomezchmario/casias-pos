@@ -1234,6 +1234,9 @@ const ES: Record<string, string> = {
     physical heap of tires somebody walks up to and counts, and the word has to
     be the one that gets used while standing next to it.
   */
+  "18-wheeler or specialty": "Tráiler o especial",
+  "Semi, trailer, tow truck, mower. Keeps it in its own section at the end of the sheet instead of among the passenger sizes.":
+    "Tráiler, caja, grúa, podadora. La mantiene en su propia sección al final de la hoja en vez de entre las medidas de carro.",
   "General pool": "Montón general",
   "bought by the load — listed by size as somebody works through it":
     "compradas por camionada — se apuntan por medida conforme alguien las va revisando",
