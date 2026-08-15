@@ -23,7 +23,12 @@ import { useLang } from "@/components/pos/LangToggle";
 type RegisterData = {
   quickButtons: QuickButton[];
   paymentMethods: PaymentMethod[];
-  mechanics: { id: number; name: string }[];
+  mechanics: {
+    id: number;
+    name: string;
+    /** Where they stand on the time clock right now — see the ring below. */
+    clock: "checked_out" | "checked_in" | "on_break";
+  }[];
   businessDate: string;
   tireCategories: { new_tire?: number; used_tire?: number };
   settings: {
@@ -902,7 +907,10 @@ export default function RegisterPage() {
     ),
   ]
     .map((id) => data.mechanics.find((m) => m.id === id))
-    .filter((m): m is { id: number; name: string } => m != null);
+    // Typed off the roster rather than restated: the roster gained a clock
+    // field and a hand-written shape here would have gone stale the moment it
+    // did. The panels below only read id and name, which this still is.
+    .filter((m): m is (typeof data.mechanics)[number] => m != null);
 
   return (
     <>
@@ -1337,6 +1345,26 @@ export default function RegisterPage() {
             <div className="keypad">
               {data.mechanics.map((m) => {
                 const on = mechanicId === m.id;
+                /*
+                  WHO IS ACTUALLY HERE, without asking anybody.
+
+                  Green outline for checked in, red for on break, and everybody
+                  else exactly as before — somebody who has not clocked in at
+                  all looks no different, because the clock is not reliable
+                  enough to accuse anybody of absence with a colour. It says
+                  what it knows and stays quiet about the rest.
+
+                  Only the border. The fill stays white so the chosen name is
+                  still the only filled button in the grid; a green fill would
+                  compete with the selection, which is the one thing this
+                  control has to make obvious.
+                */
+                const ring =
+                  m.clock === "checked_in"
+                    ? "2px solid #15803d"
+                    : m.clock === "on_break"
+                      ? "2px solid #b91c1c"
+                      : "2px solid rgba(10,37,64,0.15)";
                 return (
                   <button
                     key={m.id}
@@ -1352,7 +1380,10 @@ export default function RegisterPage() {
                       // implied a third kind of thing.
                       background: on ? "#0a2540" : "#fff",
                       color: on ? "#fff" : "#0a2540",
-                      border: on ? "2px solid #0a2540" : "2px solid rgba(10,37,64,0.15)",
+                      // The clock ring gives way to the selection: a chosen
+                      // name is navy on navy, because which name is picked
+                      // matters more than whether they are on their break.
+                      border: on ? "2px solid #0a2540" : ring,
                       // The amber ring is the shop's attention colour, and it
                       // is what makes the picked name findable at a glance in
                       // a grid of eight.
@@ -1366,6 +1397,13 @@ export default function RegisterPage() {
                       setOtherName(null);
                     }}
                     disabled={busy}
+                    title={
+                      m.clock === "checked_in"
+                        ? `${m.name} is checked in`
+                        : m.clock === "on_break"
+                          ? `${m.name} is on break`
+                          : m.name
+                    }
                   >
                     {m.name}
                   </button>

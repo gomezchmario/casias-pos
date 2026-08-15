@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requirePos } from "@/lib/api-helpers";
 import { listQuickButtons } from "@/lib/quick-buttons";
 import { listPaymentMethods } from "@/lib/payments";
-import { listMechanics } from "@/lib/employees";
+import { getEmployeeState, listMechanics } from "@/lib/employees";
 import { getSetting } from "@/lib/settings";
 import { currentBusinessDate } from "@/lib/business-date";
 import { getDb } from "@/lib/db";
@@ -19,7 +19,19 @@ export async function GET() {
     paymentMethods: listPaymentMethods(),
     // Only the floor. A line is credited to whoever did the work, and the
     // office staff never appear on one.
-    mechanics: listMechanics().map((e) => ({ id: e.id, name: e.name })),
+    /*
+      Each technician's clock state, so the picker can show who is actually
+      here. Read per person rather than joined: this is a handful of employees
+      on a screen that already opens the database several times, and
+      `getEmployeeState` is the one function that knows what "on break" means —
+      duplicating that rule in a join here is how the two would come to
+      disagree.
+    */
+    mechanics: listMechanics().map((e) => ({
+      id: e.id,
+      name: e.name,
+      clock: getEmployeeState(e.id).state,
+    })),
     businessDate: currentBusinessDate(),
     // The two category ids a product's condition maps onto, read rather than
     // hardcoded so the seed stays the single source of truth for them.
