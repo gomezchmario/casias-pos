@@ -601,3 +601,73 @@
     display: none;
   }
 }
+
+/* ── The denomination counter ─────────────────────────────────────────── */
+
+/*
+  A calculator that knows what a nickel is worth.
+
+  Tight rows on purpose: thirteen denominations have to fit without the window
+  scrolling, because somebody counting a drawer is holding money in one hand and
+  cannot go hunting for the row they want.
+*/
+.cc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.cc-table thead th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: rgba(10, 37, 64, 0.5);
+  font-weight: 700;
+  padding-bottom: 4px;
+}
+
+.cc-table td {
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(10, 37, 64, 0.06);
+}
+
+.cc-n {
+  width: 92px;
+  text-align: right;
+}
+
+.cc-n .input {
+  height: 32px;
+  padding: 0 8px;
+  width: 100%;
+}
+
+.cc-r {
+  text-align: right;
+  width: 96px;
+  padding-left: 10px !important;
+}
+
+/* A row somebody has actually put a number in, so the eye can see how far down
+   the drawer has been counted at a glance. */
+.cc-has td {
+  font-weight: 600;
+}
+
+.cc-dim {
+  color: rgba(10, 37, 64, 0.3);
+}
+
+.cc-sub td {
+  padding-top: 8px;
+  color: rgba(10, 37, 64, 0.6);
+  border-bottom: none;
+}
+
+.cc-total td {
+  padding-top: 6px;
+  border-top: 2px solid #0a2540;
+  font-weight: 800;
+  font-size: 16px;
+}

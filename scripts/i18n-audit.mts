@@ -30,10 +30,20 @@ const walk = (dir: string): string[] =>
     return e.isDirectory() ? walk(p) : /\.tsx$/.test(e.name) ? [p] : [];
   });
 
+/*
+  THE COMPONENTS COUNT TOO, and leaving them out made this tool lie.
+
+  It walked only `src/app/pos`, so every string living in a shared component —
+  the payment panel, the ticket drawer, the cash counter — was invisible to it.
+  A run would come back "0 missing" while a whole modal was untranslated, which
+  is worse than no audit: it is an audit that says the job is finished.
+*/
+const DEFAULT_DIRS = ["src/app/pos", "src/components/pos"];
+
 const targets = process.argv.slice(2);
 const files = targets.length
   ? targets.flatMap((t) => (fs.statSync(t).isDirectory() ? walk(t) : [t]))
-  : walk("src/app/pos");
+  : DEFAULT_DIRS.flatMap(walk);
 
 let wrapped = 0;
 const missing = new Set<string>();

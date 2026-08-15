@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { usePosAuth } from "@/components/pos/PosShell";
 import { useLang } from "@/components/pos/LangToggle";
 import { ShopLogo } from "@/components/ui/ShopLogo";
+import { CashCounter } from "@/components/pos/CashCounter";
 import { RankedBars, Stat } from "@/components/pos/Charts";
 import { formatCents, parseCents } from "@/lib/money";
 import type { CloseoutV2 } from "@/lib/day-report";
@@ -79,6 +80,8 @@ export default function CloseoutV3Page() {
   /** Codes whose count has been logged this sequence — the per-tender covers. */
   const [logged, setLogged] = useState<ReadonlySet<string>>(new Set());
   const [floatCount, setFloatCount] = useState("");
+  /** The denomination counter, which only ever hands back a total. */
+  const [counting, setCounting] = useState(false);
   /**
    * The clock, ticking, only so the float warning can expire on its own.
    *
@@ -785,14 +788,50 @@ export default function CloseoutV3Page() {
               .map((t) => `${t.label} ${formatCents(t.takingsCents)}`)
               .join(" · ") || "No other tenders today."}
           </p>
-          <button
-            type="button"
-            className="btn btn-primary mt-2"
-            disabled={busy}
-            onClick={() => void logRegister()}
-          >
-            {busy ? "Working…" : "Log Register"}
-          </button>
+          <div className="flex items-center gap-2 mt-2">
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={busy}
+              onClick={() => void logRegister()}
+            >
+              {busy ? "Working…" : "Log Register"}
+            </button>
+            {/*
+              The counting tool, as an icon beside the button it feeds.
+
+              An icon and not a word because it is a helper, not a step: the
+              sequence on this page is count, log, print, and a second labelled
+              button next to Log Register would read as a fourth thing that has
+              to be done. It sits here rather than beside the cash box because
+              this is where somebody is standing when they have the drawer in
+              their hand.
+            */}
+            <button
+              type="button"
+              className="btn btn-outline"
+              style={{ width: 44, padding: 0 }}
+              title={tr("Count the drawer note by note")}
+              aria-label={tr("Count the drawer note by note")}
+              onClick={() => setCounting(true)}
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <rect x="4" y="3" width="16" height="18" rx="2" />
+                <rect x="7.5" y="6.5" width="9" height="3.5" rx="0.5" />
+                <path d="M8 14h.01M12 14h.01M16 14h.01M8 17.5h.01M12 17.5h.01M16 17.5h.01" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* ── Cash in / out of the drawer ────────────────────────────────
@@ -1201,6 +1240,21 @@ export default function CloseoutV3Page() {
           </div>
         </div>
       </div>
+
+      {/*
+        Its total goes straight into the cash box, which is the whole point of
+        it being here rather than being a calculator somebody opens on a phone.
+        Setting the box the same way typing in it does — clearing the logged set
+        — so a counted figure and a typed one behave identically from there on.
+      */}
+      <CashCounter
+        open={counting}
+        onClose={() => setCounting(false)}
+        onUse={(cents) => {
+          setLogged(new Set());
+          setCounts((c) => ({ ...c, cash: (cents / 100).toFixed(2) }));
+        }}
+      />
 
       {/* ═══ PRINT: page one — the sheet that gets signed ════════════════ */}
       {/* ═══ PRINT: money taken in, by cashier ═══════════════════════════ */}

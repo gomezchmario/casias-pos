@@ -1312,6 +1312,71 @@ const ES: Record<string, string> = {
   "Somebody who saw the wait and drove off left no ticket, so they are in none of these squares. The busier an hour is the more it turns away, which means the busiest hours are the most understated — read every figure here as a floor rather than as demand.":
     "Quien vio la espera y se fue no dejó ticket, así que no está en ninguno de estos cuadros. Entre más pesada la hora, más gente se va — o sea que las horas más pesadas son las que más se quedan cortas. Lea cada cifra de aquí como un mínimo, no como la demanda real.",
 
+  /*
+    ── The ticket drawer and the cash counter ─────────────────────────────
+
+    These live in src/components/pos, which the audit script did not walk until
+    now — so a whole modal could read as fully translated while being entirely
+    English. Several of these are FRAGMENTS assembled around a figure in JSX
+    ("Move the" · $5.00 · "tip to somebody else"), so each half is written to
+    sit correctly around the number rather than as a sentence on its own.
+  */
+  "Fix something on this ticket": "Corregir algo en este ticket",
+  "What this line says": "Lo que dice esta línea",
+  "Correct what this line says, how many, or the price":
+    "Corregir lo que dice esta línea, cuántas, o el precio",
+  "Show corrections": "Ver correcciones",
+  "Hide corrections": "Ocultar correcciones",
+  "Show every correction made to this ticket":
+    "Ver todas las correcciones hechas a este ticket",
+  "Hide the corrections and show the ticket as it stands":
+    "Ocultar las correcciones y ver el ticket como quedó",
+  "corrected row hidden": "línea corregida oculta",
+  "corrected rows hidden": "líneas corregidas ocultas",
+  "open the eye above to see them": "abra el ojo de arriba para verlas",
+
+  // "Move the" · $5.00 · "tip to somebody else"
+  "Move the": "Pasarle los",
+  "tip to somebody else": "de propina a otra persona",
+  // "Credited to" · NAME · " right now."
+  "Credited to": "Acreditada a",
+  " right now.": " ahora mismo.",
+  "It comes off them and goes to whoever you pick, for the same amount, on the day it was rung — the ticket and the day's takings do not change.":
+    "Se le quita a esa persona y se le pasa a quien usted escoja, por la misma cantidad, en el día en que se cobró — el ticket y lo vendido del día no cambian.",
+  "Move it": "Pasarla",
+  "Pick a technician": "Escoja un técnico",
+  "Nobody is on this ticket — who is the tip for?":
+    "No hay nadie en este ticket — ¿para quién es la propina?",
+  "Choose somebody…": "Escoja a alguien…",
+  nobody: "nadie",
+
+  "Reopen it": "Volver a abrirlo",
+  "Reopen this ticket to add lines": "Volver a abrir este ticket para agregar líneas",
+  "The ticket goes back to open so lines can be added. The payments stay where they are and the tires already fitted stay out of stock — finishing it again only books what you add.":
+    "El ticket regresa a abierto para poder agregarle líneas. Los pagos se quedan donde están y las llantas ya montadas siguen fuera del inventario — al cerrarlo otra vez solo se registra lo que usted agregue.",
+  // "It has" · $60.00 · "collected on it, which stays collected."
+  "It has": "Tiene",
+  "collected on it, which stays collected.": "cobrados, y cobrados se quedan.",
+  // "This ticket belongs to" · DATE · ", not today" — ...
+  "This ticket belongs to": "Este ticket es del",
+  "not today": "no de hoy",
+  "that day has already been counted, and adding to it changes what it sold.":
+    "ese día ya se contó, y agregarle algo cambia lo que vendió.",
+  "Close it again as it is": "Cerrarlo otra vez tal como está",
+  Financing: "Financiamiento",
+
+  // The cash counter.
+  "Count the drawer": "Contar la caja",
+  "Count the drawer note by note": "Contar la caja billete por billete",
+  "Type how many of each you have. Leave a row empty if you have none of it — the total adds itself up as you go.":
+    "Escriba cuántos tiene de cada uno. Deje la línea vacía si no tiene ninguno — el total se va sumando solo.",
+  "Comes to": "Suma",
+  Bills: "Billetes",
+  Coin: "Moneda",
+  "In the drawer": "En la caja",
+  "Start over": "Empezar de nuevo",
+  Use: "Usar",
+
   // ── Things that go wrong ───────────────────────────────────────────────
   "That did not save": "Eso no se guardó",
   "Could not load": "No se pudo cargar",
