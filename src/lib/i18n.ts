@@ -836,6 +836,14 @@ const ES: Record<string, string> = {
   "Appears once the register is logged.": "Aparece en cuanto se apunte el conteo de la caja.",
   "More in the drawer than the tickets account for — usually a sale rung short or not rung at all. Worth finding, but nothing is missing.":
     "Hay más en la caja de lo que explican los tickets — casi siempre una venta cobrada de menos o que no se registró. Vale la pena encontrarla, pero no falta nada.",
+  // The tips-covered-the-short verdict, assembled around the two dollar
+  // figures on screen: "The drawer counted {X} light, and {Y} of tips…"
+  "The drawer counted": "A la caja le faltaron",
+  "light, and": "en el conteo, y",
+  "of tips were paid out of it in cash — the money left in hands, not unaccounted for.":
+    "de propinas se pagaron de ahí en efectivo — el dinero salió en manos, no está perdido.",
+  "Once the tips are set aside there is": "Ya apartadas las propinas, sobran",
+  "more than the tickets explain.": "más de lo que explican los tickets.",
   "Print and sign": "Imprima y firme",
   "The close-out is one page: the verdict, the reconciliation and the signatures. Settle the terminal batch before signing.":
     "El corte es una sola hoja: el resultado, el cuadre y las firmas. Cierre el lote de la terminal antes de firmar.",

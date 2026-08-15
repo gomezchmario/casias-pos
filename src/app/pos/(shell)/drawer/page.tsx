@@ -252,15 +252,45 @@ export default function CloseoutV3Page() {
     can pretend otherwise.
   */
   const mayPrint = registerLogged || can("skipBlindCount");
+  const cashLine = finalCheck?.lines.find((l) => l.isCard === 0) ?? null;
+  /*
+    TIPS PAID OUT OF THE DRAWER EXPLAIN A SHORT COUNT — when they cover it.
+
+    This began as "short by EXACTLY the tips", and the owner's own drawer broke
+    the exactness within the week: counted $60 light on a day with $63 of tips
+    handed out, which is the same event plus a sale rung short somewhere — and
+    the sheet called it SHORT BY $60 as though money were missing. So the rule
+    is now "short by NO MORE than the tips": the tips leaving the drawer account
+    for the shortfall, and whatever is left over is money the shop has more of,
+    not less.
+
+    Deliberately NOT extended to a drawer short by more than the tips. There the
+    tips cannot explain the whole hole, real money may be gone, and softening
+    that verdict on an assumption would hide the one case this sheet exists to
+    catch.
+  */
+  const shortCoveredByTips =
+    !!cashLine &&
+    data.totals.tipCents > 0 &&
+    cashLine.varianceCents < 0 &&
+    -cashLine.varianceCents <= data.totals.tipCents;
+  /** What is left once the tips are set aside — the figure the verdict reads. */
+  const tipOverCents = shortCoveredByTips
+    ? data.totals.tipCents + cashLine.varianceCents
+    : 0;
+  /** The variance the verdict judges: cash is read tips-out when they cover it. */
+  const effVariance = (l: { isCard: number; varianceCents: number }) =>
+    shortCoveredByTips && l.isCard === 0
+      ? l.varianceCents + data.totals.tipCents
+      : l.varianceCents;
+
   const outBy = finalCheck
     ? finalCheck.lines.reduce(
-        (n, l) => n + Math.abs(shownVariance(l.varianceCents, l.isCard)),
+        (n, l) => n + Math.abs(shownVariance(effVariance(l), l.isCard)),
         0,
       )
     : 0;
-  const cashLine = finalCheck?.lines.find((l) => l.isCard === 0) ?? null;
-  const shortByExactlyTips =
-    !!cashLine && data.totals.tipCents > 0 && cashLine.varianceCents === -data.totals.tipCents;
+
 
   /*
     WHICH WAY THE DRAWER IS OUT, WHICH outBy CANNOT SAY.
@@ -280,7 +310,7 @@ export default function CloseoutV3Page() {
     old wording.
   */
   const signedLines = (finalCheck?.lines ?? []).map((l) =>
-    shownVariance(l.varianceCents, l.isCard),
+    shownVariance(effVariance(l), l.isCard),
   );
   const overCents = signedLines.reduce((n, v) => n + Math.max(0, v), 0);
   const shortCents = signedLines.reduce((n, v) => n + Math.min(0, v), 0);
@@ -325,9 +355,10 @@ export default function CloseoutV3Page() {
     again would understate what to retire by the whole tip figure. That case is
     not guesswork — it is the same fact this sheet already prints as its
     verdict, so it is read off the same signal rather than a second rule that
-    could disagree with the first.
+    could disagree with the first. The signal is "short by no more than the
+    tips", not "by exactly" — see it, and why, where it is derived.
   */
-  const tipsStillInDrawer = !shortByExactlyTips;
+  const tipsStillInDrawer = !shortCoveredByTips;
   const tipsToPayCents = tipsStillInDrawer ? data.totals.tipCents : 0;
   const retireCents = Math.max(
     0,
@@ -1120,21 +1151,37 @@ export default function CloseoutV3Page() {
             <>
               <div
                 className={`cv3-verdict ${
-                  outBy === 0 || shortByExactlyTips
-                    ? "is-good"
-                    : onlyOver
-                      ? "is-warn"
-                      : "is-bad"
+                  outBy === 0 ? "is-good" : onlyOver ? "is-warn" : "is-bad"
                 }`}
               >
-                {outBy === 0 || shortByExactlyTips
+                {outBy === 0
                   ? "BALANCED"
                   : onlyOver
                     ? `WE HAVE ${formatCents(overCents)} EXTRA`
                     : onlyShort
                       ? `SHORT BY ${formatCents(-shortCents)}`
                       : `OUT BY ${formatCents(outBy)}`}
-                {onlyOver && (
+                {/* Which explanation, decided by what actually happened: tips
+                    covering the shortfall is a different story from a plain
+                    over, and telling the plain-over story on a tips day sends
+                    somebody hunting a mis-rung sale that never existed. */}
+                {shortCoveredByTips && (
+                  <div className="cv3-verdict-why">
+                    {tr("The drawer counted")} {formatCents(-cashLine!.varianceCents)}{" "}
+                    {tr("light, and")} {formatCents(data.totals.tipCents)}{" "}
+                    {tr(
+                      "of tips were paid out of it in cash — the money left in hands, not unaccounted for.",
+                    )}
+                    {tipOverCents > 0 && (
+                      <>
+                        {" "}
+                        {tr("Once the tips are set aside there is")}{" "}
+                        {formatCents(tipOverCents)} {tr("more than the tickets explain.")}
+                      </>
+                    )}
+                  </div>
+                )}
+                {onlyOver && !shortCoveredByTips && (
                   <div className="cv3-verdict-why">
                     {tr(
                       "More in the drawer than the tickets account for — usually a sale rung short or not rung at all. Worth finding, but nothing is missing.",
@@ -1365,33 +1412,36 @@ export default function CloseoutV3Page() {
           {/* The register, first and biggest — this is what the sheet certifies. */}
           <div
             className={`cv3-verdict ${
-              outBy === 0 || shortByExactlyTips
-                ? "is-good"
-                : onlyOver
-                  ? "is-warn"
-                  : "is-bad"
+              outBy === 0 ? "is-good" : onlyOver ? "is-warn" : "is-bad"
             }`}
           >
             {!registerLogged
               ? "REGISTER NOT LOGGED — THIS SHEET CERTIFIES NOTHING"
-              : outBy === 0 || shortByExactlyTips
+              : outBy === 0
                 ? "REGISTER BALANCED"
                 : onlyOver
                   ? `WE HAVE ${formatCents(overCents)} EXTRA`
                   : onlyShort
                     ? `SHORT BY ${formatCents(-shortCents)}`
                     : `OUT BY ${formatCents(outBy)}`}
-            {registerLogged && onlyOver && (
+            {registerLogged && onlyOver && !shortCoveredByTips && (
               <div className="cv3-verdict-why">
                 More in the drawer than the tickets account for — usually a sale rung
                 short or not rung at all. Worth finding, but nothing is missing.
               </div>
             )}
-            {registerLogged && shortByExactlyTips && (
+            {registerLogged && shortCoveredByTips && (
               <div className="cv3-verdict-why">
-                The drawer is {formatCents(data.totals.tipCents)} light and that is
-                exactly the tips paid out of it to the technicians — the money left
-                in hands, not unaccounted for.
+                The drawer counted {formatCents(-cashLine!.varianceCents)} light, and{" "}
+                {formatCents(data.totals.tipCents)} of tips were paid out of it in
+                cash — the money left in hands, not unaccounted for.
+                {tipOverCents > 0 && (
+                  <>
+                    {" "}
+                    Once the tips are set aside there is {formatCents(tipOverCents)}{" "}
+                    more than the tickets explain.
+                  </>
+                )}
               </div>
             )}
           </div>
