@@ -135,7 +135,19 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   tax_rate_bp: "825", // 8.25%
   tip_comm_per_cents: "500",
   tip_comm_charge_cents: "100",
-  customer_prompt_threshold_cents: "20000", // $200
+  /*
+    Zero: the customer and vehicle panel never opens itself.
+
+    It was $200, which on a counter where a set of four is four hundred meant it
+    unfolded on nearly every ticket — a panel that is open by default without
+    ever having been asked for. It is still one number away from coming back:
+    put a figure here and the panel opens itself again once a ticket reaches it.
+
+    This is only the prompt. A ticket going on the house account still forces
+    the panel open and still refuses to fold away, because a tab with no name on
+    it is money the shop cannot chase.
+  */
+  customer_prompt_threshold_cents: "0",
   business_day_start_hour: "4",
   allow_oversell: "1",
   pos_idle_lock_seconds: "900", // 15 minutes

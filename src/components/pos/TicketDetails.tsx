@@ -184,9 +184,22 @@ export function TicketDetails({
   const [fleetBusy, setFleetBusy] = useState(false);
   const lastSent = useRef<string>("");
 
-  // Opened for you once the ticket is big enough to regret not having a name on.
-  // One-way: it never folds itself back up if a line is voided, because a panel
-  // that closes while somebody is typing in it is worse than one that stays.
+  /*
+    Opened for you once the ticket is big enough to regret not having a name on
+    — IF the shop has asked for that. One-way: it never folds itself back up if
+    a line is voided, because a panel that closes while somebody is typing in it
+    is worse than one that stays.
+
+    OFF AT THIS SHOP, and the zero is doing the work rather than this code being
+    deleted. The threshold was $200, which on a counter where a set of four is
+    four hundred meant the panel opened on nearly every ticket — so it read as
+    "always open" and was asked to be hidden by default. It is a settings value,
+    `customer_prompt_threshold_cents`, and putting a figure back in there turns
+    the prompt on again at whatever size the shop decides is worth a name.
+
+    The house-account rule below is NOT part of this and does not switch off. A
+    tab is a promise to collect later and "later" needs somebody to ring.
+  */
   useEffect(() => {
     if (thresholdCents > 0 && sale.subtotal_cents >= thresholdCents) setOpen(true);
   }, [sale.subtotal_cents, thresholdCents]);
