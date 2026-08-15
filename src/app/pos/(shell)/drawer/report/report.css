@@ -713,35 +713,6 @@
   min-width: 0.4mm;
 }
 
-/* ── Signatures ───────────────────────────────────────────────────────── */
-
-.dr-sign {
-  break-inside: avoid;
-}
-
-.dr-sign-rows {
-  display: flex;
-  gap: 8mm;
-  margin-top: 8mm;
-}
-
-.dr-sign-row {
-  flex: 1;
-}
-
-.dr-sign-line {
-  border-bottom: 1px solid var(--ink);
-  height: 9mm;
-}
-
-.dr-sign-label {
-  font-size: 8pt;
-  text-transform: uppercase;
-  letter-spacing: 1pt;
-  color: var(--soft);
-  margin-top: 1.5mm;
-}
-
 .dr-colophon {
   margin-top: 6mm;
   padding-top: 2mm;
@@ -803,8 +774,7 @@
   .dr-verdict,
   .dr-headline,
   .dr-callout,
-  .dr-chart,
-  .dr-sign {
+  .dr-chart {
     break-inside: avoid;
   }
 

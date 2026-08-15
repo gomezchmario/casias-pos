@@ -1720,29 +1720,6 @@ export default function DayReportPage() {
         )}
       </Section>
 
-      {/* ══════════ 13. SIGNATURES ══════════ */}
-      <section className="dr-sec dr-sign">
-        <h2 className="dr-h2">Counted, checked and filed</h2>
-        <p className="dr-lead">
-          Two signatures: the person who counted the drawer, and the person who checked their
-          figures. Sign only after the card terminal batch has been settled.
-        </p>
-        <div className="dr-sign-rows">
-          <div className="dr-sign-row">
-            <div className="dr-sign-line" />
-            <div className="dr-sign-label">Counted by</div>
-          </div>
-          <div className="dr-sign-row">
-            <div className="dr-sign-line" />
-            <div className="dr-sign-label">Checked by</div>
-          </div>
-          <div className="dr-sign-row">
-            <div className="dr-sign-line" />
-            <div className="dr-sign-label">Date</div>
-          </div>
-        </div>
-      </section>
-
       {/* ══════════ APPENDIX A — NEW TIRES SOLD ══════════ */}
       {/*
         Three appendices, in the order they get looked at.
