@@ -98,9 +98,10 @@ export function drawerMovementsForShift(
  * What has been taken out of sight, for the one screen allowed to say so.
  *
  * Signed like everything else in this table, so a day with one hidden $40
- * withdrawal returns -4000. The close-out shows it to the owner beside the
- * count, because the count is short by exactly this and the owner is the only
- * person who can tell that apart from a genuine shortfall.
+ * withdrawal returns -4000. The close-out shows it to the owner as their own
+ * memo of what moved quietly. The arithmetic already carries it — see
+ * drawerAdjustmentCents — so the count is NOT short by it; what stays secret
+ * is the row, never the sum.
  */
 export function hiddenDrawerCents(
   scope: { shiftId: number } | { businessDate: string },
@@ -127,16 +128,22 @@ export function hiddenDrawerCents(
  * only the drawer count should take it. Nothing about revenue changes when
  * money moves from a wooden box to a safe.
  *
- * HIDDEN MOVEMENTS ARE EXCLUDED, and that exclusion is the entire mechanism
- * rather than a detail of it. A hidden withdrawal that adjusted this number
- * would leave the drawer balancing exactly as it did before — an ordinary
- * cash-out with a flag that changed nothing. Leaving it out is what makes the
- * box come up short against the books on purpose, which is the only way to tell
- * a person who counts the money from a person who reads the expected figure off
- * the screen and types it back in.
+ * HIDDEN MOVEMENTS ARE INCLUDED, and that took two designs to get right.
+ * Migration 026 shipped the opposite: a hidden withdrawal left the expected
+ * figure alone, so the drawer came up short on purpose and only the owner knew
+ * why — a trap for counts typed off the screen. The owner retired that on
+ * 2026-08-16, the first day it fired in real use: the manager's count read
+ * SHORT BY $340 in red, which made the owner's quiet cash-out the loudest
+ * thing in the shop. An anti-skim instrument the floor can see is not quiet,
+ * and the typed-back-count attack it guarded against is already dead — the
+ * blind covers never show an expected figure before the count is typed.
  *
- * There is no `includeHidden` here, deliberately. What the drawer is expected to
- * hold has exactly one answer on any given night, and offering a second one
+ * So: hidden means off the paper and out of the lists, never out of the
+ * arithmetic. The books move with the money, every honest count balances, and
+ * what managers and below are not shown is the ROW — who took it, when, why.
+ *
+ * There is no `includeHidden` here, deliberately. What the drawer is expected
+ * to hold has exactly one answer on any given night, and offering a second one
  * would eventually get the two compared.
  */
 export function drawerAdjustmentCents(
@@ -147,7 +154,7 @@ export function drawerAdjustmentCents(
   const row = getDb()
     .prepare(
       `SELECT COALESCE(SUM(amount_cents), 0) AS n
-         FROM drawer_movements WHERE ${where} AND hidden = 0`,
+         FROM drawer_movements WHERE ${where}`,
     )
     .get(param) as { n: number };
   return row.n;
@@ -207,11 +214,13 @@ export function recordDrawerMovement(
     emptying it at close is recording the truth. The message tells them to count
     first; `acknowledgeOverdraw` is the screen saying they did.
 
-    Visible withdrawals only. A hidden one is excluded from the floor's
-    expectation by design, so it cannot drive the visible figure negative — and
-    it is the owner's own instrument besides.
+    Hidden withdrawals are checked too, since the change of 2026-08-16: they
+    move the expected figure like any other, so an over-pull would drive the
+    floor's expectation negative all the same. The message goes to the owner —
+    it is their own instrument — and the count-first advice holds for them
+    exactly as it does for everyone else.
   */
-  if (args.kind === "withdrawal" && !args.hidden && !args.acknowledgeOverdraw) {
+  if (args.kind === "withdrawal" && !args.acknowledgeOverdraw) {
     const cash = expectedByMethodForDay(currentBusinessDate()).find((e) => e.kind === "cash");
     const after = (cash?.expectedCents ?? 0) + signed;
     if (after < 0)

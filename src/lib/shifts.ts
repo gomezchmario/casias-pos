@@ -225,14 +225,15 @@ export function closeShift(
  * query with no logic in it.
  */
 function drawerAdjustFor(where: string, param: unknown): number {
-  // `hidden = 0` here for the same reason it is in `drawerAdjustmentCents`, and
-  // the two must never drift apart: they are the same figure computed in two
-  // modules, and a hidden movement that reached one and not the other would put
-  // two different expectations on one screen.
+  // Hidden movements are included here for the same reason they are in
+  // `drawerAdjustmentCents` — see the essay there for why that reversed on
+  // 2026-08-16 — and the two must never drift apart: they are the same figure
+  // computed in two modules, and a hidden movement that reached one and not
+  // the other would put two different expectations on one screen.
   const row = getDb()
     .prepare(
       `SELECT COALESCE(SUM(amount_cents), 0) AS n
-         FROM drawer_movements WHERE ${where} AND hidden = 0`,
+         FROM drawer_movements WHERE ${where}`,
     )
     .get(param) as { n: number };
   return row.n;

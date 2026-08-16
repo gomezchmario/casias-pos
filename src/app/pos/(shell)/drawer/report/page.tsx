@@ -504,15 +504,14 @@ export default function DayReportPage() {
         undone.add(m.reverses_id);
       }
     }
-    /* Hidden movements stay off this document no matter who is holding it.
-       The endpoint sends them to the owner because the owner's CLOSE-OUT needs
-       them — a count that is short by their own safe run must say so to them.
-       But this report is the paper that gets printed and handed around: it is
-       manager-level by definition, and the owner printing it does not make the
-       paper owner-level. So the cash the owner has moved out of sight — the
-       off-the-floor run to the safe — is filtered here, the last step before
-       ink, and the net below tells the floor's version of the day. */
-    const moves = data.drawer.filter((m) => !undone.has(m.id) && m.hidden === 0);
+    /* Hidden movements print here, plainly marked. This report is the
+       owner's document — the endpoint only hands the hidden rows to owner
+       sessions in the first place — and the owner asked for them in the open:
+       the close-out sheet is where the cash-out hides inside the customers
+       line, and THIS page is where it is written down. A manager pulling the
+       report is handed no hidden rows at all, so their copy needs no filter to
+       stay clean. */
+    const moves = data.drawer.filter((m) => !undone.has(m.id));
     const movesNet = moves.reduce(
       (s, m) => s + (m.kind === "withdrawal" ? -m.amount_cents : m.amount_cents),
       0,
@@ -1068,7 +1067,12 @@ export default function DayReportPage() {
               {facts.moves.map((m) => (
                 <tr key={m.id}>
                   <td className="dr-time">{clockOf(m.created_at)}</td>
-                  <td>{m.kind === "withdrawal" ? "Cash out" : "Cash in"}</td>
+                  <td>
+                    {m.kind === "withdrawal" ? "Cash out" : "Cash in"}
+                    {m.hidden === 1 && (
+                      <span className="dr-note"> — taken off the sheet, owner only</span>
+                    )}
+                  </td>
                   <td>
                     {m.reason}
                     {m.note && <span className="dr-note"> — {m.note}</span>}

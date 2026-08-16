@@ -373,8 +373,9 @@ export function closeoutV2(businessDate: string): CloseoutV2 {
     owner-only alarms, so the withholding happens once, at the edge, where it
     can be read.
 
-    No arithmetic changes: `movementsCents` comes from the drawer adjustment
-    query, which has always counted only the visible ones.
+    `movementsCents` comes from the drawer adjustment query, which since
+    2026-08-16 counts hidden movements too — the route folds their share into
+    the customers line for anyone below owner. See the route.
   */
   const allMovements = drawerMovementsForDay(businessDate, { includeHidden: true });
 

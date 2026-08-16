@@ -15,13 +15,18 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return auth.response;
 
   const businessDate = req.nextUrl.searchParams.get("date") || currentBusinessDate();
+  // The owner sees what they hid; nobody else learns it exists. The net is
+  // summed off the rows THIS response carries, not taken from
+  // drawerAdjustmentCents — that figure now includes hidden movements, and a
+  // list whose printed net disagrees with its own rows would hand a manager
+  // the exact figure the flag exists to keep from them.
+  const movements = drawerMovementsForDay(businessDate, {
+    includeHidden: can(auth.user.role, "hideDrawerMovement"),
+  });
   return NextResponse.json({
     businessDate,
-    // The owner sees what they hid; nobody else learns it exists.
-    movements: drawerMovementsForDay(businessDate, {
-      includeHidden: can(auth.user.role, "hideDrawerMovement"),
-    }),
-    netCents: drawerAdjustmentCents({ businessDate }),
+    movements,
+    netCents: movements.reduce((s, m) => s + m.amount_cents, 0),
   });
 }
 

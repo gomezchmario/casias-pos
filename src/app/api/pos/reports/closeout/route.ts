@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requirePos } from "@/lib/api-helpers";
 import { currentBusinessDate } from "@/lib/business-date";
 import { closeoutV2, exceptionsFor } from "@/lib/day-report";
+import { hiddenDrawerCents } from "@/lib/drawer";
 import { can } from "@/lib/roles";
 
 /**
@@ -28,15 +29,35 @@ export async function GET(req: NextRequest) {
     what is being withheld — see Exception.ownerOnly.
   */
   const report = closeoutV2(date);
+
+  /*
+    The floor's copy hides the owner's cash-out INSIDE the customers line.
+
+    Expected already carries every movement, hidden or not — that is what lets
+    an honest count balance after the owner takes money off the sheet. But the
+    close-out prints the arithmetic behind Expected, and arithmetic keeps no
+    secrets: a "moved in / out" line that carried the hidden net would print
+    the one figure the flag exists to withhold, and a line that did not would
+    leave rows that no longer sum. The owner's chosen hiding place is the
+    "Cash from customers" figure — the quiet amount is deducted there, without
+    a word, and the floor's sheet adds up perfectly at every line. The owner's
+    own copy stays literal: real takings, the full net, and the hidden rows
+    with their reasons.
+
+    The daily report is the other way around on purpose — the owner's copy
+    there SAYS what was taken off the sheet, in the open. One document for the
+    floor that never mentions it, one for the owner that always does.
+  */
+  const ownerEyes = can(auth.user.role, "hideDrawerMovement");
+  const quietCents = ownerEyes ? 0 : hiddenDrawerCents({ businessDate: date });
   return NextResponse.json({
     ...report,
     exceptions: exceptionsFor(report.exceptions, auth.user.role),
     drawer: {
       ...report.drawer,
-      // A hidden withdrawal is the owner's, and the point of it is that nobody
-      // else knows it happened — so it is removed from the payload rather than
-      // from the screen. See hideDrawerMovement.
-      movements: can(auth.user.role, 'hideDrawerMovement')
+      cashSalesCents: report.drawer.cashSalesCents + quietCents,
+      movementsCents: report.drawer.movementsCents - quietCents,
+      movements: ownerEyes
         ? report.drawer.movements
         : report.drawer.movements.filter((m) => m.hidden === 0),
     },
