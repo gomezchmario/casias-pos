@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Casias Tire Shop">
+  <!--
+    The shop's badge, redrawn for 16 pixels.
+
+    The real badge (public/logo-256.png) is a tire carrying two lines of text
+    and a winged wrench. Shrunk into a browser tab it is a grey-blue smudge:
+    the lettering is unreadable below about 48px and the wing closes up. So
+    this keeps only what survives — the navy tire with its gold rim and tread
+    notches, and one chunky wrench across it — in the same palette the website
+    and the printed sheets use (navy #1e3a5f, gold #f5c518).
+
+    Drawn on a 64-unit grid with nothing thinner than 4 units, which is one
+    pixel at 16px. The first cut used 3-unit tread and a slim open jaw; at tab
+    size the jaw read as a hook and the tread dissolved into fog, which is why
+    everything here is deliberately too fat for the artboard.
+  -->
+  <!-- Rim and tread: a gold disc with eight notches bitten out of it -->
+  <circle cx="32" cy="32" r="31" fill="#f5c518"/>
+  <g fill="#1e3a5f">
+    <rect x="28" y="-1" width="8" height="10"/>
+    <rect x="28" y="55" width="8" height="10"/>
+    <rect x="-1" y="28" width="10" height="8"/>
+    <rect x="55" y="28" width="10" height="8"/>
+    <rect x="28" y="-1" width="8" height="10" transform="rotate(45 32 32)"/>
+    <rect x="28" y="55" width="8" height="10" transform="rotate(45 32 32)"/>
+    <rect x="-1" y="28" width="10" height="8" transform="rotate(45 32 32)"/>
+    <rect x="55" y="28" width="10" height="8" transform="rotate(45 32 32)"/>
+  </g>
+
+  <!-- The tire body -->
+  <circle cx="32" cy="32" r="24" fill="#1e3a5f"/>
+
+  <!-- The wrench: a fat handle into a ring head, with a wedge cut out of the
+       ring to make the open jaws. Cut rather than drawn, because a stroked
+       C-shape at this size closes up into a solid blob. -->
+  <!-- Turned off the diagonal on purpose. Lying at a true 45° the open jaws
+       pointed straight at a corner tread notch, and the eye joined the two
+       navy gaps into one channel sawing through the rim. Rotated to sit
+       between notches, the jaws read as jaws. -->
+  <g transform="rotate(-22 32 32)">
+    <g fill="#f5c518">
+      <rect x="17.5" y="38.5" width="22" height="9" rx="4.5"
+            transform="rotate(-45 28.5 43)"/>
+      <circle cx="40" cy="24" r="12"/>
+    </g>
+    <circle cx="40" cy="24" r="5.5" fill="#1e3a5f"/>
+    <!-- The wedge stops at the ring's own edge. Drawn 6 units longer first
+         time out, it carried on past the head and cut a navy bar clean
+         through the gold rim behind it. -->
+    <rect x="35" y="12" width="10" height="11" fill="#1e3a5f"
+          transform="rotate(45 40 24)"/>
+  </g>
+</svg>
