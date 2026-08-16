@@ -504,7 +504,15 @@ export default function DayReportPage() {
         undone.add(m.reverses_id);
       }
     }
-    const moves = data.drawer.filter((m) => !undone.has(m.id));
+    /* Hidden movements stay off this document no matter who is holding it.
+       The endpoint sends them to the owner because the owner's CLOSE-OUT needs
+       them — a count that is short by their own safe run must say so to them.
+       But this report is the paper that gets printed and handed around: it is
+       manager-level by definition, and the owner printing it does not make the
+       paper owner-level. So the cash the owner has moved out of sight — the
+       off-the-floor run to the safe — is filtered here, the last step before
+       ink, and the net below tells the floor's version of the day. */
+    const moves = data.drawer.filter((m) => !undone.has(m.id) && m.hidden === 0);
     const movesNet = moves.reduce(
       (s, m) => s + (m.kind === "withdrawal" ? -m.amount_cents : m.amount_cents),
       0,
