@@ -363,8 +363,9 @@ table.mock tr:last-child td { border-bottom: none; }
 }
 
 .plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
-.plan { background: var(--card); border: 1px solid var(--rule); border-radius: 12px; padding: 20px; }
-.plan.pick { border: 2px solid var(--amber); }
+/* The amber border used to single out the recommended pick; the owner wants
+   the whole row dressed alike, so it is the plan style now. */
+.plan { background: var(--card); border: 2px solid var(--amber); border-radius: 12px; padding: 20px; }
 .plan h4 { font-family: var(--display); font-size: 20px; margin: 0 0 3px; letter-spacing: -0.01em; }
 .plan .tagline { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
 .plan ul { margin: 0; padding-left: 17px; font-size: 14px; color: var(--muted); }
@@ -1048,7 +1049,8 @@ body.editing [data-edit]:focus { outline: 2px solid var(--amber); outline-offset
   <h2>Who was here, and for how long.</h2>
   <p class="lede">
     The same PIN that opens the register punches the clock. No second device, no
-    second password, no card nobody can find on a Monday morning.
+    second password, no card nobody can find on a Monday morning. And a camera
+    to confirm who punched the PIN.
   </p>
 
   <!--
@@ -1243,10 +1245,10 @@ body.editing [data-edit]:focus { outline: 2px solid var(--amber); outline-offset
       <div class="tagline">More than one location</div>
       <ul>
         <li>Everything in Shop</li>
-        <li>Time clock included</li>
+        <li>Priority Support</li>
         <li>Stock across locations</li>
         <li>Group reporting</li>
-        <li>Priority support</li>
+        <li>Quarterly trends and performance reports free for the first year.</li>
       </ul>
       <div class="price">$299<span style="font-size:13px;color:var(--muted)"> /mo</span></div>
     </div>
@@ -1270,7 +1272,6 @@ body.editing [data-edit]:focus { outline: 2px solid var(--amber); outline-offset
         <li>Set up around how <em>your</em> shop rings — your buttons, your prices, your words</li>
         <li>Your tire inventory loaded and counted in before you open on it</li>
         <li>Your customers and fleets brought across</li>
-        <li><b style="color:var(--text)">Quarterly reports free for the first year</b> — we read your numbers and tell you what they say</li>
       </ul>
     </div>
     <div class="plan">
@@ -1285,9 +1286,10 @@ body.editing [data-edit]:focus { outline: 2px solid var(--amber); outline-offset
   </div>
 
   <p style="color:var(--muted);font-size:14.5px;margin-top:16px;max-width:none">
-    <b style="color:var(--text)">Every plan:</b> training for your counter staff ·
+    <b style="color:var(--text)">Every plan:</b> Training for your counter staff ·
     No contract, and no hardware to buy — it runs on the computer, phone or tablet
-    you already have, with the printer you already own.
+    you already have, with the printer you already own. The application can be set
+    up on a local server, or by us on the cloud (price remains the same).
   </p>
 
   <h3 style="margin-top:40px">Getting started</h3>
