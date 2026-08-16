@@ -967,6 +967,38 @@ export function logWebSearchMiss(raw: string, normalized: string): void {
     .run(raw, normalized, currentBusinessDate(), nowLocalIso());
 }
 
+/**
+ * The raw archive of website stock searches — every one, whatever we answered.
+ *
+ * See migrations/048_web_searches.sql for what this table is and is not. This
+ * function is the whole write path, and it carries the one filter the archive
+ * has: the same normalized size is not written twice inside sixty seconds, so
+ * a visitor mashing Check or a phone retrying a slow request cannot
+ * manufacture rows. One row a minute per size still records every real
+ * question — the handrail is against doubling, not against asking.
+ */
+export function logWebSearch(
+  raw: string,
+  normalized: string,
+  answer: "yes" | "no" | "incomplete",
+): void {
+  const db = getDb();
+  const recent = db
+    .prepare(
+      `SELECT 1 FROM web_searches
+        WHERE size_norm = ?
+          AND created_at >= strftime('%Y-%m-%dT%H:%M:%S', 'now', 'localtime', '-60 seconds')
+        LIMIT 1`,
+    )
+    .get(normalized);
+  if (recent) return;
+
+  db.prepare(
+    `INSERT INTO web_searches (query, size_norm, answer, business_date, created_at)
+     VALUES (?, ?, ?, ?, ?)`,
+  ).run(raw, normalized, answer, currentBusinessDate(), nowLocalIso());
+}
+
 /** Sizes people asked for and the shop could not sell. The buying list. */
 export function listUnmetDemand(
   sinceBusinessDate: string,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { inventoryBySize, logWebSearchMiss } from "@/lib/products";
+import { inventoryBySize, logWebSearch, logWebSearchMiss } from "@/lib/products";
 import { normalizeTireSize } from "@/lib/tire-size";
 
 /**
@@ -34,8 +34,17 @@ export async function GET(req: NextRequest) {
 
   // A complete size parses into dash-joined parts: 195-65-15, 11-22.5,
   // 480-8. What the parser leaves without a dash — "205", "kenda", half a
-  // size — is refused rather than matched loosely; see above for why.
+  // size — is refused rather than matched loosely; see above for why. The
+  // refusal is still archived (owner's instruction: keep ALL of it), unless
+  // nothing at all was typed.
   if (!size.includes("-") || digits.length < 4) {
+    if (raw) {
+      try {
+        logWebSearch(raw, size, "incomplete");
+      } catch {
+        /* the archive lost one row; the caller still gets the answer */
+      }
+    }
     return NextResponse.json({ ok: false });
   }
 
@@ -49,10 +58,17 @@ export async function GET(req: NextRequest) {
       (normalizeTireSize(g.size) === size || digitsOf(g.size) === digits),
   );
 
-  // A miss joins the register's own missed searches, so the "what left" study
-  // counts the customer who asked from their couch alongside the one who asked
-  // at the counter. Failing to write it down must never cost the customer
-  // their answer, so the answer goes out regardless.
+  // Two ledgers, two purposes, and a miss belongs to both. The archive keeps
+  // every search whatever the answer (see migrations/048_web_searches.sql);
+  // the study's table additionally gets the misses, so "what left" counts the
+  // customer who asked from their couch alongside the one who asked at the
+  // counter. Failing to write either must never cost the customer their
+  // answer, so the answer goes out regardless.
+  try {
+    logWebSearch(raw, size, inStock ? "yes" : "no");
+  } catch {
+    /* the archive lost one row; the caller still gets the answer */
+  }
   if (!inStock) {
     try {
       logWebSearchMiss(raw, size);
