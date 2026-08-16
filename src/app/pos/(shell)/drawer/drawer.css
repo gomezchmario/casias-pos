@@ -699,6 +699,38 @@
   color: rgba(10, 37, 64, 0.3);
 }
 
+/* The coins fold. A full-width row that reads as a control, not a denomination
+   — muted, with the chevron turning when open and the hidden subtotal shown
+   beside the word so folded money is never invisible money. */
+.cc-fold td {
+  padding: 0;
+}
+.cc-fold button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.25rem;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  color: rgb(148 163 184);
+  text-align: left;
+}
+.cc-chev {
+  display: inline-block;
+  transition: transform 120ms ease;
+}
+.cc-chev.is-open {
+  transform: rotate(90deg);
+}
+.cc-fold-sum {
+  margin-left: auto;
+  color: rgb(226 232 240);
+}
+
 .cc-sub td {
   padding-top: 8px;
   color: rgba(10, 37, 64, 0.6);

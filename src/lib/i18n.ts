@@ -1381,6 +1381,7 @@ const ES: Record<string, string> = {
   "Comes to": "Suma",
   Bills: "Billetes",
   Coin: "Moneda",
+  Coins: "Monedas",
   "In the drawer": "En la caja",
   "Start over": "Empezar de nuevo",
   Use: "Usar",

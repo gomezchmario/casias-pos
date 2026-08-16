@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { formatCents } from "@/lib/money";
 import { useLang } from "@/components/pos/LangToggle";
@@ -42,6 +42,34 @@ const DENOMS: { cents: number; label: string; kind: "bill" | "coin" }[] = [
   { cents: 1, label: "Pennies", kind: "coin" },
 ];
 
+function CounterRow({
+  r,
+  qty,
+  setQty,
+}: {
+  r: { i: number; label: string; count: number; cents: number };
+  qty: Record<number, string>;
+  setQty: Dispatch<SetStateAction<Record<number, string>>>;
+}) {
+  return (
+    <tr className={r.count > 0 ? "cc-has" : undefined}>
+      <td>{r.label}</td>
+      <td className="cc-n">
+        <input
+          className="input text-right tabular-nums"
+          inputMode="numeric"
+          placeholder="0"
+          value={qty[r.i] ?? ""}
+          onChange={(e) => setQty((q) => ({ ...q, [r.i]: e.target.value.replace(/\D/g, "") }))}
+        />
+      </td>
+      <td className="cc-r tabular-nums">
+        {r.count > 0 ? formatCents(r.cents) : <span className="cc-dim">—</span>}
+      </td>
+    </tr>
+  );
+}
+
 export function CashCounter({
   open,
   onClose,
@@ -55,6 +83,14 @@ export function CashCounter({
   const { t: tr } = useLang();
   /** Keyed by row index rather than by value — a $1 bill and a $1 coin share a value. */
   const [qty, setQty] = useState<Record<number, string>>({});
+  /*
+    The coin rows fold away, closed by default. Most nights the change is
+    counted by roll or not at all, and six rows of pennies-to-dollars pushed
+    the bills — the part everybody counts — up into a scroll. The fold never
+    hides money already typed: the Coin subtotal below stays put, and the
+    chevron row itself repeats the figure while the rows are away.
+  */
+  const [coinsOpen, setCoinsOpen] = useState(false);
 
   const rows = useMemo(
     () =>
@@ -117,29 +153,26 @@ export function CashCounter({
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr key={r.i} className={r.count > 0 ? "cc-has" : undefined}>
-                <td>
-                  {r.label}
-                  {/* The first coin row gets a rule above it, so the eye finds
-                      the change without a second heading taking up a line. */}
-                </td>
-                <td className="cc-n">
-                  <input
-                    className="input text-right tabular-nums"
-                    inputMode="numeric"
-                    placeholder="0"
-                    value={qty[r.i] ?? ""}
-                    onChange={(e) =>
-                      setQty((q) => ({ ...q, [r.i]: e.target.value.replace(/\D/g, "") }))
-                    }
-                  />
-                </td>
-                <td className="cc-r tabular-nums">
-                  {r.count > 0 ? formatCents(r.cents) : <span className="cc-dim">—</span>}
-                </td>
-              </tr>
-            ))}
+            {rows
+              .filter((r) => r.kind === "bill")
+              .map((r) => (
+                <CounterRow key={r.i} r={r} qty={qty} setQty={setQty} />
+              ))}
+            <tr className="cc-fold">
+              <td colSpan={3}>
+                <button type="button" onClick={() => setCoinsOpen((v) => !v)}>
+                  <span className={`cc-chev${coinsOpen ? " is-open" : ""}`}>▸</span>
+                  {tr("Coins")}
+                  {!coinsOpen && coins > 0 && (
+                    <span className="cc-fold-sum tabular-nums">{formatCents(coins)}</span>
+                  )}
+                </button>
+              </td>
+            </tr>
+            {coinsOpen &&
+              rows
+                .filter((r) => r.kind === "coin")
+                .map((r) => <CounterRow key={r.i} r={r} qty={qty} setQty={setQty} />)}
           </tbody>
           <tfoot>
             {/* Bills and coin split out. They are counted by different methods
