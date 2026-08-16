@@ -688,6 +688,27 @@ const ES: Record<string, string> = {
   "Your account can't see this report.": "Su cuenta no puede ver este reporte.",
 
   "Everything so far": "Todo hasta ahora",
+  // The website's stock searches, on their own page.
+  "Looked for on the website": "Buscado en la página web",
+  "Tires looked for on the website": "Llantas buscadas en la página web",
+  "Sizes people typed into the stock search on the website, and what it told them.":
+    "Medidas que la gente escribió en el buscador de la página web, y lo que se les respondió.",
+  "Times searched": "Veces buscada",
+  "Different sizes": "Medidas distintas",
+  "We had it": "Sí la teníamos",
+  "We did not": "No la teníamos",
+  "On the rack now": "En existencia ahora",
+  // "Last asked", "never carried", "Last 30 days" and "Last 7 days" are
+  // already in this table — the counter's own study says all four — so they
+  // are not repeated here.
+  typed: "escrito",
+  "Back to reports": "Volver a reportes",
+  "Nobody has searched the website in this window. The box went up recently — give it a few days.":
+    "Nadie ha buscado en la página web en este periodo. El buscador se puso hace poco — dele unos días.",
+  "Not counted above:": "No contadas arriba:",
+  "searches where only part of a size was typed. The website refuses those rather than guessing, and they are kept because what people fail to type is worth reading too.":
+    "búsquedas donde solo se escribió parte de una medida. La página no adivina, y se guardan porque lo que la gente no alcanza a escribir también dice algo.",
+  "Your account does not read reports.": "Su cuenta no lee reportes.",
   "One month": "Un mes",
 
   "The racks": "Los racks",

@@ -747,13 +747,29 @@ export default function ReportsPage() {
             town pays that has no business on a screen somebody is scrolling —
             it is for sitting down with, and for handing to whoever else is in
             the room when the rota is being argued about. */}
-        <div className="no-print" style={{ marginBottom: 12 }}>
+        <div
+          className="no-print"
+          style={{ marginBottom: 12, display: "flex", gap: 8, flexWrap: "wrap" }}
+        >
           <a
             className="btn btn-outline"
             style={{ height: 36, fontSize: 13, display: "inline-flex", alignItems: "center" }}
             href={`/pos/reports/staffing?from=${from}&to=${to}`}
           >
             {tr("Open the printable staffing report")}
+          </a>
+          {/* The website's stock searches, on their own page rather than as a
+              third panel beside the counter's two lists of what walked out —
+              those are people standing in the shop, this is people at home who
+              have not decided to come yet, and stacking them would blur three
+              kinds of evidence into one wall. Its own window too, because it
+              is browsed rather than read in sequence with this page. */}
+          <a
+            className="btn btn-outline"
+            style={{ height: 36, fontSize: 13, display: "inline-flex", alignItems: "center" }}
+            href="/pos/web-searches"
+          >
+            {tr("Tires looked for on the website")}
           </a>
         </div>
 

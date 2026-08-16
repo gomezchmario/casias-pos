@@ -999,6 +999,65 @@ export function logWebSearch(
   ).run(raw, normalized, answer, currentBusinessDate(), nowLocalIso());
 }
 
+export type WebSearchSize = {
+  sizeNorm: string;
+  /** The commonest spelling somebody actually typed, for reading back. */
+  query: string;
+  times: number;
+  /** How each ask was answered, so "wanted" and "had" can be told apart. */
+  yes: number;
+  no: number;
+  incomplete: number;
+  firstAsked: string;
+  lastAsked: string;
+  /** On the rack today. Null when the shop has never carried that size. */
+  onHand: number | null;
+};
+
+/**
+ * What the website has been asked for, grouped by size.
+ *
+ * The archive itself keeps every ask whatever the answer (see
+ * migrations/048_web_searches.sql); this is the reading of it, and it keeps
+ * the answers apart on the row rather than filtering to the misses. A size
+ * asked for nine times and answered yes nine times is a popular tire, which is
+ * a different fact from a size asked for nine times and not had — and both are
+ * worth knowing when deciding what to stock.
+ *
+ * `onHand` is joined in for the same reason the counter's study joins it: a
+ * size wanted repeatedly that now sits six deep on the rack is a size the shop
+ * already fixed, and without this column it would head the list forever.
+ *
+ * Ranked by how many people asked, most first — this list answers "what are
+ * people looking for", and the loudest answer belongs at the top.
+ */
+export function webSearchesBySize(from: string, to: string): WebSearchSize[] {
+  return getDb()
+    .prepare(
+      `SELECT w.size_norm                        AS sizeNorm,
+              COUNT(*)                           AS times,
+              SUM(w.answer = 'yes')              AS yes,
+              SUM(w.answer = 'no')               AS no,
+              SUM(w.answer = 'incomplete')       AS incomplete,
+              MIN(w.business_date)               AS firstAsked,
+              MAX(w.business_date)               AS lastAsked,
+              (SELECT r.query FROM web_searches r
+                WHERE r.size_norm = w.size_norm
+             GROUP BY r.query
+             ORDER BY COUNT(*) DESC, MAX(r.id) DESC
+                LIMIT 1)                         AS query,
+              (SELECT SUM(mv.qty_delta)
+                 FROM inventory_movements mv
+                 JOIN products p ON p.id = mv.product_id
+                WHERE p.deleted = 0 AND p.tire_size = w.size_norm) AS onHand
+         FROM web_searches w
+        WHERE w.business_date BETWEEN ? AND ?
+     GROUP BY w.size_norm
+     ORDER BY times DESC, lastAsked DESC`,
+    )
+    .all(from, to) as WebSearchSize[];
+}
+
 /** Sizes people asked for and the shop could not sell. The buying list. */
 export function listUnmetDemand(
   sinceBusinessDate: string,
