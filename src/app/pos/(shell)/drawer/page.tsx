@@ -342,6 +342,20 @@ export default function CloseoutV3Page() {
   const inDrawerCents = countedCash ?? data.drawer.expectedCents;
 
   /*
+    The printed sheet's quiet fold. Anyone below owner is handed a payload the
+    route already folded — no hidden rows, customers line absorbed — so for
+    them both of these are a no-op. The owner's payload is literal, and the
+    owner's PRINTED sheet must not be: the paper goes to the office, and paper
+    does not check who pressed Print. Summed off the rows in hand rather than
+    fetched, so the sheet and the fold can never disagree.
+  */
+  const quietPaperCents = data.drawer.movements.reduce(
+    (s, m) => s + (m.hidden === 1 ? m.amount_cents : 0),
+    0,
+  );
+  const paperMovements = data.drawer.movements.filter((m) => m.hidden === 0);
+
+  /*
     THE TIPS COME OUT OF THE DRAWER TOO, AND USUALLY AFTER THE COUNT.
 
     The shop counts the drawer and then pays the technicians their tips out of
@@ -1494,19 +1508,27 @@ export default function CloseoutV3Page() {
                 </td>
                 <td className="r n">{formatCents(data.drawer.floatCents)}</td>
               </tr>
+              {/* PAPER FIGURES, NOT SCREEN FIGURES. This sheet goes to the
+                  office and is read by whoever files it, so it is the floor's
+                  version for everyone — including the owner who printed it.
+                  The route already folds quiet movements into the customers
+                  line for anyone below owner; for the owner the payload is
+                  literal, so the same folding is done here, at the printer.
+                  The owner's readable record of what moved quietly is the
+                  Full Report, which is theirs alone. */}
               <tr>
                 <td>Cash from customers</td>
-                <td className="r n">+{formatCents(data.drawer.cashSalesCents)}</td>
+                <td className="r n">+{formatCents(data.drawer.cashSalesCents + quietPaperCents)}</td>
               </tr>
               <tr>
                 <td>
                   Cash moved in / out
-                  {data.drawer.movements.length > 0 &&
-                    ` (${data.drawer.movements.map((m) => m.reason).join(", ")})`}
+                  {paperMovements.length > 0 &&
+                    ` (${paperMovements.map((m) => m.reason).join(", ")})`}
                 </td>
                 <td className="r n">
-                  {data.drawer.movementsCents >= 0 ? "+" : "−"}
-                  {formatCents(Math.abs(data.drawer.movementsCents))}
+                  {data.drawer.movementsCents - quietPaperCents >= 0 ? "+" : "−"}
+                  {formatCents(Math.abs(data.drawer.movementsCents - quietPaperCents))}
                 </td>
               </tr>
               <tr style={{ fontWeight: 700 }}>
