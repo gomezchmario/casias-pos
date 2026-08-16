@@ -1447,28 +1447,30 @@ export default function CloseoutV3Page() {
           </div>
 
           {finalCheck && (
-            <table className="rp-table cv3-recon">
-              <thead>
-                <tr>
-                  <th>Tender</th>
-                  <th className="r">Expected</th>
-                  <th className="r">Counted</th>
-                  <th className="r">Difference</th>
-                </tr>
-              </thead>
-              <tbody>
-                {finalCheck.lines.map((l) => (
-                  <tr key={l.methodId}>
-                    <td>{l.label}</td>
-                    <td className="r n">{formatCents(l.expectedCents)}</td>
-                    <td className="r n">{formatCents(l.countedCents)}</td>
-                    <td className="r n" style={{ fontWeight: 700 }}>
-                      {varianceWords(shownVariance(l.varianceCents, l.isCard))}
-                    </td>
+            <div className="cv3-recon-box">
+              <table className="rp-table cv3-recon">
+                <thead>
+                  <tr>
+                    <th>Tender</th>
+                    <th className="r">Expected</th>
+                    <th className="r">Counted</th>
+                    <th className="r">Difference</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {finalCheck.lines.map((l) => (
+                    <tr key={l.methodId}>
+                      <td>{l.label}</td>
+                      <td className="r n">{formatCents(l.expectedCents)}</td>
+                      <td className="r n">{formatCents(l.countedCents)}</td>
+                      <td className="r n" style={{ fontWeight: 700 }}>
+                        {varianceWords(shownVariance(l.varianceCents, l.isCard))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
 
           {/* The drawer explained in one line each — the three numbers that

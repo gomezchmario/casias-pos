@@ -197,6 +197,17 @@
     without moving anything. Still the largest type in any table here, because
     it is the table somebody reads while counting.
   */
+  /* The count-against-expected block sits in its own box, so the part that
+     gets counted against is one framed thing and the drawer arithmetic below
+     reads as its explanation rather than more of the same table. */
+  .cv3-recon-box {
+    border: 1.5pt solid rgb(10 37 64);
+    border-radius: 2mm;
+    padding: 1.5mm 3mm;
+    margin-bottom: 3mm;
+    break-inside: avoid;
+  }
+
   .cv3-recon {
     font-size: 11pt;
   }
