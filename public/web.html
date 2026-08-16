@@ -30,6 +30,9 @@
   --line:    rgba(30, 58, 95, 0.14);
   --open:    #1a7f4b;
   --shut:    #b3261e;
+  /* The ordering note: pastel yellow where the ground is dark, and the same
+     idea darkened to stay readable on the light page. */
+  --gold-soft: #9c8329;
 
   --display: "Arial Black", "Helvetica Neue", Impact, system-ui, sans-serif;
   --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -44,6 +47,7 @@
     --line:  rgba(255, 255, 255, 0.14);
     --open:  #4ade80;
     --shut:  #fca5a5;
+    --gold-soft: #f2e18e;
   }
 }
 :root[data-theme="dark"] {
@@ -54,10 +58,13 @@
   --line:  rgba(255, 255, 255, 0.14);
   --open:  #4ade80;
   --shut:  #fca5a5;
+  --gold-soft: #f2e18e;
 }
 
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
+/* Anchor jumps land below the stuck header, not underneath it. */
+[id] { scroll-margin-top: 104px; }
 body {
   margin: 0;
   background: var(--cream);
@@ -86,7 +93,18 @@ a { color: inherit; }
 }
 
 /* ── Header ───────────────────────────────────────────────────────────── */
-header { background: var(--navy); color: #fff; }
+/*
+  The bar stays with the reader. The phone number IS this website — every
+  section ends in "call us" — so the button that calls never scrolls away.
+  On a phone the bottom rail already does this job, and the bar's own call
+  button is hidden there; the bar still sticks so the language toggle and
+  the name travel too.
+*/
+header {
+  background: var(--navy); color: #fff;
+  position: sticky; top: 0; z-index: 50;
+  box-shadow: 0 2px 12px rgba(10, 20, 32, 0.28);
+}
 .bar {
   display: flex; align-items: center; gap: 16px;
   padding: 14px 0; flex-wrap: wrap;
@@ -175,6 +193,42 @@ h2 {
 
 .addr { font-size: 19px; line-height: 1.5; font-weight: 600; }
 .addr + p { color: var(--muted); }
+
+/* ── Stock search ─────────────────────────────────────────────────────── */
+.stock-box {
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  border-top: 4px solid var(--gold); padding: 28px 24px;
+}
+/* The intro is two deliberate lines, broken by its own br — the reading-width
+   cap that suits a paragraph would fold the first line in half here. */
+.stock-box .sub { max-width: none; }
+.stock-form { display: flex; gap: 10px; flex-wrap: wrap; margin: 18px 0 4px; }
+.stock-form input {
+  flex: 1; min-width: 190px; font: inherit; font-size: 20px; font-weight: 700;
+  letter-spacing: 0.02em; font-variant-numeric: tabular-nums;
+  padding: 12px 16px; border-radius: 12px;
+  border: 2px solid var(--line); background: var(--cream); color: var(--ink);
+}
+.stock-form input:focus { outline: 3px solid var(--gold); outline-offset: 1px; }
+.stock-form button {
+  font: inherit; font-weight: 800; font-size: 17px; cursor: pointer; border: 0;
+  background: linear-gradient(180deg, var(--gold), var(--gold-d)); color: var(--navy-d);
+  padding: 12px 26px; border-radius: 999px; box-shadow: 0 3px 0 rgba(0,0,0,.22);
+}
+.stock-form button:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,.22); }
+/* One box, four possible answers; the state attribute picks which one shows. */
+.stock-result { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin: 12px 0 4px; font-weight: 600; }
+.stock-result > div { display: none; }
+.stock-result[data-state="yes"] { border-color: var(--open); }
+.stock-result[data-state="yes"] .sr-yes { display: block; color: var(--open); }
+.stock-result[data-state="no"] .sr-no { display: block; }
+.stock-result[data-state="partial"] .sr-partial { display: block; color: var(--muted); }
+.stock-result[data-state="error"] .sr-error { display: block; color: var(--muted); }
+.stock-note { color: var(--muted); font-size: 14.5px; margin: 12px 0 0; }
+.stock-note + .stock-note { margin-top: 6px; }
+/* The ordering promise, in the shop's gold — the same gold text the hours
+   table already uses for today's row — and set off with its own air above. */
+.stock-note.order { color: var(--gold-soft); margin-top: 16px; }
 
 /* ── Photo slots ──────────────────────────────────────────────────────── */
 /*
@@ -315,8 +369,8 @@ body.es [lang-es] { display: revert; }
         <div class="mark">◉</div>
         <h3><span lang-en>New tires</span><span lang-es>Llantas nuevas</span></h3>
         <p>
-          <span lang-en>All the common sizes on the rack, and anything else ordered in — usually next day.</span>
-          <span lang-es>Todas las medidas comunes en existencia, y cualquier otra por pedido — normalmente al día siguiente.</span>
+          <span lang-en>All the common sizes on the rack — and almost any other ordered in: here by 7 the next morning, or by 4 today if ordered before noon. Weekend orders arrive Monday at 7 am.</span>
+          <span lang-es>Todas las medidas comunes en existencia — y casi cualquier otra por pedido: llega a las 7 de la mañana siguiente, o a las 4 del mismo día si se pide antes del mediodía. Los pedidos del fin de semana llegan el lunes a las 7 am.</span>
         </p>
       </div>
       <div class="card">
@@ -375,6 +429,49 @@ body.es [lang-es] { display: revert; }
           <span lang-es>Presión, dibujo y revisión de daños. Pase y pregunte.</span>
         </p>
       </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="stock-box" id="stock">
+      <h2><span lang-en>Do we have your size?</span><span lang-es>¿Tenemos su medida?</span></h2>
+      <p class="sub" style="margin-bottom:0">
+        <span lang-en>Type the size printed on the tire's sidewall and see if it is in stock today.<br>Please call us for price and details.</span>
+        <span lang-es>Escriba la medida impresa en el costado de la llanta y vea si la tenemos hoy.<br>Por favor llámenos para precio y detalles.</span>
+      </p>
+      <form class="stock-form" id="stockForm">
+        <input id="stockSize" placeholder="205/55R16" autocomplete="off" maxlength="24"
+               enterkeyhint="search" aria-label="Tire size / Medida de llanta">
+        <button type="submit"><span lang-en>Check</span><span lang-es>Buscar</span></button>
+      </form>
+      <div class="stock-result" id="stockResult" role="status" aria-live="polite" hidden>
+        <div class="sr-yes">
+          <span lang-en>Yes — <b class="srSize"></b> is in stock today. Call <a href="tel:+12105430909">(210) 543-0909</a> for price and details.</span>
+          <span lang-es>Sí — tenemos <b class="srSize"></b> hoy. Llame al <a href="tel:+12105430909">(210) 543-0909</a> para precio y detalles.</span>
+        </div>
+        <div class="sr-no">
+          <span lang-en><b class="srSize"></b> is not showing in today's stock — but that is not always a no. Read the notes below and call <a href="tel:+12105430909">(210) 543-0909</a>.</span>
+          <span lang-es><b class="srSize"></b> no aparece en el inventario de hoy — pero eso no siempre es un no. Lea las notas de abajo y llame al <a href="tel:+12105430909">(210) 543-0909</a>.</span>
+        </div>
+        <div class="sr-partial">
+          <span lang-en>Type the whole size — like 205/55R16 or 205-55-16.</span>
+          <span lang-es>Escriba la medida completa — como 205/55R16 o 205-55-16.</span>
+        </div>
+        <div class="sr-error">
+          <span lang-en>Could not check just now. Call us and we will look for you.</span>
+          <span lang-es>No se pudo consultar en este momento. Llámenos y nosotros la buscamos.</span>
+        </div>
+      </div>
+      <p class="stock-note">
+        <span lang-en>Most of our used tires are not catalogued by size, so a size that does not show here may still be in the shop. Call us, leave the size and your number, and give us a little time to look for it.</span>
+        <span lang-es>La mayoría de nuestras llantas usadas no están catalogadas por medida, así que una medida que no aparezca aquí todavía puede estar en el taller. Llámenos, déjenos la medida y su número, y denos un poco de tiempo para buscarla.</span>
+      </p>
+      <p class="stock-note order">
+        <span lang-en>We order any tire you might need: here by 7 the next morning, or by 4 the same day if ordered before noon. Weekend orders arrive Monday at 7 am.</span>
+        <span lang-es>Pedimos cualquier llanta que necesite: llega a las 7 de la mañana siguiente, o a las 4 del mismo día si se pide antes del mediodía. Los pedidos del fin de semana llegan el lunes a las 7 am.</span>
+      </p>
     </div>
   </div>
 </section>
@@ -575,6 +672,42 @@ body.es [lang-es] { display: revert; }
 
   paint();
   setInterval(paint, 60000);
+})();
+</script>
+
+<script>
+/*
+  The stock search. The server answers one bit — "that size is in stock
+  today" or not — and nothing else; no prices, no brands, no counts. That
+  is a promise made to the shop, and it is kept on the server
+  (/api/public/stock), not here: this script could not show more than a
+  yes or a no even if it were edited to try.
+*/
+(function () {
+  "use strict";
+  var form = document.getElementById("stockForm");
+  var input = document.getElementById("stockSize");
+  var result = document.getElementById("stockResult");
+
+  function show(state, size) {
+    result.hidden = false;
+    result.dataset.state = state;
+    var echoes = result.querySelectorAll(".srSize");
+    for (var i = 0; i < echoes.length; i++) echoes[i].textContent = size || "";
+  }
+
+  form.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var q = input.value.trim();
+    if (!q) { input.focus(); return; }
+    fetch("/api/public/stock?size=" + encodeURIComponent(q))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) { show("partial"); return; }
+        show(d.inStock ? "yes" : "no", d.size);
+      })
+      .catch(function () { show("error"); });
+  });
 })();
 </script>
 
