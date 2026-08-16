@@ -639,31 +639,35 @@ export function byCashier(scope:
 }
 
 /**
- * Make the cash line read as though it balanced, for the sheet the floor sees.
+ * The cash line the floor is shown, on a day the owner has moved money quietly.
  *
- * The owner takes money out and marks it hidden — see `026_drawer_hidden.sql`.
- * That leaves the drawer light against an expectation that does not know about
- * it, and the floor would otherwise read a shortfall they cannot explain and
- * did not cause.
+ * Two folds, both cash-only because nothing is ever taken out of a card
+ * terminal:
  *
- * What this does NOT do is add the hidden amount back into the expectation, and
- * the difference matters. Adding it back would make an honest count balance and
- * a genuine surplus visible again — and a visible surplus is the exact thing
- * somebody pockets. Forcing the DIFFERENCE to zero hides both: a drawer $20
- * over and a drawer $20 short read identically to whoever is counting, so
- * there is never anything on screen that looks like spare money.
+ * TAKINGS. `quietCents` — the day's hidden net, signed — is folded into the
+ * cash takings figure, the same fold the close-out sheet applies to its
+ * customers line. Without it the manager's report said $530 came in on cash
+ * while every drawer document they hold says $190, and the difference IS the
+ * withdrawal, printed. The owner's copy never passes through here and keeps
+ * the real figure.
  *
- * Cash only. Every other tender is unaffected, because nothing was taken out of
- * a card terminal.
+ * VARIANCE. Forced to read balanced. What this does NOT do is reveal a genuine
+ * surplus: a drawer $20 over and a drawer $20 short read identically to
+ * whoever is counting, so there is never anything on screen that looks like
+ * spare money — which is the exact thing somebody pockets.
  *
- * The counted figure is never touched. What the cashier typed is what is stored
- * and what the owner reads; only the comparison is suppressed, and only on a day
- * the owner has deliberately put into this state.
+ * The counted figure is never touched. What the cashier typed is what is
+ * stored and what the owner reads; only the story around it changes, and only
+ * on a day the owner has deliberately put into this state.
  */
-export function maskCashVariance(r: Reconciliation): Reconciliation {
+export function maskCashVariance(r: Reconciliation, quietCents = 0): Reconciliation {
   const methods = r.methods.map((m) =>
-    m.isCard === 0 && m.code === "cash" && m.counted
-      ? { ...m, expectedCents: m.countedCents ?? 0, varianceCents: 0 }
+    m.isCard === 0 && m.code === "cash"
+      ? {
+          ...m,
+          takingsCents: m.takingsCents + quietCents,
+          ...(m.counted ? { expectedCents: m.countedCents ?? 0, varianceCents: 0 } : {}),
+        }
       : m,
   );
   const totalExpectedCents = methods.reduce((s, m) => s + m.expectedCents, 0);

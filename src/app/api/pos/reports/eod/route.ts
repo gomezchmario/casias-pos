@@ -62,10 +62,11 @@ function build(
    * Read from the ledger rather than passed in, so it cannot be got wrong by a
    * caller: the day either has a hidden movement in it or it does not.
    */
-  const audited =
-    ("shiftId" in scope
+  const quietCents =
+    "shiftId" in scope
       ? hiddenDrawerCents({ shiftId: scope.shiftId })
-      : hiddenDrawerCents({ businessDate })) !== 0;
+      : hiddenDrawerCents({ businessDate });
+  const audited = quietCents !== 0;
 
   const raw =
     "shiftId" in scope
@@ -73,13 +74,12 @@ function build(
       : reconcileDay(businessDate, override);
 
   /**
-   * The floor is shown a cash line that balances; the owner is shown the truth.
-   *
-   * Masked on the SERVER rather than in the page, so the real figure never
-   * reaches a browser that is not supposed to have it. A number sent down and
-   * hidden in the markup is not hidden.
+   * The floor is shown a cash line that balances — takings folded, variance
+   * pinned; the owner is shown the truth. Masked on the SERVER rather than in
+   * the page, so the real figure never reaches a browser that is not supposed
+   * to have it. A number sent down and hidden in the markup is not hidden.
    */
-  const reconciliation = audited && !seesHidden ? maskCashVariance(raw) : raw;
+  const reconciliation = audited && !seesHidden ? maskCashVariance(raw, quietCents) : raw;
   const totals = dayTotals(businessDate);
 
   return {
