@@ -1663,6 +1663,34 @@ export default function CloseoutV3Page() {
             )}
           </div>
 
+          {/* The day in figures, directly under the verdict.
+
+              It used to sit at the foot of the sheet, after the reconciliation
+              and the retire line. Up here it answers the question the verdict
+              provokes — the drawer balanced, so what kind of day was it —
+              before the reader has to work through the arithmetic that proves
+              it. The counting story still runs in order below. */}
+          <div className="rp-stats cv3-day">
+            <Stat label="Sold" value={formatCents(data.totals.goodsCents)} />
+            <Stat label="Collected" value={formatCents(data.totals.collectedCents)} />
+            <Stat label="Tickets" value={String(data.totals.saleCount)} />
+            {/* Beside tickets, because it is the other half of the same
+                question: how much work went through, as opposed to how many
+                people it was split across. Every live line counts — a tire
+                fitted is work done, not only the things filed as services. */}
+            <Stat label="Lines / services done" value={String(data.sold.lineCount)} />
+            <Stat label="New tires sold" value={String(data.sold.newTires.units)} />
+            <Stat label="In new tires alone" value={formatCents(data.sold.newTires.cents)} />
+            <Stat label="Disposals" value={String(data.sold.disposalUnits)} />
+            {/* Last. It is the only one here that is not a measure of the day's
+                work, and leading with it put the exceptions ahead of the
+                takings on a sheet that is mostly good news. */}
+            <Stat
+              label="Voids / refunds"
+              value={`${data.tickets.voided} / ${data.tickets.refunds.length}`}
+            />
+          </div>
+
           {finalCheck && (
             <div className="cv3-recon-box">
               <table className="rp-table cv3-recon">
@@ -1769,27 +1797,6 @@ export default function CloseoutV3Page() {
             </small>
           </div>
 
-          {/* The day in figures — enough for the file, no more. */}
-          <div className="rp-stats cv3-day">
-            <Stat label="Sold" value={formatCents(data.totals.goodsCents)} />
-            <Stat label="Collected" value={formatCents(data.totals.collectedCents)} />
-            <Stat label="Tickets" value={String(data.totals.saleCount)} />
-            {/* Beside tickets, because it is the other half of the same
-                question: how much work went through, as opposed to how many
-                people it was split across. Every live line counts — a tire
-                fitted is work done, not only the things filed as services. */}
-            <Stat label="Lines / services done" value={String(data.sold.lineCount)} />
-            <Stat label="New tires sold" value={String(data.sold.newTires.units)} />
-            <Stat label="In new tires alone" value={formatCents(data.sold.newTires.cents)} />
-            <Stat label="Disposals" value={String(data.sold.disposalUnits)} />
-            {/* Last. It is the only one here that is not a measure of the day's
-                work, and leading with it put the exceptions ahead of the
-                takings on a sheet that is mostly good news. */}
-            <Stat
-              label="Voids / refunds"
-              value={`${data.tickets.voided} / ${data.tickets.refunds.length}`}
-            />
-          </div>
 
           {/* Hand-ticked, not database-claimed: the system cannot verify the
               terminal was settled, so the paper says a human did. */}

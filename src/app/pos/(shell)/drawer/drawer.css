@@ -241,10 +241,14 @@
     gap: 2mm;
   }
 
+  /* Each figure in its own rounded box, at the owner's ask. The square
+     corners this replaces came from the same pass that squeezed the row into
+     four columns; the corners were never what bought the height back — the
+     padding and the type sizes below are — so rounding them costs nothing. */
   .cv3-day .rp-stat {
     padding: 1.5mm 2mm;
     border: 1px solid #ddd;
-    border-radius: 0;
+    border-radius: 2mm;
   }
   .cv3-day .rp-stat-lab {
     font-size: 7pt;
