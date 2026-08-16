@@ -34,6 +34,7 @@ type Fence = {
   radiusM: string;
   setBy: string;
   setAt: string;
+  trustedOnly: boolean;
 };
 
 /** "Chrome on Android", near enough, from a string nobody should have to read. */
@@ -168,6 +169,28 @@ export default function FencePage() {
     void load();
   }
 
+  async function toggleTrustedOnly(on: boolean) {
+    setBusy(true);
+    setError(null);
+    setSaid(null);
+    const res = await fetch("/api/admin/fence", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ trustedOnly: on }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setError((await res.json().catch(() => ({}))).error || "Could not change that");
+      return;
+    }
+    setSaid(
+      on
+        ? "Only trusted devices can punch the clock now. Everything else is refused, wherever it is."
+        : "Untrusted devices can clock in again from inside the fence.",
+    );
+    void load();
+  }
+
   async function trustThis() {
     setBusy(true);
     setError(null);
@@ -206,17 +229,54 @@ export default function FencePage() {
   return (
     <div className="max-w-3xl">
       <h1 className="text-2xl font-semibold text-brand-500 mb-1">Where the clock can be punched</h1>
+      {/* The one line that states the shop's actual rule, which is not the same
+          sentence in the two modes — and a page that described the fence while
+          the strict box was ticked would be quietly wrong about the thing it
+          exists to explain. */}
       <p className="text-brand-400 text-sm mb-5">
-        Everybody has to be at the shop to clock in — except the devices you trust here, which can
-        punch from anywhere.
+        {fence?.trustedOnly
+          ? "Only the devices you trust here can punch the clock. Everything else is refused, wherever it is standing."
+          : "Everybody has to be at the shop to clock in — except the devices you trust here, which can punch from anywhere."}
       </p>
 
       {error && <div className="alert alert-error mb-4">{error}</div>}
       {said && <div className="alert alert-success mb-4">{said}</div>}
 
-      {/* ── The fence ────────────────────────────────────────────────────── */}
+      {/* ── Trusted-only: the strict setting, first because it overrides ──
+          the fence below and reading them the other way round leaves the
+          wrong impression of what the shop's rule actually is. */}
       <section className="card p-4 mb-5">
-        <h2 className="font-semibold mb-2">The fence</h2>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={!!fence?.trustedOnly}
+            disabled={busy || (live.length === 0 && !fence?.trustedOnly)}
+            onChange={(e) => void toggleTrustedOnly(e.target.checked)}
+          />
+          <span>
+            <span className="font-semibold">Only trusted devices may clock in</span>
+            <span className="block text-sm text-brand-400 mt-0.5">
+              The strictest setting. A phone that has not been set up here cannot punch the clock
+              at all — not even standing in the shop — and the fence below stops mattering.
+            </span>
+            {live.length === 0 && !fence?.trustedOnly && (
+              <span className="block text-xs mt-1" style={{ color: "#b45309" }}>
+                Trust a device below first. With none trusted, this would lock everybody out.
+              </span>
+            )}
+          </span>
+        </label>
+      </section>
+
+      {/* ── The fence ────────────────────────────────────────────────────── */}
+      <section className={`card p-4 mb-5${fence?.trustedOnly ? " opacity-60" : ""}`}>
+        <h2 className="font-semibold mb-2">
+          The fence
+          {fence?.trustedOnly && (
+            <span className="text-xs font-normal text-brand-400"> · not in use while the box above is ticked</span>
+          )}
+        </h2>
         {hasFence ? (
           <p className="text-sm text-brand-400 mb-3">
             Set at {Number(fence!.lat).toFixed(5)}, {Number(fence!.lng).toFixed(5)} — anybody within{" "}

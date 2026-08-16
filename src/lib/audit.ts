@@ -94,6 +94,8 @@ export type AuditAction =
   | "device.revoke"
   | "fence.set"
   | "fence.cleared"
+  | "fence.trusted_only_on"
+  | "fence.trusted_only_off"
   | "product.create"
   | "product.update"
   | "product.delete"

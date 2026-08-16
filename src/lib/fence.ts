@@ -53,10 +53,20 @@ export function currentFence(): Fence {
   return { lat, lng, radiusM };
 }
 
+/** Is the clock closed to everything but enrolled devices? */
+export function trustedOnly(): boolean {
+  return getSetting("timeclock_trusted_only") === "1";
+}
+
 /** What happened when this punch met the fence. */
 export type FenceVerdict =
   | { ok: true; verdict: "off" | "trusted" | "inside"; metres?: number }
-  | { ok: false; reason: "no_location" | "too_far"; metres?: number; radiusM: number };
+  | {
+      ok: false;
+      reason: "no_location" | "too_far" | "untrusted_device";
+      metres?: number;
+      radiusM?: number;
+    };
 
 /**
  * Judge one punch.
@@ -78,6 +88,15 @@ export function judgePunch(args: {
   lng?: number | null;
 }): FenceVerdict {
   if (args.trusted) return { ok: true, verdict: "trusted" };
+
+  /*
+    Trusted-only closes the door before the fence is consulted, because it is
+    a stricter rule and not an additional one: where it is on, being in the lot
+    buys nothing and saying so would be misleading. This is the one refusal
+    here that no location can satisfy, which is why it is worth a message of
+    its own rather than a distance the person cannot act on.
+  */
+  if (trustedOnly()) return { ok: false, reason: "untrusted_device" };
 
   const fence = currentFence();
   if (!fence) return { ok: true, verdict: "off" };

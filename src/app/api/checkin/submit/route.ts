@@ -111,9 +111,11 @@ export async function POST(req: NextRequest) {
         ok: false,
         fence: fence.reason,
         error:
-          fence.reason === "no_location"
-            ? "Turn on location for this page to clock in, or ask a manager to trust this device."
-            : `You are ${metresWords(fence.metres ?? 0)} from the shop. Clock in when you get here.`,
+          fence.reason === "untrusted_device"
+            ? "This device cannot punch the clock. Use the shop's tablet, or ask a manager to set this one up."
+            : fence.reason === "no_location"
+              ? "Turn on location for this page to clock in, or ask a manager to trust this device."
+              : `You are ${metresWords(fence.metres ?? 0)} from the shop. Clock in when you get here.`,
       },
       { status: 403 },
     );

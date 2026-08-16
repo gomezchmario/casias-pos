@@ -138,6 +138,20 @@ export type SettingsMap = {
   timeclock_fence_radius_m: string;
   timeclock_fence_set_by: string; // who stood there and pressed it
   timeclock_fence_set_at: string; // local ISO
+
+  /*
+    "1" = only enrolled devices may punch the clock at all.
+
+    Stricter than the fence and it replaces it rather than adding to it: with
+    this on, standing in the lot is not enough — the device itself has to be
+    one the shop enrolled. For a shop that hands out the tablet and wants the
+    clock punched on that and nothing else.
+
+    The route refuses to switch this on while no device is trusted, because
+    the state it would create is one where nobody in the building can clock in
+    and the only way back is a database edit.
+  */
+  timeclock_trusted_only: string;
 };
 
 export const DEFAULT_SETTINGS: SettingsMap = {
@@ -232,6 +246,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   timeclock_fence_radius_m: "250",
   timeclock_fence_set_by: "",
   timeclock_fence_set_at: "",
+  timeclock_trusted_only: "0",
 };
 
 export function getSetting<K extends keyof SettingsMap>(key: K): string {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminApi } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
+import { listDevices } from "@/lib/devices";
 import { getSetting, setSetting } from "@/lib/settings";
 import { nowLocalIso } from "@/lib/time";
 
@@ -23,7 +24,48 @@ export async function GET() {
     radiusM: getSetting("timeclock_fence_radius_m"),
     setBy: getSetting("timeclock_fence_set_by"),
     setAt: getSetting("timeclock_fence_set_at"),
+    trustedOnly: getSetting("timeclock_trusted_only") === "1",
   });
+}
+
+/**
+ * Close the clock to everything but enrolled devices, or open it again.
+ *
+ * REFUSED WHILE NOTHING IS TRUSTED, and that guard is the only reason this is
+ * a separate handler rather than a field on the one below. Switching it on
+ * with an empty device list locks every person in the building out of the
+ * clock, and the way back is a database edit by somebody who knows what a
+ * settings table is — at seven in the morning, with technicians waiting.
+ */
+export async function PATCH(req: NextRequest) {
+  const auth = await requireAdminApi();
+  if (!auth.ok) return auth.response;
+
+  let body: { trustedOnly?: boolean };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
+
+  const on = body.trustedOnly === true;
+  if (on && listDevices().filter((d) => !d.revoked_at).length === 0)
+    return NextResponse.json(
+      {
+        error:
+          "Trust at least one device first — with none trusted, nobody would be able to clock in.",
+      },
+      { status: 400 },
+    );
+
+  setSetting("timeclock_trusted_only", on ? "1" : "0");
+  logAudit({
+    adminId: auth.admin.adminId,
+    adminUsername: auth.admin.username,
+    action: on ? "fence.trusted_only_on" : "fence.trusted_only_off",
+    targetType: "settings",
+  });
+  return NextResponse.json({ ok: true, trustedOnly: on });
 }
 
 export async function POST(req: NextRequest) {
