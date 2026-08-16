@@ -624,6 +624,31 @@ body.es [lang-es] { display: revert; }
   var CLOSE = [17.5 * 60, 18.5 * 60, 18.5 * 60, 18.5 * 60, 18.5 * 60, 18.5 * 60, 18.5 * 60];
   var OPEN = 8 * 60;
 
+  /*
+    SHUT FOR THE DAY, and only this one.
+
+    Written as a date rather than a flag on purpose: "just for today" has to
+    stop being true at midnight without anybody remembering to come back and
+    switch it off, and a shop advertising itself as closed on a Tuesday it is
+    open is worse than the ordinary hours being a little wrong. On every other
+    date this line does nothing at all.
+
+    Add more dates to the list for holidays — Christmas, the Fourth — and they
+    behave the same way: true on the day, inert before and after.
+  */
+  var CLOSED_ON = ["2026-08-16"];
+
+  /** Today as the calendar reads it here, not as UTC reads it. */
+  function localDate(d) {
+    return (
+      d.getFullYear() +
+      "-" +
+      String(d.getMonth() + 1).padStart(2, "0") +
+      "-" +
+      String(d.getDate()).padStart(2, "0")
+    );
+  }
+
   var COPY = {
     en: { open: "Open now — closes at ", shut: "Closed — opens at 8:00 AM", until: "" },
     es: { open: "Abierto ahora — cierra a las ", shut: "Cerrado — abre a las 8:00 AM", until: "" },
@@ -641,7 +666,8 @@ body.es [lang-es] { display: revert; }
     var now = new Date();
     var day = now.getDay();
     var mins = now.getHours() * 60 + now.getMinutes();
-    var open = mins >= OPEN && mins < CLOSE[day];
+    var open =
+      mins >= OPEN && mins < CLOSE[day] && CLOSED_ON.indexOf(localDate(now)) === -1;
 
     var box = document.getElementById("status");
     var text = document.getElementById("statusText");
