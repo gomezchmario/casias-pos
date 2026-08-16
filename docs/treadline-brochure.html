@@ -358,6 +358,9 @@ table.mock tr:last-child td { border-bottom: none; }
 .plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
 .plan { background: var(--card); border: 1px solid var(--rule); border-radius: 12px; padding: 20px; }
 .plan.pick { border: 2px solid var(--amber); }
+/* The add-on: outlined like the picks but quieter — dotted, in an amber with
+   the vibrance taken out — so it reads as optional rather than recommended. */
+.plan.addon { border: 2px dotted #ecd9a4; }
 .plan h4 { font-family: var(--display); font-size: 20px; margin: 0 0 3px; letter-spacing: -0.01em; }
 .plan .tagline { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
 .plan ul { margin: 0; padding-left: 17px; font-size: 14px; color: var(--muted); }
@@ -1266,7 +1269,7 @@ body.editing [data-edit]:focus { outline: 2px solid var(--amber); outline-offset
         <li>Same software, same support</li>
       </ul>
     </div>
-    <div class="plan">
+    <div class="plan addon">
       <h4>Brand personalization <span style="font-family:var(--mono);font-size:19px">$199</span></h4>
       <div class="tagline">One payment · your shop's own look</div>
       <ul>
