@@ -114,6 +114,30 @@ export type SettingsMap = {
   pos_notice: string;
   pos_notice_by: string; // name of whoever last wrote it, for accountability
   pos_notice_at: string; // local ISO, so the counter can see if it is stale
+
+  /*
+    THE FENCE: punch the clock here, or on a device the shop trusts.
+
+    Empty coordinates mean no fence at all and every punch is allowed, which is
+    the state the shop starts in and must keep working in — switching this on
+    is a deliberate act, not something a fresh install inflicts on anybody.
+
+    NOT geocoded from the company address, deliberately. An address lands on
+    the road centreline or the wrong end of a lot, and a fence built on one is
+    fifty metres wrong before anybody stands in it. These are written by
+    somebody standing at the counter pressing a button on a phone that has real
+    GPS — see the admin settings page.
+
+    The radius is metres. Generous by default: a phone indoors, behind a metal
+    roll-up door, reports a worse fix than the same phone in the lot, and a
+    fence tight enough to be satisfying is a fence that locks out the person
+    standing in the bay.
+  */
+  timeclock_fence_lat: string; // "" = no fence
+  timeclock_fence_lng: string;
+  timeclock_fence_radius_m: string;
+  timeclock_fence_set_by: string; // who stood there and pressed it
+  timeclock_fence_set_at: string; // local ISO
 };
 
 export const DEFAULT_SETTINGS: SettingsMap = {
@@ -200,6 +224,14 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   pos_notice: "",
   pos_notice_by: "",
   pos_notice_at: "",
+
+  // No fence until somebody sets one. See the type above for why these are not
+  // seeded from the company address.
+  timeclock_fence_lat: "",
+  timeclock_fence_lng: "",
+  timeclock_fence_radius_m: "250",
+  timeclock_fence_set_by: "",
+  timeclock_fence_set_at: "",
 };
 
 export function getSetting<K extends keyof SettingsMap>(key: K): string {

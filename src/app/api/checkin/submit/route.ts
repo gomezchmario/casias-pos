@@ -5,6 +5,8 @@ import { createEntry, type EntryType } from "@/lib/entries";
 import { saveBase64Photo } from "@/lib/photos";
 import { nowLocalIso } from "@/lib/time";
 import { maybeAutoClose } from "@/lib/api-helpers";
+import { isTrustedDevice } from "@/lib/devices";
+import { judgePunch, metresWords } from "@/lib/fence";
 
 const ALLOWED_NEXT: Record<string, EntryType[]> = {
   checked_out: ["check_in"],
@@ -15,7 +17,17 @@ const ALLOWED_NEXT: Record<string, EntryType[]> = {
 export async function POST(req: NextRequest) {
   maybeAutoClose();
 
-  let body: { pin?: string; action?: string; photoData?: string | null };
+  let body: {
+    pin?: string;
+    action?: string;
+    photoData?: string | null;
+    // The browser's own reading. A claim, not a fact — judged on the server,
+    // by `judgePunch`, because asking the client whether it is allowed in is
+    // asking the suspect for the verdict.
+    lat?: number | null;
+    lng?: number | null;
+    accuracy?: number | null;
+  };
   try {
     body = await req.json();
   } catch {
@@ -78,6 +90,35 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  /*
+    THE FENCE, JUDGED BEFORE ANYTHING IS WRITTEN.
+
+    Ordered deliberately after the PIN and the state check but before the photo
+    is saved: a refused punch should not leave a photograph on disk, and it
+    should not leave a row anywhere. The employee is told plainly what happened
+    — being vague here does not protect anything, since anyone standing in the
+    shop can see whether they are in the shop — and told what to do about it.
+
+    A trusted device never reaches the distance test at all. That is the
+    owner's rule: enrolled devices bypass the fence entirely; everybody else
+    has to be standing here.
+  */
+  const trusted = await isTrustedDevice();
+  const fence = judgePunch({ trusted, lat: body.lat, lng: body.lng });
+  if (!fence.ok) {
+    return NextResponse.json(
+      {
+        ok: false,
+        fence: fence.reason,
+        error:
+          fence.reason === "no_location"
+            ? "Turn on location for this page to clock in, or ask a manager to trust this device."
+            : `You are ${metresWords(fence.metres ?? 0)} from the shop. Clock in when you get here.`,
+      },
+      { status: 403 },
+    );
+  }
+
   // Save photo if provided. Flag the entry if no photo was provided.
   let photoPath: string | null = null;
   let flagged = false;
@@ -101,6 +142,14 @@ export async function POST(req: NextRequest) {
     flagged,
     flagReason,
     timestamp,
+    // Kept on the allowed punch too, not only the refused ones — a record that
+    // remembers nothing but failures cannot answer "was Jose really here on
+    // the 3rd", and cannot be used to tell whether the fence is the right
+    // size. See migration 049.
+    lat: fence.verdict === "trusted" ? null : body.lat,
+    lng: fence.verdict === "trusted" ? null : body.lng,
+    accuracyM: fence.verdict === "trusted" ? null : body.accuracy,
+    fenceVerdict: fence.verdict,
   });
 
   return NextResponse.json({

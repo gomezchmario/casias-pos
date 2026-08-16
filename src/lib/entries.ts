@@ -32,6 +32,18 @@ export function createEntry(args: {
   flagged?: boolean;
   flagReason?: string | null;
   timestamp?: string;
+  /*
+    Where the punch was taken from, and how it got past the fence.
+
+    All optional and all null by default, which is the honest state for a
+    punch nobody asked to locate — a manager entering an hour by hand, or a
+    trusted device that is never asked. Null here means "not asked", never
+    "somewhere else"; see migration 049.
+  */
+  lat?: number | null;
+  lng?: number | null;
+  accuracyM?: number | null;
+  fenceVerdict?: string | null;
 }): number {
   const db = getDb();
   const now = nowLocalIso();
@@ -39,8 +51,9 @@ export function createEntry(args: {
   const result = db
     .prepare(
       `INSERT INTO time_entries
-        (employee_id, type, timestamp, photo_path, flagged, flag_reason, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        (employee_id, type, timestamp, photo_path, flagged, flag_reason, created_at,
+         lat, lng, accuracy_m, fence_verdict)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       args.employeeId,
@@ -50,6 +63,10 @@ export function createEntry(args: {
       args.flagged ? 1 : 0,
       args.flagReason ?? null,
       now,
+      args.lat ?? null,
+      args.lng ?? null,
+      args.accuracyM ?? null,
+      args.fenceVerdict ?? null,
     );
   return Number(result.lastInsertRowid);
 }

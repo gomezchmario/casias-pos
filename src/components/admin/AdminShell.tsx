@@ -13,6 +13,9 @@ const NAV = [
   // Next to Time Entries because they are the same subject from two ends:
   // entries are what happened, the schedule is what was meant to.
   { href: "/admin/schedule", label: "Schedule", icon: "🗓" },
+  // With the clock rather than with Settings: it governs whether a punch is
+  // accepted at all, which is a fact about the time clock and not a preference.
+  { href: "/admin/fence", label: "Clock-in Area", icon: "📍" },
   { href: "/admin/reports", label: "Reports", icon: "📈" },
   { href: "/admin/audit", label: "Audit Log", icon: "📜" },
   { href: "/admin/settings", label: "Settings", icon: "⚙" },

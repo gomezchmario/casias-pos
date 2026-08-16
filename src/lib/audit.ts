@@ -89,6 +89,11 @@ export type AuditAction =
   | "register_check.create"
   | "register_check.delete"
   | "register_check.replace"
+  // The time clock's fence and the devices allowed past it.
+  | "device.enroll"
+  | "device.revoke"
+  | "fence.set"
+  | "fence.cleared"
   | "product.create"
   | "product.update"
   | "product.delete"

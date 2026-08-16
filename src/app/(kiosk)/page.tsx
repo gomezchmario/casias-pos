@@ -153,22 +153,77 @@ export default function KioskPage() {
     }
   }
 
+  /*
+    Where this device says it is, or nothing.
+
+    ASKED EVERY TIME, and never remembered. A cached fix from an hour ago is a
+    claim about where the phone WAS, and the whole question here is where it is
+    now; `maximumAge: 0` is the difference between a fence and a formality.
+
+    NEVER BLOCKS THE PUNCH ON ITS OWN. If the browser refuses, or the fix times
+    out under a metal roof, this resolves to nothing at all and the server
+    decides what that means — which is the correct place for the decision,
+    since a trusted device does not need a location and this page has no way of
+    knowing whether it is one. A phone with location switched off still punches
+    fine at the counter tablet; only an untrusted device far from the shop is
+    turned away, and the server says so in words.
+
+    Ten seconds, because the punch is the last thing somebody does before
+    walking to the bay and a clock that hangs on a satellite fix is a clock
+    people stop using.
+  */
+  async function whereAmI(): Promise<{
+    lat?: number;
+    lng?: number;
+    accuracy?: number;
+  }> {
+    if (!navigator.geolocation) return {};
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (v: { lat?: number; lng?: number; accuracy?: number }) => {
+        if (!done) {
+          done = true;
+          resolve(v);
+        }
+      };
+      navigator.geolocation.getCurrentPosition(
+        (pos) =>
+          finish({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+          }),
+        () => finish({}),
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+      );
+      setTimeout(() => finish({}), 11000);
+    });
+  }
+
   async function handleAction(action: EntryType) {
     if (!lookup || submitInFlight.current) return;
     submitInFlight.current = true;
     setPhase("submitting");
     const photoData = cameraRef.current?.capture() ?? null;
+    const where = await whereAmI();
     try {
       const res = await fetch("/api/checkin/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin, action, photoData }),
+        body: JSON.stringify({ pin, action, photoData, ...where }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
-        setToast({ kind: "error", title: data.error || "Action failed" });
+        setToast({
+          kind: "error",
+          title: data.error || "Action failed",
+          // A refusal by the fence is the one error here somebody can act on,
+          // and it stays up twice as long because it is read rather than
+          // glanced at — and because the reader is usually surprised.
+          body: data.fence ? "Nothing was recorded." : undefined,
+        });
         setPhase("result");
-        scheduleReset(2500);
+        scheduleReset(data.fence ? 6000 : 2500);
         return;
       }
       const time = new Date(data.timestamp).toLocaleTimeString(undefined, {
