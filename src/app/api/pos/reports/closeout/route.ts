@@ -53,6 +53,12 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     ...report,
     exceptions: exceptionsFor(report.exceptions, auth.user.role),
+    // Collected is folded for the same reason the customers line is, and it
+    // has to be the same fold: the day's figures sit on the sheet a few
+    // centimetres under the drawer arithmetic, so a Collected that still
+    // carried the quiet money would sit beside a customers line that did not,
+    // and the gap between the two would be the withdrawal, printed twice over.
+    totals: { ...report.totals, collectedCents: report.totals.collectedCents + quietCents },
     drawer: {
       ...report.drawer,
       cashSalesCents: report.drawer.cashSalesCents + quietCents,
