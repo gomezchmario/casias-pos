@@ -938,6 +938,35 @@ function logSearch(
     );
 }
 
+/**
+ * The website's stock search writes its misses here too.
+ *
+ * Same table, same meaning, different door: a visitor typed a whole size into
+ * the public site and the rack had none in stock. A NULL employee_id is the
+ * mark of the web — every counter search arrives with a session behind it, so
+ * no session is what tells "asked from a phone at home" apart from "asked at
+ * the counter" without inventing a second table for the same fact. The "what
+ * left" study reads the table without caring which door the question came in
+ * through, which is the owner's instruction exactly: one study of what was
+ * wanted and not had.
+ *
+ * Only misses, mirroring logSearch above. The migration's rule is that a
+ * search that found stock is noise, and the website's yes-answers are the same
+ * noise. The study's read side already collapses one visitor pressing Check
+ * five times into one ask, the same way it collapses the counter re-searching
+ * a size while the customer is still standing there.
+ */
+export function logWebSearchMiss(raw: string, normalized: string): void {
+  getDb()
+    .prepare(
+      `INSERT INTO product_searches
+         (query, normalized_query, result_count, in_stock,
+          employee_id, business_date, created_at)
+       VALUES (?, ?, 0, 0, NULL, ?, ?)`,
+    )
+    .run(raw, normalized, currentBusinessDate(), nowLocalIso());
+}
+
 /** Sizes people asked for and the shop could not sell. The buying list. */
 export function listUnmetDemand(
   sinceBusinessDate: string,

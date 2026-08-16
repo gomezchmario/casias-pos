@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { inventoryBySize } from "@/lib/products";
+import { inventoryBySize, logWebSearchMiss } from "@/lib/products";
 import { normalizeTireSize } from "@/lib/tire-size";
 
 /**
@@ -48,6 +48,18 @@ export async function GET(req: NextRequest) {
       g.total > 0 &&
       (normalizeTireSize(g.size) === size || digitsOf(g.size) === digits),
   );
+
+  // A miss joins the register's own missed searches, so the "what left" study
+  // counts the customer who asked from their couch alongside the one who asked
+  // at the counter. Failing to write it down must never cost the customer
+  // their answer, so the answer goes out regardless.
+  if (!inStock) {
+    try {
+      logWebSearchMiss(raw, size);
+    } catch {
+      /* the study lost one row; the caller still gets the truth */
+    }
+  }
 
   return NextResponse.json({ ok: true, size, inStock });
 }
