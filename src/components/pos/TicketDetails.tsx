@@ -84,6 +84,7 @@ export function TicketDetails({
   requireCustomer = false,
   label,
   compact = true,
+  tone = "grey",
   onSaved,
   onError,
 }: {
@@ -126,6 +127,22 @@ export function TicketDetails({
    * two-thirds their size.
    */
   compact?: boolean;
+  /**
+   * What the folded-up full-width button is coloured like.
+   *
+   * `grey` is the default and belongs in the ticket drawer, where this button
+   * spans the panel directly above Pay: two full-width navy bars stacked on
+   * each other is how somebody taking a payment hits the wrong one, and the
+   * grey says "this is the other thing on this screen" from the colour alone,
+   * before any of the words are read.
+   *
+   * `panel` paints it in the pale blue of the panel it opens, framed with the
+   * same hairline, so it reads as that panel folded up rather than as a
+   * separate control. Right on the register, where the thing above it is a
+   * ticket rather than a payment button and there is nothing to be mistaken
+   * for; wrong in the drawer, for the reason above.
+   */
+  tone?: "grey" | "panel";
   onSaved: (sale: Sale) => void;
   onError: (message: string | null) => void;
 }) {
@@ -431,7 +448,15 @@ export function TicketDetails({
           style={
             compact
               ? { padding: "0.3rem 0.7rem", fontSize: 12, borderRadius: 8 }
-              : { background: "#4b5563", color: "#fff" }
+              : tone === "panel"
+                ? {
+                    // The panel's own fill, label colour and hairline, so the
+                    // button IS the panel with the middle folded away.
+                    background: "#eff6ff",
+                    color: "#1d4ed8",
+                    boxShadow: "inset 0 0 0 1px rgba(37,99,235,0.18)",
+                  }
+                : { background: "#4b5563", color: "#fff" }
           }
           onClick={() => setOpen(true)}
         >

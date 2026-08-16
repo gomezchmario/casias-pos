@@ -1746,6 +1746,11 @@ export default function RegisterPage() {
                   button being narrowed, it was a small navy pill all along.
                 */
                 compact={false}
+                // Painted like the panel it opens rather than the drawer's
+                // grey. That grey is there to keep this button from being
+                // mistaken for Pay, and on this screen there is no Pay bar
+                // above it to be mistaken for.
+                tone="panel"
                 // Keyed on the ticket so a new one starts with empty boxes
                 // rather than inheriting the last customer's name — which is
                 // the single most expensive thing this panel could get wrong.
