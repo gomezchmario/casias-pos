@@ -367,7 +367,12 @@ table.mock tr:last-child td { border-bottom: none; }
 .plan.pick { border: 2px solid var(--amber); }
 /* The add-on: outlined like the picks but quieter — dotted, in an amber with
    the vibrance taken out — so it reads as optional rather than recommended. */
-.plan.addon { border: 2px dotted #ecd9a4; }
+.plan.addon {
+  /* Dotted with the gap tripled. CSS dotted cannot space its dots, so the
+     ring is drawn: an SVG rounded rect, 2.5px round dots, 9px of air. */
+  border: 2px solid transparent;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='2' y='2' width='99%25' height='97%25' rx='12' fill='none' stroke='%23ecd9a4' stroke-width='2.5' stroke-dasharray='2.5 9' stroke-linecap='round'/%3E%3C/svg%3E");
+}
 .plan h4 { font-family: var(--display); font-size: 20px; margin: 0 0 3px; letter-spacing: -0.01em; }
 .plan .tagline { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
 .plan ul { margin: 0; padding-left: 17px; font-size: 14px; color: var(--muted); }
