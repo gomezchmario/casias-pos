@@ -88,6 +88,7 @@ export type AuditAction =
   | "drawer.update"
   | "register_check.create"
   | "register_check.delete"
+  | "register_check.replace"
   | "product.create"
   | "product.update"
   | "product.delete"

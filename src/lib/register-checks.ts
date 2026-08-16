@@ -241,6 +241,82 @@ export function deleteRegisterCheck(
 }
 
 /**
+ * Correct a check by replacing it — the owner's edit button.
+ *
+ * Nothing is updated in place. The wrong check is struck exactly as a plain
+ * removal strikes one, and a corrected copy is inserted CARRYING THE
+ * ORIGINAL'S CLOCK: same checked_at, same counter, same frozen expectations.
+ * Correcting a noon count must not mint a new "latest count" — the close-out
+ * reads the last live check as its verdict, and an edit that stamped now would
+ * flip the evening's sheet onto figures counted at noon. The only thing that
+ * changes is the counted amounts, which is the only thing that was wrong.
+ *
+ * Only tenders the original counted can be corrected, at the original's frozen
+ * expectation — the drawer of that moment, not of now. Owner only, enforced at
+ * the route like the strike is; this is the same power wearing an edit button.
+ */
+export function replaceRegisterCheck(
+  user: PosUser,
+  id: number,
+  args: { counts: { methodId: number; countedCents: number }[] },
+): Result<{ check: RegisterCheck }> {
+  const original = getRegisterCheck(id);
+  if (!original) return { ok: false, error: "That register log doesn't exist" };
+  if (original.deleted) return { ok: false, error: "That register log is already removed" };
+
+  const byMethod = new Map(args.counts.map((c) => [c.methodId, c.countedCents]));
+  for (const cents of byMethod.values())
+    if (!Number.isInteger(cents) || cents < 0)
+      return { ok: false, error: "Counted amounts are not valid" };
+
+  return inTx(() => {
+    const db = getDb();
+    db.prepare(
+      `UPDATE register_checks
+          SET deleted = 1, deleted_by = ?, deleted_at = ?, deleted_reason = ?
+        WHERE id = ?`,
+    ).run(user.employeeId, nowLocalIso(), "Corrected — replaced with an edited copy", id);
+
+    const info = db
+      .prepare(
+        `INSERT INTO register_checks (business_date, shift_id, note, checked_by, checked_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .run(
+        original.businessDate,
+        original.shiftId,
+        original.note,
+        original.checkedBy,
+        original.checkedAt,
+      );
+    const newId = Number(info.lastInsertRowid);
+
+    const insert = db.prepare(
+      `INSERT INTO register_check_counts (check_id, method_id, counted_cents, expected_cents)
+       VALUES (?, ?, ?, ?)`,
+    );
+    for (const l of original.lines)
+      insert.run(newId, l.methodId, byMethod.get(l.methodId) ?? l.countedCents, l.expectedCents);
+
+    const check = getRegisterCheck(newId)!;
+    logActorAudit(actorOf(user), {
+      action: "register_check.replace",
+      targetType: "register_check",
+      targetId: newId,
+      before: {
+        replaces: id,
+        lines: original.lines.map((l) => ({ method: l.code, counted_cents: l.countedCents })),
+      },
+      details: {
+        lines: check.lines.map((l) => ({ method: l.code, counted_cents: l.countedCents })),
+      },
+    });
+
+    return { ok: true as const, check };
+  });
+}
+
+/**
  * The same masking the close-out applies, for a midday count.
  *
  * This matters more than the close-out does, and it is where the fraud it

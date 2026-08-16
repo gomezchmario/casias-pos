@@ -73,6 +73,13 @@ export default function CloseoutV3Page() {
   const { t: tr } = useLang();
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /* The owner's register-log fold: which check is being edited (per-tender
+     dollar strings, keyed by methodId) and which is being struck (with the
+     reason the strike demands). */
+  const [editingCheck, setEditingCheck] = useState<number | null>(null);
+  const [editCounts, setEditCounts] = useState<Record<number, string>>({});
+  const [strikingCheck, setStrikingCheck] = useState<number | null>(null);
+  const [strikeReason, setStrikeReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [printedOn, setPrintedOn] = useState("");
   /** Typed counts, by tender code. Only cash and cc take one. */
@@ -163,6 +170,52 @@ export default function CloseoutV3Page() {
       setError((await res.json().catch(() => ({}))).error || "Could not delete that");
       return;
     }
+    setError(null);
+    await load();
+  }
+
+  async function saveCheckEdit(id: number) {
+    const check = data?.drawer.checks.find((c) => c.id === id);
+    if (!check) return;
+    const counts = check.lines.map((l) => {
+      const v = parseCents(editCounts[l.methodId] ?? "");
+      return {
+        methodId: l.methodId,
+        countedCents: v !== null && Number.isInteger(v) && v >= 0 ? v : l.countedCents,
+      };
+    });
+    setBusy(true);
+    const res = await fetch("/api/pos/register-checks", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, counts }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setError((await res.json().catch(() => ({}))).error || "Could not correct that log");
+      return;
+    }
+    setEditingCheck(null);
+    setError(null);
+    await load();
+  }
+
+  async function strikeCheck(id: number) {
+    const why = strikeReason.trim();
+    if (!why) return;
+    setBusy(true);
+    const res = await fetch("/api/pos/register-checks", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, reason: why }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setError((await res.json().catch(() => ({}))).error || "Could not remove that log");
+      return;
+    }
+    setStrikingCheck(null);
+    setStrikeReason("");
     setError(null);
     await load();
   }
@@ -1090,6 +1143,156 @@ export default function CloseoutV3Page() {
             </details>
             );
           })()}
+
+          {/*
+            THE REGISTER LOG, FOR THE OWNER'S HANDS ONLY.
+
+            Every count taken today, foldable like the movements above it —
+            but gated to the owner, because the actions on it are the owner's
+            strike and the owner's edit. Edit replaces the check with a
+            corrected copy carrying the original's clock and counter, so
+            fixing a typo in a noon count cannot become tonight's verdict;
+            Remove strikes it with a reason. Both land in the audit log, and
+            the struck history stays readable on the Full Report.
+          */}
+          {can("deleteRegisterCheck") && (data.drawer.checks?.length ?? 0) > 0 && (
+            <details className="cv3-moves">
+              <summary>
+                {data.drawer.checks.length}{" "}
+                {data.drawer.checks.length === 1 ? "register log" : "register logs"} today
+              </summary>
+              <table className="cv3-moves-table">
+                <tbody>
+                  {data.drawer.checks.map((c) => (
+                    <tr key={c.id}>
+                      <td className="t">{c.checkedAt.slice(11, 16)}</td>
+                      <td>
+                        {editingCheck === c.id ? (
+                          <div className="cv3-moves-edit">
+                            {c.lines.map((l) => (
+                              <label key={l.methodId} className="text-xs">
+                                {l.label}
+                                <input
+                                  className="input"
+                                  inputMode="decimal"
+                                  value={editCounts[l.methodId] ?? ""}
+                                  onChange={(e) =>
+                                    setEditCounts((q) => ({
+                                      ...q,
+                                      [l.methodId]: e.target.value,
+                                    }))
+                                  }
+                                />
+                              </label>
+                            ))}
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              disabled={busy}
+                              onClick={() => void saveCheckEdit(c.id)}
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              onClick={() => setEditingCheck(null)}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : strikingCheck === c.id ? (
+                          <div className="cv3-moves-edit">
+                            <input
+                              className="input"
+                              autoFocus
+                              placeholder="Why is it coming off?"
+                              value={strikeReason}
+                              onChange={(e) => setStrikeReason(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") void strikeCheck(c.id);
+                                if (e.key === "Escape") setStrikingCheck(null);
+                              }}
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              disabled={busy || !strikeReason.trim()}
+                              onClick={() => void strikeCheck(c.id)}
+                            >
+                              Remove
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              onClick={() => setStrikingCheck(null)}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            {c.lines
+                              .map((l) => `${l.label} ${formatCents(l.countedCents)}`)
+                              .join(" · ")}
+                            <div className="cv3-moves-by">
+                              {c.checkedByName}
+                              {c.note ? ` — ${c.note}` : ""}
+                            </div>
+                          </>
+                        )}
+                      </td>
+                      <td className="a">
+                        {c.balanced
+                          ? "balanced"
+                          : `${c.varianceCents >= 0 ? "+" : "−"}${formatCents(Math.abs(c.varianceCents))}`}
+                      </td>
+                      <td className="x">
+                        {editingCheck !== c.id && strikingCheck !== c.id && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingCheck(c.id);
+                                setStrikingCheck(null);
+                                setEditCounts(
+                                  Object.fromEntries(
+                                    c.lines.map((l) => [
+                                      l.methodId,
+                                      (l.countedCents / 100).toFixed(2),
+                                    ]),
+                                  ),
+                                );
+                              }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              className="is-danger"
+                              disabled={busy}
+                              onClick={() => {
+                                setStrikingCheck(c.id);
+                                setEditingCheck(null);
+                                setStrikeReason("");
+                              }}
+                            >
+                              Remove
+                            </button>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="cv3-moves-foot">
+                Edit replaces the count with corrected figures under the same time and name.
+                Remove strikes it off with a reason. Both are written to the audit log and
+                stay readable on your Full Report.
+              </p>
+            </details>
+          )}
         </div>
 
         {/* ── Who is still on the clock ──────────────────────────────────

@@ -5,6 +5,7 @@ import {
   deleteRegisterCheck,
   recordRegisterCheck,
   registerChecksForDay,
+  replaceRegisterCheck,
 } from "@/lib/register-checks";
 
 /** Every midday count taken on a business day, oldest first. */
@@ -48,6 +49,24 @@ export async function POST(req: NextRequest) {
     counts: body.counts ?? [],
     note: body.note ?? null,
   });
+  if (!result.ok) return jsonError(result.error);
+  return NextResponse.json({ check: result.check });
+}
+
+/** Owner only — the strike's power wearing an edit button. See replaceRegisterCheck. */
+export async function PATCH(req: NextRequest) {
+  const auth = await requirePos("deleteRegisterCheck");
+  if (!auth.ok) return auth.response;
+
+  let body: { id?: number; counts?: { methodId: number; countedCents: number }[] };
+  try {
+    body = await req.json();
+  } catch {
+    return jsonError("Invalid JSON");
+  }
+  if (!Number.isInteger(body.id)) return jsonError("Which log?");
+
+  const result = replaceRegisterCheck(auth.user, body.id!, { counts: body.counts ?? [] });
   if (!result.ok) return jsonError(result.error);
   return NextResponse.json({ check: result.check });
 }
