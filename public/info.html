@@ -363,9 +363,8 @@ table.mock tr:last-child td { border-bottom: none; }
 }
 
 .plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
-/* The amber border used to single out the recommended pick; the owner wants
-   the whole row dressed alike, so it is the plan style now. */
-.plan { background: var(--card); border: 2px solid var(--amber); border-radius: 12px; padding: 20px; }
+.plan { background: var(--card); border: 1px solid var(--rule); border-radius: 12px; padding: 20px; }
+.plan.pick { border: 2px solid var(--amber); }
 .plan h4 { font-family: var(--display); font-size: 20px; margin: 0 0 3px; letter-spacing: -0.01em; }
 .plan .tagline { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
 .plan ul { margin: 0; padding-left: 17px; font-size: 14px; color: var(--muted); }
@@ -1256,15 +1255,6 @@ body.editing [data-edit]:focus { outline: 2px solid var(--amber); outline-offset
 
   <h3 style="margin-top:34px">Getting set up</h3>
   <div class="plans" style="grid-template-columns:repeat(auto-fit,minmax(250px,1fr))">
-    <div class="plan">
-      <h4>As it comes <span style="font-family:var(--mono);font-size:19px">$99</span></h4>
-      <div class="tagline">One payment · set it up yourself</div>
-      <ul>
-        <li>Installed and running, with the standard setup</li>
-        <li>You add your own tires, prices and customers</li>
-        <li>Same software, same support</li>
-      </ul>
-    </div>
     <div class="plan pick">
       <h4>Full setup <span style="font-family:var(--mono);font-size:19px">$250</span></h4>
       <div class="tagline">One payment · what most shops take</div>
@@ -1272,6 +1262,15 @@ body.editing [data-edit]:focus { outline: 2px solid var(--amber); outline-offset
         <li>Set up around how <em>your</em> shop rings — your buttons, your prices, your words</li>
         <li>Your tire inventory loaded and counted in before you open on it</li>
         <li>Your customers and fleets brought across</li>
+      </ul>
+    </div>
+    <div class="plan">
+      <h4>As it comes <span style="font-family:var(--mono);font-size:19px">$99</span></h4>
+      <div class="tagline">One payment · set it up yourself</div>
+      <ul>
+        <li>Installed and running, with the standard setup</li>
+        <li>You add your own tires, prices and customers</li>
+        <li>Same software, same support</li>
       </ul>
     </div>
     <div class="plan">
