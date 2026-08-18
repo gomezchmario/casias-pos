@@ -435,6 +435,38 @@ table.mock tr:last-child td { border-bottom: none; }
 .editbar button:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 .editbar .count { font-family: var(--mono); font-size: 12px; color: rgba(255,255,255,.66); }
 
+/*
+  ON A PHONE THE BAR IS ONE ROW, NOT A TOWER.
+
+  Four controls and a counter wrapped onto four lines at 400px wide, and the
+  result was a rounded slab parked across the middle of the cover — a reader's
+  first impression of the product was a stack of the author's own tools sitting
+  on the headline. Held to a single row it goes back to being a strip along the
+  bottom edge, and anything that will not fit scrolls sideways within it rather
+  than pushing the bar upward into the page.
+
+  The change counter goes first when space is short: it reports on editing,
+  which is not what somebody reading the brochure on a phone is doing, and it
+  is the widest thing here for the least value.
+*/
+@media (max-width: 620px) {
+  .editbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    justify-content: flex-start;
+    gap: 6px;
+    padding: 7px 10px;
+    bottom: 10px;
+    max-width: calc(100vw - 16px);
+    /* The strip is the scroller; a scrollbar drawn across it would read as a
+       rule under the buttons. */
+    scrollbar-width: none;
+  }
+  .editbar::-webkit-scrollbar { display: none; }
+  .editbar button { padding: 6px 11px; font-size: 12.5px; }
+  .editbar .count { display: none; }
+}
+
 /* Only while editing: a dotted hint that a block is yours to change, and a
    solid amber edge on the one being typed into. Nothing shifts — the outline
    sits outside the box so a word never reflows when you tap it. */
