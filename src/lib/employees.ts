@@ -54,6 +54,29 @@ export function listMechanics(): Employee[] {
     .all() as Employee[];
 }
 
+/**
+ * The service writers — the counter, not the floor.
+ *
+ * A separate list from `listMechanics` rather than a widening of it, because
+ * the two answer different questions and only one of them is about work done
+ * in a bay. A writer sells a tire; a technician fits it. Both are credited on
+ * the line that pays them, and the register decides which list it is asking
+ * for — see the mechanic picker there.
+ *
+ * Keyed on `pos_role` rather than `role`, which is where this distinction
+ * actually lives: the shop's writers carry role OFFICE alongside the
+ * bookkeeper and the managers, and OFFICE is not the question being asked.
+ */
+export function listServiceWriters(): Employee[] {
+  return getDb()
+    .prepare(
+      `SELECT ${EMPLOYEE_COLUMNS} FROM employees
+        WHERE active = 1 AND LOWER(COALESCE(pos_role, '')) = 'writer'
+        ORDER BY name`,
+    )
+    .all() as Employee[];
+}
+
 export function getEmployee(id: number): Employee | null {
   const db = getDb();
   return (

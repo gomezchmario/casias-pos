@@ -29,6 +29,12 @@ type RegisterData = {
     /** Where they stand on the time clock right now — see the ring below. */
     clock: "checked_out" | "checked_in" | "on_break";
   }[];
+  /** The counter. Offered on the Inventory tab only — see `pickable`. */
+  serviceWriters: {
+    id: number;
+    name: string;
+    clock: "checked_out" | "checked_in" | "on_break";
+  }[];
   businessDate: string;
   tireCategories: { new_tire?: number; used_tire?: number };
   /** The unsorted used-tire pile's row, or null until one is opened. */
@@ -546,10 +552,30 @@ export default function RegisterPage() {
   // whole of what the switch does — nothing else on this screen changes.
   const readyToAutoAdd = autoAdd && (mechanicId !== "" || otherName !== null);
 
+  /**
+   * Everybody a line can be credited to: the floor and the counter.
+   *
+   * Used for reading a name back, never for offering one — the picker asks
+   * `pickable` below, which is narrower on the Services tab. Looking a name up
+   * in the same list that offered it would work today and break the moment the
+   * two lists differ, which is exactly what the Inventory tab does.
+   */
+  const creditable = (() => {
+    const floor = data?.mechanics ?? [];
+    /*
+      A union, not a concatenation. Somebody can be both — Rey fits tires and
+      writes them up — and appended blind he appeared twice in the Inventory
+      picker, two identical buttons with the same React key, one of which
+      looked unpicked after the other was pressed.
+    */
+    const seen = new Set(floor.map((m) => m.id));
+    return [...floor, ...(data?.serviceWriters ?? []).filter((w) => !seen.has(w.id))];
+  })();
+
   /** What to call the mechanic on this line, in words. */
   const mechanicLabel =
     mechanicId !== ""
-      ? ((data?.mechanics ?? []).find((m) => m.id === mechanicId)?.name ?? null)
+      ? (creditable.find((m) => m.id === mechanicId)?.name ?? null)
       : otherName === null
         ? null
         : otherName.trim() || "Other";
@@ -956,6 +982,23 @@ export default function RegisterPage() {
   // A tip belongs to one of these people and nobody else, so this is what the
   // payment panel offers rather than the shop's whole roster -- a list of
   // fifteen names to pick from would guarantee the wrong one gets picked.
+  //
+  // READ OFF THE FLOOR, NOT off `creditable`, and that is the rule rather than
+  // an oversight: a writer credited with selling a tire is not offered the
+  // customer's tip. The tip is for the person who did the tire, and the
+  // close-out sheet calls that line "tips paid out to technicians".
+  /*
+    WHO THE PICKER OFFERS, AND WHY IT IS NOT THE SAME ON BOTH TABS.
+
+    Selling a tire is work somebody did, and the person who did it is usually
+    standing at the counter rather than in a bay — so the Inventory tab offers
+    the service writers alongside the technicians, and a cashier can put a tire
+    sale against their own name. Ringing a flat repair is not that: the credit
+    on a service line belongs to whoever fitted it, and adding counter staff
+    there would only make the wrong name easy to press.
+  */
+  const pickable = mode === "tire" ? creditable : data.mechanics;
+
   const ticketMechanics = [
     ...new Set(
       liveItems
@@ -1469,7 +1512,7 @@ export default function RegisterPage() {
               </div>
             </div>
             <div className="keypad">
-              {data.mechanics.map((m) => {
+              {pickable.map((m) => {
                 const on = mechanicId === m.id;
                 /*
                   WHO IS ACTUALLY HERE, without asking anybody.
@@ -1904,7 +1947,7 @@ export default function RegisterPage() {
                     </div>
                     {i.mechanic_id && (
                       <div className="text-xs text-brand-300">
-                        {data.mechanics.find((m) => m.id === i.mechanic_id)?.name}
+                        {creditable.find((m) => m.id === i.mechanic_id)?.name}
                       </div>
                     )}
                   </div>
