@@ -1050,7 +1050,14 @@ export default function RegisterPage() {
         </div>
       )}
 
-      <div className="grid gap-6" style={{ gridTemplateColumns: "minmax(0,1fr) 380px" }}>
+      {/* The counter on the left, the ticket on the right — until the window
+          is too narrow to hold both, when they stack. The widths live in
+          register.css as `.reg-split` rather than inline here, because an
+          inline style cannot carry a media query and this layout needs one:
+          at 380px of fixed right-hand column, a phone left the LEFT column
+          with nothing at all and every control in it printed on top of its
+          neighbour. */}
+      <div className="reg-split">
       <div>
         {purchasing && (
           <div className="bg-white rounded-2xl shadow-sm p-4 text-sm text-brand-400">

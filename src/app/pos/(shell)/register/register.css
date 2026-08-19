@@ -18,6 +18,35 @@
   register's description row -- which is why it is now a class and not another
   one-off.
 */
+/*
+  THE REGISTER'S TWO COLUMNS, AND THE WIDTH AT WHICH THEY STOP BEING TWO.
+
+  The ticket panel is a fixed 380px because a ticket is a fixed thing — the
+  same rows of money whatever the window does — and the counter beside it
+  takes the rest. That works down to a laptop and fails completely on a
+  phone: at 412px wide the fixed column eats the screen, the left track is
+  handed what is left over (nothing), and every control inside it collapses
+  to a strip a few characters wide. The mechanic buttons then print their
+  names on top of each other, which is what the shop actually sees.
+
+  So below 780px the two columns become one, and the ticket goes underneath
+  the counter that fills it. Underneath rather than above, because the order
+  of work is pick-then-pay: on a phone you scroll down to the ticket when you
+  are ready for it, and putting it first would push every button below the
+  fold.
+*/
+.reg-split {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: minmax(0, 1fr) 380px;
+}
+
+@media (max-width: 780px) {
+  .reg-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .keypad {
   display: grid;
   gap: 0.5rem;
