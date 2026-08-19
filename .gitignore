@@ -68,6 +68,11 @@ docs/*
 # seconds is a merge conflict waiting to happen rather than a document.
 !docs/treadline-brochure.html
 !docs/casias-web.html
+# The product documentation suite is written, not rendered — every file in it
+# is source. Named back in as a directory so a new document is tracked the day
+# it is written rather than the day somebody notices it never was.
+!docs/product/
+!docs/product/**
 !docs/Manual-del-Sistema.pdf
 !docs/Shop-System-Manual.html
 !docs/Shop-System-Manual.pdf
