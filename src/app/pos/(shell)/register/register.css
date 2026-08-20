@@ -35,6 +35,34 @@
   are ready for it, and putting it first would push every button below the
   fold.
 */
+/*
+  The quantity nudge on a ticket line.
+
+  Deliberately not a .btn. The ticket column is a list of money with one
+  destructive control on each row, and a third full-weight button per line
+  would turn a readable ticket into a wall of chrome. This is the weight of
+  the ✕ beside it: a plain outlined circle that says "small adjustment", big
+  enough for a thumb at 28px and no bigger.
+*/
+.tk-qty {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid rgb(10 37 64 / 0.18);
+  background: #fff;
+  color: #0a2540;
+  font-size: 15px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.tk-qty:hover {
+  border-color: rgb(10 37 64 / 0.4);
+  background: rgb(10 37 64 / 0.04);
+}
+
 .reg-split {
   display: grid;
   gap: 1.5rem;

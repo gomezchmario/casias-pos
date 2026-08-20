@@ -686,6 +686,45 @@ export default function RegisterPage() {
   }
 
   /**
+   * One more of this line, or one fewer.
+   *
+   * The case it exists for: a tire is on the ticket and the customer decides
+   * they want two. Before this, that meant removing the line and ringing it
+   * again — three taps, a void on the record, and the mechanic picked twice.
+   *
+   * OPEN TICKETS ONLY, and that is a correctness rule rather than a UI
+   * preference. Stock comes off the racks at completion, not when a line is
+   * added: `applySaleMovements` reads each line's qty once, at the moment the
+   * ticket closes. So changing a quantity while the ticket is open is free —
+   * the ledger has not spoken yet and will read the final number. On a
+   * COMPLETED ticket the movements already exist, and `updateItem` does not
+   * revisit them, so bumping a tire from one to two there would sell a tire
+   * the rack was never asked for. The buttons are simply not offered.
+   *
+   * Down from one is not zero: a line worth none of something is a line that
+   * should not be on the ticket, and there is already a control that says so
+   * properly — the ✕, which voids with a reason.
+   */
+  async function nudgeQty(item: SaleItem, by: 1 | -1) {
+    if (!sale || sale.status !== "open") return;
+    const qty = item.qty + by;
+    if (qty < 1) return;
+    const res = await fetch(`/api/pos/sales/${sale.id}/items/${item.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ qty }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(d.error || "Could not change that line");
+      return;
+    }
+    setError(null);
+    setSale(d.sale);
+    setItems(d.items);
+  }
+
+  /**
    * Close the ticket with nothing paid against it.
    *
    * This CLOSES the sale rather than leaving it open, which is the whole point:
@@ -1958,6 +1997,39 @@ export default function RegisterPage() {
                       </div>
                     )}
                   </div>
+                  {/* Fewer / more, on the line itself.
+
+                      Only while the ticket is open — see `nudgeQty` for why
+                      that is arithmetic rather than taste. Small and quiet:
+                      this sits in a column of money and must not read as one
+                      of the things that takes it. The minus disappears at one
+                      rather than going grey, because a button that is present
+                      and refuses is a button somebody presses twice; below one
+                      the answer is the ✕, which removes the line properly. */}
+                  {sale?.status === "open" && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      {i.qty > 1 && (
+                        <button
+                          type="button"
+                          className="tk-qty"
+                          onClick={() => void nudgeQty(i, -1)}
+                          aria-label={`One fewer ${i.description}`}
+                          title={tr("One fewer")}
+                        >
+                          −
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="tk-qty"
+                        onClick={() => void nudgeQty(i, 1)}
+                        aria-label={`One more ${i.description}`}
+                        title={tr("One more")}
+                      >
+                        +
+                      </button>
+                    </div>
+                  )}
                   <div className="text-sm tabular-nums text-brand-500">
                     {formatCents(i.line_total_cents)}
                   </div>

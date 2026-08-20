@@ -6,6 +6,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { LockScreen } from "@/components/pos/LockScreen";
 import { LangToggle, useLang } from "@/components/pos/LangToggle";
 import { TireDemandButton } from "@/components/pos/TireDemandButton";
+import { BackToTop } from "@/components/ui/BackToTop";
 import { ShopLogo } from "@/components/ui/ShopLogo";
 import { ROLE_LABELS, type Capability, type PosRole } from "@/lib/roles";
 
@@ -380,6 +381,14 @@ export function PosShell({ children }: { children: React.ReactNode }) {
           and belongs to none of them. It draws nothing at all unless the shop
           has the study switched on. */}
       <TireDemandButton enabled={auth.tireDemand} />
+
+      {/* Here rather than on the inventory page, which is where it started.
+          Every screen in the register grows long enough to need it — the day
+          log, the customer book, the reports, the rack — and a control that
+          exists on one of them is a control nobody learns. It hides itself
+          until there is a screen's worth of scrolling to come back from, so
+          on the short pages it costs nothing. */}
+      <BackToTop />
 
       {locked && <LockScreen onUnlocked={() => void unlock()} />}
     </PosAuthContext.Provider>

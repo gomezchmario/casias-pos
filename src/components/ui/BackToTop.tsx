@@ -40,7 +40,7 @@ export function BackToTop({
       // pops into existence under a finger already on its way down is a
       // mis-tap; fading it in gives the eye the moment it needs to notice.
       // `pointer-events` is what stops the invisible one from being pressable.
-      className={`no-print fixed bottom-6 right-6 z-40 grid h-11 w-11 place-items-center rounded-full transition-all duration-200 ${
+      className={`pos-backtotop no-print fixed bottom-6 right-6 z-40 grid h-11 w-11 place-items-center rounded-full transition-all duration-200 ${
         show ? "opacity-90 hover:opacity-100" : "pointer-events-none opacity-0"
       }`}
       style={{

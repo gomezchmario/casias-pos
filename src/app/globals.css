@@ -342,6 +342,28 @@ html, body {
   transition: opacity 140ms, transform 140ms;
 }
 
+/*
+  THE TWO THINGS THAT FLOAT IN THAT CORNER, STACKED INSTEAD OF PILED.
+
+  The lost-sale button and Back-to-top are both 44px circles pinned to the
+  bottom-right, and for a while they were pinned to the SAME bottom-right:
+  one sat on the other, and the one underneath could not be pressed at all.
+
+  Lifted by presence rather than by a flag. `:has()` asks the page whether a
+  study button is actually rendered, which is the only honest way to ask —
+  whether it is depends on a setting AND on the capability of whoever is
+  signed in, and a second copy of that test in another file is a second copy
+  that will eventually disagree with the first. The panel counts too: it
+  opens in the same corner, and the arrow should clear that as well.
+
+  Where neither is present, nothing here applies and the arrow keeps its own
+  place at the bottom.
+*/
+body:has(.td-fab) .pos-backtotop,
+body:has(.td-panel) .pos-backtotop {
+  bottom: 74px;
+}
+
 .td-fab:hover,
 .td-fab:focus-visible {
   opacity: 1;

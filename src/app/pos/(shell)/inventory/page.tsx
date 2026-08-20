@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePosAuth } from "@/components/pos/PosShell";
 import { ProductSearch, type FoundProduct } from "@/components/pos/ProductSearch";
-import { BackToTop } from "@/components/ui/BackToTop";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { ShopLogo } from "@/components/ui/ShopLogo";
 import { Modal } from "@/components/ui/Modal";
@@ -2006,7 +2005,6 @@ export default function InventoryPage() {
         />
       )}
 
-      <BackToTop />
     </div>
   );
 }
