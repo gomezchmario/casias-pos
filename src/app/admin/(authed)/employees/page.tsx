@@ -64,6 +64,50 @@ type EditState = {
 type SortKey = "name" | "role" | "access" | "status" | "state";
 
 /*
+  A header that sorts, defined OUT HERE and not inside the page.
+
+  Written inside the component it was a new function on every render, which
+  makes React throw the whole header row away and build it again each time
+  anything changes — the cell under the finger is replaced between the press
+  and the release. Out here it is one component that simply re-renders.
+
+  The whole cell is the target rather than the words inside it: this is a
+  header being pressed at a desk with a mouse, and a two-word hit area in a
+  wide column is a control people conclude is broken. The arrow marks the
+  column in force, so the list always says how it is ordered with no legend
+  anywhere; the inactive columns show a faint one on hover, which is how
+  somebody discovers the row is pressable at all.
+*/
+function SortHead({
+  label,
+  k,
+  sortBy,
+  sortDown,
+  onSort,
+}: {
+  label: string;
+  k: SortKey;
+  sortBy: SortKey;
+  sortDown: boolean;
+  onSort: (k: SortKey) => void;
+}) {
+  const on = sortBy === k;
+  return (
+    <th
+      className="px-4 py-3 cursor-pointer select-none hover:bg-black/[0.03] group"
+      onClick={() => onSort(k)}
+      title={`Sort by ${label.toLowerCase()}`}
+      aria-sort={on ? (sortDown ? "descending" : "ascending") : "none"}
+    >
+      <span className={on ? "text-brand-500" : undefined}>{label}</span>
+      <span className={`ml-1 ${on ? "" : "opacity-0 group-hover:opacity-40"}`}>
+        {on && sortDown ? "▾" : "▴"}
+      </span>
+    </th>
+  );
+}
+
+/*
   Rank orders, not alphabet, for the three columns where alphabet means
   nothing. Sorting POS access A–Z puts Accountant above Owner and reads as
   noise; sorting it by rank puts the ladder on the screen in the shape people
@@ -139,6 +183,14 @@ export default function EmployeesPage() {
     read, and the same order every time. A stable tiebreak is the difference
     between grouping a list and shuffling it.
   */
+  const onSort = (k: SortKey) => {
+    if (sortBy === k) setSortDown(!sortDown);
+    else {
+      setSortBy(k);
+      setSortDown(false);
+    }
+  };
+
   const sorted = [...list].sort((a, b) => {
     const byName = a.name.localeCompare(b.name);
     let d = 0;
@@ -152,28 +204,6 @@ export default function EmployeesPage() {
         (b.active === 1 ? STATE_ORDER[b.current_state] ?? 3 : 4);
     return (sortDown ? -d : d) || byName;
   });
-
-  /* A header that sorts. The arrow only appears on the column in force, so
-     the list always says how it is ordered without a legend. */
-  const SortHead = ({ label, k, right }: { label: string; k: SortKey; right?: boolean }) => (
-    <th className={`px-4 py-3 ${right ? "text-right" : ""}`}>
-      <button
-        type="button"
-        className="uppercase text-xs tracking-wider text-brand-400 hover:text-brand-500"
-        onClick={() => {
-          if (sortBy === k) setSortDown(!sortDown);
-          else {
-            setSortBy(k);
-            setSortDown(false);
-          }
-        }}
-        title={`Sort by ${label.toLowerCase()}`}
-      >
-        {label}
-        <span className="ml-1">{sortBy === k ? (sortDown ? "▾" : "▴") : ""}</span>
-      </button>
-    </th>
-  );
 
   return (
     <div>
@@ -211,11 +241,11 @@ export default function EmployeesPage() {
         <table className="w-full text-sm">
           <thead style={{ background: "rgba(10,37,64,0.03)" }}>
             <tr className="text-left text-brand-400 uppercase text-xs tracking-wider">
-              <SortHead label="Name" k="name" />
-              <SortHead label="Role" k="role" />
-              <SortHead label="POS access" k="access" />
-              <SortHead label="Status" k="status" />
-              <SortHead label="Current state" k="state" />
+              <SortHead label="Name" k="name" sortBy={sortBy} sortDown={sortDown} onSort={onSort} />
+              <SortHead label="Role" k="role" sortBy={sortBy} sortDown={sortDown} onSort={onSort} />
+              <SortHead label="POS access" k="access" sortBy={sortBy} sortDown={sortDown} onSort={onSort} />
+              <SortHead label="Status" k="status" sortBy={sortBy} sortDown={sortDown} onSort={onSort} />
+              <SortHead label="Current state" k="state" sortBy={sortBy} sortDown={sortDown} onSort={onSort} />
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
