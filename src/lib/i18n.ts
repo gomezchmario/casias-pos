@@ -1400,6 +1400,10 @@ const ES: Record<string, string> = {
   "Type how many of each you have. Leave a row empty if you have none of it — the total adds itself up as you go.":
     "Escriba cuántos tiene de cada uno. Deje la línea vacía si no tiene ninguno — el total se va sumando solo.",
   "Comes to": "Suma",
+  // The register's fold for counter staff on a tire line.
+  "The counter": "El mostrador",
+  "Credit this tire to somebody at the counter":
+    "Acreditar esta llanta a alguien del mostrador",
   Bills: "Billetes",
   Coin: "Moneda",
   Coins: "Monedas",

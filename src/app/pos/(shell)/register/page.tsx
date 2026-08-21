@@ -225,6 +225,16 @@ export default function RegisterPage() {
    * on the common one all day long.
    */
   const [mode, setMode] = useState<"service" | "tire">("service");
+  /*
+    The counter, folded away until somebody asks for it.
+
+    Selling a tire can be credited to whoever is at the front as well as to
+    the floor, but the floor is who it usually is — and thirteen names in a
+    grid is a grid nobody reads. Technicians show; one button opens the rest.
+    Closed again whenever the tab changes, because switching to Services and
+    back is how somebody starts a different kind of line.
+  */
+  const [showCounter, setShowCounter] = useState(false);
   // Closing a ticket the customer has not paid for. Asked in a dialog because
   // it is the one button here that ends with money owed rather than money in.
   const [askUnpaid, setAskUnpaid] = useState(false);
@@ -838,6 +848,8 @@ export default function RegisterPage() {
    * line nobody can explain a month later.
    */
   function switchMode(next: "service" | "tire") {
+    // A different kind of line is a different question about who did it.
+    setShowCounter(false);
     if (next === mode) return;
     setMode(next);
     setDescription("");
@@ -1036,7 +1048,16 @@ export default function RegisterPage() {
     on a service line belongs to whoever fitted it, and adding counter staff
     there would only make the wrong name easy to press.
   */
-  const pickable = mode === "tire" ? creditable : data.mechanics;
+  /*
+    Opened by hand OR by the ticket itself: a line already credited to
+    somebody at the counter has to show that name, or reopening the ticket
+    presents a picker with nothing selected and the truth one press away from
+    being overwritten.
+  */
+  const counterPicked =
+    mechanicId !== "" && !data.mechanics.some((m) => m.id === mechanicId);
+  const pickable =
+    mode === "tire" && (showCounter || counterPicked) ? creditable : data.mechanics;
 
   const ticketMechanics = [
     ...new Set(
@@ -1627,6 +1648,29 @@ export default function RegisterPage() {
               {/* The one cell that is a real answer without being a person.
                   Selected like any other name — it just opens a box as well,
                   because the whole point is that Other can carry a label. */}
+              {/* Not a person, so it does not look like one: outlined in the
+                  attention colour, and it takes a name's place in the grid
+                  rather than sitting above it, because that is where the eye
+                  is already looking when it fails to find the name it wants.
+                  It disappears once pressed — the names it was hiding are
+                  standing where it was. */}
+              {mode === "tire" && !showCounter && !counterPicked && (
+                <button
+                  type="button"
+                  className="btn"
+                  style={{
+                    height: 56,
+                    fontSize: 13.5,
+                    fontWeight: 600,
+                    background: "#fff",
+                    color: "#0a2540",
+                    border: "2px solid rgba(255,200,61,0.9)",
+                  }}
+                  onClick={() => setShowCounter(true)}
+                  disabled={busy}
+                  title={tr("Credit this tire to somebody at the counter")}
+                >{tr("The counter")}</button>
+              )}
               <button
                 type="button"
                 className="btn"
