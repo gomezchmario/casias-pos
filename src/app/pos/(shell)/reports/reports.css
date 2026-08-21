@@ -323,6 +323,18 @@
   white-space: nowrap;
 }
 
+/* The edge bars' figures grow inward. A centred label wider than its column
+   spills evenly to both sides, which on the LAST bar pushed half of today's
+   dollar figure past the panel's edge — "$100." with the cents clipped off,
+   on the one number the chart exists to headline. Pinned to the inside edge
+   instead, the overflow happens over the chart, where there is room. */
+.rp-bar-col:last-child .rp-bar-val {
+  align-self: flex-end;
+}
+.rp-bar-col:first-child .rp-bar-val {
+  align-self: flex-start;
+}
+
 .rp-bar {
   width: 100%;
   max-width: 34px;

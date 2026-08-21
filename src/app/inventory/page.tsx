@@ -10,6 +10,7 @@ import {
   type InventoryCheck,
 } from "@/lib/inventory-alarm";
 import { TireQuote } from "@/components/pos/TireQuote";
+import { BackToTop } from "@/components/ui/BackToTop";
 import { formatCents } from "@/lib/money";
 import { sizeMatches } from "@/lib/tire-size";
 import "../pos/(shell)/inventory/inventory.css";
@@ -163,6 +164,10 @@ export default function PublicInventoryPage() {
 
   return (
     <div style={{ background: "#f4f6fa", minHeight: "100vh" }}>
+      {/* The racks run five hundred tires deep here exactly as they do on the
+          register's sheet, and the search box is just as far away from the
+          bottom of them. Same arrow, same reasons. */}
+      <BackToTop />
       <div className="inv inv-public max-w-5xl mx-auto p-6">
         <div className="flex items-end justify-between mb-5 gap-4 flex-wrap no-print">
           <div>
