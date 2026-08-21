@@ -824,6 +824,13 @@ body:has(.td-panel) .pos-backtotop {
     flex-basis: 100%;
   }
 
+  /* With the nav gone from the first row, its flex-1 no longer pushes the
+     right-hand cluster right — the name takes that job over, and the name,
+     the language toggle and the clock sit flush against the edge. */
+  .pos-me {
+    margin-left: auto;
+  }
+
   /* The kiosk's corner links, thinned to the one a phone would use.
      Layout, not security — the leaderboard is built for a wall monitor,
      Admin is typed at the shop PC, the manual is read sitting down, and four

@@ -318,7 +318,12 @@ export function PosShell({ children }: { children: React.ReactNode }) {
               );
             })}
           </nav>
-          <div className="text-right leading-tight">
+          {/* On a phone the nav leaves this row, and with it goes the flex-1
+              that pushed everything after it to the right edge — so the name
+              takes over that job with a margin-left:auto of its own
+              (.pos-me), and the name, the language toggle and the clock sit
+              flush right instead of trailing off mid-bar. */}
+          <div className="pos-me text-right leading-tight">
             <div className="text-sm font-semibold">{auth.user.name}</div>
             <div className="text-xs text-accent-500 uppercase tracking-wider">
               {t(ROLE_LABELS[auth.user.role])}
