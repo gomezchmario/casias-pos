@@ -279,20 +279,48 @@ export default function KioskPage() {
     submitInFlight.current = true;
     setPhase("submitting");
     try {
-      // The register is fenced the same way the clock is, so it carries the
-      // same reading a punch would. On a trusted device the server never
-      // looks at it; on a phone it is what gets the door open.
-      const where = await whereAmI();
-      const res = await fetch("/api/pos/auth/kiosk", {
+      /*
+        Ask first, locate second — the same two-step the lock screen uses,
+        and it was a bug that this button did not. The old order grabbed a
+        location BEFORE asking the server, with ten seconds of patience; on
+        a browser whose fix came back slow the request went up empty, the
+        server said no_location, and the error's 2.5-second toast read as
+        the kiosk "refreshing" instead of logging in — the owner hit it
+        over and over on Chrome. Trying dry first also means the shop's
+        trusted devices open the register instantly instead of waiting on a
+        GPS they were never going to be asked for.
+      */
+      let res = await fetch("/api/pos/auth/kiosk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin, lat: where.lat ?? null, lng: where.lng ?? null }),
+        body: JSON.stringify({ pin }),
       });
+      if (res.status === 403) {
+        const first = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          fence?: string;
+        };
+        if (first.fence !== "no_location") {
+          // Curfew, distance, untrusted-only: no location will change the
+          // answer, and the words deserve longer than a flash.
+          setToast({ kind: "error", title: first.error || "Could not open the register" });
+          setPhase("result");
+          scheduleReset(6000);
+          submitInFlight.current = false;
+          return;
+        }
+        const where = await whereAmI();
+        res = await fetch("/api/pos/auth/kiosk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pin, lat: where.lat ?? null, lng: where.lng ?? null }),
+        });
+      }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setToast({ kind: "error", title: data.error || "Could not open the register" });
         setPhase("result");
-        scheduleReset(2500);
+        scheduleReset(6000);
         submitInFlight.current = false;
         return;
       }

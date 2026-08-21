@@ -166,7 +166,13 @@ export default function PublicInventoryPage() {
       <div className="inv inv-public max-w-5xl mx-auto p-6">
         <div className="flex items-end justify-between mb-5 gap-4 flex-wrap no-print">
           <div>
-            <h1 className="text-2xl font-semibold text-brand-500">Inventory</h1>
+            {/* The way back, drawn on the page. On an iPhone opened full
+                screen there is no browser chrome, and a public board with no
+                door out of it strands whoever tapped in from the clock. */}
+            <a href="/" className="text-sm text-brand-300 hover:text-brand-500 hover:underline">
+              ← Time clock
+            </a>
+            <h1 className="text-2xl font-semibold text-brand-500 mt-1">Inventory</h1>
             <p className="text-sm text-brand-400">
               What is on the racks right now. Look only — to change anything, sign in at
               the register.
