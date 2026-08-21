@@ -47,8 +47,19 @@
   Hover is where the button admits to being one.
 */
 .tk-qty {
+  position: relative;
   width: 22px;
-  height: 22px;
+  /*
+    The height of the line it sits on, not a size of its own.
+
+    At 22px against a 20px line of text the box hung one pixel low, and the
+    glyph made it worse: a plus is drawn on the font's math axis, which is
+    above the middle of its own box, so centring the BOX leaves the ink
+    sitting low. Matching the text's line height puts the two boxes on the
+    same top edge and the ink within a third of a pixel of the digits beside
+    it — measured at 4x, which is the only way to see a third of a pixel.
+  */
+  height: 20px;
   display: grid;
   place-items: center;
   border: 0;
@@ -57,6 +68,19 @@
   font-size: 16px;
   line-height: 1;
   font-weight: 700;
+}
+
+/*
+  The finger gets more than the eye. The glyph stays the height of the line so
+  it reads as punctuation, and an invisible pad makes the thing a thumb has to
+  find nearer 30px. Kept narrow horizontally — the gap to the next control is
+  4px, and a pad wider than that would start swallowing presses meant for the
+  ✕ or the minus.
+*/
+.tk-qty::after {
+  content: "";
+  position: absolute;
+  inset: -5px -2px;
 }
 
 /*
