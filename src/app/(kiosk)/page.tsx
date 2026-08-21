@@ -506,20 +506,26 @@ export default function KioskPage() {
           full, and the answer they would actually use is the one they can get
           without stopping. The leaderboard has it worse still: it is meant to
           live fullscreen on a monitor nobody is standing at. */}
-      <div className="fixed bottom-4 right-4 flex gap-4 text-xs">
-        {/* Leaderboard and Admin hide on a phone — .kiosk-desk-only. Not a
-            lock, a layout choice: on a phone this screen is somebody clocking
-            in on their own device, and the corner links that make sense there
-            are the two they might actually use. The leaderboard is meant for a
-            wall monitor and Admin is typed at the shop PC; both are still one
-            URL away for anyone who wants them. */}
+      {/* On a phone this corner stops being a corner — .kiosk-corner unpins
+          it into the page flow below the card, because a fixed strip floats
+          over the keypad on a small screen. Of the four links only Inventory
+          survives there, and it grows into a real button: "do we have a
+          215 55 17" is the one thing somebody on their own phone opens this
+          screen for besides punching. Not a lock, a layout choice — the
+          leaderboard is built for a wall monitor, Admin is typed at the shop
+          PC, the manual is read sitting down, and all three stay one URL
+          away. */}
+      <div className="kiosk-corner fixed bottom-4 right-4 flex gap-4 text-xs">
         <a
           href="/leaderboard"
           className="kiosk-desk-only text-white/40 hover:text-white/80 transition-colors"
         >
           Leaderboard →
         </a>
-        <a href="/inventory" className="text-white/40 hover:text-white/80 transition-colors">
+        <a
+          href="/inventory"
+          className="kiosk-inv text-white/40 hover:text-white/80 transition-colors"
+        >
           Inventory →
         </a>
         {/* The manual, and it belongs on this screen more than on any other.
@@ -527,7 +533,10 @@ export default function KioskPage() {
             admin password — a technician, on his fourth day, wondering what
             happens if he presses the wrong button. The page it opens is public
             for exactly that reason. */}
-        <a href="/help" className="text-white/40 hover:text-white/80 transition-colors">
+        <a
+          href="/help"
+          className="kiosk-desk-only text-white/40 hover:text-white/80 transition-colors"
+        >
           Help →
         </a>
         <a

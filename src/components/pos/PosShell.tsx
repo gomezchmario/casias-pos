@@ -286,8 +286,13 @@ export function PosShell({ children }: { children: React.ReactNode }) {
           }}
         >
           <ShopLogo size={30} />
+          {/* On a phone the nav takes a whole row of its own — .pos-nav in
+              globals.css. Squeezed between the logo and the name it was a
+              two-letter sliver ("Ne…") pretending to be a menu; on its own row
+              every link is readable and the strip scrolls with the full width
+              of the screen. */}
           <nav
-            className="flex gap-1 flex-1 min-w-0 overflow-x-auto"
+            className="pos-nav flex gap-1 flex-1 min-w-0 overflow-x-auto"
             style={{ scrollbarWidth: "thin" }}
           >
             {NAV.filter((n) => auth.can(n.capability)).map((n) => {

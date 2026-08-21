@@ -816,11 +816,43 @@ body:has(.td-panel) .pos-backtotop {
     display: none;
   }
 
-  /* The kiosk's corner links, thinned to the two a phone would use.
-     Layout, not security — the leaderboard is built for a wall monitor and
-     Admin is typed at the shop PC, and four grey links in the corner of a
-     phone screen is three too many. Both are still one URL away. */
+  /* The nav takes a whole row of its own. Squeezed between the logo and the
+     name it was a two-letter sliver pretending to be a menu; ordered last it
+     wraps under everything and scrolls with the full width of the screen. */
+  .pos-nav {
+    order: 10;
+    flex-basis: 100%;
+  }
+
+  /* The kiosk's corner links, thinned to the one a phone would use.
+     Layout, not security — the leaderboard is built for a wall monitor,
+     Admin is typed at the shop PC, the manual is read sitting down, and four
+     grey links in the corner of a phone screen is three too many. All three
+     are still one URL away. */
   .kiosk-desk-only {
     display: none;
+  }
+
+  /* And that corner stops being a corner: a fixed strip floats over the
+     keypad on a small screen, so on a phone it joins the page flow below the
+     card — where it cannot sit on anything — and Inventory grows from a grey
+     whisper into a button somebody's eye can find. Checking the racks is the
+     one thing this screen is opened for besides punching. */
+  .kiosk-corner {
+    position: static;
+    justify-content: center;
+    margin-top: 1.25rem;
+  }
+  .kiosk-inv {
+    font-size: 1rem;
+    font-weight: 600;
+    padding: 0.65rem 1.6rem;
+    border-radius: 0.75rem;
+    background: rgba(255, 200, 61, 0.14);
+    border: 1px solid rgba(255, 200, 61, 0.45);
+    color: #ffd35a;
+  }
+  .kiosk-inv:hover {
+    color: #ffd35a;
   }
 }
