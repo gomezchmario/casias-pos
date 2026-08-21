@@ -166,6 +166,7 @@ export default function SettingsPage() {
       {canShop && <ReportCard />}
       {canShop && <TireStudyCard onError={setError} />}
       {canShop && <WallTipsCard onError={setError} />}
+      {canShop && <NotesStoryCard />}
       {can("managePermissions") && <ExtraPermissionsCard onError={setError} />}
       {canShop && <InventoryAlarmCard onError={setError} />}
 
@@ -400,6 +401,74 @@ function WallTipsCard({ onError }: { onError: (m: string | null) => void }) {
           {on === null ? "…" : on ? "Showing" : "Hidden"}
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The corkboard's story: every note that has come down, who wrote it, who
+ * took it down and when. Here rather than on the board, because the board is
+ * for what stands — a public archive under it would tempt people to write
+ * for the record instead of for the counter. Loaded when the card is opened;
+ * fifty notes of history is not worth fetching on every visit to Settings.
+ */
+function NotesStoryCard() {
+  const [open, setOpen] = useState(false);
+  const [story, setStory] = useState<
+    | {
+        id: number;
+        by: string;
+        body: string;
+        putUp: string;
+        takenDownBy: string | null;
+        takenDownAt: string | null;
+      }[]
+    | null
+  >(null);
+
+  async function unfold() {
+    const next = !open;
+    setOpen(next);
+    if (next && story === null) {
+      const res = await fetch("/api/pos/notice/history");
+      if (res.ok) setStory(((await res.json()) as { story: typeof story }).story ?? []);
+    }
+  }
+
+  const when = (at: string | null) =>
+    at
+      ? new Date(at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+      : "";
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-4 mb-6">
+      <button type="button" className="w-full flex items-center justify-between gap-3" aria-expanded={open} onClick={() => void unfold()}>
+        <span className="text-xs uppercase tracking-wider text-brand-300">
+          The notes that came down
+        </span>
+        <span className="text-brand-300">{open ? "▾" : "▸"}</span>
+      </button>
+      {open && (
+        <div className="mt-3">
+          {story === null ? (
+            <div className="text-sm text-brand-300">Reading the story…</div>
+          ) : story.length === 0 ? (
+            <div className="text-sm text-brand-300">Nothing has been taken down yet.</div>
+          ) : (
+            <div className="divide-y divide-brand-100">
+              {story.map((s) => (
+                <div key={s.id} className="py-2 text-sm">
+                  <div className="text-brand-500 whitespace-pre-wrap">{s.body}</div>
+                  <div className="text-xs text-brand-300 mt-0.5">
+                    {s.by} · {when(s.putUp)} — taken down
+                    {s.takenDownBy ? ` by ${s.takenDownBy}` : ""} {when(s.takenDownAt)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

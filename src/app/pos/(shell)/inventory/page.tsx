@@ -234,6 +234,33 @@ export default function InventoryPage() {
   const [pricingOpen, setPricingOpen] = useState(false);
   const [lowOpen, setLowOpen] = useState(false);
   /**
+   * The last twenty stock movements, in a modal — a glance at the ledger
+   * without leaving the racks. "Did that set get received" and "who took
+   * two off this morning" are asked standing HERE; the full log keeps its
+   * own page for anything longer than a glance.
+   */
+  const [logOpen, setLogOpen] = useState(false);
+  const [logRows, setLogRows] = useState<
+    | {
+        id: number;
+        productName: string;
+        tireSize: string | null;
+        qtyDelta: number;
+        reason: string;
+        byName: string | null;
+        saleNo: string | null;
+        at: string;
+      }[]
+    | null
+  >(null);
+
+  async function openLog() {
+    setLogOpen(true);
+    setLogRows(null);
+    const res = await fetch("/api/pos/inventory/movements?limit=20");
+    if (res.ok) setLogRows(((await res.json()) as { movements: typeof logRows }).movements ?? []);
+  }
+  /**
    * The rack questions fold — dead money, what to keep stocked, what walked
    * out. Shut on arrival like the close-out's week, and for the same reason:
    * this page is a counter tool first, and the person looking up one tire
@@ -573,6 +600,15 @@ export default function InventoryPage() {
               border, so on this white page it rendered as a word rather than
               something to press. These two are real actions and are styled as
               such. */}
+          {/* A glance at the ledger from where the question gets asked —
+              the last twenty movements in a modal, with the full log a link
+              away for anything longer than a glance. */}
+          <button
+            type="button"
+            className="btn btn-outline"
+            title={tr("The last 20 stock changes")}
+            onClick={() => void openLog()}
+          >{tr("Log")}</button>
           <button
             type="button"
             className="btn btn-primary"
@@ -2007,6 +2043,46 @@ export default function InventoryPage() {
           defaults={data.quoteDefaults}
         />
       )}
+
+      {/* The glance at the ledger. Twenty movements, newest first, and the
+          full log one link away — this modal answers "did that set get
+          received" and nothing longer. */}
+      <Modal open={logOpen} onClose={() => setLogOpen(false)} title={tr("The last 20 changes")} width={560}>
+        {logRows === null ? (
+          <div className="text-brand-300 py-6 text-center">{tr("Reading the log…")}</div>
+        ) : logRows.length === 0 ? (
+          <div className="text-brand-300 py-6 text-center">{tr("Nothing has moved yet.")}</div>
+        ) : (
+          <div className="divide-y divide-brand-100">
+            {logRows.map((m) => (
+              <div key={m.id} className="py-2 flex items-start gap-3 text-sm">
+                <span
+                  className="tabular-nums font-semibold shrink-0"
+                  style={{ width: 34, textAlign: "right", color: m.qtyDelta > 0 ? "#15803d" : "#b91c1c" }}
+                >
+                  {m.qtyDelta > 0 ? `+${m.qtyDelta}` : m.qtyDelta}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-brand-500 truncate">{m.productName}</div>
+                  <div className="text-xs text-brand-300">
+                    {m.reason}
+                    {m.saleNo ? ` · ${m.saleNo}` : ""}
+                    {m.byName ? ` · ${m.byName}` : ""}
+                  </div>
+                </div>
+                <div className="text-xs text-brand-300 tabular-nums shrink-0">
+                  {m.at ? new Date(m.at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="mt-3 pt-3 border-t border-brand-100">
+          <Link href="/pos/movements" className="text-sm text-brand-400 hover:underline">
+            {tr("The whole log")} →
+          </Link>
+        </div>
+      </Modal>
 
     </div>
   );

@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePosAuth } from "@/components/pos/PosShell";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { Modal } from "@/components/ui/Modal";
 
 type BoardNote = {
   id: number;
@@ -42,25 +44,52 @@ function whenWritten(at: string): string {
 }
 
 /**
- * The corkboard above the register: one note per author, each signed, each
- * in its author's chosen pastel, up until somebody takes it down.
+ * The board's three faces of emphasis: **bold**, __underline__, _italic_.
  *
- * Your own note gets Edit; every note gets ✕ for anyone allowed to write —
- * a board where only the author could remove a note is a board that fills
- * with notes from people on vacation. When there is nothing to say it
- * renders nothing for a cashier and only a quiet link for a writer: an
- * empty box is furniture, and furniture is invisible.
+ * A markup this small is parsed into REACT NODES, never into HTML — the text
+ * between the markers stays a text node whatever is typed in it, so the one
+ * field on this screen that everybody may read can never carry a script. No
+ * nesting, on purpose: a corkboard note that needs bold italic underline is
+ * a note that needs rewriting.
+ */
+function rich(text: string): React.ReactNode[] {
+  return text.split(/(\*\*[^*]+\*\*|__[^_]+__|_[^_]+_)/g).map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) return <b key={i}>{part.slice(2, -2)}</b>;
+    if (part.startsWith("__") && part.endsWith("__")) return <u key={i}>{part.slice(2, -2)}</u>;
+    if (part.startsWith("_") && part.endsWith("_") && part.length > 2)
+      return <i key={i}>{part.slice(1, -1)}</i>;
+    return part;
+  });
+}
+
+/**
+ * The corkboard above the register: as many notes as the shop has things to
+ * say, each signed, each in its author's chosen pastel, up until somebody
+ * takes it down.
+ *
+ * Your own notes get Edit; everybody else's get ✕ for anyone allowed to
+ * write — a board where only the author could remove a note is a board that
+ * fills with notes from people on vacation. Only the author may REWRITE a
+ * note, though: changing somebody's words under their signature would put
+ * words in their mouth. When there is nothing to say the board renders
+ * nothing for a cashier and only a quiet link for a writer — an empty box is
+ * furniture, and furniture is invisible.
  */
 export function NoticeBoard() {
   const { can, user } = usePosAuth();
   const mayWrite = can("writeNotice");
 
   const [notes, setNotes] = useState<BoardNote[] | null>(null);
-  const [editing, setEditing] = useState(false);
+  /** null = editor closed; 0 = writing a new note; an id = rewriting that one. */
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [draft, setDraft] = useState("");
   const [draftColor, setDraftColor] = useState("amber");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Somebody else's note, one press from coming down — the app's own dialog
+      asks, not the browser's, so it looks like every other confirm here. */
+  const [confirmTake, setConfirmTake] = useState<BoardNote | null>(null);
+  const boxRef = useRef<HTMLTextAreaElement | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/pos/notice");
@@ -72,25 +101,26 @@ export function NoticeBoard() {
     void load();
   }, [load]);
 
-  const mine = notes?.find((n) => n.mine) ?? null;
-
-  // Takes the text rather than reading `draft`, so "Take it down" can send an
-  // empty string without waiting a render for the state to catch up.
-  async function save(text: string) {
+  async function save() {
     setSaving(true);
     setError(null);
     try {
       const res = await fetch("/api/pos/notice", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, color: draftColor }),
+        body: JSON.stringify({
+          id: editingId && editingId > 0 ? editingId : undefined,
+          text: draft,
+          color: draftColor,
+        }),
       });
       if (!res.ok) {
         setError(((await res.json()) as { error?: string }).error ?? "Could not save");
         return;
       }
       setNotes(((await res.json()) as { notes: BoardNote[] }).notes);
-      setEditing(false);
+      setEditingId(null);
+      setDraft("");
     } finally {
       setSaving(false);
     }
@@ -104,10 +134,28 @@ export function NoticeBoard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
-      if (res.ok) setNotes(((await res.json()) as { notes: BoardNote[] }).notes);
+      if (res.ok) {
+        setNotes(((await res.json()) as { notes: BoardNote[] }).notes);
+        setEditingId(null);
+        setDraft("");
+      }
     } finally {
       setSaving(false);
     }
+  }
+
+  /** Wrap the textarea's selection in markers, or drop a pair to type into. */
+  function wrapSelection(mark: string) {
+    const box = boxRef.current;
+    if (!box) return;
+    const a = box.selectionStart ?? 0;
+    const b = box.selectionEnd ?? 0;
+    const next = draft.slice(0, a) + mark + draft.slice(a, b) + mark + draft.slice(b);
+    setDraft(next);
+    requestAnimationFrame(() => {
+      box.focus();
+      box.setSelectionRange(a + mark.length, b + mark.length);
+    });
   }
 
   // Nothing loaded yet: draw nothing rather than a placeholder that shifts the
@@ -132,14 +180,14 @@ export function NoticeBoard() {
             <div className="flex-1 min-w-0">
               {/* Newlines the writer typed are newlines on the board. */}
               <div className="whitespace-pre-wrap" style={{ color: c.ink }}>
-                {n.body}
+                {rich(n.body)}
               </div>
               <div className="text-xs mt-1" style={{ color: c.foot }}>
                 {n.by}
                 {n.at ? ` · ${whenWritten(n.at)}` : ""}
               </div>
             </div>
-            {mayWrite && n.mine && !editing && (
+            {mayWrite && n.mine && editingId === null && (
               <button
                 type="button"
                 className="text-sm hover:underline shrink-0"
@@ -147,7 +195,7 @@ export function NoticeBoard() {
                 onClick={() => {
                   setDraft(n.body);
                   setDraftColor(n.color);
-                  setEditing(true);
+                  setEditingId(n.id);
                 }}
               >
                 Edit
@@ -164,9 +212,7 @@ export function NoticeBoard() {
                 aria-label={`Take down ${n.by}'s note`}
                 title={`Take down ${n.by}'s note`}
                 disabled={saving}
-                onClick={() => {
-                  if (window.confirm(`Take down ${n.by}'s note?`)) void takeDown(n.id);
-                }}
+                onClick={() => setConfirmTake(n)}
               >
                 ✕
               </button>
@@ -175,7 +221,7 @@ export function NoticeBoard() {
         );
       })}
 
-      {editing && (
+      {editingId !== null && (
         <div
           className="rounded-xl p-4 mb-3"
           style={{ background: editColors.bg, border: `1px solid ${editColors.border}` }}
@@ -184,9 +230,24 @@ export function NoticeBoard() {
             className="block text-xs uppercase tracking-wider mb-2 font-medium"
             style={{ color: editColors.ink }}
           >
-            {mine ? "Your note" : `A note from ${user.name}`}
+            {editingId > 0 ? "Your note" : `A note from ${user.name}`}
           </label>
+          {/* B, I, U wrap whatever is selected — the markers are visible in
+              the box and become the styling on the board. Honest about being
+              markup: what you see typed is what the note stores. */}
+          <div className="flex items-center gap-1 mb-2">
+            <button type="button" className="btn btn-outline font-bold" style={{ height: 30, width: 34, fontSize: 13 }} title="Bold" onClick={() => wrapSelection("**")}>
+              B
+            </button>
+            <button type="button" className="btn btn-outline italic" style={{ height: 30, width: 34, fontSize: 13 }} title="Italic" onClick={() => wrapSelection("_")}>
+              I
+            </button>
+            <button type="button" className="btn btn-outline underline" style={{ height: 30, width: 34, fontSize: 13 }} title="Underline" onClick={() => wrapSelection("__")}>
+              U
+            </button>
+          </div>
           <textarea
+            ref={boxRef}
             className="input w-full"
             rows={4}
             autoFocus
@@ -214,30 +275,42 @@ export function NoticeBoard() {
               />
             ))}
           </div>
+          {draft.trim() && (
+            <div
+              className="mt-3 rounded-lg p-2 text-sm whitespace-pre-wrap"
+              style={{ background: "rgba(255,255,255,0.55)", color: editColors.ink }}
+            >
+              {rich(draft)}
+            </div>
+          )}
           {error && <div className="text-sm text-red-700 mt-2">{error}</div>}
           <div className="flex items-center gap-2 mt-3">
             <button
               type="button"
               className="btn btn-primary"
-              onClick={() => void save(draft)}
+              onClick={() => void save()}
               disabled={saving || draft.trim() === ""}
             >
-              {saving ? "Saving…" : "Save note"}
+              {saving ? "Saving…" : editingId > 0 ? "Save changes" : "Pin it up"}
             </button>
-            <button type="button" className="btn btn-ghost" onClick={() => setEditing(false)}>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => {
+                setEditingId(null);
+                setDraft("");
+              }}
+            >
               Cancel
             </button>
             {/* Clearing is deliberately its own button rather than "save an
                 empty box", so taking the note down is a decision someone makes
                 instead of something that happens by backspacing. */}
-            {mine && (
+            {editingId > 0 && (
               <button
                 type="button"
                 className="btn btn-ghost ml-auto text-red-700"
-                onClick={() => {
-                  setDraft("");
-                  void save("");
-                }}
+                onClick={() => void takeDown(editingId)}
                 disabled={saving}
               >
                 Take it down
@@ -247,19 +320,89 @@ export function NoticeBoard() {
         </div>
       )}
 
-      {mayWrite && !mine && !editing && (
+      {mayWrite && editingId === null && (
         <button
           type="button"
           className="text-sm text-brand-300 hover:text-brand-500 hover:underline"
           onClick={() => {
             setDraft("");
             setDraftColor("amber");
-            setEditing(true);
+            setEditingId(0);
           }}
         >
           + Leave a note for the counter
         </button>
       )}
+
+      <ConfirmModal
+        open={confirmTake !== null}
+        danger
+        busy={saving}
+        title="Take this note down?"
+        confirmLabel="Take it down"
+        onCancel={() => setConfirmTake(null)}
+        onConfirm={() => {
+          if (confirmTake) void takeDown(confirmTake.id).then(() => setConfirmTake(null));
+        }}
+      >
+        <p className="text-sm text-brand-400">
+          {confirmTake ? `It is ${confirmTake.by}'s note. It comes down signed with your name.` : ""}
+        </p>
+      </ConfirmModal>
     </div>
+  );
+}
+
+/**
+ * The corkboard's story as a modal, for the 🗒️ square on Main. The same
+ * fifty rows the Settings card reads, fetched when opened — the history is
+ * looked at when something is missed, not on every visit to the board.
+ */
+export function NotesStoryModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [story, setStory] = useState<
+    | {
+        id: number;
+        by: string;
+        body: string;
+        putUp: string;
+        takenDownBy: string | null;
+        takenDownAt: string | null;
+      }[]
+    | null
+  >(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let stale = false;
+    void (async () => {
+      const res = await fetch("/api/pos/notice/history");
+      if (res.ok && !stale)
+        setStory(((await res.json()) as { story: NonNullable<typeof story> }).story ?? []);
+    })();
+    return () => {
+      stale = true;
+    };
+  }, [open]);
+
+  return (
+    <Modal open={open} onClose={onClose} title="The notes that came down" width={560}>
+      {story === null ? (
+        <div className="text-brand-300 py-6 text-center">Reading the story…</div>
+      ) : story.length === 0 ? (
+        <div className="text-brand-300 py-6 text-center">Nothing has been taken down yet.</div>
+      ) : (
+        <div className="divide-y divide-brand-100">
+          {story.map((s) => (
+            <div key={s.id} className="py-2 text-sm">
+              <div className="text-brand-500 whitespace-pre-wrap">{rich(s.body)}</div>
+              <div className="text-xs text-brand-300 mt-0.5">
+                {s.by} · {whenWritten(s.putUp)} — taken down
+                {s.takenDownBy ? ` by ${s.takenDownBy}` : ""} {s.takenDownAt ? whenWritten(s.takenDownAt) : ""}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Modal>
   );
 }

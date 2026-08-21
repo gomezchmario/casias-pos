@@ -63,13 +63,22 @@ export async function GET() {
   return NextResponse.json({ notes: listActive(auth.user.employeeId) });
 }
 
-/** Write or rewrite YOUR note. An empty body takes your own note down. */
+/**
+ * Pin a new note, or rewrite one of your own.
+ *
+ * As many notes as you like — the one-per-author rule lasted an afternoon
+ * before the owner wanted his checklist AND a reminder up as two cards. With
+ * an `id` this edits that note, and only its author may: rewriting somebody
+ * else's words under their signature would put words in their mouth. Taking
+ * a note down is DELETE's job, whoever wrote it.
+ */
 export async function PUT(req: NextRequest) {
   const auth = await requirePos("writeNotice");
   if (!auth.ok) return auth.response;
 
-  const body = (await req.json()) as { text?: unknown; color?: unknown };
-  if (typeof body.text !== "string") return jsonError("Text is required");
+  const body = (await req.json()) as { id?: unknown; text?: unknown; color?: unknown };
+  if (typeof body.text !== "string" || body.text.trim() === "")
+    return jsonError("Write something — taking a note down is its own button");
   const text = body.text.trim();
   const color: NoteColor = (PALETTE as readonly string[]).includes(String(body.color))
     ? (body.color as NoteColor)
@@ -77,41 +86,47 @@ export async function PUT(req: NextRequest) {
 
   const db = getDb();
   const now = nowLocalIso();
-  const mine = db
-    .prepare(
-      "SELECT id, body, color FROM pos_notices WHERE employee_id = ? AND taken_down_at IS NULL",
-    )
-    .get(auth.user.employeeId) as { id: number; body: string; color: string } | undefined;
 
-  inTx(() => {
-    if (text === "") {
-      if (mine) {
-        db.prepare(
-          `UPDATE pos_notices SET taken_down_by = ?, taken_down_by_name = ?, taken_down_at = ?
-            WHERE id = ?`,
-        ).run(auth.user.employeeId, auth.user.name, now, mine.id);
-      }
-    } else if (mine) {
+  if (body.id !== undefined) {
+    const id = Number(body.id);
+    const note = db
+      .prepare(
+        "SELECT id, employee_id AS by, body, color FROM pos_notices WHERE id = ? AND taken_down_at IS NULL",
+      )
+      .get(id) as { id: number; by: number | null; body: string; color: string } | undefined;
+    if (!note) return jsonError("That note is already down", 409);
+    if (note.by !== auth.user.employeeId)
+      return jsonError("Only whoever wrote a note can rewrite it", 403);
+    inTx(() => {
       db.prepare("UPDATE pos_notices SET body = ?, color = ?, updated_at = ? WHERE id = ?").run(
         text,
         color,
         now,
-        mine.id,
+        id,
       );
-    } else {
+      logActorAudit(auth.actor, {
+        action: "settings.update",
+        targetType: "setting",
+        targetId: "pos_notice",
+        before: { body: note.body, color: note.color },
+        after: { body: text, color },
+      });
+    });
+  } else {
+    inTx(() => {
       db.prepare(
         `INSERT INTO pos_notices (employee_id, author_name, body, color, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?)`,
       ).run(auth.user.employeeId, auth.user.name, text, color, now, now);
-    }
-    logActorAudit(auth.actor, {
-      action: "settings.update",
-      targetType: "setting",
-      targetId: "pos_notice",
-      before: mine ? { body: mine.body, color: mine.color } : null,
-      after: text === "" ? null : { body: text, color },
+      logActorAudit(auth.actor, {
+        action: "settings.update",
+        targetType: "setting",
+        targetId: "pos_notice",
+        before: null,
+        after: { body: text, color },
+      });
     });
-  });
+  }
 
   return NextResponse.json({ notes: listActive(auth.user.employeeId) });
 }

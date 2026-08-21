@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { TicketDrawer } from "@/components/pos/TicketDrawer";
 import { TicketStatusPicker } from "@/components/pos/TicketStatusPicker";
-import { NoticeBoard } from "@/components/pos/NoticeBoard";
+import { NoticeBoard, NotesStoryModal } from "@/components/pos/NoticeBoard";
 import { usePosAuth } from "@/components/pos/PosShell";
 import { formatCents } from "@/lib/money";
 import type {
@@ -91,6 +91,8 @@ export default function DayPage() {
   const { t: tr } = useLang();
   const { can } = usePosAuth();
   const [date, setDate] = useState("");
+  /** The corkboard's story, from the 🗒️ square beside New sale. */
+  const [storyOpen, setStoryOpen] = useState(false);
   const [data, setData] = useState<DayData | null>(null);
   const [openSaleId, setOpenSaleId] = useState<number | null>(null);
 
@@ -328,6 +330,21 @@ export default function DayPage() {
               }}
             >{tr("Today")}</button>
           )}
+          {/* The corkboard's story, one square to the left of New sale.
+              Owner-gated because the history endpoint is — the board itself
+              shows what stands; this shows what came down and who took it. */}
+          {can("manageSettings") && (
+            <button
+              type="button"
+              className="btn btn-outline"
+              style={{ height: 44, width: 44, padding: 0, fontSize: 20 }}
+              aria-label={tr("The notes that came down")}
+              title={tr("The notes that came down")}
+              onClick={() => setStoryOpen(true)}
+            >
+              🗒️
+            </button>
+          )}
           {can("ringSale") && (
             <Link
               href="/pos/register"
@@ -337,6 +354,8 @@ export default function DayPage() {
           )}
         </div>
       </div>
+
+      <NotesStoryModal open={storyOpen} onClose={() => setStoryOpen(false)} />
 
       {/* Sits above everything the day's numbers say, and below only the date
           it says them about. A note left for the counter is the first thing
