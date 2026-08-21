@@ -111,18 +111,19 @@ export function OrderStockConfirm({
   const decidable = (lines ?? []).filter((l) => !l.alreadyReceivedForOrder);
 
   return (
-    <Modal open={open} onClose={onCancel} title="Fulfilling this order" width={620}>
+    <Modal open={open} onClose={onCancel} title={tr("Closing out this order")} width={620}>
       {lines === null ? (
         <div className="text-brand-300 py-6 text-center">Checking the racks…</div>
       ) : decidable.length === 0 ? (
         <>
           <p className="text-sm text-brand-400">
-            Nothing on this ticket moves stock — no tires, or they are already
-            booked in against this order. Fulfilling it just closes it out.
+            {tr(
+              "Nothing here moves stock — no tires on the ticket, or they were already booked in against this order. Closing it out is all that is left.",
+            )}
           </p>
           <div className="flex gap-2 mt-4">
             <button type="button" className="btn btn-primary" onClick={() => onConfirm([])}>
-              Fulfil it
+              {tr("Close it out")}
             </button>
             <button type="button" className="btn btn-outline" onClick={onCancel}>{tr("Cancel")}</button>
           </div>
@@ -130,10 +131,11 @@ export function OrderStockConfirm({
       ) : (
         <>
           <p className="text-sm text-brand-400 mb-3">
-            Tick anything you <strong>already added to the inventory</strong> when
-            it arrived. Those will be taken straight off the rack instead of being
-            booked in again — leave one ticked wrongly and the size ends up one
-            out either way.
+            {tr("Did you already put these on the rack when they came in?")}{" "}
+            <strong>{tr("Tick the ones you did.")}</strong>{" "}
+            {tr(
+              "Those come straight off the rack. The rest are booked in and straight back out, which leaves the count where it was.",
+            )}
           </p>
 
           {decidable.map((l) => (
@@ -151,7 +153,7 @@ export function OrderStockConfirm({
                     {l.description}
                   </span>
                   <span className="block text-xs text-brand-300">
-                    the count says {l.onHand} on hand
+                    {l.onHand} {tr("on hand right now")}
                   </span>
                 </span>
               </label>
@@ -162,7 +164,7 @@ export function OrderStockConfirm({
               <div className="osc-log">
                 {l.movements.length === 0 ? (
                   <div className="text-xs text-brand-300">
-                    This tire has never moved. Nothing was received for it.
+                    {tr("This tire has never moved — nothing was ever received for it.")}
                   </div>
                 ) : (
                   l.movements.map((m) => (
@@ -181,7 +183,7 @@ export function OrderStockConfirm({
                         {m.byName ? ` · ${m.byName}` : ""}
                       </span>
                       {m.looksManual && (
-                        <span className="osc-manual">added by hand</span>
+                        <span className="osc-manual">{tr("added by hand")}</span>
                       )}
                     </div>
                   ))
@@ -198,16 +200,16 @@ export function OrderStockConfirm({
               onChange={(e) => setSure(e.target.checked)}
             />
             <span className="text-brand-500">
-              I&apos;m sure.{" "}
+              {tr("I'm sure.")}{" "}
               <span className="text-brand-400">
                 {stocked.size === 0
-                  ? "None of these were added to the inventory — the shop is about to book them in and straight back out."
-                  : /* The count came out, because it was answering a question
-                       nobody asked. "1 of these is already on the rack" reads
-                       as though the other four are a problem, when this line is
-                       only ever confirming the ones being taken off — the
-                       tires themselves are listed above it, by name. */
-                    "These are already on the rack and will only be taken off."}
+                  ? tr("None of these were added yet — book them in and straight back out.")
+                  : /* No count in this sentence. "1 of these is already on the
+                       rack" reads as though the other four are a problem, when
+                       the line only ever confirms the ones being taken off —
+                       and those are listed above it, by name, with a tick
+                       beside each. */
+                    tr("The ticked ones are already on the rack — take them straight off.")}
               </span>
             </span>
           </label>
@@ -218,7 +220,7 @@ export function OrderStockConfirm({
               className="btn btn-primary"
               disabled={!sure}
               onClick={() => onConfirm([...stocked])}
-            >{tr("Fulfil the order")}</button>
+            >{tr("Close out the order")}</button>
             <button type="button" className="btn btn-outline" onClick={onCancel}>{tr("Cancel")}</button>
           </div>
         </>

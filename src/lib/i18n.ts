@@ -1404,6 +1404,26 @@ const ES: Record<string, string> = {
   "Non-technicians": "No técnicos",
   "Credit this tire to somebody at the counter":
     "Acreditar esta llanta a alguien del mostrador",
+  // The order-fulfilment question on the special-orders board.
+  "Closing out this order": "Cerrando este pedido",
+  "Nothing here moves stock — no tires on the ticket, or they were already booked in against this order. Closing it out is all that is left.":
+    "Aquí no se mueve inventario — no hay llantas en el ticket, o ya se dieron de alta con este pedido. Solo falta cerrarlo.",
+  "Close it out": "Cerrarlo",
+  "Did you already put these on the rack when they came in?":
+    "¿Ya puso estas en el rack cuando llegaron?",
+  "Tick the ones you did.": "Marque las que sí.",
+  "Those come straight off the rack. The rest are booked in and straight back out, which leaves the count where it was.":
+    "Esas se descuentan del rack directamente. Las demás se dan de alta y de baja enseguida, y la cuenta queda igual.",
+  "on hand right now": "en existencia ahora mismo",
+  "This tire has never moved — nothing was ever received for it.":
+    "Esta llanta nunca se ha movido — nunca se recibió nada de ella.",
+  "added by hand": "capturada a mano",
+  "I'm sure.": "Estoy seguro.",
+  "None of these were added yet — book them in and straight back out.":
+    "Ninguna se ha dado de alta — se dan de alta y de baja enseguida.",
+  "The ticked ones are already on the rack — take them straight off.":
+    "Las marcadas ya están en el rack — descuéntelas directamente.",
+  "Close out the order": "Cerrar el pedido",
   Bills: "Billetes",
   Coin: "Moneda",
   Coins: "Monedas",
