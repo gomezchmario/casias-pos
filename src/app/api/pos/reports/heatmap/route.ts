@@ -13,11 +13,15 @@ import { hourHeatmap, weekdayProfile } from "@/lib/reports-bi";
  * dollar on it, and the owner's instruction was plain — a manager arguing a
  * rota deserves the one page that settles it.
  *
- * So this hands out exactly the two shapes that section draws and nothing
- * else, stripped field by field: the money that rides beside the counts in
- * the full report's rows is removed HERE, on the server, because a manager's
- * screen being handed dollars it politely declines to draw is the leak this
- * codebase exists to not have.
+ * So this hands out exactly the two shapes that section draws, stripped
+ * field by field on the server — with ONE dollar figure kept, by the owner's
+ * second ruling: the weekday rows keep `goodsCents`, because they are what
+ * the "+72% on the last 3 Fridays" line and the against-a-typical-day table
+ * are computed from, and the owner asked for those on the manager's copy in
+ * as many words. The document already prints the day's own takings; a
+ * 28-day same-weekday average beside it is the owner's call to make, and it
+ * was made. Margin, stock value and the long run stay behind the owner's
+ * report, where they were.
  */
 export async function GET(req: NextRequest) {
   const auth = await requirePos("viewReports");
@@ -44,6 +48,7 @@ export async function GET(req: NextRequest) {
       weekday: w.weekday,
       days: w.days,
       tickets: w.tickets,
+      goodsCents: w.goodsCents,
     })),
   });
 }
