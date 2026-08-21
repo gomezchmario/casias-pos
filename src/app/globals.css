@@ -879,3 +879,16 @@ body:has(.td-panel) .pos-backtotop {
 .pos-cardscroll {
   overflow-x: auto;
 }
+
+/* Shown on a phone, absent on a desktop. The first user is the back-to-the-
+   clock link on the public inventory: a phone opened full screen has no
+   browser chrome to lean on, while a desktop has a whole toolbar of ways
+   back and the link was one more thing on the page. */
+.phone-only {
+  display: none;
+}
+@media (max-width: 40rem) {
+  .phone-only {
+    display: inline-block;
+  }
+}

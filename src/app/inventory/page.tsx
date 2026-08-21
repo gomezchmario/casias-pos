@@ -169,7 +169,7 @@ export default function PublicInventoryPage() {
             {/* The way back, drawn on the page. On an iPhone opened full
                 screen there is no browser chrome, and a public board with no
                 door out of it strands whoever tapped in from the clock. */}
-            <a href="/" className="text-sm text-brand-300 hover:text-brand-500 hover:underline">
+            <a href="/" className="phone-only text-sm text-brand-300 hover:text-brand-500 hover:underline">
               ← Time clock
             </a>
             <h1 className="text-2xl font-semibold text-brand-500 mt-1">Inventory</h1>
