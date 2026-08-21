@@ -687,11 +687,19 @@ export default function ShiftDeskPage() {
                     </td>
                   </tr>
                 )}
-                {data.board.rows.map((r) => (
+                {data.board.rows.map((r, idx) => (
                   <tr
                     key={r.employeeId}
                     className="border-t border-brand-100"
-                    style={r.awol ? { background: "#fffbeb" } : undefined}
+                    /* Amber outranks the zebra — a no-show must not fade
+                       into the banding it happens to land on. */
+                    style={
+                      r.awol
+                        ? { background: "#fffbeb" }
+                        : idx % 2 === 1
+                          ? { background: "rgba(10,37,64,0.035)" }
+                          : undefined
+                    }
                   >
                     <td className="py-2 px-2 font-medium">
                       {r.name}
@@ -790,8 +798,16 @@ function FragmentRows({
           {label}
         </td>
       </tr>
-      {members.map((p) => (
-        <tr key={p.employeeId} className="border-t border-brand-100">
+      {members.map((p, idx) => (
+        <tr
+          key={p.employeeId}
+          className="border-t border-brand-100"
+          /* Zebra, by the owner's ask: a row here is a name followed by
+             seven cells and an hours figure, and on the wide weeks the eye
+             lost the name by Thursday. Striped per group so the banding
+             restarts under each heading. */
+          style={idx % 2 === 1 ? { background: "rgba(10,37,64,0.035)" } : undefined}
+        >
           {/* The name is the door to the person — number and skills. */}
           <td className="py-1.5 px-2">
             <button type="button" className="font-medium text-left hover:underline" onClick={() => onPerson(p)}>
