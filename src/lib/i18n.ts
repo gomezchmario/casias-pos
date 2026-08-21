@@ -1401,7 +1401,7 @@ const ES: Record<string, string> = {
     "Escriba cuántos tiene de cada uno. Deje la línea vacía si no tiene ninguno — el total se va sumando solo.",
   "Comes to": "Suma",
   // The register's fold for counter staff on a tire line.
-  "The counter": "El mostrador",
+  "Non-technicians": "No técnicos",
   "Credit this tire to somebody at the counter":
     "Acreditar esta llanta a alguien del mostrador",
   Bills: "Billetes",

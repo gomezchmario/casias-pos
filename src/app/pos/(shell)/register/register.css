@@ -84,6 +84,32 @@
 }
 
 /*
+  THE ✕ STANDS ON THE SAME LINE AS EVERYTHING ELSE ON THE ROW.
+
+  It is text-xs, so its line box is 16px against the row's 20px, and
+  top-aligned in a flex-start row that put it two pixels HIGH — the opposite
+  error to the one the nudge had, and just as visible once the nudge was
+  fixed: the plus sat right and the ✕ floated above it.
+
+  Same remedy, for the same reason: a control that lives on a line of money
+  is the height of that line, and the glyph centres inside it.
+*/
+.tk-x {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 20px;
+  min-width: 16px;
+  line-height: 1;
+}
+
+.tk-x::after {
+  content: "";
+  position: absolute;
+  inset: -5px -2px;
+}
+
+/*
   No ring until it is wanted. Outlined, the two of them read as a pair of
   controls parked on every row and the eye counted them before it counted the
   money; bare, they are punctuation until a finger goes near one.

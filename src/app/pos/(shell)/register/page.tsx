@@ -1669,7 +1669,7 @@ export default function RegisterPage() {
                   onClick={() => setShowCounter(true)}
                   disabled={busy}
                   title={tr("Credit this tire to somebody at the counter")}
-                >{tr("The counter")}</button>
+                >{tr("Non-technicians")}</button>
               )}
               <button
                 type="button"
@@ -2079,7 +2079,7 @@ export default function RegisterPage() {
                   </div>
                   <button
                     type="button"
-                    className="text-xs text-red-600 hover:text-red-800"
+                    className="tk-x text-xs text-red-600 hover:text-red-800"
                     onClick={() => void voidLine(i)}
                     aria-label={`Remove ${i.description}`}
                   >
