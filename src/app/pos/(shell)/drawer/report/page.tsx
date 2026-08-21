@@ -413,6 +413,23 @@ export default function DayReportPage() {
       const bi = await b.json();
       setHeatmap(bi.heatmap ?? []);
       setWeekdays(bi.weekdays ?? []);
+    } else {
+      /*
+        A manager. The full business report is the owner's, but the grid this
+        page draws from it is ticket counts — how many people, hour by hour —
+        and the owner ruled it belongs on the manager's printout too. The
+        skinny endpoint hands out exactly those counts, stripped of the money
+        that rides beside them in the owner's payload; the same-weekday MONEY
+        comparison stays owner-only because its rows never arrive.
+      */
+      const h = await fetch(
+        `/api/pos/reports/heatmap?from=${fromD.toISOString().slice(0, 10)}&to=${to}`,
+      );
+      if (h.ok) {
+        const hi = await h.json();
+        setHeatmap(hi.heatmap ?? []);
+        setWeekdays(hi.weekdays ?? []);
+      }
     }
   }, []);
 
@@ -485,7 +502,11 @@ export default function DayReportPage() {
         dow,
         days: others,
         tickets: (row.tickets - t.saleCount) / others,
-        goods: (row.goodsCents - t.goodsCents) / others,
+        // Null on a manager's screen: the skinny endpoint sends no money, so
+        // the same-weekday takings comparison simply is not drawn there.
+        goods: Number.isFinite(row.goodsCents)
+          ? (row.goodsCents - t.goodsCents) / others
+          : null,
       };
     })();
 
@@ -758,7 +779,7 @@ export default function DayReportPage() {
         <div className="dr-stat dr-stat-lead">
           <div className="dr-stat-label">Money taken in</div>
           <div className="dr-stat-value">{formatCents(facts.takenIn)}</div>
-          {facts.wd && (
+          {facts.wd && facts.wd.goods !== null && (
             <Against
               now={facts.takenIn}
               base={facts.wd.goods}
@@ -791,7 +812,7 @@ export default function DayReportPage() {
         <div className="dr-stat">
           <div className="dr-stat-label">Average ticket</div>
           <div className="dr-stat-value">{formatCents(facts.avgTicket)}</div>
-          {facts.wd && facts.wd.tickets > 0 && (
+          {facts.wd && facts.wd.goods !== null && facts.wd.tickets > 0 && (
             <Against
               now={facts.avgTicket}
               base={facts.wd.goods / facts.wd.tickets}
@@ -904,7 +925,7 @@ export default function DayReportPage() {
                     {
                       label: "Average ticket",
                       now: facts.avgTicket,
-                      was: base && base.tickets > 0 ? base.goods / base.tickets : null,
+                      was: base && base.goods !== null && base.tickets > 0 ? base.goods / base.tickets : null,
                       fmt: formatCents,
                     },
                   ];
@@ -1830,10 +1851,7 @@ export default function DayReportPage() {
           never something to go hunting for.
         */}
         {heatmap === null ? (
-          <Nothing>
-            This grid is built from the shop&apos;s trading history, which only the owner&apos;s
-            account can read. Everything else on this page is here.
-          </Nothing>
+          <Nothing>The grid could not be loaded — everything else on this page is here.</Nothing>
         ) : heatmap.length === 0 ? (
           <Nothing>No tickets in the last four weeks to build a pattern from.</Nothing>
         ) : (
