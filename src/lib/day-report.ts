@@ -99,6 +99,48 @@ export function exceptionsFor(list: Exception[], role: PosRole): Exception[] {
   return list.filter((e) => !e.ownerOnly);
 }
 
+/**
+ * The checklist as a given role should read it.
+ *
+ * ONE LINE CHANGES, AND IT CHANGES BECAUSE OF WHAT IT WAS DOING TO PEOPLE.
+ * "Every logged count balanced" turns amber the moment any count of the day
+ * came out uneven, and the counter reads amber as an accusation — so the
+ * lesson somebody takes from a drawer that is forty cents out is DO NOT LOG
+ * IT. That is the opposite of what the line is for: a count nobody writes
+ * down is worth less than a count that came out wrong, because the wrong one
+ * at least says when it went wrong.
+ *
+ * It was already inconsistent besides. The alarm carrying this same fact is
+ * owner-only — the register logs not balancing is the owner deciding whether
+ * to ask somebody a question, and it should not announce itself to the room —
+ * while the checklist announced it to the room anyway, in amber, to the very
+ * person it was asking about.
+ *
+ * So below owner the line stops being about the outcome and becomes about the
+ * act: did you log your counts. Green when they did. Not a softened version
+ * of the same sentence — a different sentence, because a green tick over the
+ * word "balanced" on a day that did not balance would be a lie, and this
+ * screen is the one place in the shop that must not tell one.
+ *
+ * The owner's copy is untouched: they get the outcome, in amber, as before.
+ */
+export function checklistFor(list: ChecklistItem[], role: PosRole): ChecklistItem[] {
+  if (roleAtLeast(role, "owner")) return list;
+  return list.map((c) =>
+    c.label === "Every logged count balanced"
+      ? {
+          ...c,
+          label: "Every count logged",
+          // Null stays null: nothing logged yet is still nothing logged yet,
+          // and that grey dash is the only nudge on this screen that should
+          // survive. Green for logging, grey for not — never amber.
+          done: c.done === null ? null : true,
+          detail: c.done === null ? c.detail : "Logged on the register.",
+        }
+      : c,
+  );
+}
+
 export type Exception = {
   /**
    * The alarm's identity, stable for the life of the shop.

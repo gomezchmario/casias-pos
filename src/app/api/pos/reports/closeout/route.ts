@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePos } from "@/lib/api-helpers";
 import { currentBusinessDate } from "@/lib/business-date";
-import { closeoutV2, exceptionsFor } from "@/lib/day-report";
+import { checklistFor, closeoutV2, exceptionsFor } from "@/lib/day-report";
 import { hiddenDrawerCents } from "@/lib/drawer";
 import { can } from "@/lib/roles";
 
@@ -53,6 +53,9 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     ...report,
     exceptions: exceptionsFor(report.exceptions, auth.user.role),
+    // Shaped here for the same reason the exceptions are: the page is not
+    // where a role is decided, and a line withheld in markup was still sent.
+    checklist: checklistFor(report.checklist, auth.user.role),
     // Collected is folded for the same reason the customers line is, and it
     // has to be the same fold: the day's figures sit on the sheet a few
     // centimetres under the drawer arithmetic, so a Collected that still
