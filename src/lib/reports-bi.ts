@@ -123,7 +123,7 @@ export function revenueTrend(from: string, to: string, grain: Grain): TrendPoint
 }
 
 /** The SQL that turns a business date into a bucket key. */
-function bucketExpr(grain: Grain, col: string): string {
+export function bucketExpr(grain: Grain, col: string): string {
   if (grain === "day") return col;
   if (grain === "month") return `substr(${col}, 1, 7)`;
   // The week's Monday, so the label is a real date somebody can look up.
@@ -132,7 +132,7 @@ function bucketExpr(grain: Grain, col: string): string {
 }
 
 /** Every bucket key between two dates, inclusive, in order. */
-function bucketsBetween(from: string, to: string, grain: Grain): string[] {
+export function bucketsBetween(from: string, to: string, grain: Grain): string[] {
   const out: string[] = [];
   const start = new Date(`${from}T00:00:00Z`);
   const end = new Date(`${to}T00:00:00Z`);

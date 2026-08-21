@@ -17,6 +17,7 @@ import {
 } from "@/components/pos/Charts";
 import { formatCents } from "@/lib/money";
 import type { ShopTrends } from "@/lib/trends";
+import { ReportsNav } from "../shared";
 import "../reports.css";
 
 /**
@@ -130,6 +131,11 @@ export default function TrendsPage() {
           {data.monthsOnRecord} {tr("finished months on record")}
         </span>
       </div>
+
+      {/* The suite's tab strip, without a window — this page takes none, and
+          handing the other tabs a range this page never had would be inventing
+          one. They open on their default and say so. */}
+      <ReportsNav />
 
       <div className="rp-print-head">
         <ShopLogo size={44} priority />

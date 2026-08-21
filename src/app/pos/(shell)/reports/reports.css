@@ -1040,3 +1040,132 @@
   line-height: 1.5;
 }
 .rp-experimental strong { color: #b91c1c; }
+
+/* ── The suite's tab strip ────────────────────────────────────────────────
+   The way BETWEEN the report pages, where .rp-index was the way within one.
+   Sticky for the same reason the index was: the moment somebody wants a
+   different area is the moment they are three screens down this one. Pills
+   rather than underlines because that is what every other selected-state in
+   the register looks like. */
+.rp-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  background: #f4f6fa;
+  padding: 8px 0 10px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(10, 37, 64, 0.08);
+}
+
+.rp-tab {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(10, 37, 64, 0.6);
+  padding: 5px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.rp-tab:hover {
+  color: #0a2540;
+  background: rgba(10, 37, 64, 0.06);
+}
+
+.rp-tab-on,
+.rp-tab-on:hover {
+  color: #fff;
+  background: #0a2540;
+}
+
+/* ── The doors on the overview ────────────────────────────────────────────
+   A door is a summary that happens to be a link: the area's name, what lives
+   there, and the two or three figures that say whether it needs opening
+   today. The figures are the point — six identical navy cards would make the
+   owner read six blurbs to find the one warm number. */
+.rp-doors {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 12px;
+}
+
+.rp-door {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid rgba(10, 37, 64, 0.12);
+  border-radius: 12px;
+  padding: 14px 16px;
+  color: inherit;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.rp-door:hover {
+  border-color: rgba(10, 37, 64, 0.35);
+  box-shadow: 0 2px 10px rgba(10, 37, 64, 0.08);
+}
+
+.rp-door-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rp-door-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: #0a2540;
+}
+
+.rp-door-go {
+  color: rgba(10, 37, 64, 0.4);
+  font-weight: 700;
+}
+
+.rp-door:hover .rp-door-go {
+  color: #0a2540;
+}
+
+.rp-door-blurb {
+  margin: 4px 0 10px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: rgba(10, 37, 64, 0.6);
+  flex: 1;
+}
+
+.rp-door-facts {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.rp-door-fact {
+  display: flex;
+  flex-direction: column;
+}
+
+.rp-door-val {
+  font-weight: 700;
+  font-size: 15px;
+  color: #0a2540;
+  font-variant-numeric: tabular-nums;
+}
+
+.rp-door-lab {
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(10, 37, 64, 0.45);
+}
+
+/* The tone is on the FIGURE, not the card — a door with one warm number on it
+   should read as a door with one warm number, not as an alarm. */
+.rp-door-warn .rp-door-val { color: #b45309; }
+.rp-door-bad .rp-door-val { color: #b91c1c; }
+.rp-door-good .rp-door-val { color: #15803d; }

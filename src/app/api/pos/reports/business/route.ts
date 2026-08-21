@@ -5,6 +5,13 @@ import { currentBusinessDate } from "@/lib/business-date";
 import { getSetting } from "@/lib/settings";
 import { techPeriod, tipsByTech } from "@/lib/leaderboard";
 import {
+  categoryTrend,
+  fleetBook,
+  retentionBook,
+  seasonalCategories,
+  specialOrders,
+} from "@/lib/reports-suite";
+import {
   categoryMix,
   controlStats,
   customerStats,
@@ -92,6 +99,19 @@ export async function GET(req: NextRequest) {
   const products = productMovement(from, to);
 
   return NextResponse.json({
+    /*
+      The suite additions, riding on the same route as everything else so that
+      every page of the reports reads ONE payload computed at ONE moment. Two
+      routes answering at two moments is how a figure on the Sales tab
+      disagrees with the same figure on Financial by one ticket.
+    */
+    categoryTrend: categoryTrend(from, to, grain),
+    specialOrders: specialOrders(from, to),
+    seasonalCats: seasonalCategories(),
+    // Not windowed — retention is the one question a date range cannot
+    // answer, so it takes today and nothing else. See the lib.
+    retention: retentionBook(today),
+    fleet: fleetBook(from, to),
     from,
     to,
     days,

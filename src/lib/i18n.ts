@@ -1571,6 +1571,174 @@ const ES: Record<string, string> = {
   "It assumes an hourly, non-exempt employee on a standard workweek and ignores everything else that lands on a wage — payroll taxes, insurance, breaks, and any agreement with the employee themselves. Have an accountant confirm it before it is used to set anybody&apos;s pay. Rule checked August 2026 against the Texas Workforce Commission&apos;s position and the federal Fair Labor Standards Act.":
     "Supone un empleado por hora, no exento, en una semana laboral normal, y no incluye nada más de lo que carga un sueldo — impuestos de nómina, seguro, descansos, ni ningún acuerdo con el propio empleado. Que un contador lo confirme antes de usarlo para fijarle el pago a alguien. Regla revisada en agosto de 2026 contra la postura de la Comisión de la Fuerza Laboral de Texas y la Ley Federal de Normas Justas de Trabajo.",
 
+  // ── The reports suite: the tab strip and the doors ─────────────────────
+  "Report areas": "Áreas del reporte",
+  "Sales & Revenue": "Ventas e ingresos",
+  "Inventory & Tires": "Inventario y llantas",
+  "Technicians & Labor": "Técnicos y trabajo",
+  "Customers & Fleet": "Clientes y flotillas",
+  "Financial": "Finanzas",
+  "The rest of the suite": "El resto de los reportes",
+  "Each door carries the figures that say whether it needs opening today. The window follows you through.":
+    "Cada puerta trae las cifras que dicen si hoy vale la pena abrirla. El periodo lo sigue a usted.",
+  "What sold, the mix over time, how it was paid, special orders, and the hours the money lands in.":
+    "Qué se vendió, la mezcla a lo largo del tiempo, cómo se pagó, los pedidos especiales y las horas en que cae el dinero.",
+  "The money on the racks, what is running out, the season, and the tires people asked for that were not there.":
+    "El dinero en los racks, lo que se está acabando, la temporada, y las llantas que pidieron y no había.",
+  "Who did the work, everyone measured fairly, one name up close, and the cover the week needs.":
+    "Quién hizo el trabajo, todos medidos parejo, un nombre de cerca, y la gente que necesita la semana.",
+  "Who comes back, who went quiet and is worth a phone call, and the commercial accounts.":
+    "Quién regresa, quién dejó de venir y merece una llamada, y las cuentas comerciales.",
+  "Margin where it can be known, what is owed and how old it is, and the register's own leaks.":
+    "El margen donde se puede saber, lo que deben y qué tan viejo es, y las fugas de la propia caja.",
+  "Which way it is going, over everything on record — no window, the seasons taken out, and the conclusions worked out at the top.":
+    "Hacia dónde va, sobre todo lo registrado — sin periodo, sin el efecto de las temporadas, y con las conclusiones ya trabajadas arriba.",
+  "biggest seller": "lo que más vende",
+  "special orders open": "pedidos especiales abiertos",
+  "on the racks, at cost": "en los racks, a costo",
+  "standing still": "parado",
+  "credited this window": "con crédito en este periodo",
+  tips: "propinas",
+  "came back, lifetime": "regresaron, histórico",
+  "worth a phone call": "merecen una llamada",
+  "owed by fleets": "deben las flotillas",
+  "gross margin": "margen bruto",
+  "owed altogether": "deuda total",
+  "voids and refunds": "cancelados y reembolsos",
+
+  // ── Sales & Revenue ────────────────────────────────────────────────────
+  "What sold, when it sold, and how it was paid — over whatever window you ask for.":
+    "Qué se vendió, cuándo se vendió y cómo se pagó — sobre el periodo que usted pida.",
+  "Sales report": "Reporte de ventas",
+  "The take": "Lo que entró",
+  "The mix, over time": "La mezcla, a lo largo del tiempo",
+  "The mix over the whole window, then the same mix bucket by bucket — a month where used tires quietly become half the take looks identical in the donut and unmissable in the bands.":
+    "La mezcla sobre el periodo entero, y luego la misma mezcla tramo por tramo — un mes donde las usadas se vuelven la mitad de la venta se ve igual en la dona y salta a la vista en las bandas.",
+  "Each bar is one bucket of the window, scaled to its own total — the shape is the story, not the height.":
+    "Cada barra es un tramo del periodo, a escala de su propio total — la forma es la historia, no la altura.",
+  "Special orders": "Pedidos especiales",
+  "Rung before the goods were in the building. Open ones are promises the shop has made and not yet kept.":
+    "Cobrados antes de tener la mercancía en el taller. Los abiertos son promesas hechas y todavía no cumplidas.",
+  "Ordered in": "Pedidos",
+  "waiting or on the way": "esperando o en camino",
+  "Called, no answer": "Llamado, sin respuesta",
+  "goods here, customer not": "la mercancía aquí, el cliente no",
+  "Order to handover": "Del pedido a la entrega",
+  "averaged over the delivered ones": "promedio sobre los entregados",
+
+  // ── Inventory & Tires ──────────────────────────────────────────────────
+  "The money on the racks, what is running out, and the tires people asked for that were not there.":
+    "El dinero en los racks, lo que se está acabando, y las llantas que pidieron y no había.",
+  "Inventory report": "Reporte de inventario",
+  "The order sheet": "La hoja de pedidos",
+  "Standing still, in full": "Parado, completo",
+  "The demand study": "El estudio de demanda",
+  "The season": "La temporada",
+  "Every year on record folded into one — tires sold per trading day, month by month. Per trading day on purpose: the history has stretches nobody wrote down, and dividing by the calendar would invent a collapse that never happened.":
+    "Todos los años registrados doblados en uno — llantas vendidas por día trabajado, mes por mes. Por día trabajado a propósito: la historia tiene tramos que nadie apuntó, y dividir entre el calendario inventaría un derrumbe que nunca pasó.",
+  "Tires a day, by month of the year": "Llantas al día, por mes del año",
+  "New and used, averaged over the days the shop actually traded.":
+    "Nuevas y usadas, en promedio sobre los días que el taller sí trabajó.",
+  "Strongest tire months": "Los meses más fuertes de llantas",
+  "Tire money per trading day, so a short month competes fairly with a long one.":
+    "Dinero de llantas por día trabajado, para que un mes corto compita parejo con uno largo.",
+  "The rest of the shop, by month": "El resto del taller, por mes",
+  "Everything that is not a tire, per trading day — the floor under a slow tire month.":
+    "Todo lo que no es llanta, por día trabajado — el piso debajo de un mes flojo de llantas.",
+  "days on record": "días registrados",
+  "Nothing on record yet.": "Todavía no hay nada registrado.",
+  "The season panel is the one exception — it reads the whole history on purpose.":
+    "El panel de la temporada es la única excepción — lee toda la historia a propósito.",
+  // The website search log's table headers, which the audit flagged alongside
+  // this suite — two words the page above them already translates around.
+  Times: "Veces",
+  Window: "Periodo",
+
+  // ── Technicians & Labor ────────────────────────────────────────────────
+  "Who did the work, how everyone is doing, and the cover the week needs.":
+    "Quién hizo el trabajo, cómo va cada quien, y la gente que necesita la semana.",
+  "Technician report": "Reporte de técnicos",
+  "One technician, up close": "Un técnico, de cerca",
+  "The same window, for one name — their pace over time, the kind of work they do, and which days they earn on.":
+    "El mismo periodo, para un solo nombre — su ritmo a lo largo del tiempo, el tipo de trabajo que hace, y en qué días gana.",
+  "Pick a technician…": "Escoja un técnico…",
+  "Pick a name above to open their window.": "Escoja un nombre arriba para abrir su periodo.",
+  "brought in, over the window": "trajo, sobre el periodo",
+  "What kind of work": "Qué tipo de trabajo",
+  "Which days they earn on": "En qué días gana",
+  "Per day they were credited, so one busy Saturday reads as one busy Saturday.":
+    "Por día con crédito, para que un sábado ocupado se lea como un sábado ocupado.",
+  "Nothing credited in this window.": "Nada acreditado en este periodo.",
+
+  // ── Customers & Fleet ──────────────────────────────────────────────────
+  "Who the shop sells to, who comes back, and the commercial accounts.":
+    "A quién le vende el taller, quién regresa, y las cuentas comerciales.",
+  "Customer report": "Reporte de clientes",
+  "The customer book is young.": "El archivo de clientes es joven.",
+  "The register only started taking names on tickets in":
+    "La caja apenas empezó a tomar nombres en los tickets en",
+  " — in this window, ": " — en este periodo, el ",
+  "of tickets carry one. Everything on this page describes only the tickets that took a name, and it gets more trustworthy every week the counter keeps asking.":
+    "de los tickets trae uno. Todo en esta página describe solo los tickets que tomaron nombre, y se vuelve más confiable cada semana que el mostrador siga preguntando.",
+  "In this window": "En este periodo",
+  "New means the window holds their first ticket ever — a customer of three years who happens not to have been in since January is not a new customer.":
+    "Nuevo quiere decir que el periodo contiene su primer ticket de la vida — un cliente de tres años que no ha venido desde enero no es un cliente nuevo.",
+  "The book, whole": "El archivo, completo",
+  "Lifetime figures, not windowed — whether somebody comes back is the one question a date range cannot answer.":
+    "Cifras históricas, sin periodo — si alguien regresa es la única pregunta que un rango de fechas no puede contestar.",
+  "Customers on file": "Clientes en el archivo",
+  "vehicles on file": "vehículos en el archivo",
+  "Have bought something": "Han comprado algo",
+  "visits each, on average": "visitas cada uno, en promedio",
+  "Came back at least once": "Regresaron al menos una vez",
+  "Worth so far, each": "Lo que valen hasta hoy, cada uno",
+  "lifetime spend, averaged over the book": "gasto histórico, promediado sobre el archivo",
+  "How often they have been in": "Cuántas veces han venido",
+  "The shape to watch: a healthy book grows the right-hand bars.":
+    "La forma que hay que vigilar: un archivo sano hace crecer las barras de la derecha.",
+  Once: "Una vez",
+  Twice: "Dos veces",
+  "3–5 times": "3–5 veces",
+  "6 or more": "6 o más",
+  "Worth the most, lifetime": "Los que más valen, histórico",
+  "Nobody named yet.": "Todavía nadie con nombre.",
+  "Worth a phone call": "Merecen una llamada",
+  "Came at least twice, then sixty days of silence. One visit and gone is a walk-in the shop never had; two visits is a habit that stopped, and a habit that stopped has a reason.":
+    "Vinieron al menos dos veces, y luego sesenta días de silencio. Una visita y adiós es un cliente que el taller nunca tuvo; dos visitas es una costumbre que se detuvo, y una costumbre que se detiene tiene una razón.",
+  "Nobody with a habit has gone quiet.": "Nadie con costumbre se ha quedado callado.",
+  Visits: "Visitas",
+  "Spent, lifetime": "Gastado, histórico",
+  "Days quiet": "Días callado",
+  "Open the customer file": "Abrir el archivo de clientes",
+  visit: "visita",
+  visits: "visitas",
+  fleet: "flotilla",
+  "Fleet & commercial": "Flotillas y comercial",
+  "One row per account. Window and lifetime side by side on purpose — a fleet is a relationship, and quiet this month only means something next to what it has been worth so far.":
+    "Una fila por cuenta. El periodo y el histórico lado a lado a propósito — una flotilla es una relación, y “callada este mes” solo significa algo junto a lo que ha valido hasta hoy.",
+  Accounts: "Cuentas",
+  "approved for credit": "aprobadas para crédito",
+  "This window": "Este periodo",
+  "Owed by fleets": "Deben las flotillas",
+  "open ticket balances": "saldos abiertos en tickets",
+  "No fleet accounts on file yet.": "Todavía no hay cuentas de flotilla en el archivo.",
+  Account: "Cuenta",
+  Lifetime: "Histórico",
+  credit: "crédito",
+  "Open the fleet accounts": "Abrir las cuentas de flotilla",
+  "The window sections cover": "Las secciones con periodo cubren",
+  "; the book and fleet lifetime figures read the whole history on purpose, and every figure describes only tickets that took a name.":
+    "; las cifras históricas del archivo y de las flotillas leen toda la historia a propósito, y cada cifra describe solo tickets que tomaron nombre.",
+
+  // ── Financial ──────────────────────────────────────────────────────────
+  "Margin where it can be known, what is owed, and the handful of things worth a second look.":
+    "El margen donde se puede saber, lo que deben, y el puñado de cosas que merecen una segunda mirada.",
+  "Financial report": "Reporte financiero",
+  "What the window left behind": "Lo que dejó el periodo",
+  "On the racks, at cost": "En los racks, a costo",
+  "Tonight's close-out": "El corte de hoy",
+  "The full day report": "El reporte completo del día",
+
   // ── Things that go wrong ───────────────────────────────────────────────
   "That did not save": "Eso no se guardó",
   "Could not load": "No se pudo cargar",
