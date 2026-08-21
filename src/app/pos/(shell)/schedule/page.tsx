@@ -47,10 +47,11 @@ type DeskRequest = {
   employeeId: number;
   name: string;
   phone: string | null;
-  kind: "call_off" | "change" | "cover_offer";
-  workDate: string;
+  kind: "call_off" | "change" | "cover_offer" | "more_hours";
+  workDate: string | null;
   proposedStartMinute: number | null;
   proposedEndMinute: number | null;
+  hoursWanted: number | null;
   rostered: { start: string; end: string } | null;
   note: string | null;
   status: string;
@@ -232,6 +233,7 @@ export default function ShiftDeskPage() {
     call_off: tr("Can't come"),
     change: tr("Asks a change"),
     cover_offer: tr("Can cover"),
+    more_hours: tr("Wants more hours"),
   };
 
   return (
@@ -543,7 +545,10 @@ export default function ShiftDeskPage() {
                     >
                       {KINDS[r.kind]}
                     </span>{" "}
-                    <span className="text-brand-400 tabular-nums">{r.workDate}</span>
+                    {r.workDate && <span className="text-brand-400 tabular-nums">{r.workDate}</span>}
+                    {r.hoursWanted !== null && (
+                      <span className="text-sm font-medium"> +{r.hoursWanted}h {tr("a week")}</span>
+                    )}
                     {r.rostered && (
                       <span className="text-brand-300 text-sm">
                         {" "}
@@ -581,7 +586,9 @@ export default function ShiftDeskPage() {
                       })
                     }
                   >
-                    {r.kind === "cover_offer" ? tr("Noted — will call") : tr("Approve")}
+                    {r.kind === "cover_offer" || r.kind === "more_hours"
+                      ? tr("Noted")
+                      : tr("Approve")}
                   </button>
                   <button
                     type="button"
@@ -612,7 +619,9 @@ export default function ShiftDeskPage() {
                 <div key={r.id} className="py-1.5 border-t border-brand-100 text-sm flex gap-2 flex-wrap">
                   <span className="font-medium">{r.name}</span>
                   <span className="text-brand-400">
-                    {KINDS[r.kind]} · {r.workDate}
+                    {KINDS[r.kind]}
+                    {r.workDate ? ` · ${r.workDate}` : ""}
+                    {r.hoursWanted !== null ? ` · +${r.hoursWanted}h` : ""}
                   </span>
                   <span
                     className="font-medium"

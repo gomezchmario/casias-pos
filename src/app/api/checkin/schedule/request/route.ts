@@ -16,10 +16,13 @@ export async function POST(req: Request) {
     pin?: string;
     action?: "create" | "withdraw";
     id?: number;
-    kind?: "call_off" | "change" | "cover_offer";
+    kind?: "call_off" | "change" | "cover_offer" | "more_hours";
     workDate?: string;
+    /** Cover offers may span a range — one request per day comes out of it. */
+    endDate?: string;
     proposedStartMinute?: number | null;
     proposedEndMinute?: number | null;
+    hoursWanted?: number | null;
     note?: string | null;
   };
   try {
@@ -49,15 +52,62 @@ export async function POST(req: Request) {
       { status: 428 },
     );
 
-  if (body.kind !== "call_off" && body.kind !== "change" && body.kind !== "cover_offer")
+  const kinds = ["call_off", "change", "cover_offer", "more_hours"];
+  if (!body.kind || !kinds.includes(body.kind))
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+
+  /*
+    A cover offer over a range files ONE REQUEST PER DAY, not one request
+    with two dates. A manager answers days, not spans — "Tuesday yes,
+    Wednesday no need" — and per-day rows are what makes each day its own
+    answer. Days already offered are skipped rather than refused, so
+    stretching an offer by a week does not trip over the first day of it.
+  */
+  if (body.kind === "cover_offer" && body.endDate && body.endDate !== body.workDate) {
+    const from = String(body.workDate ?? "");
+    const to = String(body.endDate);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || to < from)
+      return NextResponse.json({ error: "That range ends before it starts" }, { status: 400 });
+    const span =
+      Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
+    if (span > 14)
+      return NextResponse.json({ error: "Fourteen days at a time is plenty" }, { status: 400 });
+
+    let filed = 0;
+    for (let i = 0; i < span; i++) {
+      const d = new Date(`${from}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + i);
+      const made = createRequest({
+        employeeId: me,
+        kind: "cover_offer",
+        workDate: d.toISOString().slice(0, 10),
+        note: body.note ?? null,
+      });
+      if (made.ok) filed++;
+    }
+    if (filed === 0)
+      return NextResponse.json(
+        { error: "You already offered every day in that range" },
+        { status: 400 },
+      );
+    logAudit({
+      actorType: "employee",
+      employeeId: me,
+      employeeName: result.user.name,
+      employeeRole: result.user.role,
+      action: "schedule.request",
+      details: { kind: "cover_offer", from, to, filed },
+    });
+    return NextResponse.json({ ok: true, filed });
+  }
 
   const made = createRequest({
     employeeId: me,
     kind: body.kind,
-    workDate: String(body.workDate ?? ""),
+    workDate: body.workDate ?? null,
     proposedStartMinute: body.proposedStartMinute ?? null,
     proposedEndMinute: body.proposedEndMinute ?? null,
+    hoursWanted: body.hoursWanted ?? null,
     note: body.note ?? null,
   });
   if (!made.ok) return NextResponse.json({ error: made.error }, { status: 400 });
@@ -68,7 +118,7 @@ export async function POST(req: Request) {
     employeeName: result.user.name,
     employeeRole: result.user.role,
     action: "schedule.request",
-    details: { kind: body.kind, workDate: body.workDate, requestId: made.id },
+    details: { kind: body.kind, workDate: body.workDate ?? null, requestId: made.id },
   });
   return NextResponse.json({ ok: true, id: made.id });
 }

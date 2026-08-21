@@ -1,22 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 /**
  * The employee's window on the roster: when am I working, who is on with me,
- * and the three things worth saying back — I can't come, could I change, I
- * can cover. Reached from the kiosk's corner or typed on a phone; a PIN is
- * the whole sign-in, and nothing here is fenced because "I can't come in" is
- * a message that mostly gets sent from home.
+ * and the four things worth saying back — I can't come, could I change, I
+ * can cover, I want more hours. Reached from the kiosk's keypad (which hands
+ * the PIN over so nobody types it twice in five seconds), from the corner
+ * link, or typed on a phone. Nothing here is fenced, because "I can't come
+ * in" is a message that mostly gets sent from home.
  *
- * BILINGUAL INLINE, like the PIN cards, rather than through the register's
- * toggle: the person this page most has to work for is a mechanic reading it
- * on his own phone in the parking lot, and a language switch he has to find
- * first is a coin-flip he should not have to win.
+ * ENGLISH ONLY, by the owner's call — the doubled lines read as clutter on a
+ * small screen. The PIN cards everyone was handed carry the Spanish.
  *
- * THE PHONE GATE: the server sends `needsPhone` instead of the schedule until
- * a number is on file, so the first visit is the number, then the roster —
- * not a skippable nag. The number can be changed here any time after.
+ * THE PHONE GATE: the server sends `needsPhone` instead of the schedule
+ * until a number is on file, so the first visit is the number, then the
+ * roster — not a skippable nag.
+ *
+ * A MANAGER LANDS HERE TOO, from the same keypad as everybody else — so
+ * their half of the system is a button, not a thing they have to know the
+ * address of. The button trades the same PIN for a register session and
+ * walks them to the desk; the fence and the night rule judge that trade
+ * like any other.
  */
 
 type Day = {
@@ -27,10 +32,11 @@ type Day = {
 };
 type Req = {
   id: number;
-  kind: "call_off" | "change" | "cover_offer";
-  workDate: string;
+  kind: "call_off" | "change" | "cover_offer" | "more_hours";
+  workDate: string | null;
   proposedStart: string | null;
   proposedEnd: string | null;
+  hoursWanted: number | null;
   note: string | null;
   status: "open" | "approved" | "declined" | "withdrawn";
   resolutionNote: string | null;
@@ -40,35 +46,30 @@ type Panel = {
   needsPhone: boolean;
   name: string;
   phone?: string;
+  canManage?: boolean;
   days?: Day[];
   requests?: Req[];
 };
 
 const DAYS_EN = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const DAYS_ES = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
 
-function dayLabel(d: Day): { en: string; es: string; md: string } {
-  const [, m, day] = d.date.split("-");
-  return { en: DAYS_EN[d.weekday], es: DAYS_ES[d.weekday], md: `${Number(m)}/${Number(day)}` };
-}
-
-/** Minutes from a time input's "HH:MM". */
 const toMinutes = (v: string): number | null => {
   const m = /^(\d{2}):(\d{2})$/.exec(v);
   return m ? Number(m[1]) * 60 + Number(m[2]) : null;
 };
 
-const STATUS: Record<Req["status"], { en: string; es: string; cls: string }> = {
-  open: { en: "Waiting for a manager", es: "Esperando a un gerente", cls: "bg-amber-500/20 text-amber-200" },
-  approved: { en: "Approved", es: "Aprobado", cls: "bg-emerald-500/20 text-emerald-200" },
-  declined: { en: "Declined", es: "Rechazado", cls: "bg-red-500/25 text-red-200" },
-  withdrawn: { en: "Withdrawn", es: "Retirado", cls: "bg-white/10 text-white/50" },
+const STATUS: Record<Req["status"], { label: string; cls: string }> = {
+  open: { label: "Waiting for a manager", cls: "bg-amber-500/20 text-amber-200" },
+  approved: { label: "Approved", cls: "bg-emerald-500/20 text-emerald-200" },
+  declined: { label: "Declined", cls: "bg-red-500/25 text-red-200" },
+  withdrawn: { label: "Withdrawn", cls: "bg-white/10 text-white/50" },
 };
 
-const KIND: Record<Req["kind"], { en: string; es: string }> = {
-  call_off: { en: "Can't come", es: "No puedo venir" },
-  change: { en: "Change", es: "Cambio" },
-  cover_offer: { en: "Can cover", es: "Puedo cubrir" },
+const KIND: Record<Req["kind"], string> = {
+  call_off: "Can't come",
+  change: "Change",
+  cover_offer: "Can cover",
+  more_hours: "More hours",
 };
 
 export default function MySchedulePage() {
@@ -78,12 +79,39 @@ export default function MySchedulePage() {
   const [busy, setBusy] = useState(false);
   const [phoneDraft, setPhoneDraft] = useState("");
   const [editPhone, setEditPhone] = useState(false);
-  /** Which day's ask form is open, and which kind. */
-  const [form, setForm] = useState<{ date: string; kind: Req["kind"] } | null>(null);
+  /** Which seven days are showing: 0 = this week, up to 3. */
+  const [page, setPage] = useState(0);
+  const [form, setForm] = useState<{ date: string; kind: "call_off" | "change" } | null>(null);
   const [note, setNote] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
-  const [coverDate, setCoverDate] = useState("");
+  const [coverFrom, setCoverFrom] = useState("");
+  const [coverTo, setCoverTo] = useState("");
+  const [coverNote, setCoverNote] = useState("");
+  const [hoursWanted, setHoursWanted] = useState("");
+  const [hoursNote, setHoursNote] = useState("");
+  const [said, setSaid] = useState<string | null>(null);
+
+  /*
+    The kiosk's keypad leaves the PIN in sessionStorage on the way over;
+    read once, burned immediately, used to sign straight in. A PIN proved on
+    this page is put back so a refresh does not demand it again — same tab,
+    same person holding the device.
+  */
+  useEffect(() => {
+    let handed: string | null = null;
+    try {
+      handed = sessionStorage.getItem("msPin");
+      sessionStorage.removeItem("msPin");
+    } catch {
+      /* storage refused — ask normally */
+    }
+    if (handed && /^\d{4}$/.test(handed)) {
+      setPin(handed);
+      void load(handed);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function load(currentPin: string) {
     setBusy(true);
@@ -97,11 +125,17 @@ export default function MySchedulePage() {
       const d = await res.json();
       if (!res.ok) {
         setError(d.error ?? "Try again");
+        try {
+          sessionStorage.removeItem("msPin");
+        } catch {}
         return;
       }
       setPanel(d);
+      try {
+        sessionStorage.setItem("msPin", currentPin);
+      } catch {}
     } catch {
-      setError("Network error · Error de red");
+      setError("Network error — try again");
     } finally {
       setBusy(false);
     }
@@ -129,34 +163,24 @@ export default function MySchedulePage() {
     }
   }
 
-  async function sendRequest(kind: Req["kind"], workDate: string) {
+  async function send(bodyExtra: Record<string, unknown>, saidText: string) {
     setBusy(true);
     setError(null);
+    setSaid(null);
     try {
       const res = await fetch("/api/checkin/schedule/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          pin,
-          action: "create",
-          kind,
-          workDate,
-          proposedStartMinute: kind === "change" && start ? toMinutes(start) : null,
-          proposedEndMinute: kind === "change" && end ? toMinutes(end) : null,
-          note: note.trim() || null,
-        }),
+        body: JSON.stringify({ pin, action: "create", ...bodyExtra }),
       });
       const d = await res.json();
       if (!res.ok) {
         setError(d.error ?? "Try again");
-        return;
+        return false;
       }
-      setForm(null);
-      setNote("");
-      setStart("");
-      setEnd("");
-      setCoverDate("");
+      setSaid(saidText);
       await load(pin);
+      return true;
     } finally {
       setBusy(false);
     }
@@ -176,15 +200,34 @@ export default function MySchedulePage() {
     }
   }
 
+  /** Trade the proved PIN for a register session and walk to the desk. */
+  async function openDesk() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/pos/auth/kiosk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        setError(d.error ?? "Could not open the register");
+        return;
+      }
+      window.location.href = "/pos/schedule";
+    } finally {
+      setBusy(false);
+    }
+  }
+
   // ── Sign-in ──────────────────────────────────────────────────────────────
   if (!panel) {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center p-6 kiosk-bg">
         <div className="acrylic-dark w-full max-w-md rounded-3xl p-8 text-white" style={{ borderRadius: 24 }}>
-          <h1 className="text-2xl font-bold mb-1">My schedule</h1>
-          <p className="text-white/60 mb-6 italic">Mi horario</p>
-          <p className="text-white/80 mb-1">Type your PIN.</p>
-          <p className="text-white/50 text-sm italic mb-4">Escriba su clave.</p>
+          <h1 className="text-2xl font-bold mb-6">My schedule</h1>
+          <p className="text-white/80 mb-4">Type your PIN.</p>
           <input
             className="w-full rounded-xl bg-white/10 border border-white/20 px-4 py-3 text-2xl tracking-[0.5em] text-center"
             type="password"
@@ -202,7 +245,7 @@ export default function MySchedulePage() {
           {error && <p className="mt-4 text-red-300">{error}</p>}
           {busy && <p className="mt-4 text-white/50">…</p>}
           <a href="/" className="mt-6 inline-block text-white/40 hover:text-white/80 text-sm">
-            ← Time clock · Reloj
+            ← Time clock
           </a>
         </div>
       </main>
@@ -214,15 +257,10 @@ export default function MySchedulePage() {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center p-6 kiosk-bg">
         <div className="acrylic-dark w-full max-w-md rounded-3xl p-8 text-white" style={{ borderRadius: 24 }}>
-          <h1 className="text-xl font-bold mb-4">
-            {panel.name} — one thing first.
-            <span className="block text-white/60 font-normal italic">Una cosa primero.</span>
-          </h1>
-          <p className="text-white/80 mb-1">
+          <h1 className="text-xl font-bold mb-4">{panel.name} — one thing first.</h1>
+          <p className="text-white/80 mb-4">
             The shop needs a phone number for you — it is how a manager reaches you about a shift.
-          </p>
-          <p className="text-white/50 text-sm italic mb-4">
-            El taller necesita su número de teléfono — así le avisa un gerente sobre un turno.
+            You can change it here any time.
           </p>
           <input
             className="w-full rounded-xl bg-white/10 border border-white/20 px-4 py-3 text-xl"
@@ -241,7 +279,7 @@ export default function MySchedulePage() {
             disabled={busy || phoneDraft.replace(/\D/g, "").length < 10}
             onClick={() => void savePhone()}
           >
-            Save · Guardar
+            Save
           </button>
         </div>
       </main>
@@ -249,8 +287,14 @@ export default function MySchedulePage() {
   }
 
   // ── The panel ────────────────────────────────────────────────────────────
-  const days = panel.days ?? [];
+  const all = panel.days ?? [];
+  const days = all.slice(page * 7, page * 7 + 7);
+  const pages = Math.ceil(all.length / 7);
   const requests = panel.requests ?? [];
+  const weekLabel =
+    days.length > 0
+      ? `${days[0].date.slice(5).replace("-", "/")} – ${days[days.length - 1].date.slice(5).replace("-", "/")}`
+      : "";
 
   return (
     <main className="min-h-screen p-4 sm:p-6 kiosk-bg flex flex-col items-center">
@@ -261,14 +305,27 @@ export default function MySchedulePage() {
             <p className="text-white/50 text-sm">
               {panel.phone} ·{" "}
               <button type="button" className="underline text-white/60" onClick={() => setEditPhone((v) => !v)}>
-                change number · cambiar número
+                change number
               </button>
             </p>
           </div>
           <a href="/" className="text-white/40 hover:text-white/80 text-sm">
-            ← Time clock · Reloj
+            ← Time clock
           </a>
         </div>
+
+        {/* The desk, for the half of the audience that runs it. */}
+        {panel.canManage && (
+          <button
+            type="button"
+            className="w-full rounded-2xl px-4 py-3 mb-4 font-semibold text-[#0a2540] disabled:opacity-50"
+            style={{ background: "linear-gradient(180deg, #ffd35a 0%, #e0a91d 100%)" }}
+            disabled={busy}
+            onClick={() => void openDesk()}
+          >
+            Open the shift desk — approve requests, move the week, see who is in →
+          </button>
+        )}
 
         {editPhone && (
           <div className="acrylic-dark rounded-2xl p-4 mb-4">
@@ -287,7 +344,7 @@ export default function MySchedulePage() {
               disabled={busy || phoneDraft.replace(/\D/g, "").length < 10}
               onClick={() => void savePhone()}
             >
-              Save · Guardar
+              Save
             </button>
           </div>
         )}
@@ -297,23 +354,51 @@ export default function MySchedulePage() {
             {error}
           </div>
         )}
+        {said && (
+          <div className="rounded-2xl bg-emerald-500/15 border border-emerald-400/40 px-4 py-3 mb-4 text-emerald-100">
+            {said}
+          </div>
+        )}
 
-        {/* ── The next two weeks ─────────────────────────────────────────── */}
+        {/* ── The week showing ───────────────────────────────────────────── */}
         <div className="acrylic-dark rounded-2xl p-4 mb-4">
-          <h2 className="font-semibold mb-0.5">The next two weeks</h2>
-          <p className="text-white/50 text-sm italic mb-3">Las próximas dos semanas</p>
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h2 className="font-semibold">
+              {page === 0 ? "This week" : `Week of ${weekLabel}`}
+            </h2>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="rounded-lg px-3 py-1.5 bg-white/10 border border-white/20 disabled:opacity-30"
+                disabled={page === 0}
+                onClick={() => setPage((p) => p - 1)}
+                aria-label="Earlier week"
+              >
+                ‹
+              </button>
+              <span className="text-white/40 text-xs tabular-nums">
+                {page + 1} / {pages}
+              </span>
+              <button
+                type="button"
+                className="rounded-lg px-3 py-1.5 bg-white/10 border border-white/20 disabled:opacity-30"
+                disabled={page >= pages - 1}
+                onClick={() => setPage((p) => p + 1)}
+                aria-label="Later week"
+              >
+                ›
+              </button>
+            </div>
+          </div>
           <div className="divide-y divide-white/10">
             {days.map((d) => {
-              const l = dayLabel(d);
               const isForm = form?.date === d.date;
+              const [, m, dd] = d.date.split("-");
               return (
                 <div key={d.date} className="py-2">
                   <div className="flex items-center gap-3 flex-wrap">
-                    <div className="w-28 shrink-0">
-                      <div className="font-medium">
-                        {l.en} <span className="text-white/40">{l.md}</span>
-                      </div>
-                      <div className="text-white/40 text-xs italic">{l.es}</div>
+                    <div className="w-28 shrink-0 font-medium">
+                      {DAYS_EN[d.weekday]} <span className="text-white/40">{Number(m)}/{Number(dd)}</span>
                     </div>
                     <div className="flex-1 min-w-[120px]">
                       {d.shift ? (
@@ -321,12 +406,10 @@ export default function MySchedulePage() {
                           {d.shift.start} – {d.shift.end}
                         </span>
                       ) : (
-                        <span className="text-white/30">— off · descansa</span>
+                        <span className="text-white/30">— off</span>
                       )}
                       {d.coworkers.length > 0 && (
-                        <div className="text-white/45 text-xs">
-                          with · con: {d.coworkers.join(", ")}
-                        </div>
+                        <div className="text-white/45 text-xs">with: {d.coworkers.join(", ")}</div>
                       )}
                     </div>
                     {d.shift && (
@@ -339,7 +422,7 @@ export default function MySchedulePage() {
                             setNote("");
                           }}
                         >
-                          {KIND.call_off.en} · {KIND.call_off.es}
+                          Can&apos;t come
                         </button>
                         <button
                           type="button"
@@ -351,7 +434,7 @@ export default function MySchedulePage() {
                             setEnd("");
                           }}
                         >
-                          {KIND.change.en} · {KIND.change.es}
+                          Change
                         </button>
                       </div>
                     )}
@@ -362,7 +445,7 @@ export default function MySchedulePage() {
                       {form.kind === "change" && (
                         <div className="flex gap-3 mb-3 flex-wrap items-center">
                           <label className="text-sm text-white/70">
-                            from · de{" "}
+                            from{" "}
                             <input
                               type="time"
                               className="rounded-lg bg-white/10 border border-white/20 px-2 py-1 ml-1"
@@ -371,7 +454,7 @@ export default function MySchedulePage() {
                             />
                           </label>
                           <label className="text-sm text-white/70">
-                            to · a{" "}
+                            to{" "}
                             <input
                               type="time"
                               className="rounded-lg bg-white/10 border border-white/20 px-2 py-1 ml-1"
@@ -384,11 +467,7 @@ export default function MySchedulePage() {
                       <textarea
                         className="w-full rounded-lg bg-white/10 border border-white/20 px-3 py-2 text-sm"
                         rows={2}
-                        placeholder={
-                          form.kind === "call_off"
-                            ? "Why? · ¿Por qué?"
-                            : "What are you asking? · ¿Qué pide?"
-                        }
+                        placeholder={form.kind === "call_off" ? "Why?" : "What are you asking?"}
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
                       />
@@ -397,9 +476,25 @@ export default function MySchedulePage() {
                         className="mt-2 rounded-lg px-4 py-2 text-sm font-semibold text-[#0a2540] disabled:opacity-50"
                         style={{ background: "linear-gradient(180deg, #ffd35a 0%, #e0a91d 100%)" }}
                         disabled={busy}
-                        onClick={() => void sendRequest(form.kind, form.date)}
+                        onClick={() =>
+                          void send(
+                            {
+                              kind: form.kind,
+                              workDate: form.date,
+                              proposedStartMinute: form.kind === "change" && start ? toMinutes(start) : null,
+                              proposedEndMinute: form.kind === "change" && end ? toMinutes(end) : null,
+                              note: note.trim() || null,
+                            },
+                            "Sent — a manager will answer here.",
+                          ).then((ok) => {
+                            if (ok) {
+                              setForm(null);
+                              setNote("");
+                            }
+                          })
+                        }
                       >
-                        Send to a manager · Mandar a un gerente
+                        Send to a manager
                       </button>
                     </div>
                   )}
@@ -411,35 +506,108 @@ export default function MySchedulePage() {
 
         {/* ── I can cover ────────────────────────────────────────────────── */}
         <div className="acrylic-dark rounded-2xl p-4 mb-4">
-          <h2 className="font-semibold mb-0.5">I can cover a day</h2>
-          <p className="text-white/50 text-sm italic mb-3">
-            Puedo cubrir un día — si alguien no llega, llámenme.
+          <h2 className="font-semibold mb-1">I can cover</h2>
+          <p className="text-white/50 text-sm mb-3">
+            If somebody doesn&apos;t show on these days, call me. One day, or a stretch.
           </p>
           <div className="flex gap-3 flex-wrap items-center">
             <input
               type="date"
               className="rounded-lg bg-white/10 border border-white/20 px-3 py-2"
-              value={coverDate}
-              min={days[0]?.date}
-              onChange={(e) => setCoverDate(e.target.value)}
+              value={coverFrom}
+              min={all[0]?.date}
+              onChange={(e) => {
+                setCoverFrom(e.target.value);
+                if (!coverTo || coverTo < e.target.value) setCoverTo(e.target.value);
+              }}
+            />
+            <span className="text-white/40">to</span>
+            <input
+              type="date"
+              className="rounded-lg bg-white/10 border border-white/20 px-3 py-2"
+              value={coverTo}
+              min={coverFrom || all[0]?.date}
+              onChange={(e) => setCoverTo(e.target.value)}
             />
             <input
-              className="flex-1 min-w-[160px] rounded-lg bg-white/10 border border-white/20 px-3 py-2 text-sm"
-              placeholder="Anything to add? · ¿Algo que agregar?"
-              value={form === null ? note : ""}
-              onChange={(e) => {
-                setForm(null);
-                setNote(e.target.value);
-              }}
+              className="flex-1 min-w-[140px] rounded-lg bg-white/10 border border-white/20 px-3 py-2 text-sm"
+              placeholder="Anything to add?"
+              value={coverNote}
+              onChange={(e) => setCoverNote(e.target.value)}
             />
             <button
               type="button"
               className="rounded-lg px-4 py-2 text-sm font-semibold text-[#0a2540] disabled:opacity-50"
               style={{ background: "linear-gradient(180deg, #ffd35a 0%, #e0a91d 100%)" }}
-              disabled={busy || !coverDate}
-              onClick={() => void sendRequest("cover_offer", coverDate)}
+              disabled={busy || !coverFrom}
+              onClick={() =>
+                void send(
+                  {
+                    kind: "cover_offer",
+                    workDate: coverFrom,
+                    endDate: coverTo || coverFrom,
+                    note: coverNote.trim() || null,
+                  },
+                  "Noted — they will call if a day needs you.",
+                ).then((ok) => {
+                  if (ok) {
+                    setCoverFrom("");
+                    setCoverTo("");
+                    setCoverNote("");
+                  }
+                })
+              }
             >
-              Raise my hand · Me apunto
+              Raise my hand
+            </button>
+          </div>
+        </div>
+
+        {/* ── More hours ─────────────────────────────────────────────────── */}
+        <div className="acrylic-dark rounded-2xl p-4 mb-4">
+          <h2 className="font-semibold mb-1">I want more hours</h2>
+          <p className="text-white/50 text-sm mb-3">
+            Tell the managers how many more a week you are after.
+          </p>
+          <div className="flex gap-3 flex-wrap items-center">
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={80}
+              className="w-24 rounded-lg bg-white/10 border border-white/20 px-3 py-2"
+              placeholder="hours"
+              value={hoursWanted}
+              onChange={(e) => setHoursWanted(e.target.value)}
+            />
+            <input
+              className="flex-1 min-w-[140px] rounded-lg bg-white/10 border border-white/20 px-3 py-2 text-sm"
+              placeholder="Anything to add?"
+              value={hoursNote}
+              onChange={(e) => setHoursNote(e.target.value)}
+            />
+            <button
+              type="button"
+              className="rounded-lg px-4 py-2 text-sm font-semibold text-[#0a2540] disabled:opacity-50"
+              style={{ background: "linear-gradient(180deg, #ffd35a 0%, #e0a91d 100%)" }}
+              disabled={busy || !hoursWanted || Number(hoursWanted) <= 0}
+              onClick={() =>
+                void send(
+                  {
+                    kind: "more_hours",
+                    hoursWanted: Number(hoursWanted),
+                    note: hoursNote.trim() || null,
+                  },
+                  "Sent — a manager will answer here.",
+                ).then((ok) => {
+                  if (ok) {
+                    setHoursWanted("");
+                    setHoursNote("");
+                  }
+                })
+              }
+            >
+              Ask
             </button>
           </div>
         </div>
@@ -447,16 +615,16 @@ export default function MySchedulePage() {
         {/* ── My requests ────────────────────────────────────────────────── */}
         {requests.length > 0 && (
           <div className="acrylic-dark rounded-2xl p-4 mb-8">
-            <h2 className="font-semibold mb-0.5">What I have asked</h2>
-            <p className="text-white/50 text-sm italic mb-3">Lo que he pedido</p>
+            <h2 className="font-semibold mb-3">What I have asked</h2>
             <div className="divide-y divide-white/10">
               {requests.map((r) => (
                 <div key={r.id} className="py-2 flex items-center gap-3 flex-wrap">
                   <div className="flex-1 min-w-[180px]">
-                    <span className="font-medium">
-                      {KIND[r.kind].en} · {KIND[r.kind].es}
-                    </span>{" "}
-                    <span className="text-white/50">{r.workDate}</span>
+                    <span className="font-medium">{KIND[r.kind]}</span>{" "}
+                    {r.workDate && <span className="text-white/50">{r.workDate}</span>}
+                    {r.hoursWanted !== null && (
+                      <span className="text-white/50"> · {r.hoursWanted}h a week</span>
+                    )}
                     {r.proposedStart && (
                       <span className="text-white/50">
                         {" "}
@@ -472,7 +640,7 @@ export default function MySchedulePage() {
                     )}
                   </div>
                   <span className={`text-xs rounded-full px-2.5 py-1 ${STATUS[r.status].cls}`}>
-                    {STATUS[r.status].en} · {STATUS[r.status].es}
+                    {STATUS[r.status].label}
                   </span>
                   {r.status === "open" && (
                     <button
@@ -480,7 +648,7 @@ export default function MySchedulePage() {
                       className="text-xs text-white/50 underline"
                       onClick={() => void withdraw(r.id)}
                     >
-                      take it back · retirar
+                      take it back
                     </button>
                   )}
                 </div>

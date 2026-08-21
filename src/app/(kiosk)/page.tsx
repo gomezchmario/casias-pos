@@ -451,6 +451,38 @@ export default function KioskPage() {
                 </div>
               )}
 
+              {/* The schedule, with the PIN already proved. The four digits
+                  travel one page over in sessionStorage — read once and
+                  burned there — because "type your PIN twice in five
+                  seconds" is how people learn to resent a screen. */}
+              <div className="flex justify-center animate-pop-in">
+                <button
+                  type="button"
+                  disabled={phase === "submitting"}
+                  className="btn reveal"
+                  style={{
+                    minWidth: 160,
+                    padding: "0.85rem 1.2rem",
+                    fontSize: "1.05rem",
+                    fontWeight: 600,
+                    background: "rgba(255, 255, 255, 0.06)",
+                    borderColor: "rgba(255, 255, 255, 0.35)",
+                    color: "rgba(255, 255, 255, 0.9)",
+                  }}
+                  onClick={() => {
+                    try {
+                      sessionStorage.setItem("msPin", pin);
+                    } catch {
+                      /* storage refused — the page will just ask */
+                    }
+                    window.location.href = "/my-schedule";
+                  }}
+                >
+                  <span style={{ fontSize: "1.2rem" }}>📅</span>
+                  My Schedule
+                </button>
+              </div>
+
               <button
                 type="button"
                 onClick={reset}

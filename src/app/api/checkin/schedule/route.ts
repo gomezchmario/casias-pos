@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyKioskPin } from "@/lib/pos-session";
 import { mySchedule, phoneOf, phoneWords } from "@/lib/shift-desk";
+import { can } from "@/lib/roles";
 
 /**
  * The employee's own window on the roster, opened with the PIN and nothing
@@ -35,12 +36,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, needsPhone: true, name: result.user.name });
   }
 
-  const panel = mySchedule(result.user.employeeId);
+  // Four weeks, paged seven at a time by the client — far enough ahead to
+  // plan a trip around, near enough that the far pages still mean something.
+  const panel = mySchedule(result.user.employeeId, 28);
   return NextResponse.json({
     ok: true,
     needsPhone: false,
     name: result.user.name,
     phone: phoneWords(phone),
+    // A manager gets a door to the desk from here, because they found this
+    // page from the same keypad everybody else did and should not have to
+    // know which OTHER screen their half of it lives on.
+    canManage: can(result.user.role, "manageSchedule"),
     ...panel,
   });
 }

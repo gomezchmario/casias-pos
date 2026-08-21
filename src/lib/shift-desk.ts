@@ -70,12 +70,16 @@ export type MyDay = {
   coworkers: string[];
 };
 
+export type RequestKind = "call_off" | "change" | "cover_offer" | "more_hours";
+
 export type MyRequest = {
   id: number;
-  kind: "call_off" | "change" | "cover_offer";
-  workDate: string;
+  kind: RequestKind;
+  /** Null where the ask is not about a day — more hours has no date. */
+  workDate: string | null;
   proposedStart: string | null;
   proposedEnd: string | null;
+  hoursWanted: number | null;
   note: string | null;
   status: "open" | "approved" | "declined" | "withdrawn";
   createdAt: string;
@@ -135,6 +139,7 @@ export function mySchedule(employeeId: number, days = 14): {
     .prepare(
       `SELECT r.id, r.kind, r.work_date AS workDate,
               r.proposed_start_minute AS ps, r.proposed_end_minute AS pe,
+              r.hours_wanted AS hoursWanted,
               r.note, r.status, r.created_at AS createdAt,
               r.resolution_note AS resolutionNote,
               m.name AS resolvedByName
@@ -153,6 +158,7 @@ export function mySchedule(employeeId: number, days = 14): {
         workDate: r.workDate,
         proposedStart: r.ps === null ? null : clockOf(r.ps),
         proposedEnd: r.pe === null ? null : clockOf(r.pe),
+        hoursWanted: r.hoursWanted,
         note: r.note,
         status: r.status,
         createdAt: r.createdAt,
@@ -168,17 +174,42 @@ export function mySchedule(employeeId: number, days = 14): {
 
 export function createRequest(args: {
   employeeId: number;
-  kind: "call_off" | "change" | "cover_offer";
-  workDate: string;
+  kind: RequestKind;
+  /** Required for everything except more_hours, which is not about a day. */
+  workDate?: string | null;
   proposedStartMinute?: number | null;
   proposedEndMinute?: number | null;
+  hoursWanted?: number | null;
   note?: string | null;
 }): { ok: true; id: number } | { ok: false; error: string } {
   const db = getDb();
-  const { employeeId, kind, workDate } = args;
+  const { employeeId, kind } = args;
   const note = args.note?.trim() || null;
   const today = currentBusinessDate();
 
+  if (kind === "more_hours") {
+    const hours = args.hoursWanted ?? null;
+    if (!Number.isInteger(hours) || (hours as number) <= 0 || (hours as number) > 80)
+      return { ok: false, error: "How many hours a week? Between 1 and 80." };
+    const dup = db
+      .prepare(
+        `SELECT 1 FROM schedule_requests
+          WHERE employee_id = ? AND kind = 'more_hours' AND status = 'open'`,
+      )
+      .get(employeeId);
+    if (dup)
+      return { ok: false, error: "You already asked for more hours — it is waiting for a manager" };
+    const info = db
+      .prepare(
+        `INSERT INTO schedule_requests
+           (employee_id, kind, work_date, hours_wanted, note, status, created_at)
+         VALUES (?, 'more_hours', NULL, ?, ?, 'open', ?)`,
+      )
+      .run(employeeId, hours, note, nowLocalIso());
+    return { ok: true, id: Number(info.lastInsertRowid) };
+  }
+
+  const workDate = String(args.workDate ?? "");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return { ok: false, error: "That is not a date" };
   // Yesterday cannot be called off. Today can — "I am not coming in" at 6 AM
   // is the single most common message this exists to carry.
@@ -263,10 +294,11 @@ export type DeskRequest = {
   employeeId: number;
   name: string;
   phone: string | null;
-  kind: "call_off" | "change" | "cover_offer";
-  workDate: string;
+  kind: RequestKind;
+  workDate: string | null;
   proposedStartMinute: number | null;
   proposedEndMinute: number | null;
+  hoursWanted: number | null;
   /** The rostered hours that day, so the ask is read against what stands. */
   rostered: { start: string; end: string } | null;
   note: string | null;
@@ -284,6 +316,7 @@ export function listRequests(): { open: DeskRequest[]; recent: DeskRequest[] } {
               r.kind, r.work_date AS workDate,
               r.proposed_start_minute AS proposedStartMinute,
               r.proposed_end_minute AS proposedEndMinute,
+              r.hours_wanted AS hoursWanted,
               r.note, r.status, r.created_at AS createdAt,
               r.resolution_note AS resolutionNote, r.resolved_at AS resolvedAt,
               m.name AS resolvedByName,
