@@ -30,7 +30,7 @@ type RegisterData = {
     clock: "checked_out" | "checked_in" | "on_break";
   }[];
   /** The counter. Offered on the Inventory tab only — see `pickable`. */
-  serviceWriters: {
+  counterStaff: {
     id: number;
     name: string;
     clock: "checked_out" | "checked_in" | "on_break";
@@ -569,7 +569,7 @@ export default function RegisterPage() {
       looked unpicked after the other was pressed.
     */
     const seen = new Set(floor.map((m) => m.id));
-    return [...floor, ...(data?.serviceWriters ?? []).filter((w) => !seen.has(w.id))];
+    return [...floor, ...(data?.counterStaff ?? []).filter((w) => !seen.has(w.id))];
   })();
 
   /** What to call the mechanic on this line, in words. */

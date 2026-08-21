@@ -55,23 +55,34 @@ export function listMechanics(): Employee[] {
 }
 
 /**
- * The service writers — the counter, not the floor.
+ * The counter — everybody who sells, as opposed to everybody who fits.
  *
  * A separate list from `listMechanics` rather than a widening of it, because
  * the two answer different questions and only one of them is about work done
- * in a bay. A writer sells a tire; a technician fits it. Both are credited on
- * the line that pays them, and the register decides which list it is asking
- * for — see the mechanic picker there.
+ * in a bay. Somebody at the counter sells a tire; a technician fits it. Both
+ * are credited on the line that pays them, and the register decides which
+ * list it is asking for — see the mechanic picker there.
+ *
+ * WRITERS WERE THE WHOLE LIST FIRST, and the shop found the hole within the
+ * week: a manager who sells a set of tires had no name to put on the line
+ * either. So the rule is now every counter role that can ring a sale, which
+ * is a rule rather than a list of the people who happened to complain —
+ * cashier is in it too, against the day the shop hires one.
+ *
+ * Two roles are deliberately outside it. The accountant keeps the customer
+ * book and does not work the forecourt; the viewer cannot write anything at
+ * all, and a read-only account holding credit for a sale is a contradiction.
  *
  * Keyed on `pos_role` rather than `role`, which is where this distinction
- * actually lives: the shop's writers carry role OFFICE alongside the
- * bookkeeper and the managers, and OFFICE is not the question being asked.
+ * actually lives: the shop's writers and managers all carry role OFFICE
+ * alongside the bookkeeper, and OFFICE is not the question being asked.
  */
-export function listServiceWriters(): Employee[] {
+export function listCounterStaff(): Employee[] {
   return getDb()
     .prepare(
       `SELECT ${EMPLOYEE_COLUMNS} FROM employees
-        WHERE active = 1 AND LOWER(COALESCE(pos_role, '')) = 'writer'
+        WHERE active = 1
+          AND LOWER(COALESCE(pos_role, '')) IN ('writer', 'cashier', 'manager', 'owner')
         ORDER BY name`,
     )
     .all() as Employee[];

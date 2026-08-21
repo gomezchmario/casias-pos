@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requirePos } from "@/lib/api-helpers";
 import { listQuickButtons } from "@/lib/quick-buttons";
 import { listPaymentMethods } from "@/lib/payments";
-import { getEmployeeState, listMechanics, listServiceWriters } from "@/lib/employees";
+import { getEmployeeState, listCounterStaff, listMechanics } from "@/lib/employees";
 import { getSetting } from "@/lib/settings";
 import { currentBusinessDate } from "@/lib/business-date";
 import { getDb } from "@/lib/db";
@@ -34,7 +34,7 @@ export async function GET() {
       clock: getEmployeeState(e.id).state,
     })),
     /*
-      The counter staff, sent apart from the floor rather than mixed into it.
+      The counter, sent apart from the floor rather than mixed into it.
 
       A tire is sold before it is fitted, and the person who sold it is on the
       other side of the counter from the person who fitted it. The register
@@ -43,7 +43,7 @@ export async function GET() {
       the trip to the browser. Merged here, the Services tab would have no way
       to tell them apart again.
     */
-    serviceWriters: listServiceWriters().map((e) => ({
+    counterStaff: listCounterStaff().map((e) => ({
       id: e.id,
       name: e.name,
       clock: getEmployeeState(e.id).state,
