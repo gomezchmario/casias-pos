@@ -361,6 +361,12 @@
   color: rgba(10, 37, 64, 0.65);
   margin-top: 4px;
   white-space: nowrap;
+  /* One line's height even when the label is the empty string. The thinned
+     charts keep every column's label element and blank most of them, and an
+     empty div raises no line box — so labeled columns stood a label taller
+     than their neighbours and their bars rode up by exactly that much. The
+     dates looked like they were lifting the bars, because they were. */
+  min-height: 13px;
 }
 
 .rp-bar-sub {
