@@ -666,6 +666,18 @@ export function maskCashVariance(r: Reconciliation, quietCents = 0): Reconciliat
       ? {
           ...m,
           takingsCents: m.takingsCents + quietCents,
+          /*
+            The movements net loses the quiet amount too, and this line is
+            what makes the whole fold hold together. The adjust rides on the
+            cash row and carries EVERY movement, hidden included — so with
+            takings folded but the adjust left true, the floor's own
+            arithmetic (float + takings + adjust) landed exactly the hidden
+            amount away from "should be in hand", and the gap WAS the
+            withdrawal, printed. Removing the quiet from both sides closes
+            the books the floor can check: float + folded takings + visible
+            movements equals the expected they are shown, to the cent.
+          */
+          drawerAdjustCents: m.drawerAdjustCents - quietCents,
           ...(m.counted ? { expectedCents: m.countedCents ?? 0, varianceCents: 0 } : {}),
         }
       : m,
