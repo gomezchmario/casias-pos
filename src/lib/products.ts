@@ -1058,6 +1058,42 @@ export function webSearchesBySize(from: string, to: string): WebSearchSize[] {
     .all(from, to) as WebSearchSize[];
 }
 
+/**
+ * Every supplier the shop has actually bought from, most used first.
+ *
+ * WHAT IT IS FOR is spelling. A supplier is free text typed by whoever is
+ * unloading a truck, and free text typed twice is two suppliers: this shop
+ * had five spellings of Tire Hub and four of Hesselbein before anybody
+ * looked, which makes "what did we buy from them this year" a question with
+ * no answer. Offering what is already on file turns the second delivery into
+ * a pick rather than a retype.
+ *
+ * Both tables, because a name can be recorded on either: the lot carries the
+ * delivery it came in on, the product carries who the shop usually buys it
+ * from. A name on one and not the other is still a name that should be
+ * offered.
+ *
+ * Ordered by how often it has been used rather than alphabetically — the
+ * supplier somebody is typing is nearly always the one they type most, and
+ * a datalist shows its first entries without scrolling.
+ */
+export function listSuppliers(): string[] {
+  return (
+    getDb()
+      .prepare(
+        `SELECT TRIM(supplier) AS name, COUNT(*) AS n FROM (
+             SELECT supplier FROM inventory_lots WHERE deleted = 0
+             UNION ALL
+             SELECT supplier FROM products WHERE deleted = 0
+           )
+          WHERE supplier IS NOT NULL AND TRIM(supplier) <> ''
+       GROUP BY LOWER(TRIM(supplier))
+       ORDER BY n DESC, name`,
+      )
+      .all() as { name: string; n: number }[]
+  ).map((r) => r.name);
+}
+
 /** Sizes people asked for and the shop could not sell. The buying list. */
 export function listUnmetDemand(
   sinceBusinessDate: string,

@@ -69,9 +69,14 @@ export function listMechanics(): Employee[] {
  * is a rule rather than a list of the people who happened to complain —
  * cashier is in it too, against the day the shop hires one.
  *
- * Two roles are deliberately outside it. The accountant keeps the customer
- * book and does not work the forecourt; the viewer cannot write anything at
- * all, and a read-only account holding credit for a sale is a contradiction.
+ * THREE ROLES ARE OUTSIDE IT, each for its own reason. The accountant keeps
+ * the customer book and does not work the forecourt. The viewer cannot write
+ * anything at all, and a read-only account holding credit for a sale is a
+ * contradiction rather than an omission. And the OWNER is out at his own
+ * word: he can already reach every screen in the building, so his name in
+ * this grid buys nothing and is one more thing to press by accident on a
+ * busy Saturday. If he ever wants a tire against his own name, Other takes
+ * it — see the picker.
  *
  * Keyed on `pos_role` rather than `role`, which is where this distinction
  * actually lives: the shop's writers and managers all carry role OFFICE
@@ -82,7 +87,7 @@ export function listCounterStaff(): Employee[] {
     .prepare(
       `SELECT ${EMPLOYEE_COLUMNS} FROM employees
         WHERE active = 1
-          AND LOWER(COALESCE(pos_role, '')) IN ('writer', 'cashier', 'manager', 'owner')
+          AND LOWER(COALESCE(pos_role, '')) IN ('writer', 'cashier', 'manager')
         ORDER BY name`,
     )
     .all() as Employee[];

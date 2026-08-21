@@ -142,6 +142,8 @@ type Data = {
   usedPool: Tire | null;
   batteries: Tire[];
   misc: Tire[];
+  /** Suppliers already on file, most used first — the receive form offers these. */
+  suppliers: string[];
   lastCheck: InventoryCheck;
   showCosts: boolean;
   /** The server's answer on whether removed rows are in this payload. */
@@ -1827,6 +1829,7 @@ export default function InventoryPage() {
           poolOnly={sheet.pool}
           poolOnHand={data?.usedPool?.on_hand ?? 0}
           quoteDefaults={data?.quoteDefaults ?? null}
+          suppliers={data?.suppliers ?? []}
           onClose={() => setSheet(null)}
           onSaved={() => {
             setSheet(null);
@@ -2024,6 +2027,7 @@ function ReceiveModal({
   poolOnly,
   poolOnHand = 0,
   quoteDefaults,
+  suppliers,
   onClose,
   onSaved,
   onReceived,
@@ -2037,6 +2041,8 @@ function ReceiveModal({
   /** The shop's posted markup and labour rate, for the suggested price under
    *  Sells at. Null for a role that cannot quote — the note simply goes. */
   quoteDefaults: QuoteDefaults | null;
+  /** Supplier names already on file, offered under Supplier. */
+  suppliers: string[];
   onClose: () => void;
   onSaved: () => void;
   /**
@@ -2766,11 +2772,34 @@ function ReceiveModal({
           they are typed once for forty lines.
         */}
         <div className="flex gap-3">
+          {/*
+              THE NAMES ALREADY ON FILE, OFFERED RATHER THAN REMEMBERED.
+
+              A supplier is free text typed by whoever is unloading a truck,
+              and free text typed twice is two suppliers — this shop had five
+              spellings of Tire Hub and four of Hesselbein before anybody
+              looked, which turns "what did we buy from them this year" into a
+              question with no answer.
+
+              A datalist rather than a select: the list suggests, it does not
+              constrain. A new supplier is a real event on a Tuesday morning
+              and must not need a settings screen before the pallet can be
+              booked in. `autoComplete="off"` keeps the browser's own saved
+              values from covering the shop's list with the same word spelled
+              the way somebody typed it last year.
+          */}
           <label className="text-sm text-brand-400 flex-1">{tr("Supplier")}<input
               className="input mt-1 w-full"
               value={supplier}
               onChange={(e) => setSupplier(e.target.value)}
+              list="supplier-names"
+              autoComplete="off"
             />
+            <datalist id="supplier-names">
+              {suppliers.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
           </label>
           <label className="text-sm text-brand-400 flex-1">{tr("Invoice")}<input
               className="input mt-1 w-full"

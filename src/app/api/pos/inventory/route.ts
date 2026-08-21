@@ -7,6 +7,7 @@ import {
   listLowStock,
   listNegativeStock,
   listProducts,
+  listSuppliers,
   withStock,
   getUsedPool,
 } from "@/lib/products";
@@ -82,6 +83,13 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     sections,
+    /*
+      What the receive form offers under Supplier. Sent with the sheet rather
+      than fetched when the form opens: the form is opened mid-unload with a
+      pallet on the floor, and a list that arrives a moment later is a list
+      somebody has already typed past.
+    */
+    suppliers: listSuppliers(),
     // Their own block rather than a rim section, because they are not tires and
     // do not have a rim. They ride on this endpoint rather than one of their own
     // so the sheet is one request and cannot render half-loaded.
