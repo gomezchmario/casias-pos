@@ -831,6 +831,13 @@ body:has(.td-panel) .pos-backtotop {
     margin-left: auto;
   }
 
+  /* The least load-bearing column of the outstanding card. The row is there
+     for the tire or the balance; the ticket's grand total is the first thing
+     worth giving up when the screen is narrow. */
+  .pos-o-of {
+    display: none;
+  }
+
   /* The kiosk's corner links, thinned to the one a phone would use.
      Layout, not security — the leaderboard is built for a wall monitor,
      Admin is typed at the shop PC, the manual is read sitting down, and four
@@ -862,4 +869,13 @@ body:has(.td-panel) .pos-backtotop {
   .kiosk-inv:hover {
     color: #ffd35a;
   }
+}
+
+/* Main's ticket cards scroll sideways INSIDE the card when the rows will not
+   fit — every width, not just phones, because the rule it enforces is the
+   page's: the body never scrolls horizontally. On a desktop the rows fit and
+   this does nothing; on a phone it is what keeps the card's right edge on
+   the screen instead of printing the paid column over the dates. */
+.pos-cardscroll {
+  overflow-x: auto;
 }

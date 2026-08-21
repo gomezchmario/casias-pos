@@ -260,10 +260,14 @@ export default function KioskPage() {
     submitInFlight.current = true;
     setPhase("submitting");
     try {
+      // The register is fenced the same way the clock is, so it carries the
+      // same reading a punch would. On a trusted device the server never
+      // looks at it; on a phone it is what gets the door open.
+      const where = await whereAmI();
       const res = await fetch("/api/pos/auth/kiosk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
+        body: JSON.stringify({ pin, lat: where.lat ?? null, lng: where.lng ?? null }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {

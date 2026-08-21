@@ -440,6 +440,11 @@ export default function DayPage() {
               {formatCents(pendingCents)} uncollected
             </div>
           </div>
+          {/* The rows scroll sideways inside the card on a phone — see
+              .pos-cardscroll. Without it the widest row set the width of the
+              whole PAGE, and the card's right edge sailed off past the screen
+              with the paid column printing over the dates. */}
+          <div className="pos-cardscroll">
           <table className="w-full text-sm">
             <tbody>
               {pending.map((o) => {
@@ -530,6 +535,7 @@ export default function DayPage() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -642,6 +648,8 @@ export default function DayPage() {
               </div>
             )}
           </div>
+          {/* Same scroller as the pending card, same reason. */}
+          <div className="pos-cardscroll">
           <table className="w-full text-sm">
             <tbody>
               {outstanding.map((o) => {
@@ -762,7 +770,10 @@ export default function DayPage() {
                       <span className="font-medium"> {daysAgo(o.businessDate)}</span>
                     )}
                   </td>
-                  <td className="py-1.5 text-right tabular-nums text-amber-900/60">
+                  {/* Hidden on a phone — .pos-o-of. The row is there for the
+                      tire or the balance; what the whole ticket came to is the
+                      first thing worth giving up when the screen is narrow. */}
+                  <td className="pos-o-of py-1.5 text-right tabular-nums text-amber-900/60">
                     of {formatCents(o.totalCents)}
                   </td>
                   {/* "Paid", not $0.00. A zero in the money column of a panel
@@ -802,6 +813,7 @@ export default function DayPage() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

@@ -40,11 +40,56 @@ export function LockScreen({ onUnlocked }: { onUnlocked: () => void }) {
     async (value: string) => {
       setBusy(true);
       try {
-        const res = await fetch("/api/pos/auth/kiosk", {
+        let res = await fetch("/api/pos/auth/kiosk", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ pin: value }),
         });
+        /*
+          The register is fenced like the clock, and this screen asks for a
+          location only when the server says one would help. Asked first
+          rather than always, because on the shop's own trusted devices the
+          server never wants one — and a lock screen that popped a location
+          permission at every lunch break would teach everyone to dismiss
+          permission prompts, which is the worst lesson a shop screen can
+          teach. One retry, then whatever the server said stands.
+        */
+        if (res.status === 403) {
+          const first = (await res.json().catch(() => ({}))) as {
+            error?: string;
+            fence?: string;
+          };
+          if (first.fence !== "no_location") {
+            setError(first.error ?? "This device can't open the register");
+            setPin("");
+            return;
+          }
+          const where = await new Promise<{ lat?: number; lng?: number }>((resolve) => {
+            if (!navigator.geolocation) return resolve({});
+            let done = false;
+            const finish = (v: { lat?: number; lng?: number }) => {
+              if (!done) {
+                done = true;
+                resolve(v);
+              }
+            };
+            navigator.geolocation.getCurrentPosition(
+              (pos) => finish({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+              () => finish({}),
+              { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+            );
+            setTimeout(() => finish({}), 11000);
+          });
+          res = await fetch("/api/pos/auth/kiosk", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              pin: value,
+              lat: where.lat ?? null,
+              lng: where.lng ?? null,
+            }),
+          });
+        }
         if (!res.ok) {
           const d = (await res.json().catch(() => ({}))) as { error?: string };
           setError(d.error ?? "PIN not recognized");
