@@ -130,6 +130,8 @@ export default function RegisterPage() {
   const [accountTender, setAccountTender] = useState(false);
   const [items, setItems] = useState<SaleItem[]>([]);
   const [error, setError] = useState<string | null>(null);
+  /** The line whose credit picker is unfolded, or null for none. */
+  const [creditPick, setCreditPick] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
 
   const [description, setDescription] = useState("");
@@ -732,6 +734,36 @@ export default function RegisterPage() {
     setError(null);
     setSale(d.sale);
     setItems(d.items);
+  }
+
+  /**
+   * Move a line's credit without leaving the ticket.
+   *
+   * The name under the line was already printed; now it is the control. The
+   * wrong technician on a line used to mean the drawer or ringing it again —
+   * three taps and a detour for a mistake noticed four seconds after it was
+   * made, standing at the exact screen that made it. Same endpoint the
+   * drawer uses, same cashier-level guard, same audit row.
+   */
+  async function reassignLine(item: SaleItem, m: { id: number; name: string }) {
+    if (!sale || sale.status !== "open" || m.id === item.mechanic_id) {
+      setCreditPick(null);
+      return;
+    }
+    const res = await fetch(`/api/pos/sales/${sale.id}/items/${item.id}/mechanic`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mechanicId: m.id, mechanicName: m.name }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(d.error || "Could not move that credit");
+      return;
+    }
+    setError(null);
+    setSale(d.sale);
+    setItems(d.items);
+    setCreditPick(null);
   }
 
   /**
@@ -2035,9 +2067,53 @@ export default function RegisterPage() {
                       {i.qty > 1 ? `${i.qty}× ` : ""}
                       {i.description}
                     </div>
-                    {i.mechanic_id && (
-                      <div className="text-xs text-brand-300">
-                        {creditable.find((m) => m.id === i.mechanic_id)?.name}
+                    {/* The name under the line IS the reassign control — the
+                        most unobtrusive door there is, because it was already
+                        printed. Tap it and the names unfold right here; tap
+                        one and the credit moves, same endpoint and audit row
+                        as the drawer. On a ticket no longer open the name
+                        goes back to being ink. */}
+                    {i.mechanic_id &&
+                      (sale?.status === "open" ? (
+                        <button
+                          type="button"
+                          className="text-xs text-brand-300 hover:text-brand-500"
+                          style={{ textDecoration: "underline dotted", textUnderlineOffset: 2 }}
+                          title={tr("Move this line's credit")}
+                          aria-expanded={creditPick === i.id}
+                          onClick={() => setCreditPick((v) => (v === i.id ? null : i.id))}
+                        >
+                          {creditable.find((m) => m.id === i.mechanic_id)?.name}
+                        </button>
+                      ) : (
+                        <div className="text-xs text-brand-300">
+                          {creditable.find((m) => m.id === i.mechanic_id)?.name}
+                        </div>
+                      ))}
+                    {creditPick === i.id && sale?.status === "open" && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {creditable.map((m) => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            className="text-xs rounded-full px-2 py-0.5 border"
+                            style={
+                              m.id === i.mechanic_id
+                                ? {
+                                    background: "#0a2540",
+                                    color: "#fff",
+                                    borderColor: "#0a2540",
+                                  }
+                                : {
+                                    borderColor: "rgba(10,37,64,0.25)",
+                                    color: "rgba(10,37,64,0.7)",
+                                  }
+                            }
+                            onClick={() => void reassignLine(i, m)}
+                          >
+                            {m.name}
+                          </button>
+                        ))}
                       </div>
                     )}
                   </div>

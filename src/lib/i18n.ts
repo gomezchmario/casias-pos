@@ -1772,6 +1772,7 @@ const ES: Record<string, string> = {
   Approve: "Aprobar",
   Decline: "Rechazar",
   "Noted — will call": "Anotado — se le llama",
+  "Move this line's credit": "Mover el crédito de este renglón",
   Noted: "Anotado",
   "Wants more hours": "Quiere más horas",
   "a week": "por semana",
