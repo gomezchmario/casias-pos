@@ -2072,23 +2072,39 @@ export default function RegisterPage() {
                         printed. Tap it and the names unfold right here; tap
                         one and the credit moves, same endpoint and audit row
                         as the drawer. On a ticket no longer open the name
-                        goes back to being ink. */}
-                    {i.mechanic_id &&
+                        goes back to being ink.
+
+                        `block` with no padding, because the div it replaced
+                        was one: a button's default inline box rides its own
+                        baseline and quietly opened the ticket's lines up,
+                        which the owner spotted from across the counter.
+
+                        A line with NOBODY credited gets the same door with a
+                        placeholder in it — the control cannot be the name
+                        when there is no name, and a bare MOUNT line was
+                        giving people nothing to press. */}
+                    {(i.mechanic_id || sale?.status === "open") &&
                       (sale?.status === "open" ? (
                         <button
                           type="button"
-                          className="text-xs text-brand-300 hover:text-brand-500"
+                          className="block text-xs text-brand-300 hover:text-brand-500 text-left p-0"
                           style={{ textDecoration: "underline dotted", textUnderlineOffset: 2 }}
                           title={tr("Move this line's credit")}
                           aria-expanded={creditPick === i.id}
                           onClick={() => setCreditPick((v) => (v === i.id ? null : i.id))}
                         >
-                          {creditable.find((m) => m.id === i.mechanic_id)?.name}
+                          {i.mechanic_id ? (
+                            creditable.find((m) => m.id === i.mechanic_id)?.name
+                          ) : (
+                            <span style={{ opacity: 0.65 }}>{tr("nobody credited")}</span>
+                          )}
                         </button>
                       ) : (
-                        <div className="text-xs text-brand-300">
-                          {creditable.find((m) => m.id === i.mechanic_id)?.name}
-                        </div>
+                        i.mechanic_id && (
+                          <div className="text-xs text-brand-300">
+                            {creditable.find((m) => m.id === i.mechanic_id)?.name}
+                          </div>
+                        )
                       ))}
                     {creditPick === i.id && sale?.status === "open" && (
                       <div className="flex flex-wrap gap-1 mt-1">
