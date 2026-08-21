@@ -723,8 +723,26 @@ export function setMountMechanic(
   if (sale.status === "voided") return { ok: false, error: "This ticket is voided" };
 
   if (mechanicId !== null) {
-    if (sale.fulfillment_status === "none")
-      return { ok: false, error: "Only an ordered tire is fitted by somebody else" };
+    /*
+      Two doors, matching the drawer's list: an ordered tire, or a walk-in
+      tire whose SELLING credit sits with somebody who does not fit tires —
+      a writer ringing four Vantages needs a technician named for the
+      mounting, exactly the way an order does. The refusal survives only for
+      a technician's own walk-in sale, where the two jobs never came apart.
+    */
+    if (sale.fulfillment_status === "none") {
+      const seller =
+        item.mechanic_id === null
+          ? null
+          : (db
+              .prepare("SELECT COALESCE(pos_role,'') AS role FROM employees WHERE id = ?")
+              .get(item.mechanic_id) as { role: string } | undefined);
+      if (seller?.role === "technician")
+        return {
+          ok: false,
+          error: "They sold it, they fit it — fitting credit is for a tire the counter sold",
+        };
+    }
     if (mechanicId === item.mechanic_id)
       return { ok: false, error: "They already have this line" };
 

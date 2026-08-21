@@ -37,7 +37,8 @@ type Detail = {
   roster: Mechanic[];
   /** The lines that are tires, and so the only ones somebody can be credited
    *  for fitting. Resolved server-side; see the route. */
-  tireItemIds: number[];
+  /** Line ids that may name a fitter — the server decides which. */
+  fittableItemIds: number[];
 };
 
 export function TicketDrawer({
@@ -251,12 +252,13 @@ export function TicketDrawer({
             mechanics={detail.roster}
             editable={detail.sale.status !== "voided" && can("ringSale")}
             busy={busy}
-            /* Fitting credit is offered only where the two jobs actually come
-               apart: a tire the shop had to order, sold one day and mounted
-               another. Walk-in work is fitted by whoever sold it. */
-            fittable={
-              detail.sale.fulfillment_status !== "none" ? detail.tireItemIds : []
-            }
+            /* Fitting credit is offered where the two jobs actually come
+               apart, and the SERVER says where: a tire the shop had to order,
+               and a tire sold at the counter by somebody who cannot fit it —
+               Rey rings four Vantages, a technician mounts them, the credit
+               follows the hands. A technician's own walk-in sale is not on
+               the list; they sold it, they fit it. */
+            fittable={detail.fittableItemIds}
             onReassign={(itemId, mechanicId, mechanicName) =>
               void send(`/api/pos/sales/${saleId}/items/${itemId}/mechanic`, {
                 method: "PATCH",

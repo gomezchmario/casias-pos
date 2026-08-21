@@ -95,25 +95,34 @@ export async function GET(
     : null;
 
   /**
-   * Which lines are tires.
+   * Which lines may name a fitter.
    *
-   * Only a tire can be credited to somebody for fitting it, and the line rows
-   * carry a `category_id` and no code, so the drawer has no way of telling a
-   * set of tires from a flat repair. Sent as ids rather than resolved in the
-   * browser off a categories list, because this is the whole question the
-   * drawer has -- "may I offer a fitter on this row" -- and shipping the
-   * categories table so the client can re-derive it would put a second copy of
-   * that rule somewhere it can disagree with the server's.
+   * Two ways the selling and the fitting come apart, and this list is both:
+   * a tire the shop had to ORDER, sold one day and mounted another; and a
+   * tire sold at the counter by somebody who cannot fit it — a writer or a
+   * cashier ringing four Vantages does the paperwork, and the hands that
+   * mount them deserve the credit the same way an order's fitter does. A
+   * technician's own walk-in sale stays off the list: they sold it, they
+   * fit it, and a fitter row there would be an invitation to split one
+   * job's credit in half.
+   *
+   * Sent as ids rather than re-derived in the browser, because this is the
+   * whole question the drawer has — "may I offer a fitter on this row" —
+   * and a second copy of the rule is a copy that can disagree.
    */
-  const tireItemIds = (
+  const fittableItemIds = (
     getDb()
       .prepare(
         `SELECT i.id AS id
            FROM sale_items i
            JOIN service_categories c ON c.id = i.category_id
-          WHERE i.sale_id = ? AND c.code IN ('new_tire', 'used_tire')`,
+      LEFT JOIN employees seller ON seller.id = i.mechanic_id
+          WHERE i.sale_id = ? AND c.code IN ('new_tire', 'used_tire')
+            AND (? != 'none'
+                 OR i.mechanic_id IS NULL
+                 OR COALESCE(seller.pos_role, '') != 'technician')`,
       )
-      .all(sale.id) as { id: number }[]
+      .all(sale.id, sale.fulfillment_status) as { id: number }[]
   ).map((r) => r.id);
 
   return NextResponse.json({
@@ -124,7 +133,7 @@ export async function GET(
     // lives in one place and must not be guessed at in a second.
     today: currentBusinessDate(),
     cashierName: cashier?.name ?? null,
-    tireItemIds,
+    fittableItemIds,
     customer,
     vehicle,
     items,
