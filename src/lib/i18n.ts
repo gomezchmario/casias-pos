@@ -1776,6 +1776,7 @@ const ES: Record<string, string> = {
   "Reading the log…": "Leyendo el registro…",
   "Nothing has moved yet.": "Todavía no se ha movido nada.",
   "The whole log": "El registro completo",
+  "Cash − tips": "Efectivo − propinas",
   "Deleted Notes": "Notas borradas",
   unassigned: "sin asignar",
   Noted: "Anotado",

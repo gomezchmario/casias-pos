@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePosAuth } from "@/components/pos/PosShell";
 import { useLang } from "@/components/pos/LangToggle";
@@ -1410,23 +1410,55 @@ export default function CloseoutV3Page() {
                 <table className="rp-table">
                   <tbody>
                     {finalCheck.lines.map((l) => (
-                      <tr key={l.methodId}>
-                        <td>{l.label}</td>
-                        <td className="r n">{formatCents(l.countedCents)} counted</td>
-                        <td className="r n">{formatCents(l.expectedCents)} expected</td>
-                        <td
-                          className="r n"
-                          style={{
-                            color:
-                              shownVariance(l.varianceCents, l.isCard) < 0
-                                ? "#b91c1c"
-                                : "#15803d",
-                            fontWeight: 700,
-                          }}
-                        >
-                          {varianceWords(shownVariance(l.varianceCents, l.isCard))}
-                        </td>
-                      </tr>
+                      <Fragment key={l.methodId}>
+                        <tr>
+                          <td>{l.label}</td>
+                          <td className="r n">{formatCents(l.countedCents)} counted</td>
+                          <td className="r n">{formatCents(l.expectedCents)} expected</td>
+                          <td
+                            className="r n"
+                            style={{
+                              color:
+                                shownVariance(l.varianceCents, l.isCard) < 0
+                                  ? "#b91c1c"
+                                  : "#15803d",
+                              fontWeight: 700,
+                            }}
+                          >
+                            {varianceWords(shownVariance(l.varianceCents, l.isCard))}
+                          </td>
+                        </tr>
+                        {/* The cash line again with the tips backed out — the
+                            arithmetic the verdict above does in prose, printed
+                            as a row so the -$103.50 can be read against what
+                            it is once the tips leave the drawer. Derived from
+                            the figures on the line above and nothing else, so
+                            the two rows cannot tell different stories. Only on
+                            a day tips were actually paid out. */}
+                        {l.isCard === 0 && data.totals.tipCents > 0 && (
+                          <tr>
+                            <td className="text-brand-300">{tr("Cash − tips")}</td>
+                            <td className="r n text-brand-300">
+                              {formatCents(l.countedCents)} counted
+                            </td>
+                            <td className="r n text-brand-300">
+                              {formatCents(l.expectedCents - data.totals.tipCents)} expected
+                            </td>
+                            <td
+                              className="r n"
+                              style={{
+                                color:
+                                  l.varianceCents + data.totals.tipCents < 0
+                                    ? "#b91c1c"
+                                    : "#15803d",
+                                fontWeight: 700,
+                              }}
+                            >
+                              {varianceWords(l.varianceCents + data.totals.tipCents)}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
