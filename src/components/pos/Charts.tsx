@@ -123,6 +123,7 @@ export function BarChart({
   if (data.length === 0) return <Empty label={emptyLabel} />;
   const max = Math.max(...data.map((d) => d.value), 1);
   const peak = data.reduce((a, b) => (b.value > a.value ? b : a));
+  const step = labelStep(data.length);
 
   return (
     <div className="rp-bars" style={{ height: height + 34 }}>
@@ -143,13 +144,25 @@ export function BarChart({
                 opacity: solid ? 1 : 0.32,
               }}
             />
-            <div className="rp-bar-lab">{d.label}</div>
+            <div className="rp-bar-lab">{(data.length - 1 - i) % step === 0 ? d.label : ""}</div>
             {d.sub && <div className="rp-bar-sub">{d.sub}</div>}
           </div>
         );
       })}
     </div>
   );
+}
+
+/**
+ * How many bars per printed label, so thirty daily dates do not fuse into
+ * one unreadable string in a half-width panel. Anchored at the LAST bar —
+ * today — and stepped backwards from it, because today's date is the one
+ * label somebody actually reads and the rest are a ruler. Every bar still
+ * says its own date in words on hover, and keeps its empty label element so
+ * thinning changes nothing about the geometry.
+ */
+function labelStep(n: number, most = 12): number {
+  return Math.max(1, Math.ceil(n / most));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -194,16 +207,19 @@ export function PairedBars({
             <div className="rp-pair">
               <div
                 className="rp-bar"
-                title={`${labels[0]} ${format(d.a)}`}
+                title={`${d.label} · ${labels[0]} ${format(d.a)}`}
                 style={{ height: `${Math.max(2, (d.a / max) * height)}px`, background: NAVY }}
               />
               <div
                 className="rp-bar"
-                title={`${labels[1]} ${format(d.b)}`}
+                title={`${d.label} · ${labels[1]} ${format(d.b)}`}
                 style={{ height: `${Math.max(2, (d.b / max) * height)}px`, background: AMBER }}
               />
             </div>
-            <div className="rp-bar-lab">{d.label}</div>
+            {/* Thinned the same way BarChart's are — see labelStep. */}
+            <div className="rp-bar-lab">
+              {(data.length - 1 - i) % labelStep(data.length) === 0 ? d.label : ""}
+            </div>
           </div>
         ))}
       </div>

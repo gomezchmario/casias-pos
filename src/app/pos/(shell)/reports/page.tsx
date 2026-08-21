@@ -166,11 +166,7 @@ export default function ReportsPage() {
       </Section>
 
       {/* ── THE DOORS ───────────────────────────────────────────────────── */}
-      <Section
-        id="areas"
-        title={tr("The rest of the suite")}
-        note={tr("Each door carries the figures that say whether it needs opening today. The window follows you through.")}
-      >
+      <Section id="areas" title={tr("The rest of the suite")}>
         <div className="rp-doors rp-no-print">
           <Door
             href="/pos/reports/sales"

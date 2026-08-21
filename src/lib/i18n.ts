@@ -1579,8 +1579,6 @@ const ES: Record<string, string> = {
   "Customers & Fleet": "Clientes y flotillas",
   "Financial": "Finanzas",
   "The rest of the suite": "El resto de los reportes",
-  "Each door carries the figures that say whether it needs opening today. The window follows you through.":
-    "Cada puerta trae las cifras que dicen si hoy vale la pena abrirla. El periodo lo sigue a usted.",
   "What sold, the mix over time, how it was paid, special orders, and the hours the money lands in.":
     "Qué se vendió, la mezcla a lo largo del tiempo, cómo se pagó, los pedidos especiales y las horas en que cae el dinero.",
   "The money on the racks, what is running out, the season, and the tires people asked for that were not there.":
