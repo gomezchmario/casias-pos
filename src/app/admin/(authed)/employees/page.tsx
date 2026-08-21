@@ -19,6 +19,7 @@ type Employee = {
 
 const POS_ROLE_HINT: Record<PosRole, string> = {
   technician: "Look up inventory and prices only",
+  mechanic: "Time clock only — never offered on a ticket",
   writer: "Writes up work outside; no books, no close-out",
   cashier: "Ring sales, take payments, edit SEQ",
   accountant: "Customer book and house accounts; register like a cashier",

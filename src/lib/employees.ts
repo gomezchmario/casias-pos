@@ -47,8 +47,17 @@ export function listEmployees(includeInactive = false): Employee[] {
 export function listMechanics(): Employee[] {
   return getDb()
     .prepare(
+      /*
+        The mechanic role is excluded by name, on top of the job-label test.
+
+        Without it, keeping a mechanic out of the register would depend on
+        nobody ever typing TIRE into their job label — a convention held in a
+        different column by a different screen, which is the kind of rule that
+        holds until the day somebody is hired and typed in a hurry.
+      */
       `SELECT ${EMPLOYEE_COLUMNS} FROM employees
         WHERE active = 1 AND UPPER(COALESCE(role, '')) LIKE 'TIRE%'
+          AND LOWER(COALESCE(pos_role, '')) <> 'mechanic'
         ORDER BY name`,
     )
     .all() as Employee[];

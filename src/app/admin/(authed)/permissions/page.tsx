@@ -21,6 +21,8 @@ type Employee = {
 
 const ROLE_SUMMARY: Record<PosRole, string> = {
   technician: "Look things up. Cannot ring a sale or touch money.",
+  mechanic:
+    "Works the bays and punches the clock. Never offered on a ticket, so nothing in the register is credited to them.",
   writer: "Writes tickets at the vehicle. Same register, no Logs or close-out.",
   cashier: "Runs the register: sells, takes payment, counts the drawer.",
   accountant:

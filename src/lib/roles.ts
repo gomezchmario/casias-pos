@@ -1,5 +1,6 @@
 export const POS_ROLES = [
   "technician",
+  "mechanic",
   "writer",
   "cashier",
   "accountant",
@@ -29,6 +30,21 @@ export type PosRole = (typeof POS_ROLES)[number];
  */
 const RANK: Record<PosRole, number> = {
   technician: 0,
+  /*
+    A MECHANIC IS A TECHNICIAN WHO NEVER APPEARS ON A TICKET.
+
+    Same rung, same capabilities, and that is deliberate — the difference is
+    not authority, it is whether the register offers the name. Mechanics work
+    the bays on jobs nobody rings a tire against; they punch the clock, they
+    are rostered, they are paid, and they are simply not one of the answers
+    to "who did this line". Putting them in the picker would grow the grid by
+    people who can never be the right press.
+
+    Kept out of the register by the query that builds that picker naming this
+    role, rather than by anybody remembering to type the job label a
+    particular way — see listMechanics in employees.ts.
+  */
+  mechanic: 0,
   writer: 1,
   cashier: 1,
   accountant: 1,
@@ -47,6 +63,7 @@ const RANK: Record<PosRole, number> = {
 
 export const ROLE_LABELS: Record<PosRole, string> = {
   technician: "Technician",
+  mechanic: "Mechanic",
   writer: "Service Writer",
   cashier: "Cashier",
   accountant: "Accountant",
