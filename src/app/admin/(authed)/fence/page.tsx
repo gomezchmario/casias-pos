@@ -35,6 +35,15 @@ type Fence = {
   setBy: string;
   setAt: string;
   trustedOnly: boolean;
+  curfew: { enabled: boolean; startMinute: number; endMinute: number; allow: number[] };
+  curfewCandidates: { id: number; name: string; role: string }[];
+};
+
+const toHHMM = (minute: number) =>
+  `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
+const fromHHMM = (v: string): number => {
+  const m = /^(\d{2}):(\d{2})$/.exec(v);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : 0;
 };
 
 /** "Chrome on Android", near enough, from a string nobody should have to read. */
@@ -70,6 +79,15 @@ export default function FencePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [said, setSaid] = useState<string | null>(null);
+  /*
+    The night rule's four pieces, held as local state so half-typed hours do
+    not fire a save per keystroke — the time boxes save on blur, the ticks
+    save on change, and every save posts the WHOLE rule (see the route).
+  */
+  const [curfewOn, setCurfewOn] = useState(false);
+  const [curfewStart, setCurfewStart] = useState("20:00");
+  const [curfewEnd, setCurfewEnd] = useState("06:00");
+  const [curfewAllow, setCurfewAllow] = useState<number[]>([]);
 
   const load = useCallback(async () => {
     const [f, d] = await Promise.all([
@@ -80,7 +98,38 @@ export default function FencePage() {
     setRadius(f.radiusM || "250");
     setDevices(d.devices ?? []);
     setThisDevice(d.thisDevice ?? null);
+    if (f.curfew) {
+      setCurfewOn(f.curfew.enabled);
+      setCurfewStart(toHHMM(f.curfew.startMinute));
+      setCurfewEnd(toHHMM(f.curfew.endMinute));
+      setCurfewAllow(f.curfew.allow);
+    }
   }, []);
+
+  /** Post the whole night rule, with any piece overridden by the caller. */
+  async function saveCurfew(over: { enabled?: boolean; allow?: number[] }) {
+    setBusy(true);
+    setError(null);
+    setSaid(null);
+    const res = await fetch("/api/admin/curfew", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        enabled: over.enabled ?? curfewOn,
+        startMinute: fromHHMM(curfewStart),
+        endMinute: fromHHMM(curfewEnd),
+        allow: over.allow ?? curfewAllow,
+      }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setError((await res.json().catch(() => ({}))).error || "Could not save the night rule");
+      void load();
+      return;
+    }
+    setSaid("The night rule is saved.");
+    void load();
+  }
 
   useEffect(() => {
     void load();
@@ -415,6 +464,95 @@ export default function FencePage() {
           </details>
         )}
       </section>
+
+      {/* ── The register at night ──────────────────────────────────────────
+          On this page rather than with the money settings, because it is the
+          fence's sibling: the fence says WHERE a register session may start,
+          this says WHEN and for WHOM. One page for "who can open what, and
+          under what condition" is one place to look when somebody is locked
+          out and should not be. */}
+      {fence?.curfew && (
+        <section className="card p-4 mt-5">
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={curfewOn}
+              disabled={busy}
+              onChange={(e) => {
+                setCurfewOn(e.target.checked);
+                void saveCurfew({ enabled: e.target.checked });
+              }}
+            />
+            <span>
+              <span className="font-semibold">Close the register at night</span>
+              <span className="block text-sm text-brand-400 mt-0.5">
+                Between the hours below, only the owner and the people ticked here can open the
+                register — from any device, trusted or not, at the shop or away. Sessions already
+                open keep working until they lock themselves; this is a rule about the door, not a
+                trap for a half-rung ticket.
+              </span>
+            </span>
+          </label>
+
+          <div className="flex items-center gap-3 flex-wrap mt-4">
+            <label className="text-sm text-brand-400">
+              From
+              <input
+                type="time"
+                className="input block mt-1"
+                style={{ height: 36 }}
+                value={curfewStart}
+                disabled={busy}
+                onChange={(e) => setCurfewStart(e.target.value)}
+                onBlur={() => void saveCurfew({})}
+              />
+            </label>
+            <label className="text-sm text-brand-400">
+              to
+              <input
+                type="time"
+                className="input block mt-1"
+                style={{ height: 36 }}
+                value={curfewEnd}
+                disabled={busy}
+                onChange={(e) => setCurfewEnd(e.target.value)}
+                onBlur={() => void saveCurfew({})}
+              />
+            </label>
+            <span className="text-xs text-brand-300 mt-4">
+              8 PM to 6 AM is written 20:00 to 06:00 — the window is meant to cross midnight.
+            </span>
+          </div>
+
+          <div className="mt-4">
+            <div className="text-sm font-medium text-brand-500 mb-1.5">
+              Allowed through it
+              <span className="text-brand-300 font-normal"> — the owner always is</span>
+            </div>
+            <div className="flex gap-x-5 gap-y-1.5 flex-wrap">
+              {fence.curfewCandidates.map((c) => (
+                <label key={c.id} className="text-sm text-brand-400 flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={curfewAllow.includes(c.id)}
+                    disabled={busy}
+                    onChange={(e) => {
+                      const next = e.target.checked
+                        ? [...curfewAllow, c.id]
+                        : curfewAllow.filter((x) => x !== c.id);
+                      setCurfewAllow(next);
+                      void saveCurfew({ allow: next });
+                    }}
+                  />
+                  {c.name}
+                  <span className="text-xs text-brand-300">{c.role}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

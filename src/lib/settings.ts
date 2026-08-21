@@ -152,6 +152,23 @@ export type SettingsMap = {
     and the only way back is a database edit.
   */
   timeclock_trusted_only: string;
+
+  /*
+    The register at night.
+
+    "1" = between the two minutes below, the register refuses to open for
+    anyone but the owner and the names on the allow list. The fence answers
+    WHERE a session may start; this answers WHEN — a register that opens at
+    2 AM for anybody with a PIN is a drawer with a timer nobody set.
+
+    The window is minutes from midnight and is expected to WRAP: 1200 → 360
+    is 8 PM to 6 AM. The allow list is employee ids, comma-separated —
+    ids rather than names because names get remarried and retyped.
+  */
+  register_curfew_enabled: string;
+  register_curfew_start_minute: string;
+  register_curfew_end_minute: string;
+  register_curfew_allow: string;
 };
 
 export const DEFAULT_SETTINGS: SettingsMap = {
@@ -247,6 +264,10 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   timeclock_fence_set_by: "",
   timeclock_fence_set_at: "",
   timeclock_trusted_only: "0",
+  register_curfew_enabled: "0",
+  register_curfew_start_minute: "1200",
+  register_curfew_end_minute: "360",
+  register_curfew_allow: "",
 };
 
 export function getSetting<K extends keyof SettingsMap>(key: K): string {

@@ -32,6 +32,9 @@ export type AuditAction =
   // The shift desk's own verbs. An employee asks; a manager answers; a
   // manager punches for somebody; somebody's number or skills change hands.
   | "schedule.copy_week"
+  // The register's night window changed shape — on, off, hours, or who is
+  // allowed through it. One action; the details carry the whole new state.
+  | "curfew.set"
   | "schedule.request"
   | "schedule.request_approved"
   | "schedule.request_declined"

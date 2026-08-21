@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminApi } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
+import { curfewConfig } from "@/lib/curfew";
+import { getDb } from "@/lib/db";
 import { listDevices } from "@/lib/devices";
 import { getSetting, setSetting } from "@/lib/settings";
 import { nowLocalIso } from "@/lib/time";
@@ -25,6 +27,21 @@ export async function GET() {
     setBy: getSetting("timeclock_fence_set_by"),
     setAt: getSetting("timeclock_fence_set_at"),
     trustedOnly: getSetting("timeclock_trusted_only") === "1",
+    // The register's night rule rides on the fence page — both are answers
+    // to "who can open what, and under what condition" — so it rides on the
+    // fence's own read too.
+    curfew: curfewConfig(),
+    // Everybody the allow list could name. Owners are absent on purpose:
+    // the rule never applies to them, and a checkbox that does nothing is a
+    // lie with a tick in it.
+    curfewCandidates: getDb()
+      .prepare(
+        `SELECT id, name, COALESCE(pos_role,'') AS role
+           FROM employees
+          WHERE active = 1 AND COALESCE(pos_role,'') NOT IN ('owner')
+          ORDER BY name`,
+      )
+      .all(),
   });
 }
 

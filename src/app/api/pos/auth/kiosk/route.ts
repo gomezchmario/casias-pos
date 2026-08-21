@@ -5,6 +5,7 @@ import { logAudit } from "@/lib/audit";
 import { can } from "@/lib/roles";
 import { isTrustedDevice } from "@/lib/devices";
 import { judgePunch, metresWords } from "@/lib/fence";
+import { curfewRefusal } from "@/lib/curfew";
 
 /**
  * Open the register straight from the time-clock kiosk. The employee has
@@ -47,6 +48,25 @@ export async function POST(req: Request) {
     mistyped PIN reads as a mistyped PIN and not as a lecture about location;
     judged before the session because that is the entire point.
   */
+  /*
+    The night rule, judged before the fence because it is the cheaper answer
+    and the harder no: being at the shop does not open a register the clock
+    says is shut, so there is no point chasing a location first. Owners pass;
+    the allow list passes; everybody else waits for morning.
+  */
+  const curfew = curfewRefusal(result.user);
+  if (curfew) {
+    logAudit({
+      actorType: "employee",
+      employeeId: result.user.employeeId,
+      employeeName: result.user.name,
+      employeeRole: result.user.role,
+      action: "pos.login_failed",
+      details: { reason: "curfew", via: "kiosk" },
+    });
+    return NextResponse.json({ error: curfew }, { status: 403 });
+  }
+
   const trusted = await isTrustedDevice();
   const fence = judgePunch({ trusted, lat: body.lat, lng: body.lng });
   if (!fence.ok) {
