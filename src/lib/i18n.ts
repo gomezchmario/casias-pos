@@ -1773,7 +1773,7 @@ const ES: Record<string, string> = {
   Decline: "Rechazar",
   "Noted — will call": "Anotado — se le llama",
   "Move this line's credit": "Mover el crédito de este renglón",
-  "nobody credited": "nadie acreditado",
+  unassigned: "sin asignar",
   Noted: "Anotado",
   "Wants more hours": "Quiere más horas",
   "a week": "por semana",

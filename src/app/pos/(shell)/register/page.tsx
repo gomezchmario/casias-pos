@@ -2096,7 +2096,7 @@ export default function RegisterPage() {
                           {i.mechanic_id ? (
                             creditable.find((m) => m.id === i.mechanic_id)?.name
                           ) : (
-                            <span style={{ opacity: 0.65 }}>{tr("nobody credited")}</span>
+                            <span style={{ opacity: 0.65 }}>{tr("unassigned")}</span>
                           )}
                         </button>
                       ) : (
