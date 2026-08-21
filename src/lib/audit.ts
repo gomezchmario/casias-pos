@@ -29,6 +29,15 @@ export type AuditAction =
   | "schedule.set"
   | "schedule.clear"
   | "schedule.copy"
+  // The shift desk's own verbs. An employee asks; a manager answers; a
+  // manager punches for somebody; somebody's number or skills change hands.
+  | "schedule.copy_week"
+  | "schedule.request"
+  | "schedule.request_approved"
+  | "schedule.request_declined"
+  | "schedule.manager_punch"
+  | "schedule.person_edit"
+  | "employee.phone_set"
   // One capability handed to one person, over and above their role — see
   // grants.ts. Its own pair of actions because "who gave Patricia the reports"
   // is a question somebody will ask, and a role change is a different event.

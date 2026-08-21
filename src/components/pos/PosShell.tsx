@@ -53,6 +53,9 @@ const NAV: {
   // remember to go and look at. A list nobody visits is how the sheet lost track
   // of them in the first place.
   { href: "/pos/inventory", label: "Inventory", capability: "viewInventory" },
+  // The shift desk — managers only, by capability. Sits after Inventory
+  // because it is opened a few times a day, not an hour.
+  { href: "/pos/schedule", label: "Shifts", capability: "manageSchedule" },
   // Reports before the close-out, and the order is about how often each is
   // opened rather than about when in the day they are used. Reports is a
   // reading somebody comes to the machine for; the close-out is the last thing

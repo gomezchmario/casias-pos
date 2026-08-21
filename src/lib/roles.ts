@@ -463,6 +463,12 @@ export const CAPABILITIES = {
   manageEmployees: "owner",
   manageSettings: "owner",
   manageProducts: "manager",
+  // The shift desk: the roster grid, the requests inbox, and the day's board
+  // with its remote clock-out. Manager, not owner — rostering is exactly the
+  // kind of running-the-floor work the manager rank exists for, and the desk
+  // lives here in the register rather than behind the admin password so a
+  // manager can answer "can I have Thursday off" without borrowing one.
+  manageSchedule: "manager",
   // Owner, not manager. The register grid is the shape of the shop's whole
   // pricing — change a button and every ticket rung after it is different. It
   // is also the one screen back here that nobody needs during a shift, so
@@ -582,6 +588,10 @@ export const CAPABILITY_INFO: Record<
   receiveInventory: { label: "Receive new stock", group: "Stock" },
   adjustInventory: { label: "Adjust stock counts", group: "Stock" },
   manageProducts: { label: "Add and edit products", group: "Stock" },
+  manageSchedule: {
+    label: "Run the shift desk — roster, requests, the day's board",
+    group: "Setup",
+  },
   deleteProduct: { label: "Remove a product from the list", group: "Stock" },
   deleteEmptyProduct: {
     label: "Remove a sold-out product from the list",

@@ -526,6 +526,15 @@ export default function KioskPage() {
         >
           Leaderboard →
         </a>
+        {/* The roster's own door, and on a phone the other button that
+            survives the thinning: "when do I work next" is asked from a couch
+            as often as the racks are checked from one. */}
+        <a
+          href="/my-schedule"
+          className="kiosk-inv text-white/40 hover:text-white/80 transition-colors"
+        >
+          My schedule →
+        </a>
         <a
           href="/inventory"
           className="kiosk-inv text-white/40 hover:text-white/80 transition-colors"

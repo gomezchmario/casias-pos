@@ -1003,7 +1003,7 @@ function Lines({
                         if (await onReprice(i.id, n, cents, descr.trim())) setPricing(null);
                       }}
                     >
-                      {busy ? "Working…" : "Change the price"}
+                      {busy ? "Working…" : "Change"}
                     </button>
                   </div>
                 </div>

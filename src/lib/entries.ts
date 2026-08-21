@@ -44,6 +44,16 @@ export function createEntry(args: {
   lng?: number | null;
   accuracyM?: number | null;
   fenceVerdict?: string | null;
+  /*
+    Who pressed the button, when it was not the person being punched — a
+    manager clocking somebody out from the shift desk's board. Null means what
+    it always has: the person punched for themselves. The words that explain
+    it go in `notes`, the id goes here, because a name in prose cannot be
+    joined on when somebody asks "how often does this manager punch for
+    people".
+  */
+  recordedBy?: number | null;
+  notes?: string | null;
 }): number {
   const db = getDb();
   const now = nowLocalIso();
@@ -52,8 +62,8 @@ export function createEntry(args: {
     .prepare(
       `INSERT INTO time_entries
         (employee_id, type, timestamp, photo_path, flagged, flag_reason, created_at,
-         lat, lng, accuracy_m, fence_verdict)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         lat, lng, accuracy_m, fence_verdict, recorded_by, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       args.employeeId,
@@ -67,6 +77,8 @@ export function createEntry(args: {
       args.lng ?? null,
       args.accuracyM ?? null,
       args.fenceVerdict ?? null,
+      args.recordedBy ?? null,
+      args.notes ?? null,
     );
   return Number(result.lastInsertRowid);
 }
