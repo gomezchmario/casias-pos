@@ -61,9 +61,46 @@ type EditState = {
   employee?: Employee;
 };
 
+type SortKey = "name" | "role" | "access" | "status" | "state";
+
+/*
+  Rank orders, not alphabet, for the three columns where alphabet means
+  nothing. Sorting POS access A–Z puts Accountant above Owner and reads as
+  noise; sorting it by rank puts the ladder on the screen in the shape people
+  already hold it in their heads. Same for the clock: working, on break,
+  gone — the order somebody scans when they are looking for who is here.
+*/
+const ACCESS_ORDER: Record<PosRole, number> = {
+  owner: 0,
+  manager: 1,
+  accountant: 2,
+  cashier: 3,
+  writer: 4,
+  technician: 5,
+  mechanic: 6,
+  viewer: 7,
+};
+
+const STATE_ORDER: Record<string, number> = {
+  checked_in: 0,
+  on_break: 1,
+  checked_out: 2,
+};
+
 export default function EmployeesPage() {
   const [list, setList] = useState<Employee[]>([]);
   const [showInactive, setShowInactive] = useState(false);
+  /*
+    HOW THE LIST IS ORDERED, and it is a view of the list rather than a
+    reordering of it: the rows come from the server in one order and are
+    sorted on their way to the screen, so nothing about who is stored where
+    depends on which column somebody last clicked.
+
+    Name ascending to start, because a roster is looked up by name far more
+    often than it is grouped by anything.
+  */
+  const [sortBy, setSortBy] = useState<SortKey>("name");
+  const [sortDown, setSortDown] = useState(false);
   const [edit, setEdit] = useState<EditState>({ mode: null });
   const [error, setError] = useState<string | null>(null);
 
@@ -95,6 +132,48 @@ export default function EmployeesPage() {
     });
     if (res.ok) reload();
   }
+
+  /*
+    Every sort falls back to the name, so a column with ties — six
+    technicians, everybody active — still lands in an order somebody can
+    read, and the same order every time. A stable tiebreak is the difference
+    between grouping a list and shuffling it.
+  */
+  const sorted = [...list].sort((a, b) => {
+    const byName = a.name.localeCompare(b.name);
+    let d = 0;
+    if (sortBy === "name") d = byName;
+    else if (sortBy === "role") d = (a.role || "~").localeCompare(b.role || "~");
+    else if (sortBy === "access") d = ACCESS_ORDER[a.pos_role] - ACCESS_ORDER[b.pos_role];
+    else if (sortBy === "status") d = b.active - a.active;
+    else if (sortBy === "state")
+      d =
+        (a.active === 1 ? STATE_ORDER[a.current_state] ?? 3 : 4) -
+        (b.active === 1 ? STATE_ORDER[b.current_state] ?? 3 : 4);
+    return (sortDown ? -d : d) || byName;
+  });
+
+  /* A header that sorts. The arrow only appears on the column in force, so
+     the list always says how it is ordered without a legend. */
+  const SortHead = ({ label, k, right }: { label: string; k: SortKey; right?: boolean }) => (
+    <th className={`px-4 py-3 ${right ? "text-right" : ""}`}>
+      <button
+        type="button"
+        className="uppercase text-xs tracking-wider text-brand-400 hover:text-brand-500"
+        onClick={() => {
+          if (sortBy === k) setSortDown(!sortDown);
+          else {
+            setSortBy(k);
+            setSortDown(false);
+          }
+        }}
+        title={`Sort by ${label.toLowerCase()}`}
+      >
+        {label}
+        <span className="ml-1">{sortBy === k ? (sortDown ? "▾" : "▴") : ""}</span>
+      </button>
+    </th>
+  );
 
   return (
     <div>
@@ -132,16 +211,16 @@ export default function EmployeesPage() {
         <table className="w-full text-sm">
           <thead style={{ background: "rgba(10,37,64,0.03)" }}>
             <tr className="text-left text-brand-400 uppercase text-xs tracking-wider">
-              <th className="px-4 py-3">Name</th>
-              <th className="px-4 py-3">Role</th>
-              <th className="px-4 py-3">POS access</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Current state</th>
+              <SortHead label="Name" k="name" />
+              <SortHead label="Role" k="role" />
+              <SortHead label="POS access" k="access" />
+              <SortHead label="Status" k="status" />
+              <SortHead label="Current state" k="state" />
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {list.map((emp) => (
+            {sorted.map((emp) => (
               <tr key={emp.id} className="border-t border-black/5">
                 <td className="px-4 py-3 font-medium text-brand-500">{emp.name}</td>
                 <td className="px-4 py-3 text-brand-400">{emp.role || "—"}</td>
