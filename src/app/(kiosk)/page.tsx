@@ -507,7 +507,16 @@ export default function KioskPage() {
           without stopping. The leaderboard has it worse still: it is meant to
           live fullscreen on a monitor nobody is standing at. */}
       <div className="fixed bottom-4 right-4 flex gap-4 text-xs">
-        <a href="/leaderboard" className="text-white/40 hover:text-white/80 transition-colors">
+        {/* Leaderboard and Admin hide on a phone — .kiosk-desk-only. Not a
+            lock, a layout choice: on a phone this screen is somebody clocking
+            in on their own device, and the corner links that make sense there
+            are the two they might actually use. The leaderboard is meant for a
+            wall monitor and Admin is typed at the shop PC; both are still one
+            URL away for anyone who wants them. */}
+        <a
+          href="/leaderboard"
+          className="kiosk-desk-only text-white/40 hover:text-white/80 transition-colors"
+        >
           Leaderboard →
         </a>
         <a href="/inventory" className="text-white/40 hover:text-white/80 transition-colors">
@@ -521,7 +530,10 @@ export default function KioskPage() {
         <a href="/help" className="text-white/40 hover:text-white/80 transition-colors">
           Help →
         </a>
-        <a href="/admin" className="text-white/40 hover:text-white/80 transition-colors">
+        <a
+          href="/admin"
+          className="kiosk-desk-only text-white/40 hover:text-white/80 transition-colors"
+        >
           Admin →
         </a>
       </div>

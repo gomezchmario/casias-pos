@@ -333,15 +333,19 @@ export function PosShell({ children }: { children: React.ReactNode }) {
           <LangToggle />
           <Link
             href="/"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold whitespace-nowrap"
+            className="pos-clock flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold whitespace-nowrap"
             style={{
               background: "linear-gradient(180deg, #ffd35a 0%, #e0a91d 100%)",
               color: "#0a2540",
               boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
             }}
+            aria-label={t("Time Clock")}
           >
             <span style={{ fontSize: "1.1rem" }}>🕒</span>
-            {t("Time Clock")}
+            {/* On a phone the label goes and the clock face stays — see
+                .pos-clock in globals.css. The aria-label above is what keeps
+                the button named once the visible text is gone. */}
+            <span className="pos-clock-label">{t("Time Clock")}</span>
           </Link>
         </header>
 

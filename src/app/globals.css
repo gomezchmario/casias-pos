@@ -800,3 +800,27 @@ body:has(.td-panel) .pos-backtotop {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── The shell on a phone ─────────────────────────────────────────────────
+   The Time Clock button drops its words and keeps its face. On a desktop the
+   label earns its width; on a phone it was the widest thing in the header,
+   and the row of nav links needed that room more. The emoji alone still
+   reads as what it is — it is the only clock in the bar — and the aria-label
+   on the link keeps it named for anything that reads instead of looks. */
+@media (max-width: 40rem) {
+  .pos-clock {
+    padding-left: 0.7rem;
+    padding-right: 0.7rem;
+  }
+  .pos-clock-label {
+    display: none;
+  }
+
+  /* The kiosk's corner links, thinned to the two a phone would use.
+     Layout, not security — the leaderboard is built for a wall monitor and
+     Admin is typed at the shop PC, and four grey links in the corner of a
+     phone screen is three too many. Both are still one URL away. */
+  .kiosk-desk-only {
+    display: none;
+  }
+}
