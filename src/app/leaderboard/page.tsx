@@ -49,6 +49,8 @@ type Data = {
   today: string;
   boards: Record<StandingsPeriod, PublicBoard>;
   tickets: RecentTicket[];
+  /** First names and hours, nothing else — see the endpoint. */
+  roster?: { today: { name: string; hours: string }[]; tomorrow: { name: string; hours: string }[] };
 };
 
 /** How long the dollars stay up after somebody asks for them. */
@@ -406,6 +408,28 @@ export default function WallLeaderboardPage() {
             </select>
           </div>
         </div>
+
+        {/* Who is on tomorrow — one line, not a panel. The wall is read at
+            closing time, which is exactly when "who's on tomorrow" gets asked
+            of whoever happens to be standing near it; a line of names answers
+            it without costing the podium or the tickets an inch of screen.
+            Absent entirely while the roster has nothing written for tomorrow,
+            because an empty "Tomorrow:" reads as nobody coming in. */}
+        {(data.roster?.tomorrow?.length ?? 0) > 0 && (
+          <div
+            className="rp-no-print"
+            style={{
+              fontSize: tv ? 20 : 15,
+              color: "rgba(255,255,255,0.75)",
+              margin: "0 0 14px",
+            }}
+          >
+            <span style={{ color: "#ffd35a", fontWeight: 700 }}>Tomorrow&nbsp;·&nbsp;</span>
+            {(data.roster?.tomorrow ?? [])
+              .map((r) => `${r.name} ${r.hours}`)
+              .join("  ·  ")}
+          </div>
+        )}
 
         {/* Bigger on the wall, because there the width is real.
             The blocks are capped at `170 * scale` each, so at the browser's 1.5

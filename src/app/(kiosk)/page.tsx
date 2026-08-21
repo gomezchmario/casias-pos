@@ -239,13 +239,32 @@ export default function KioskPage() {
             : action === "break_start"
               ? "started break"
               : "ended break";
+      /*
+        The answers ride the punch. A request filed from a couch is answered
+        at the desk, and the punch is the one moment the clock knows who is
+        standing here — so "your Thursday was approved" appears the next time
+        they touch the clock, without anybody thinking to go and look.
+      */
+      const KIND_WORDS: Record<string, string> = {
+        call_off: "day off",
+        change: "change",
+        cover_offer: "cover offer",
+        more_hours: "more hours",
+      };
+      const answers = (data.answers ?? [])
+        .map(
+          (a: { kind: string; workDate: string | null; status: string; resolutionNote: string | null }) =>
+            `Your ${KIND_WORDS[a.kind] ?? "request"}${a.workDate ? ` for ${a.workDate.slice(5).replace("-", "/")}` : ""} was ${a.status}${a.resolutionNote ? ` — “${a.resolutionNote}”` : ""}`,
+        )
+        .join(". ");
       setToast({
         kind: "success",
         title: `${data.employee.name} ${verb}`,
-        body: `at ${time}${data.flagged ? " · no photo captured" : ""}`,
+        body: `at ${time}${data.flagged ? " · no photo captured" : ""}${answers ? ` · ${answers}` : ""}`,
       });
       setPhase("result");
-      scheduleReset();
+      // An answer needs reading time a plain "checked in" never did.
+      scheduleReset(answers ? 9000 : undefined);
     } catch {
       setToast({ kind: "error", title: "Network error — try again" });
       setPhase("result");
@@ -558,15 +577,12 @@ export default function KioskPage() {
         >
           Leaderboard →
         </a>
-        {/* The roster's own door, and on a phone the other button that
-            survives the thinning: "when do I work next" is asked from a couch
-            as often as the racks are checked from one. */}
-        <a
-          href="/my-schedule"
-          className="kiosk-inv text-white/40 hover:text-white/80 transition-colors"
-        >
-          My schedule →
-        </a>
+        {/* The roster's door is on the KEYPAD, after the PIN — not down here.
+            It was a corner link for a day, and the owner had it taken off:
+            the corner is the public face of a public screen, and "My
+            schedule" on it reads as an invitation to everybody who is not
+            staff. The keypad button hands the PIN over and appears only to
+            somebody who has already proved they have one. */}
         <a
           href="/inventory"
           className="kiosk-inv text-white/40 hover:text-white/80 transition-colors"

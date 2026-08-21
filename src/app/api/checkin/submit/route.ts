@@ -7,6 +7,7 @@ import { nowLocalIso } from "@/lib/time";
 import { maybeAutoClose } from "@/lib/api-helpers";
 import { isTrustedDevice } from "@/lib/devices";
 import { judgePunch, metresWords } from "@/lib/fence";
+import { unseenAnswers } from "@/lib/shift-desk";
 
 const ALLOWED_NEXT: Record<string, EntryType[]> = {
   checked_out: ["check_in"],
@@ -160,5 +161,10 @@ export async function POST(req: NextRequest) {
     action,
     timestamp,
     flagged,
+    // Answers to their schedule requests they have not seen. Delivered here
+    // because the punch is the one moment the clock knows exactly who is
+    // standing in front of it — and stamped as delivered in the same read,
+    // so tomorrow's punch does not say it again.
+    answers: unseenAnswers(employee.id),
   });
 }

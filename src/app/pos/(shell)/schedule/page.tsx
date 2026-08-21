@@ -332,6 +332,9 @@ export default function ShiftDeskPage() {
                       {colLabel(d)}
                     </th>
                   ))}
+                  {/* Paid hours for the visible week, so "who is near forty"
+                      is read off the row rather than computed in a head. */}
+                  <th className="py-2 px-2 font-medium text-right">{tr("Hours")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -780,7 +783,7 @@ function FragmentRows({
     <>
       <tr>
         <td
-          colSpan={days.length + 1}
+          colSpan={days.length + 2}
           className="pt-3 pb-1 px-2 text-xs uppercase tracking-wider text-brand-300 font-medium"
         >
           {label}
@@ -825,6 +828,25 @@ function FragmentRows({
               </td>
             );
           })}
+          {(() => {
+            const hours = days.reduce((n, d) => {
+              const s = p.byDate[d];
+              return s ? n + Math.max(0, s.endMinute - s.startMinute - s.breakMinutes) / 60 : n;
+            }, 0);
+            return (
+              <td
+                className="py-1 px-2 text-right tabular-nums text-sm"
+                style={{
+                  fontWeight: 600,
+                  // Forty is where the overtime arithmetic starts; amber is
+                  // the row asking to be looked at, not an alarm.
+                  color: hours > 40 ? "#b45309" : hours > 0 ? "#0a2540" : "rgba(10,37,64,0.3)",
+                }}
+              >
+                {hours > 0 ? hours.toFixed(1).replace(/\.0$/, "") : "—"}
+              </td>
+            );
+          })()}
         </tr>
       ))}
     </>

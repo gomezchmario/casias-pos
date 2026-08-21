@@ -165,6 +165,7 @@ export default function SettingsPage() {
       {canShop && <CostsCard onError={setError} />}
       {canShop && <ReportCard />}
       {canShop && <TireStudyCard onError={setError} />}
+      {canShop && <WallTipsCard onError={setError} />}
       {can("managePermissions") && <ExtraPermissionsCard onError={setError} />}
       {canShop && <InventoryAlarmCard onError={setError} />}
 
@@ -326,6 +327,78 @@ function ReportCard() {
         >
           {tr("Open the report")}
         </a>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Whether the wall board shows tips at all.
+ *
+ * The switch lives here and the enforcement lives on the PUBLIC ENDPOINT:
+ * off, the tip figures leave the response, not just the screen — a monitor
+ * in the waiting area is exactly the place where "hidden by CSS" means
+ * "published". The tips themselves keep being recorded either way; this is
+ * about the wall, not the money.
+ */
+function WallTipsCard({ onError }: { onError: (m: string | null) => void }) {
+  const [on, setOn] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      const res = await fetch("/api/pos/settings");
+      if (res.ok) {
+        const d: { settings: { leaderboardShowTips: boolean } } = await res.json();
+        setOn(d.settings.leaderboardShowTips);
+      }
+    })();
+  }, []);
+
+  async function toggle() {
+    if (on === null) return;
+    setBusy(true);
+    onError(null);
+    const res = await fetch("/api/pos/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ leaderboardShowTips: !on }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      onError("Could not change that");
+      return;
+    }
+    const d: { settings: { leaderboardShowTips: boolean } } = await res.json();
+    setOn(d.settings.leaderboardShowTips);
+  }
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-4 mb-6">
+      <div className="text-xs uppercase tracking-wider text-brand-300 mb-2">
+        Tips on the wall board
+      </div>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div style={{ maxWidth: 560 }}>
+          <p className="text-sm text-brand-400">
+            The leaderboard&apos;s corner with tonight&apos;s tips. Switched off, the tip figures
+            stop being sent to that screen at all — the corner disappears rather than going
+            blank.
+          </p>
+          <p className="text-xs text-brand-300 mt-1">
+            Tips keep being recorded on tickets either way. This only decides what the wall
+            says out loud.
+          </p>
+        </div>
+        <button
+          type="button"
+          className={on ? "btn btn-primary" : "btn btn-outline"}
+          disabled={busy || on === null}
+          aria-pressed={on === true}
+          onClick={() => void toggle()}
+        >
+          {on === null ? "…" : on ? "Showing" : "Hidden"}
+        </button>
       </div>
     </div>
   );

@@ -169,6 +169,15 @@ export type SettingsMap = {
   register_curfew_start_minute: string;
   register_curfew_end_minute: string;
   register_curfew_allow: string;
+
+  /*
+    "1" = the wall board's tips corner is drawn, and the public endpoint
+    sends tip figures at all. Off, the server sends zeros and a flag — the
+    corner is not hidden by the screen, it is absent from the data, because
+    a wall monitor is exactly the place where "hidden by CSS" is a euphemism
+    for "published".
+  */
+  leaderboard_show_tips: string;
 };
 
 export const DEFAULT_SETTINGS: SettingsMap = {
@@ -268,6 +277,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   register_curfew_start_minute: "1200",
   register_curfew_end_minute: "360",
   register_curfew_allow: "",
+  leaderboard_show_tips: "1",
 };
 
 export function getSetting<K extends keyof SettingsMap>(key: K): string {

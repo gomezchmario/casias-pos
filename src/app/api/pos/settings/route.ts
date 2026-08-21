@@ -17,7 +17,11 @@ import { inTx } from "@/lib/tx";
  */
 
 type Payload = {
-  settings: { posIdleLockSeconds: number; tireDemandEnabled: boolean };
+  settings: {
+    posIdleLockSeconds: number;
+    tireDemandEnabled: boolean;
+    leaderboardShowTips: boolean;
+  };
 };
 
 function read(): Payload {
@@ -25,6 +29,7 @@ function read(): Payload {
     settings: {
       posIdleLockSeconds: Number(getSetting("pos_idle_lock_seconds")) || 900,
       tireDemandEnabled: getSetting("tire_demand_enabled") === "1",
+      leaderboardShowTips: getSetting("leaderboard_show_tips") !== "0",
     },
   };
 }
@@ -42,6 +47,7 @@ export async function PATCH(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as {
     posIdleLockSeconds?: unknown;
     tireDemandEnabled?: unknown;
+    leaderboardShowTips?: unknown;
   };
 
   if (body.posIdleLockSeconds !== undefined) {
@@ -80,6 +86,24 @@ export async function PATCH(req: NextRequest) {
         action: "settings.update",
         targetType: "setting",
         targetId: "tire_demand_enabled",
+        before: { enabled: before },
+        after: { enabled: on ? "1" : "0" },
+      });
+    });
+  }
+
+  if (body.leaderboardShowTips !== undefined) {
+    const on = body.leaderboardShowTips === true || body.leaderboardShowTips === "1";
+    const before = getSetting("leaderboard_show_tips");
+    inTx(() => {
+      setSetting("leaderboard_show_tips", on ? "1" : "0");
+      // Off means the public endpoint stops SENDING tip figures, not that a
+      // screen stops drawing them — see the endpoint. Audited because a wall
+      // that suddenly stops showing tips is a question somebody will ask.
+      logActorAudit(auth.actor, {
+        action: "settings.update",
+        targetType: "setting",
+        targetId: "leaderboard_show_tips",
         before: { enabled: before },
         after: { enabled: on ? "1" : "0" },
       });

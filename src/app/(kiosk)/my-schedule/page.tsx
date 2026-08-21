@@ -90,6 +90,14 @@ export default function MySchedulePage() {
   const [coverNote, setCoverNote] = useState("");
   const [hoursWanted, setHoursWanted] = useState("");
   const [hoursNote, setHoursNote] = useState("");
+  const [dayOffDate, setDayOffDate] = useState("");
+  const [dayOffNote, setDayOffNote] = useState("");
+  /** Which folded cards are open. Folded by default — the week is the page. */
+  const [unfolded, setUnfolded] = useState<{ cover: boolean; hours: boolean; dayoff: boolean }>({
+    cover: false,
+    hours: false,
+    dayoff: false,
+  });
   const [said, setSaid] = useState<string | null>(null);
 
   /*
@@ -291,6 +299,60 @@ export default function MySchedulePage() {
   const days = all.slice(page * 7, page * 7 + 7);
   const pages = Math.ceil(all.length / 7);
   const requests = panel.requests ?? [];
+  const today = all[0]?.date ?? "";
+
+  /*
+    The cover log: every day this person's hand is up, folded back into the
+    ranges they typed. Days that have passed fall out here rather than being
+    swept anywhere — the hand simply is not up for yesterday.
+  */
+  const coverDays = requests
+    .filter((r) => r.kind === "cover_offer" && r.status === "open" && (r.workDate ?? "") >= today)
+    .sort((a, b) => (a.workDate! < b.workDate! ? -1 : 1));
+  const coverRanges: { from: string; to: string; ids: number[]; note: string | null }[] = [];
+  for (const c of coverDays) {
+    const last = coverRanges[coverRanges.length - 1];
+    const next = last
+      ? (() => {
+          const d = new Date(`${last.to}T00:00:00`);
+          d.setDate(d.getDate() + 1);
+          const p = (n: number) => String(n).padStart(2, "0");
+          return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+        })()
+      : "";
+    if (last && c.workDate === next) {
+      last.to = c.workDate!;
+      last.ids.push(c.id);
+    } else {
+      coverRanges.push({ from: c.workDate!, to: c.workDate!, ids: [c.id], note: c.note });
+    }
+  }
+
+  async function withdrawMany(ids: number[]) {
+    setBusy(true);
+    try {
+      for (const id of ids) {
+        await fetch("/api/checkin/schedule/request", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pin, action: "withdraw", id }),
+        });
+      }
+      await load(pin);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const md = (d: string) => d.slice(5).replace("-", "/");
+
+  /*
+    Open cover offers live in the cover log above, not here — a three-day
+    range as three "waiting" rows would read as three separate favours. What
+    stays in this list is everything a manager has to ANSWER, and every
+    answer already given.
+  */
+  const asked = requests.filter((r) => !(r.kind === "cover_offer" && r.status === "open"));
   const weekLabel =
     days.length > 0
       ? `${days[0].date.slice(5).replace("-", "/")} – ${days[days.length - 1].date.slice(5).replace("-", "/")}`
@@ -506,10 +568,53 @@ export default function MySchedulePage() {
 
         {/* ── I can cover ────────────────────────────────────────────────── */}
         <div className="acrylic-dark rounded-2xl p-4 mb-4">
-          <h2 className="font-semibold mb-1">I can cover</h2>
-          <p className="text-white/50 text-sm mb-3">
-            If somebody doesn&apos;t show on these days, call me. One day, or a stretch.
+          <button
+            type="button"
+            className="w-full flex items-center justify-between gap-3"
+            aria-expanded={unfolded.cover}
+            onClick={() => setUnfolded((u) => ({ ...u, cover: !u.cover }))}
+          >
+            <span className="font-semibold">
+              I can cover
+              {coverRanges.length > 0 && (
+                <span className="text-amber-300 font-normal text-sm">
+                  {" "}
+                  · {coverRanges.length} {coverRanges.length === 1 ? "offer" : "offers"} up
+                </span>
+              )}
+            </span>
+            <span className="text-white/50">{unfolded.cover ? "▾" : "▸"}</span>
+          </button>
+          {unfolded.cover && (
+          <>
+          <p className="text-white/50 text-sm mt-2 mb-3">
+            If somebody doesn&apos;t show on these days, call me. One day, or a stretch — put
+            down as many as you like. Old days drop off by themselves.
           </p>
+
+          {/* The log of hands already up, each line removable. */}
+          {coverRanges.length > 0 && (
+            <div className="mb-3 divide-y divide-white/10 rounded-xl bg-white/5 border border-white/10 px-3">
+              {coverRanges.map((g) => (
+                <div key={g.ids[0]} className="py-2 flex items-center gap-3">
+                  <span className="font-medium tabular-nums text-amber-300">
+                    {g.from === g.to ? md(g.from) : `${md(g.from)} – ${md(g.to)}`}
+                  </span>
+                  {g.note && <span className="text-white/45 text-xs flex-1 truncate">{g.note}</span>}
+                  <button
+                    type="button"
+                    className="ml-auto text-white/50 hover:text-red-300 px-2"
+                    aria-label="Take this offer back"
+                    title="Take this offer back"
+                    disabled={busy}
+                    onClick={() => void withdrawMany(g.ids)}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex gap-3 flex-wrap items-center">
             <input
               type="date"
@@ -561,12 +666,78 @@ export default function MySchedulePage() {
               Raise my hand
             </button>
           </div>
+          </>
+          )}
+        </div>
+
+        {/* ── A day off ──────────────────────────────────────────────────── */}
+        <div className="acrylic-dark rounded-2xl p-4 mb-4">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between gap-3"
+            aria-expanded={unfolded.dayoff}
+            onClick={() => setUnfolded((u) => ({ ...u, dayoff: !u.dayoff }))}
+          >
+            <span className="font-semibold">I need a day off</span>
+            <span className="text-white/50">{unfolded.dayoff ? "▾" : "▸"}</span>
+          </button>
+          {unfolded.dayoff && (
+            <>
+              <p className="text-white/50 text-sm mt-2 mb-3">
+                Any date — next week or next summer. A manager answers it here.
+              </p>
+              <div className="flex gap-3 flex-wrap items-center">
+                <input
+                  type="date"
+                  className="rounded-lg bg-white/10 border border-white/20 px-3 py-2"
+                  value={dayOffDate}
+                  min={today}
+                  onChange={(e) => setDayOffDate(e.target.value)}
+                />
+                <input
+                  className="flex-1 min-w-[140px] rounded-lg bg-white/10 border border-white/20 px-3 py-2 text-sm"
+                  placeholder="Why?"
+                  value={dayOffNote}
+                  onChange={(e) => setDayOffNote(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="rounded-lg px-4 py-2 text-sm font-semibold text-[#0a2540] disabled:opacity-50"
+                  style={{ background: "linear-gradient(180deg, #ffd35a 0%, #e0a91d 100%)" }}
+                  disabled={busy || !dayOffDate || !dayOffNote.trim()}
+                  onClick={() =>
+                    void send(
+                      { kind: "call_off", workDate: dayOffDate, note: dayOffNote.trim() },
+                      "Sent — a manager will answer here.",
+                    ).then((ok) => {
+                      if (ok) {
+                        setDayOffDate("");
+                        setDayOffNote("");
+                      }
+                    })
+                  }
+                >
+                  Ask for it
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         {/* ── More hours ─────────────────────────────────────────────────── */}
         <div className="acrylic-dark rounded-2xl p-4 mb-4">
-          <h2 className="font-semibold mb-1">I want more hours</h2>
-          <p className="text-white/50 text-sm mb-3">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between gap-3"
+            aria-expanded={unfolded.hours}
+            onClick={() => setUnfolded((u) => ({ ...u, hours: !u.hours }))}
+          >
+            <span className="font-semibold">I want more hours</span>
+            <span className="text-white/50">{unfolded.hours ? "▾" : "▸"}</span>
+          </button>
+          {unfolded.hours && (
+          <>
+          <p className="text-white/50 text-sm mt-2 mb-3">
             Tell the managers how many more a week you are after.
           </p>
           <div className="flex gap-3 flex-wrap items-center">
@@ -610,14 +781,16 @@ export default function MySchedulePage() {
               Ask
             </button>
           </div>
+          </>
+          )}
         </div>
 
         {/* ── My requests ────────────────────────────────────────────────── */}
-        {requests.length > 0 && (
+        {asked.length > 0 && (
           <div className="acrylic-dark rounded-2xl p-4 mb-8">
             <h2 className="font-semibold mb-3">What I have asked</h2>
             <div className="divide-y divide-white/10">
-              {requests.map((r) => (
+              {asked.map((r) => (
                 <div key={r.id} className="py-2 flex items-center gap-3 flex-wrap">
                   <div className="flex-1 min-w-[180px]">
                     <span className="font-medium">{KIND[r.kind]}</span>{" "}

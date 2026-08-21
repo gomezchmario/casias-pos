@@ -147,7 +147,7 @@ export function mySchedule(employeeId: number, days = 14): {
     LEFT JOIN employees m ON m.id = r.resolved_by
         WHERE r.employee_id = ?
         ORDER BY r.created_at DESC
-        LIMIT 12`,
+        LIMIT 30`,
     )
     .all(employeeId)
     .map((raw) => {
@@ -216,11 +216,12 @@ export function createRequest(args: {
   if (workDate < today) return { ok: false, error: "That day has already happened" };
 
   if (kind === "call_off") {
-    const rostered = db
-      .prepare("SELECT 1 FROM schedule_shifts WHERE employee_id = ? AND work_date = ?")
-      .get(employeeId, workDate);
-    if (!rostered)
-      return { ok: false, error: "You are not on the roster that day" };
+    /*
+      Rostered or not — both are real asks. On a rostered day this is "I am
+      not coming Thursday"; on a day nothing is written yet it is "keep June
+      3rd clear", filed months out for a wedding the roster cannot see that
+      far ahead to. The desk reads the difference off the rostered column.
+    */
     // A reason, always. "Can't come" with nothing behind it leaves the
     // manager phoning to ask why before they can do anything about who.
     if (!note) return { ok: false, error: "Say why, in a few words" };
@@ -273,6 +274,45 @@ export function createRequest(args: {
       nowLocalIso(),
     );
   return { ok: true, id: Number(info.lastInsertRowid) };
+}
+
+/**
+ * Answers this person has not been shown yet, delivered and stamped in one
+ * transaction — the punch that reads them is the delivery, and the stamp is
+ * what keeps tomorrow's punch from delivering them again.
+ */
+export function unseenAnswers(employeeId: number): {
+  kind: RequestKind;
+  workDate: string | null;
+  status: "approved" | "declined";
+  resolutionNote: string | null;
+}[] {
+  const db = getDb();
+  const rows = db
+    .prepare(
+      `SELECT id, kind, work_date AS workDate, status,
+              resolution_note AS resolutionNote
+         FROM schedule_requests
+        WHERE employee_id = ? AND status IN ('approved','declined')
+          AND notified_at IS NULL
+        ORDER BY resolved_at`,
+    )
+    .all(employeeId) as {
+    id: number;
+    kind: RequestKind;
+    workDate: string | null;
+    status: "approved" | "declined";
+    resolutionNote: string | null;
+  }[];
+  if (rows.length > 0) {
+    const stamp = db.prepare("UPDATE schedule_requests SET notified_at = ? WHERE id = ?");
+    const now = nowLocalIso();
+    const tx = db.transaction(() => {
+      for (const r of rows) stamp.run(now, r.id);
+    });
+    tx();
+  }
+  return rows.map(({ id: _id, ...r }) => r);
 }
 
 /** Only your own, and only while nobody has answered it. */
@@ -337,8 +377,18 @@ export function listRequests(): { open: DeskRequest[]; recent: DeskRequest[] } {
         rostered: r.rs !== null && r.re !== null ? { start: clockOf(r.rs), end: clockOf(r.re) } : null,
       };
     });
+  const today = currentBusinessDate();
   return {
-    open: rows.filter((r) => r.status === "open"),
+    /*
+      A cover offer for a day that has passed expires by not surfacing, not
+      by changing status: the row stays open in the table — an honest record
+      that the hand was up and nobody took it — and simply stops being
+      anybody's business to answer. A status write would need a sweeper; a
+      filter needs nothing and cannot be forgotten.
+    */
+    open: rows.filter(
+      (r) => r.status === "open" && !(r.kind === "cover_offer" && (r.workDate ?? "") < today),
+    ),
     recent: rows.filter((r) => r.status !== "open").slice(0, 20),
   };
 }
