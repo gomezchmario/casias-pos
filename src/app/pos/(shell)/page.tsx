@@ -338,8 +338,8 @@ export default function DayPage() {
               type="button"
               className="btn btn-outline"
               style={{ height: 44, width: 44, padding: 0, color: "rgba(10,37,64,0.55)" }}
-              aria-label={tr("The notes that came down")}
-              title={tr("The notes that came down")}
+              aria-label={tr("Deleted Notes")}
+              title={tr("Deleted Notes")}
               onClick={() => setStoryOpen(true)}
             >
               {/* A notepad drawn in strokes, not an emoji — 🗒️ renders at

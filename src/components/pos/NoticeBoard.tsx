@@ -385,7 +385,7 @@ export function NotesStoryModal({ open, onClose }: { open: boolean; onClose: () 
   }, [open]);
 
   return (
-    <Modal open={open} onClose={onClose} title="The notes that came down" width={560}>
+    <Modal open={open} onClose={onClose} title="Deleted Notes" width={560}>
       {story === null ? (
         <div className="text-brand-300 py-6 text-center">Reading the story…</div>
       ) : story.length === 0 ? (

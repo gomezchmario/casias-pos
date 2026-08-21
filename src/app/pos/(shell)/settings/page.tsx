@@ -444,7 +444,7 @@ function NotesStoryCard() {
     <div className="bg-white rounded-2xl shadow-sm p-4 mb-6">
       <button type="button" className="w-full flex items-center justify-between gap-3" aria-expanded={open} onClick={() => void unfold()}>
         <span className="text-xs uppercase tracking-wider text-brand-300">
-          The notes that came down
+          Deleted Notes
         </span>
         <span className="text-brand-300">{open ? "▾" : "▸"}</span>
       </button>

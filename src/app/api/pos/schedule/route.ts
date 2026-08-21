@@ -60,7 +60,10 @@ export async function GET(req: NextRequest) {
     if (over === "technicians" || over === "mechanics" || over === "office") return over;
     if (role === "technician") return "technicians";
     if (role === "mechanic") return "mechanics";
-    if (role === "viewer") return "hidden";
+    // A viewer watches screens; an owner is not rostered — the desk exists to
+    // put the owner's rule on everybody else's week, and a row for the owner
+    // was one more name to scroll past on the way to the people it manages.
+    if (role === "viewer" || role === "owner") return "hidden";
     return "office";
   };
 

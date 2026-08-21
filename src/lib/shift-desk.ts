@@ -529,10 +529,13 @@ export function todayBoard(): {
     done or a wage nobody planned, and both are worth a manager's glance.
   */
   const seen = new Set(rows.map((r) => r.employeeId));
+  // Owners excluded here to match the grid: the desk is the owner's rule on
+  // everybody else's day, and the owner clocking in is not a walk-in worker
+  // anybody needs to manage.
   const active = db
     .prepare(
       `SELECT id, name, COALESCE(pos_role,'') AS role, phone
-         FROM employees WHERE active = 1`,
+         FROM employees WHERE active = 1 AND COALESCE(pos_role,'') != 'owner'`,
     )
     .all() as { id: number; name: string; role: string; phone: string | null }[];
   for (const e of active) {
