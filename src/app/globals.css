@@ -327,8 +327,20 @@ html, body {
    hover and focus, so it is unmistakable once somebody is reaching for it. */
 .td-fab {
   position: fixed;
-  right: 18px;
-  bottom: 18px;
+  /*
+    Left of the arrow, on the same line. 24 + 44 + 10: the arrow's own inset,
+    its width, and a gap — so the two read as a pair rather than as one
+    control that has been shoved aside. The arrow keeps the corner because it
+    is the one people reach for without looking; the study is a deliberate
+    press.
+
+    Fixed here rather than only when the arrow is showing, because the arrow
+    stays mounted and merely fades. Keying this on its visibility would move
+    the study sideways every time somebody scrolls, and a button that walks
+    is worse than a button with a gap beside it.
+  */
+  right: 78px;
+  bottom: 24px;
   z-index: 40;
   width: 44px;
   height: 44px;
@@ -343,25 +355,25 @@ html, body {
 }
 
 /*
-  THE TWO THINGS THAT FLOAT IN THAT CORNER, STACKED INSTEAD OF PILED.
+  THE TWO THINGS THAT FLOAT IN THAT CORNER, SIDE BY SIDE INSTEAD OF PILED.
 
   The lost-sale button and Back-to-top are both 44px circles pinned to the
   bottom-right, and for a while they were pinned to the SAME bottom-right:
   one sat on the other, and the one underneath could not be pressed at all.
+  They were stacked vertically first; the owner wanted them level, with the
+  arrow on the right. The offset that does that lives on `.td-fab` above.
 
-  Lifted by presence rather than by a flag. `:has()` asks the page whether a
-  study button is actually rendered, which is the only honest way to ask —
-  whether it is depends on a setting AND on the capability of whoever is
-  signed in, and a second copy of that test in another file is a second copy
-  that will eventually disagree with the first. The panel counts too: it
-  opens in the same corner, and the arrow should clear that as well.
-
-  Where neither is present, nothing here applies and the arrow keeps its own
-  place at the bottom.
+  THE PANEL IS THE OTHER CASE. When the study opens it becomes a 340px dialog
+  filling that corner, and the arrow would float on top of it — a control
+  hovering over a form it has nothing to do with, covering the box somebody
+  is typing a tire size into. It steps out entirely for as long as the panel
+  is open. `:has()` asks the page whether the panel is really there, which is
+  the only honest way to ask: whether it can be depends on a setting AND on
+  who is signed in, and a second copy of that test in another file is a
+  second copy that will eventually disagree with the first.
 */
-body:has(.td-fab) .pos-backtotop,
 body:has(.td-panel) .pos-backtotop {
-  bottom: 74px;
+  display: none;
 }
 
 .td-fab:hover,

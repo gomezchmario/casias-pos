@@ -41,26 +41,33 @@
   Deliberately not a .btn. The ticket column is a list of money with one
   destructive control on each row, and a third full-weight button per line
   would turn a readable ticket into a wall of chrome. This is the weight of
-  the ✕ beside it: a plain outlined circle that says "small adjustment", big
-  enough for a thumb at 28px and no bigger.
+  the ✕ beside it. Borderless and 22px: it sits ON the line rather than beside
+  it as a control of its own, which is the whole point — the row is a line of
+  money, and two outlined circles per row turned the ticket into a form.
+  Hover is where the button admits to being one.
 */
 .tk-qty {
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   display: grid;
   place-items: center;
-  border-radius: 999px;
-  border: 1px solid rgb(10 37 64 / 0.18);
-  background: #fff;
-  color: #0a2540;
-  font-size: 15px;
+  border: 0;
+  background: none;
+  color: rgb(10 37 64 / 0.55);
+  font-size: 16px;
   line-height: 1;
   font-weight: 700;
 }
 
+/*
+  No ring until it is wanted. Outlined, the two of them read as a pair of
+  controls parked on every row and the eye counted them before it counted the
+  money; bare, they are punctuation until a finger goes near one.
+*/
 .tk-qty:hover {
-  border-color: rgb(10 37 64 / 0.4);
-  background: rgb(10 37 64 / 0.04);
+  color: #0a2540;
+  background: rgb(10 37 64 / 0.06);
+  border-radius: 6px;
 }
 
 .reg-split {
