@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { usePosAuth } from "@/components/pos/PosShell";
 import { useLang } from "@/components/pos/LangToggle";
 
@@ -342,50 +342,51 @@ export default function ShiftDeskPage() {
                   const members = visible.filter((p) => p.group === g.key);
                   if (members.length === 0) return null;
                   return (
-                    <FragmentRows
-                      key={g.key}
-                      label={tr(g.label)}
-                      members={members}
-                      days={days}
-                      today={data.today}
-                      cell={cell}
-                      onCell={openCell}
-                      onPerson={(p) => {
-                        setPersonEdit(personEdit === p.employeeId ? null : p.employeeId);
-                        setPhoneDraft("");
-                      }}
-                    />
+                    <Fragment key={g.key}>
+                      <FragmentRows
+                        label={tr(g.label)}
+                        members={members}
+                        days={days}
+                        today={data.today}
+                        cell={cell}
+                        onCell={openCell}
+                        onPerson={(p) => {
+                          setPersonEdit(personEdit === p.employeeId ? null : p.employeeId);
+                          setPhoneDraft("");
+                        }}
+                      />
+                      {/* The two jobs a day can be short of, closing the
+                          technician section rather than the whole table —
+                          the coverage is ABOUT these rows, and under Office
+                          it read as a fact about the front counter. A dash
+                          on a workday is the whole warning. The count still
+                          honours every rostered pair of hands, wherever they
+                          sort: Americo covers mufflers from Mechanics. */}
+                      {g.key === "technicians" &&
+                        (
+                          [
+                            ["Mufflers", "mufflers"],
+                            ["18-wheelers", "rigs"],
+                          ] as const
+                        ).map(([label, key]) => (
+                          <tr key={key} className="text-xs" style={{ background: "rgba(10,37,64,0.02)" }}>
+                            <td className="py-1.5 px-2 text-brand-400">{tr(label)}</td>
+                            {days.map((d) => (
+                              <td key={d} className="py-1.5 px-1 text-center font-semibold">
+                                {coverage[d]?.[key] ? (
+                                  <span style={{ color: "#15803d" }}>✓</span>
+                                ) : (
+                                  <span style={{ color: "#b45309" }}>—</span>
+                                )}
+                              </td>
+                            ))}
+                            <td />
+                          </tr>
+                        ))}
+                    </Fragment>
                   );
                 })}
               </tbody>
-              <tfoot>
-                {/* The two jobs a day can be short of. A dash on a workday is
-                    the whole warning. */}
-                <tr className="border-t border-brand-100 text-xs">
-                  <td className="py-1.5 px-2 text-brand-400">{tr("Mufflers")}</td>
-                  {days.map((d) => (
-                    <td key={d} className="py-1.5 px-1 text-center font-semibold">
-                      {coverage[d]?.mufflers ? (
-                        <span style={{ color: "#15803d" }}>✓</span>
-                      ) : (
-                        <span style={{ color: "#b45309" }}>—</span>
-                      )}
-                    </td>
-                  ))}
-                </tr>
-                <tr className="text-xs">
-                  <td className="py-1.5 px-2 text-brand-400">{tr("18-wheelers")}</td>
-                  {days.map((d) => (
-                    <td key={d} className="py-1.5 px-1 text-center font-semibold">
-                      {coverage[d]?.rigs ? (
-                        <span style={{ color: "#15803d" }}>✓</span>
-                      ) : (
-                        <span style={{ color: "#b45309" }}>—</span>
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              </tfoot>
             </table>
           </div>
 

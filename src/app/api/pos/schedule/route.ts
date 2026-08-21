@@ -35,14 +35,29 @@ export async function GET(req: NextRequest) {
       getDb()
         .prepare(
           `SELECT id, phone, COALESCE(can_mufflers,0) AS canMufflers,
-                  COALESCE(can_big_rigs,0) AS canBigRigs, COALESCE(pos_role,'') AS role
+                  COALESCE(can_big_rigs,0) AS canBigRigs, COALESCE(pos_role,'') AS role,
+                  desk_group AS deskGroup
              FROM employees WHERE active = 1`,
         )
-        .all() as { id: number; phone: string | null; canMufflers: number; canBigRigs: number; role: string }[]
+        .all() as {
+        id: number;
+        phone: string | null;
+        canMufflers: number;
+        canBigRigs: number;
+        role: string;
+        deskGroup: string | null;
+      }[]
     ).map((r) => [r.id, r]),
   );
 
-  const groupOf = (role: string): "technicians" | "mechanics" | "office" | "hidden" => {
+  /*
+    The override first, the role second. A pos_role answers "what may you
+    touch on the register"; where somebody stands on the floor is sometimes
+    a different fact — Americo rings tickets as a writer and turns wrenches
+    as a mechanic, and the desk sorts him by the wrenches (056).
+  */
+  const groupOf = (role: string, over: string | null): "technicians" | "mechanics" | "office" | "hidden" => {
+    if (over === "technicians" || over === "mechanics" || over === "office") return over;
     if (role === "technician") return "technicians";
     if (role === "mechanic") return "mechanics";
     if (role === "viewer") return "hidden";
@@ -57,7 +72,7 @@ export async function GET(req: NextRequest) {
         phone: x?.phone ?? null,
         canMufflers: x?.canMufflers ?? 0,
         canBigRigs: x?.canBigRigs ?? 0,
-        group: groupOf(x?.role ?? p.role ?? ""),
+        group: groupOf(x?.role ?? p.role ?? "", x?.deskGroup ?? null),
       };
     })
     // A viewer account watches screens; putting it on the roster would be
