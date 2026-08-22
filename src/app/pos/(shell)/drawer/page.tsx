@@ -1443,24 +1443,22 @@ export default function CloseoutV3Page() {
                           <tr style={{ opacity: 0.75, fontSize: 11 }}>
                             <td
                               className="text-brand-300"
-                              style={{ paddingLeft: "1.4rem", paddingTop: 1, paddingBottom: 1 }}
+                              style={{ paddingTop: 1, paddingBottom: 1 }}
                             >
                               {tr("Cash − tips")}
                             </td>
-                            {/* Stepped inward like the label — the numbers
-                                are right-aligned, so their indent runs the
-                                other way. Tucked tight under its parent:
-                                no vertical padding and two points smaller,
-                                a footnote's own typography. */}
+                            {/* Tucked tight under its parent: no vertical
+                                padding and two points smaller — a footnote's
+                                typography, in its parent's columns. */}
                             <td
                               className="r n text-brand-300"
-                              style={{ paddingRight: "1.4rem", paddingTop: 1, paddingBottom: 1 }}
+                              style={{ paddingTop: 1, paddingBottom: 1 }}
                             >
                               {formatCents(l.countedCents)} counted
                             </td>
                             <td
                               className="r n text-brand-300"
-                              style={{ paddingRight: "1.4rem", paddingTop: 1, paddingBottom: 1 }}
+                              style={{ paddingTop: 1, paddingBottom: 1 }}
                             >
                               {formatCents(l.expectedCents - data.totals.tipCents)} expected
                             </td>
