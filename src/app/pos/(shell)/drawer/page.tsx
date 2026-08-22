@@ -1440,7 +1440,7 @@ export default function CloseoutV3Page() {
                              indented under its parent and a shade quieter all
                              the way across, so the eye reads Cash and its
                              footnote rather than four tenders. */
-                          <tr style={{ opacity: 0.75, fontSize: 11 }}>
+                          <tr style={{ opacity: 0.55, fontSize: 11 }}>
                             <td
                               className="text-brand-300"
                               style={{ paddingTop: 1, paddingBottom: 1 }}
