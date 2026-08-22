@@ -47,6 +47,8 @@ type Tire = {
   supplier: string | null;
   /** Priced under cost on purpose — see 020_discount_flag.sql. */
   discounted: number;
+  /** 1 = 18-wheeler & specialty; the whole SIZE sections there if any row is. */
+  specialized: number;
   on_hand: number;
   /**
    * 1 when the row has been taken off the list. Only ever non-zero while the
@@ -2233,6 +2235,7 @@ function ReceiveModal({
   const [adding, setAdding] = useState(false);
   const [newBrand, setNewBrand] = useState("");
   const [newModel, setNewModel] = useState("");
+  const [newPly, setNewPly] = useState("");
   const [newSize, setNewSize] = useState("");
   const [newPrice, setNewPrice] = useState("");
 
@@ -2296,6 +2299,7 @@ function ReceiveModal({
           newTire: {
             brand: newBrand.trim(),
             model: newModel.trim() || null,
+            ply: newPly.trim() || null,
             tireSize: newSize.trim(),
             priceCents: parseCents(newPrice) ?? 0,
             specialized,
@@ -2694,6 +2698,18 @@ function ReceiveModal({
                       placeholder="TRAVEZA"
                     />
                   </label>
+                  {/* It could always be edited on afterwards, which in
+                      practice meant the truck tires got received, the modal
+                      closed, and the ply lived in nobody's memory. Narrow,
+                      because it is two characters on the tires that have it
+                      and blank on the rest. */}
+                  <label className="text-sm text-brand-400" style={{ width: 90 }}>{tr("Ply")}<input
+                      className="input mt-1 w-full"
+                      value={newPly}
+                      onChange={(e) => setNewPly(e.target.value)}
+                      placeholder="10"
+                    />
+                  </label>
                 </div>
                 <div className="flex gap-3">
                   <label className="text-sm text-brand-400 flex-1">{tr("Size")}<input
@@ -3033,6 +3049,10 @@ function EditModal({
   const [supplier, setSupplier] = useState(product.supplier ?? "");
   const [reorder, setReorder] = useState(String(product.reorder_point ?? 0));
   const [discounted, setDiscounted] = useState(product.discounted === 1);
+  /* Settable here at last — a truck tire missed at creation had no way onto
+     the specialty section short of remaking it. Same all-or-nothing-per-size
+     rule as everywhere: flagging this one moves its whole size. */
+  const [specialized, setSpecialized] = useState(product.specialized === 1);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -3070,6 +3090,7 @@ function EditModal({
               model: model.trim() || null,
               ply: ply.trim() || null,
               tireSize,
+              specialized,
             }),
         priceCents,
         reorderPoint: parseInt(reorder, 10) || 0,
@@ -3222,6 +3243,28 @@ function EditModal({
             <span>{tr("This price is a discount")}<span className="block text-xs text-brand-300">
                 Marks it <strong>Discount!</strong> on the sheet in green
                 {belowCost && ", and keeps it out of the below-cost review."}
+              </span>
+            </span>
+          </label>
+        )}
+
+        {/* The same switch creation offers, because a truck tire missed at
+            creation had no way onto the specialty section short of remaking
+            it. Same rule as everywhere: a size sections as specialty if ANY
+            of its rows is flagged, so ticking this one moves its whole size
+            on the sheet. */}
+        {!simple && (
+          <label className="flex items-start gap-2 text-sm text-brand-400">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={specialized}
+              onChange={(e) => setSpecialized(e.target.checked)}
+            />
+            <span>{tr("18-wheeler or specialty")}<span className="block text-xs text-brand-300">
+                {tr(
+                  "Semi, trailer, tow truck, mower. Keeps it in its own section at the end of the sheet instead of among the passenger sizes.",
+                )}
               </span>
             </span>
           </label>
