@@ -1436,8 +1436,14 @@ export default function CloseoutV3Page() {
                             the two rows cannot tell different stories. Only on
                             a day tips were actually paid out. */}
                         {l.isCard === 0 && data.totals.tipCents > 0 && (
-                          <tr>
-                            <td className="text-brand-300">{tr("Cash − tips")}</td>
+                          /* A derivation of the row above, dressed as one:
+                             indented under its parent and a shade quieter all
+                             the way across, so the eye reads Cash and its
+                             footnote rather than four tenders. */
+                          <tr style={{ opacity: 0.75 }}>
+                            <td className="text-brand-300" style={{ paddingLeft: "1.4rem" }}>
+                              {tr("Cash − tips")}
+                            </td>
                             <td className="r n text-brand-300">
                               {formatCents(l.countedCents)} counted
                             </td>
@@ -1451,7 +1457,7 @@ export default function CloseoutV3Page() {
                                   l.varianceCents + data.totals.tipCents < 0
                                     ? "#b91c1c"
                                     : "#15803d",
-                                fontWeight: 700,
+                                fontWeight: 600,
                               }}
                             >
                               {varianceWords(l.varianceCents + data.totals.tipCents)}
