@@ -1331,7 +1331,7 @@ export default function CloseoutV3Page() {
                         <input
                           type="time"
                           className="input"
-                          style={{ height: 30, fontSize: 13, width: 110 }}
+                          style={{ height: 30, fontSize: 13, width: 132 }}
                           value={outAt[h.employeeId] ?? new Date().toTimeString().slice(0, 5)}
                           onChange={(e) =>
                             setOutAt((o) => ({ ...o, [h.employeeId]: e.target.value }))
@@ -1440,14 +1440,28 @@ export default function CloseoutV3Page() {
                              indented under its parent and a shade quieter all
                              the way across, so the eye reads Cash and its
                              footnote rather than four tenders. */
-                          <tr style={{ opacity: 0.75 }}>
-                            <td className="text-brand-300" style={{ paddingLeft: "1.4rem" }}>
+                          <tr style={{ opacity: 0.75, fontSize: 11 }}>
+                            <td
+                              className="text-brand-300"
+                              style={{ paddingLeft: "1.4rem", paddingTop: 1, paddingBottom: 1 }}
+                            >
                               {tr("Cash − tips")}
                             </td>
-                            <td className="r n text-brand-300">
+                            {/* Stepped inward like the label — the numbers
+                                are right-aligned, so their indent runs the
+                                other way. Tucked tight under its parent:
+                                no vertical padding and two points smaller,
+                                a footnote's own typography. */}
+                            <td
+                              className="r n text-brand-300"
+                              style={{ paddingRight: "1.4rem", paddingTop: 1, paddingBottom: 1 }}
+                            >
                               {formatCents(l.countedCents)} counted
                             </td>
-                            <td className="r n text-brand-300">
+                            <td
+                              className="r n text-brand-300"
+                              style={{ paddingRight: "1.4rem", paddingTop: 1, paddingBottom: 1 }}
+                            >
                               {formatCents(l.expectedCents - data.totals.tipCents)} expected
                             </td>
                             <td
@@ -1458,6 +1472,8 @@ export default function CloseoutV3Page() {
                                     ? "#b91c1c"
                                     : "#15803d",
                                 fontWeight: 600,
+                                paddingTop: 1,
+                                paddingBottom: 1,
                               }}
                             >
                               {varianceWords(l.varianceCents + data.totals.tipCents)}
