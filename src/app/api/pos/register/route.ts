@@ -28,11 +28,25 @@ export async function GET() {
       duplicating that rule in a join here is how the two would come to
       disagree.
     */
-    mechanics: listMechanics().map((e) => ({
-      id: e.id,
-      name: e.name,
-      clock: getEmployeeState(e.id).state,
-    })),
+    mechanics: listMechanics()
+      .map((e) => ({
+        id: e.id,
+        name: e.name,
+        clock: getEmployeeState(e.id).state,
+      }))
+      /*
+        Whoever is actually here, first. The green outline already says who
+        is on the clock; putting them at the front is the same fact doing
+        the walking — the counter credits the technician standing in the
+        bay, not the one whose name starts with A. On break still counts as
+        here: a line is credited for the day, not the minute. Alphabetical
+        within each half so the order only ever moves when somebody punches.
+      */
+      .sort(
+        (a, b) =>
+          (a.clock === "checked_out" ? 1 : 0) - (b.clock === "checked_out" ? 1 : 0) ||
+          a.name.localeCompare(b.name),
+      ),
     /*
       The counter, sent apart from the floor rather than mixed into it.
 
