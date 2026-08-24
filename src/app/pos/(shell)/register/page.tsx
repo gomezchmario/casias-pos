@@ -920,6 +920,13 @@ export default function RegisterPage() {
     setPendingOrder(false);
     setPendingVehicle(false);
     setError(null);
+    /*
+      Back to the top, where the next ticket starts. Completing happens at
+      the bottom of a long screen, and the next customer's first tap — the
+      search box, the service grid — lives at the top; without this the
+      cashier surfaced from every sale staring at an empty payment panel.
+    */
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   // Untracked stock (a can of oil, a disposal fee) has no count to be out of,
