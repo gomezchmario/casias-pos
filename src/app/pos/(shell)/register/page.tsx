@@ -334,6 +334,39 @@ export default function RegisterPage() {
       .catch(() => setError("Could not load the register"));
   }, []);
 
+  /*
+    THE CLOCK RINGS STAY TRUE ALL DAY. The grid colors a name green on the
+    clock and red at lunch — but this screen loads once and then sits open
+    from morning to close, so the states were frozen at whatever eight AM
+    said, and a technician at lunch kept his green ring until somebody
+    happened to reload. Refetched on focus (coming back from Main is the
+    common path) and on a slow heartbeat while the tab is visible; ONLY the
+    two rosters are replaced, so a half-built line, a picked mechanic and an
+    open ticket are never disturbed by the refresh. Re-sorting rides along —
+    who is here first is the order's whole promise.
+  */
+  useEffect(() => {
+    const refresh = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const r = await fetch("/api/pos/register");
+        if (!r.ok) return;
+        const d = await r.json();
+        setData((cur) =>
+          cur ? { ...cur, mechanics: d.mechanics, counterStaff: d.counterStaff } : cur,
+        );
+      } catch {
+        /* a missed refresh is the old colors for another minute — fine */
+      }
+    };
+    const t = setInterval(refresh, 60_000);
+    window.addEventListener("focus", refresh);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener("focus", refresh);
+    };
+  }, []);
+
   /**
    * Pick up a ticket somebody already started instead of opening a second one.
    *
