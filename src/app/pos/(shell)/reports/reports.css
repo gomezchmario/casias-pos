@@ -203,6 +203,11 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+  /* The same 12px a lone panel carries. The pair zeroes its CHILDREN's
+     margins (below) and relies on the grid gap — which spaces the pair's
+     insides and nothing after it, so two pairs in a row sat flush, rounded
+     corner on rounded corner, reading as an overlap. */
+  margin-bottom: 12px;
 }
 
 /*
