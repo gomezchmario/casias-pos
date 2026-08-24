@@ -8,7 +8,7 @@ import { logActorAudit, type Actor } from "./audit";
 import { can } from "./roles";
 import type { PosUser } from "./pos-session";
 
-export type DrawerKind = "withdrawal" | "deposit" | "reversal";
+export type DrawerKind = "withdrawal" | "deposit" | "reversal" | "cc_batch_out";
 
 export type DrawerMovement = {
   id: number;
@@ -153,8 +153,11 @@ export function drawerAdjustmentCents(
   const param = "shiftId" in scope ? scope.shiftId : scope.businessDate;
   const row = getDb()
     .prepare(
+      // Batch-outs excluded here exactly as in `drawerAdjustFor` — the twin
+      // this figure must never drift from. They are the terminal's money,
+      // not the drawer's.
       `SELECT COALESCE(SUM(amount_cents), 0) AS n
-         FROM drawer_movements WHERE ${where}`,
+         FROM drawer_movements WHERE kind != 'cc_batch_out' AND ${where}`,
     )
     .get(param) as { n: number };
   return row.n;
@@ -174,7 +177,7 @@ export function recordDrawerMovement(
   user: PosUser,
   args: {
     amountCents: number;
-    kind: "withdrawal" | "deposit";
+    kind: "withdrawal" | "deposit" | "cc_batch_out";
     reason: string;
     note?: string | null;
     /** Owner only. See `026_drawer_hidden.sql`. */
@@ -188,14 +191,21 @@ export function recordDrawerMovement(
     return { ok: false, error: "Enter an amount greater than zero" };
   const reason = args.reason.trim();
   if (!reason) return { ok: false, error: "Say what the money is for" };
-  if (args.kind !== "withdrawal" && args.kind !== "deposit")
+  if (args.kind !== "withdrawal" && args.kind !== "deposit" && args.kind !== "cc_batch_out")
     return { ok: false, error: "Invalid drawer movement" };
   // Checked here rather than only at the route, because this is the function
   // that decides whether a night's count is allowed to be wrong on purpose.
   if (args.hidden && !can(user.role, "hideDrawerMovement"))
     return { ok: false, error: "Only the owner can keep a drawer move off the sheet" };
+  // The hidden instrument is a CASH instrument: what it protects is the
+  // drawer count, and a batch-out never touches the drawer. Refused rather
+  // than ignored, so an owner ticking both learns the rule instead of
+  // wondering which one won.
+  if (args.hidden && args.kind === "cc_batch_out")
+    return { ok: false, error: "A batch-out cannot be hidden — it is the terminal's money, not the drawer's" };
 
-  const signed = args.kind === "withdrawal" ? -amount : amount;
+  // A batch-out is money leaving the batch, so it signs like a withdrawal.
+  const signed = args.kind === "deposit" ? amount : -amount;
 
   /*
     THE OVERDRAW GUARD, added after the day the drawer's books went to −$31.

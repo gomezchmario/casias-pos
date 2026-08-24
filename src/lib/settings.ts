@@ -178,6 +178,17 @@ export type SettingsMap = {
     for "published".
   */
   leaderboard_show_tips: string;
+
+  /*
+    The still-on-the-clock warning's leash. "1" = it fires at all; the minute
+    is when it starts firing on the current day (minutes from midnight,
+    1110 = 6:30 PM). Before that hour everybody is SUPPOSED to be on the
+    clock, and a warning that cries all day is a warning nobody reads at
+    night. Past days are exempt from the hour — their loose ends are news
+    whenever they are found.
+  */
+  onclock_alarm_enabled: string;
+  onclock_alarm_minute: string;
 };
 
 export const DEFAULT_SETTINGS: SettingsMap = {
@@ -278,6 +289,8 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   register_curfew_end_minute: "360",
   register_curfew_allow: "",
   leaderboard_show_tips: "1",
+  onclock_alarm_enabled: "1",
+  onclock_alarm_minute: "1110",
 };
 
 export function getSetting<K extends keyof SettingsMap>(key: K): string {

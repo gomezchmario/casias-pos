@@ -450,6 +450,13 @@ export default function RegisterPage() {
       catId: number | null,
       productId: number | null = null,
       qty = 1,
+      /*
+        The name that was tapped THIS instant, for the one caller that rings
+        on the mechanic tap itself. `setMechanicId` has not landed when that
+        handler runs, so reading state here would ring the line credited to
+        nobody — the exact bug the mechanic-last order used to have.
+      */
+      mechIdNow?: number,
     ) => {
       if (busy) return;
       setBusy(true);
@@ -467,7 +474,7 @@ export default function RegisterPage() {
           description: desc,
           qty,
           unitPriceCents: cents,
-          mechanicId: mechanicId === "" ? null : mechanicId,
+          mechanicId: mechIdNow ?? (mechanicId === "" ? null : mechanicId),
           // Null and "" are different answers on the way out too: null is
           // nobody, "" is Other with nothing written in, which the server
           // stores as the word.
@@ -1663,6 +1670,32 @@ export default function RegisterPage() {
                     onClick={() => {
                       setMechanicId(on ? "" : m.id);
                       setOtherName(null);
+                      /*
+                        The third order, made equal to the other two. A price
+                        after a service rings; a service after a price rings;
+                        and now a NAME after both rings too — with Rings by
+                        itself on, the three taps land the line whichever
+                        one comes last. The id goes to addLine directly
+                        because the state set above has not landed yet.
+                      */
+                      const cents = parseCents(amount);
+                      if (
+                        !on &&
+                        autoAdd &&
+                        mode !== "tire" &&
+                        description.trim() &&
+                        cents !== null &&
+                        cents >= 0
+                      ) {
+                        void addLine(
+                          description.trim(),
+                          cents,
+                          categoryId,
+                          picked?.id ?? null,
+                          qtyNum,
+                          m.id,
+                        );
+                      }
                     }}
                     disabled={busy}
                     title={

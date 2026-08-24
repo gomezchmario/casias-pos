@@ -532,7 +532,11 @@ export default function DayReportPage() {
        line, and THIS page is where it is written down. A manager pulling the
        report is handed no hidden rows at all, so their copy needs no filter to
        stay clean. */
-    const moves = data.drawer.filter((m) => !undone.has(m.id));
+    // Batch-outs are the terminal's money, not the drawer's — in this
+    // document's drawer section they would read as cash that left a drawer
+    // it never touched. Their effect shows where it belongs: the card row's
+    // "should be in hand".
+    const moves = data.drawer.filter((m) => !undone.has(m.id) && m.kind !== "cc_batch_out");
     const movesNet = moves.reduce(
       (s, m) => s + (m.kind === "withdrawal" ? -m.amount_cents : m.amount_cents),
       0,

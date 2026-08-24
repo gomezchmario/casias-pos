@@ -21,6 +21,9 @@ type Payload = {
     posIdleLockSeconds: number;
     tireDemandEnabled: boolean;
     leaderboardShowTips: boolean;
+    onclockAlarmEnabled: boolean;
+    /** Minutes from midnight; 1110 = 6:30 PM. */
+    onclockAlarmMinute: number;
   };
 };
 
@@ -30,6 +33,8 @@ function read(): Payload {
       posIdleLockSeconds: Number(getSetting("pos_idle_lock_seconds")) || 900,
       tireDemandEnabled: getSetting("tire_demand_enabled") === "1",
       leaderboardShowTips: getSetting("leaderboard_show_tips") !== "0",
+      onclockAlarmEnabled: getSetting("onclock_alarm_enabled") !== "0",
+      onclockAlarmMinute: Number(getSetting("onclock_alarm_minute")) || 1110,
     },
   };
 }
@@ -48,6 +53,8 @@ export async function PATCH(req: NextRequest) {
     posIdleLockSeconds?: unknown;
     tireDemandEnabled?: unknown;
     leaderboardShowTips?: unknown;
+    onclockAlarmEnabled?: unknown;
+    onclockAlarmMinute?: unknown;
   };
 
   if (body.posIdleLockSeconds !== undefined) {
@@ -88,6 +95,38 @@ export async function PATCH(req: NextRequest) {
         targetId: "tire_demand_enabled",
         before: { enabled: before },
         after: { enabled: on ? "1" : "0" },
+      });
+    });
+  }
+
+  if (body.onclockAlarmEnabled !== undefined) {
+    const on = body.onclockAlarmEnabled === true || body.onclockAlarmEnabled === "1";
+    const before = getSetting("onclock_alarm_enabled");
+    inTx(() => {
+      setSetting("onclock_alarm_enabled", on ? "1" : "0");
+      logActorAudit(auth.actor, {
+        action: "settings.update",
+        targetType: "setting",
+        targetId: "onclock_alarm_enabled",
+        before: { enabled: before },
+        after: { enabled: on ? "1" : "0" },
+      });
+    });
+  }
+
+  if (body.onclockAlarmMinute !== undefined) {
+    const n = Number(body.onclockAlarmMinute);
+    if (!Number.isInteger(n) || n < 0 || n > 1439)
+      return jsonError("That is not a time of day");
+    const before = getSetting("onclock_alarm_minute");
+    inTx(() => {
+      setSetting("onclock_alarm_minute", String(n));
+      logActorAudit(auth.actor, {
+        action: "settings.update",
+        targetType: "setting",
+        targetId: "onclock_alarm_minute",
+        before: { minute: before },
+        after: { minute: String(n) },
       });
     });
   }

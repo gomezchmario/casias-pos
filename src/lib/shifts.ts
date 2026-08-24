@@ -230,10 +230,31 @@ function drawerAdjustFor(where: string, param: unknown): number {
   // 2026-08-16 — and the two must never drift apart: they are the same figure
   // computed in two modules, and a hidden movement that reached one and not
   // the other would put two different expectations on one screen.
+  //
+  // Batch-outs are NOT here: they are money leaving the terminal's batch, not
+  // the drawer, and folding them into the cash expectation would make the
+  // drawer read short by exactly the amount the card machine settled.
   const row = getDb()
     .prepare(
       `SELECT COALESCE(SUM(amount_cents), 0) AS n
-         FROM drawer_movements WHERE ${where}`,
+         FROM drawer_movements WHERE kind != 'cc_batch_out' AND ${where}`,
+    )
+    .get(param) as { n: number };
+  return row.n;
+}
+
+/**
+ * What has been settled out of the card terminal's batch — the batch's own
+ * half of the movement ledger. One kind, always negative, and it exists for
+ * the morning the batch got settled AFTER the day's first charges: the
+ * register expected the whole day on a batch the machine had already split
+ * in two, and nothing on the books could say so.
+ */
+function ccBatchAdjustFor(where: string, param: unknown): number {
+  const row = getDb()
+    .prepare(
+      `SELECT COALESCE(SUM(amount_cents), 0) AS n
+         FROM drawer_movements WHERE kind = 'cc_batch_out' AND ${where}`,
     )
     .get(param) as { n: number };
   return row.n;
@@ -269,6 +290,7 @@ function expectationsFrom(
   params: unknown[],
   openingFloatCents: number,
   drawerAdjustCents: number,
+  ccBatchAdjustCents = 0,
 ): MethodExpectation[] {
   const rows = getDb()
     .prepare(
@@ -291,13 +313,19 @@ function expectationsFrom(
 
   return rows.map((r) => {
     // Only the drawer holds a float, and only the drawer can have cash carried
-    // out of it. A card terminal's batch total is takings and nothing else.
+    // out of it. A card terminal's batch is takings — LESS whatever has
+    // already been settled out of it: a batch closed at noon leaves the
+    // afternoon's batch expecting only the afternoon, which is what the
+    // machine will actually say at close. See cc_batch_out (057).
     const cash = r.kind === "cash";
-    const adjust = cash ? drawerAdjustCents : 0;
+    const cc = r.code === "cc";
+    const adjust = cash ? drawerAdjustCents : cc ? ccBatchAdjustCents : 0;
     return {
       ...r,
       drawerAdjustCents: adjust,
-      expectedCents: cash ? r.takingsCents + openingFloatCents + adjust : r.takingsCents,
+      expectedCents: cash
+        ? r.takingsCents + openingFloatCents + adjust
+        : r.takingsCents + adjust,
     };
   });
 }
@@ -309,6 +337,7 @@ export function expectedByMethod(shiftId: number): MethodExpectation[] {
     [shiftId],
     shift?.opening_float_cents ?? 0,
     drawerAdjustFor("shift_id = ?", shiftId),
+    ccBatchAdjustFor("shift_id = ?", shiftId),
   );
 }
 
@@ -327,6 +356,7 @@ export function expectedByMethodForDay(businessDate: string): MethodExpectation[
     [businessDate],
     floats.f,
     drawerAdjustFor("business_date = ?", businessDate),
+    ccBatchAdjustFor("business_date = ?", businessDate),
   );
 }
 

@@ -123,7 +123,7 @@ export default function EndOfDayPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerKind, setDrawerKind] = useState<"withdrawal" | "deposit">("withdrawal");
+  const [drawerKind, setDrawerKind] = useState<"withdrawal" | "deposit" | "cc_batch_out">("withdrawal");
   const [drawerAmount, setDrawerAmount] = useState("");
   const [drawerReason, setDrawerReason] = useState("");
   // Off every time the form opens, never remembered. A box that stayed ticked
@@ -1493,6 +1493,9 @@ export default function EndOfDayPage() {
                         {m.kind === "reversal" && (
                           <span className="text-xs text-brand-300 ml-2">undo</span>
                         )}
+                        {m.kind === "cc_batch_out" && (
+                          <span className="text-xs text-brand-300 ml-2">card batch</span>
+                        )}
                         {/* Only ever rendered for the owner — nobody else is
                             sent these rows at all. `no-print` because the whole
                             point is that it is not on the sheet somebody signs;
@@ -1562,11 +1565,12 @@ export default function EndOfDayPage() {
                       className="input mt-1"
                       value={drawerKind}
                       onChange={(e) =>
-                        setDrawerKind(e.target.value as "withdrawal" | "deposit")
+                        setDrawerKind(e.target.value as "withdrawal" | "deposit" | "cc_batch_out")
                       }
                     >
                       <option value="withdrawal">Cash out of the drawer</option>
                       <option value="deposit">Cash into the drawer</option>
+                      <option value="cc_batch_out">Credit Card Batch-out</option>
                     </select>
                   </label>
                   {/* Said at the moment the mistake gets made, not in a manual.

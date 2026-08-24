@@ -889,8 +889,6 @@ const ES: Record<string, string> = {
   "These figures are experimental and for the development team.":
     "Estas cifras son experimentales y para el equipo de desarrollo.",
   "Reports are still being built.": "Los reportes todavía se están construyendo.",
-  "The judgements first — everything below them is the evidence.":
-    "Primero las conclusiones — todo lo de abajo es la evidencia.",
   "Nothing stands out. The rest of this page is the evidence for that sentence.":
     "Nada llama la atención. El resto de esta página es la evidencia de esa frase.",
   "Sections": "Secciones",
@@ -1777,6 +1775,11 @@ const ES: Record<string, string> = {
   "Nothing has moved yet.": "Todavía no se ha movido nada.",
   "The whole log": "El registro completo",
   "Cash − tips": "Efectivo − propinas",
+  "Credit Card Batch-out": "Cierre de lote de tarjeta",
+  "The amount the terminal settled early. It comes off what the register expects on the card batch, so the next batch reads clean.":
+    "Lo que la terminal cerró antes de tiempo. Se descuenta de lo que la caja espera en el lote de tarjeta, para que el siguiente lote salga limpio.",
+  "A day already counted, opened to read and print. Nothing here can be changed from this screen.":
+    "Un día ya contado, abierto para leer e imprimir. Desde esta pantalla no se puede cambiar nada.",
   "Deleted Notes": "Notas borradas",
   unassigned: "sin asignar",
   Noted: "Anotado",

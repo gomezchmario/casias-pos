@@ -166,6 +166,7 @@ export default function SettingsPage() {
       {canShop && <ReportCard />}
       {canShop && <TireStudyCard onError={setError} />}
       {canShop && <WallTipsCard onError={setError} />}
+      {canShop && <OnClockAlarmCard onError={setError} />}
       {canShop && <NotesStoryCard />}
       {can("managePermissions") && <ExtraPermissionsCard onError={setError} />}
       {canShop && <InventoryAlarmCard onError={setError} />}
@@ -400,6 +401,102 @@ function WallTipsCard({ onError }: { onError: (m: string | null) => void }) {
         >
           {on === null ? "…" : on ? "Showing" : "Hidden"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * When the still-on-the-clock warning starts firing, and whether it fires at
+ * all. At two in the afternoon everybody is supposed to be on the clock; a
+ * warning that cries all day is one nobody reads at night, which is how the
+ * one evening it matters gets missed.
+ */
+function OnClockAlarmCard({ onError }: { onError: (m: string | null) => void }) {
+  const [on, setOn] = useState<boolean | null>(null);
+  const [minute, setMinute] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      const res = await fetch("/api/pos/settings");
+      if (res.ok) {
+        const d: {
+          settings: { onclockAlarmEnabled: boolean; onclockAlarmMinute: number };
+        } = await res.json();
+        setOn(d.settings.onclockAlarmEnabled);
+        setMinute(d.settings.onclockAlarmMinute);
+      }
+    })();
+  }, []);
+
+  async function save(body: { onclockAlarmEnabled?: boolean; onclockAlarmMinute?: number }) {
+    setBusy(true);
+    onError(null);
+    const res = await fetch("/api/pos/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      onError("Could not change that");
+      return;
+    }
+    const d: {
+      settings: { onclockAlarmEnabled: boolean; onclockAlarmMinute: number };
+    } = await res.json();
+    setOn(d.settings.onclockAlarmEnabled);
+    setMinute(d.settings.onclockAlarmMinute);
+  }
+
+  const hhmm =
+    minute === null
+      ? ""
+      : `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-4 mb-6">
+      <div className="text-xs uppercase tracking-wider text-brand-300 mb-2">
+        Still-on-the-clock warning
+      </div>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div style={{ maxWidth: 560 }}>
+          <p className="text-sm text-brand-400">
+            The &quot;N still on the clock&quot; line on the day&apos;s warnings. It holds until
+            the hour here, because before closing time everybody is <em>supposed</em> to be on
+            the clock — and a warning that cries all day is one nobody reads at night.
+          </p>
+          <p className="text-xs text-brand-300 mt-1">
+            A past day&apos;s loose end shows regardless of the hour.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <label className="text-sm text-brand-400">
+            From
+            <input
+              type="time"
+              className="input block mt-1"
+              style={{ height: 36, width: 132 }}
+              value={hhmm}
+              disabled={busy || minute === null || on === false}
+              onChange={(e) => {
+                const m = /^(\d{2}):(\d{2})$/.exec(e.target.value);
+                if (m) setMinute(Number(m[1]) * 60 + Number(m[2]));
+              }}
+              onBlur={() => minute !== null && void save({ onclockAlarmMinute: minute })}
+            />
+          </label>
+          <button
+            type="button"
+            className={on ? "btn btn-primary" : "btn btn-outline"}
+            disabled={busy || on === null}
+            aria-pressed={on === true}
+            onClick={() => void save({ onclockAlarmEnabled: !on })}
+          >
+            {on === null ? "…" : on ? "On" : "Off"}
+          </button>
+        </div>
       </div>
     </div>
   );

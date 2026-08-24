@@ -18,6 +18,7 @@ import {
 } from "./pos-reports";
 import { expectedByMethodForDay, listShifts, byCashier, type MethodExpectation } from "./shifts";
 import { drawerMovementsForDay, type DrawerMovement } from "./drawer";
+import { currentBusinessDate } from "./business-date";
 import { registerChecksForDay, type RegisterCheck } from "./register-checks";
 import { listOversells } from "./inventory";
 import { receivablesAging, type AgingBucket } from "./reports-bi";
@@ -830,6 +831,24 @@ function markDismissed(businessDate: string, out: Exception[]): Exception[] {
  * load, same philosophy as the Trends page's findings: a report of figures with
  * no conclusions only helps the reader who already knew what to look for.
  */
+/**
+ * Whether the still-on-the-clock warning has earned its place yet.
+ *
+ * At two in the afternoon everybody is SUPPOSED to be on the clock, and a
+ * warning that fires all day teaches the eye to skip it — which is how the
+ * one evening it matters gets missed. So it holds until the owner's chosen
+ * hour (6:30 by default), or forever with the switch off. A PAST day's
+ * loose end is always news: whatever the hour is now, that day is over.
+ */
+function onClockAlarmDue(businessDate: string): boolean {
+  if (getSetting("onclock_alarm_enabled") === "0") return false;
+  if (businessDate !== currentBusinessDate()) return true;
+  const raw = Number(getSetting("onclock_alarm_minute"));
+  const threshold = Number.isFinite(raw) ? Math.min(1439, Math.max(0, Math.trunc(raw))) : 1110;
+  const now = new Date();
+  return now.getHours() * 60 + now.getMinutes() >= threshold;
+}
+
 function findExceptions(r: CloseoutV2): Exception[] {
   const out: Exception[] = [];
   const money = (c: number) =>
@@ -928,7 +947,7 @@ function findExceptions(r: CloseoutV2): Exception[] {
       text: `Discounts ran to ${((discountTotal / goods) * 100).toFixed(1)}% of the day's goods (${money(discountTotal)}). Over five percent is worth reading the list, not just the total.`,
     });
 
-  if (r.hours.people.some((p) => p.onTheClock))
+  if (r.hours.people.some((p) => p.onTheClock) && onClockAlarmDue(r.businessDate))
     out.push({
       code: "on-the-clock",
       scope: "day",

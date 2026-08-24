@@ -157,7 +157,6 @@ export default function CloseoutV2Page() {
       <Section
         id="verdict"
         title={`${weekday} ${data.businessDate}`}
-        note={tr("The judgements first — everything below them is the evidence.")}
       >
         <div className="rp-stats">
           <Stat

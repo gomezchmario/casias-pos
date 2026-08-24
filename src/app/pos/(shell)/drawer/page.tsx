@@ -117,6 +117,8 @@ export default function CloseoutV3Page() {
    * which is why the button sets state and an effect does the printing.
    */
   const [printMode, setPrintMode] = useState<"page1" | "cashier" | null>(null);
+  /** A past day opened to read and print — see the date box in the header. */
+  const [viewDate, setViewDate] = useState("");
   /**
    * Whose takings the cashier sheet covers: one person, or everybody.
    *
@@ -131,7 +133,7 @@ export default function CloseoutV3Page() {
     window.print();
     return () => window.removeEventListener("afterprint", done);
   }, [printMode]);
-  const [drawerKind, setDrawerKind] = useState<"withdrawal" | "deposit">("withdrawal");
+  const [drawerKind, setDrawerKind] = useState<"withdrawal" | "deposit" | "cc_batch_out">("withdrawal");
   const [drawerAmount, setDrawerAmount] = useState("");
   const [drawerReason, setDrawerReason] = useState("");
   const [drawerHidden, setDrawerHidden] = useState(false);
@@ -223,14 +225,16 @@ export default function CloseoutV3Page() {
   useEffect(() => setPrintedOn(new Date().toLocaleString()), []);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/pos/reports/closeout");
+    const res = await fetch(
+      `/api/pos/reports/closeout${viewDate ? `?date=${viewDate}` : ""}`,
+    );
     if (!res.ok) {
       setError("Could not load the day");
       return;
     }
     setData(await res.json());
     setError(null);
-  }, []);
+  }, [viewDate]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -267,6 +271,9 @@ export default function CloseoutV3Page() {
     firstCashIn === undefined || now - firstCashIn < 10 * 60 * 1000;
 
   const weekday = DAY_NAMES[new Date(`${data.businessDate}T12:00:00`).getDay()];
+  // Reading a day that is not today: every working form below folds away,
+  // because each one writes to TODAY. See the date box in the header.
+  const viewingPast = data.businessDate !== data.today;
 
   /*
     Split by whether anybody has answered them.
@@ -631,15 +638,46 @@ export default function CloseoutV3Page() {
     <div className={`max-w-4xl mx-auto rp cv3 cv3-printing-${printMode ?? "none"}`}>
       {/* ═══ SCREEN: the procedure ═══════════════════════════════════════ */}
       <div className="cv3-screen">
-        <div className="mb-4">
-          <h1 className="text-2xl font-semibold text-brand-500">
-            {tr("Drawer")} · {weekday} {data.businessDate}
-          </h1>
-          <p className="text-brand-400 text-sm">
-            {tr(
-              "Count it in the morning, log cash in and out as it happens, close it at night. The printout is refused until the register is logged.",
-            )}
-          </p>
+        <div className="mb-4 flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-semibold text-brand-500">
+              {tr("Drawer")} · {weekday} {data.businessDate}
+            </h1>
+            <p className="text-brand-400 text-sm">
+              {viewingPast
+                ? tr("A day already counted, opened to read and print. Nothing here can be changed from this screen.")
+                : tr(
+                    "Count it in the morning, log cash in and out as it happens, close it at night. The printout is refused until the register is logged.",
+                  )}
+            </p>
+          </div>
+          {/* Managers and up can walk back to any counted day and print its
+              close-out again. Reading only: the working forms below fold away
+              on a past day, because every one of them writes to TODAY — a
+              movement logged onto last Tuesday from here would land on this
+              morning's drawer wearing last Tuesday's story. */}
+          {can("viewReports") && (
+            <div className="flex items-center gap-2 no-print">
+              <input
+                type="date"
+                className="input"
+                style={{ height: 36, fontSize: 13 }}
+                value={viewDate || data.today}
+                max={data.today}
+                onChange={(e) => setViewDate(e.target.value === data.today ? "" : e.target.value)}
+              />
+              {viewingPast && (
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ height: 36, fontSize: 13 }}
+                  onClick={() => setViewDate("")}
+                >
+                  {tr("Today")}
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/*
@@ -747,7 +785,7 @@ export default function CloseoutV3Page() {
             already carries the float; recording it as money arriving counts
             the same hundred twice, which is a real morning this shop lost
             hours to. See countOpeningFloat. */}
-        <div className="cv3-step">
+        {!viewingPast && (<div className="cv3-step">
           <div className="cv3-step-head">
             <span className="cv3-step-no">1</span>
             <span className="cv3-step-title">{tr("Count the opening drawer")}</span>
@@ -795,10 +833,10 @@ export default function CloseoutV3Page() {
               {data.drawer.floatCountedAt ? "Correct it" : "Record the opening count"}
             </button>
           </div>
-        </div>
+        </div>)}
 
         {/* ── Step 2 · Count the day ─────────────────────────────────────── */}
-        <div className="cv3-step">
+        {!viewingPast && (<div className="cv3-step">
           <div className="cv3-step-head">
             <span className="cv3-step-no">2</span>
             <span className="cv3-step-title">{tr("Count the drawer and the terminal")}</span>
@@ -929,7 +967,7 @@ export default function CloseoutV3Page() {
           >
             {busy ? "Working…" : "Log Register"}
           </button>
-        </div>
+        </div>)}
 
         {/* ── Cash in / out of the drawer ────────────────────────────────
             Not a numbered step: a drop to the safe or a gas run happens when
@@ -937,7 +975,7 @@ export default function CloseoutV3Page() {
             verdict because the one honest time to remember a forgotten
             movement is the moment the difference appears. Same endpoint, same
             overdraw confirm, same owner-only hidden option as the old page. */}
-        <div className="cv3-step">
+        {!viewingPast && (<div className="cv3-step">
           <div className="cv3-step-head">
             <span className="cv3-step-no">$</span>
             <span className="cv3-step-title">{tr("Cash in / out of the drawer")}</span>
@@ -953,12 +991,29 @@ export default function CloseoutV3Page() {
               <select
                 className="input mt-1"
                 value={drawerKind}
-                onChange={(e) => setDrawerKind(e.target.value as "withdrawal" | "deposit")}
+                onChange={(e) => setDrawerKind(e.target.value as "withdrawal" | "deposit" | "cc_batch_out")}
               >
                 <option value="withdrawal">{tr("Cash out of the drawer")}</option>
                 <option value="deposit">{tr("Cash into the drawer")}</option>
+                {/* The terminal's half of this form. A batch settled early —
+                    or on purpose at noon — leaves the machine expecting less
+                    than the register's day; this records how much, so the
+                    NEXT batch is judged only against what is actually still
+                    in it. Subtracted from the card expectation, never the
+                    drawer's. */}
+                <option value="cc_batch_out">{tr("Credit Card Batch-out")}</option>
               </select>
             </label>
+            {drawerKind === "cc_batch_out" && (
+              <div
+                className="text-xs text-amber-900 bg-amber-50 border border-amber-300 rounded-lg px-2 py-1"
+                style={{ maxWidth: 260 }}
+              >
+                {tr(
+                  "The amount the terminal settled early. It comes off what the register expects on the card batch, so the next batch reads clean.",
+                )}
+              </div>
+            )}
             {drawerKind === "deposit" && floatWarningLive && (
               <div
                 className="text-xs text-amber-900 bg-amber-50 border border-amber-300 rounded-lg px-2 py-1"
@@ -988,7 +1043,7 @@ export default function CloseoutV3Page() {
                 onChange={(e) => setDrawerReason(e.target.value)}
               />
             </label>
-            {can("hideDrawerMovement") && (
+            {can("hideDrawerMovement") && drawerKind !== "cc_batch_out" && (
               <label
                 className="text-xs flex items-center gap-1.5 cursor-pointer"
                 title="Recorded in full, but left out of the expected count and the sheet"
@@ -1080,6 +1135,12 @@ export default function CloseoutV3Page() {
                           <>
                             {m.reason}
                             {m.hidden === 1 && <span className="cv3-moves-tag">off the floor's sheet</span>}
+                            {/* Which ledger it moved — the batch, not the
+                                drawer. Without the tag a batch-out reads as
+                                cash that left a drawer it never touched. */}
+                            {m.kind === "cc_batch_out" && (
+                              <span className="cv3-moves-tag">card batch</span>
+                            )}
                             <div className="cv3-moves-by">{m.created_by_name}</div>
                           </>
                         )}
@@ -1293,7 +1354,7 @@ export default function CloseoutV3Page() {
               </p>
             </details>
           )}
-        </div>
+        </div>)}
 
         {/* ── Who is still on the clock ──────────────────────────────────
             The half of the time clock that never happened. People check in at
@@ -1306,7 +1367,7 @@ export default function CloseoutV3Page() {
             clock into data. The entry records who pressed it: a manager
             attesting is different evidence from the technician pressing their
             own button, and payroll should be able to tell. */}
-        {data.hours.people.some((h) => h.onTheClock) && (
+        {!viewingPast && data.hours.people.some((h) => h.onTheClock) && (
           <div className="cv3-step">
             <div className="cv3-step-head">
               <span className="cv3-step-no">⏱</span>

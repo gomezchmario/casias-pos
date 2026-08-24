@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 
   let body: {
     amountCents?: number;
-    kind?: "withdrawal" | "deposit";
+    kind?: "withdrawal" | "deposit" | "cc_batch_out";
     reason?: string;
     note?: string | null;
     reverseId?: number;
