@@ -39,8 +39,13 @@
        between notches, the jaws read as jaws. -->
   <g transform="rotate(-22 32 32)">
     <g fill="#f5c518">
-      <rect x="17.5" y="38.5" width="22" height="9" rx="4.5"
-            transform="rotate(-45 28.5 43)"/>
+      <!-- The handle's centerline runs exactly through the head's centre:
+           from (28.5, 35.5) along the 45° diagonal, 11.5 across and 11.5 up
+           lands on (40, 24) to the unit. It used to sit 7.5 units low —
+           welded onto the ring's shoulder instead of its spine, which is
+           what made the C look like it was sliding off its own handle. -->
+      <rect x="17.5" y="31" width="22" height="9" rx="4.5"
+            transform="rotate(-45 28.5 35.5)"/>
       <circle cx="40" cy="24" r="12"/>
     </g>
     <circle cx="40" cy="24" r="5.5" fill="#1e3a5f"/>
