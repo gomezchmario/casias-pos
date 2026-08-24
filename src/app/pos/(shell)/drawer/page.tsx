@@ -639,7 +639,9 @@ export default function CloseoutV3Page() {
       {/* ═══ SCREEN: the procedure ═══════════════════════════════════════ */}
       <div className="cv3-screen">
         <div className="mb-4 flex items-start justify-between gap-4 flex-wrap">
-          <div>
+          {/* flex-1 min-w-0, so the long blurb shrinks instead of shoving
+              the date box off the row and under the title. */}
+          <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-semibold text-brand-500">
               {tr("Drawer")} · {weekday} {data.businessDate}
             </h1>
